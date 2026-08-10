@@ -1,0 +1,214 @@
+import { NextRequest, NextResponse } from "next/server";
+import { authenticate, handleApiError } from "@/lib/shopify/authenticate";
+import { prisma } from "@/lib/db/prisma";
+import { syncStoreProducts } from "@/services/shopify";
+
+export const dynamic = 'force-dynamic';
+
+export async function GET(req: NextRequest) {
+  try {
+    const { store } = await authenticate(req);
+    
+    // Fetch store-specific products with collections
+    const products = await prisma.productCache.findMany({
+      where: { storeId: store.id },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        store: true,
+        collections: {
+          include: {
+            collection: true,
+          }
+        }
+      }
+    });
+
+    const uniqueProducts = new Set(products.map(p => p.shopifyProductId)).size;
+    const totalProducts = uniqueProducts;
+    const totalInventory = products.reduce((sum, p) => sum + p.inventoryQuantity, 0);
+    const activeProducts = products.filter((p) => p.inventoryQuantity > 0).length;
+    const lowStock = products.filter((p) => p.inventoryQuantity <= store.lowStockThreshold).length;
+
+    // Group products by collection
+    const groupedProducts: { [collectionTitle: string]: any[] } = {};
+
+    const skuImages: { [sku: string]: string[] } = {};
+    products.forEach((p) => {
+      if (p.sku && p.imageUrl) {
+        if (!skuImages[p.sku]) skuImages[p.sku] = [];
+        if (!skuImages[p.sku].includes(p.imageUrl)) {
+          skuImages[p.sku].push(p.imageUrl);
+        }
+      }
+    });
+
+    // Cross-store collection fallback logic
+    const currentSkus = products.map(p => p.sku).filter(Boolean) as string[];
+    
+    const connections = await (prisma as any).storeConnection.findMany({
+      where: { sourceStoreId: store.id }
+    });
+    const authorizedStoreIds = [store.id, ...connections.map((c: any) => c.targetStoreId)];
+
+    const crossStoreProducts = await prisma.productCache.findMany({
+      where: { 
+        storeId: { in: authorizedStoreIds },
+        sku: { in: currentSkus },
+        OR: [
+          { collections: { some: {} } },
+          { tags: { not: null } }
+        ]
+      },
+      include: { collections: { include: { collection: true } } }
+    });
+
+    const skuCategories: { [sku: string]: string[] } = {};
+    
+    crossStoreProducts.forEach(p => {
+      if (p.sku) {
+        if (!skuCategories[p.sku]) skuCategories[p.sku] = [];
+        
+        if (p.collections) {
+          p.collections.forEach(cp => {
+             if (!skuCategories[p.sku!].includes(cp.collection.title)) {
+               skuCategories[p.sku!].push(cp.collection.title);
+             }
+          });
+        }
+        
+        if (p.tags) {
+          const tagList = p.tags.split(',').map((t: string) => t.trim().toUpperCase()).filter(Boolean);
+          
+          tagList.forEach(tag => {
+            // Case-insensitive deduplication
+            const existing = skuCategories[p.sku!].map(c => c.toUpperCase());
+            if (!existing.includes(tag)) {
+              skuCategories[p.sku!].push(tag);
+            }
+          });
+        }
+      }
+    });
+
+    products.forEach((p) => {
+      const item = {
+        id: p.id,
+        shopifyProductId: p.shopifyProductId,
+        imageUrls: (p.sku && skuImages[p.sku]?.length > 0) ? skuImages[p.sku] : (p.imageUrl ? [p.imageUrl] : []),
+        title: p.title,
+        sku: p.sku || 'N/A',
+        store: p.store.label || p.store.shopDomain,
+        price: p.price,
+        priceText: `₹${(p.price).toFixed(2)}`,
+        inventoryQuantity: p.inventoryQuantity,
+        stockLevel:
+          p.inventoryQuantity === 0
+            ? 'Out of Stock'
+            : p.inventoryQuantity <= 5
+            ? 'Critical'
+            : p.inventoryQuantity <= store.lowStockThreshold
+            ? 'Low'
+            : 'Healthy',
+        status: p.inventoryQuantity > 0 ? 'Active' : 'Inactive',
+        updatedDate: p.updatedAt.toISOString(),
+        updatedTime: p.updatedAt.toISOString(),
+      };
+
+      let rawCategories: string[] = [];
+      
+      const TAG_MAP: Record<string, string> = {
+        'inner': 'INNERS',
+        'inners': 'INNERS',
+        'pant': 'PANTS',
+        'pants': 'PANTS',
+        'shirt': 'SHIRTS',
+        'shirts': 'SHIRTS',
+        'tshirt': 'T-SHIRTS',
+        'tshirts': 'T-SHIRTS',
+        't-shirt': 'T-SHIRTS',
+        't-shirts': 'T-SHIRTS',
+        'accessory': 'MENS ACCESSORIES',
+        'accessories': 'MENS ACCESSORIES',
+        'mens accessories': 'MENS ACCESSORIES',
+        'shoe': 'SHOES',
+        'shoes': 'SHOES',
+        'sock': 'SOCKS',
+        'socks': 'SOCKS',
+        'trouser': 'TROUSERS',
+        'trousers': 'TROUSERS',
+      };
+      
+      if (p.collections && p.collections.length > 0) {
+        rawCategories = rawCategories.concat(p.collections.map(cp => cp.collection.title));
+      }
+      if (p.sku && skuCategories[p.sku] && skuCategories[p.sku].length > 0) {
+        rawCategories = rawCategories.concat(skuCategories[p.sku]);
+      }
+      if (p.tags) {
+        const tagList = p.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
+        rawCategories = rawCategories.concat(tagList);
+      }
+      
+      let categoryTitles: string[] = [];
+      const existingUpperCategories: string[] = [];
+      
+      for (let rawCat of rawCategories) {
+        const lowerCat = rawCat.toLowerCase();
+        let finalCat = TAG_MAP[lowerCat] ? TAG_MAP[lowerCat] : rawCat.toUpperCase();
+        
+        if (!existingUpperCategories.includes(finalCat)) {
+          categoryTitles.push(finalCat);
+          existingUpperCategories.push(finalCat);
+        }
+      }
+
+      // Deduplicate category titles to prevent pushing the same item multiple times
+      categoryTitles = Array.from(new Set(categoryTitles));
+
+      categoryTitles.forEach((title) => {
+        if (!groupedProducts[title]) {
+          groupedProducts[title] = [];
+        }
+        
+        // Group by SKU if available, otherwise fallback to the shopify product ID so variants of the same product merge
+        const existingItem = groupedProducts[title].find((i: any) => 
+          (item.sku !== 'N/A' && i.sku === item.sku) || 
+          (item.sku === 'N/A' && i.shopifyProductId === p.shopifyProductId)
+        );
+        
+        if (existingItem) {
+          // Aggregate inventory quantity
+          existingItem.inventoryQuantity += item.inventoryQuantity;
+          
+          // Re-evaluate stock level and status
+          existingItem.stockLevel =
+            existingItem.inventoryQuantity === 0
+              ? 'Out of Stock'
+              : existingItem.inventoryQuantity <= 5
+              ? 'Critical'
+              : existingItem.inventoryQuantity <= store.lowStockThreshold
+              ? 'Low'
+              : 'Healthy';
+          existingItem.status = existingItem.inventoryQuantity > 0 ? 'Active' : 'Inactive';
+        } else {
+          groupedProducts[title].push(item);
+        }
+      });
+    });
+
+    return NextResponse.json({
+      success: true,
+      stats: {
+        totalProducts,
+        totalInventory,
+        activeProducts,
+        lowStock,
+      },
+      lowStockThreshold: store.lowStockThreshold,
+      groupedProducts,
+    });
+  } catch (err: any) {
+    console.error("[Products API] Error:", err);
+    return handleApiError(err);
+  }
+}
