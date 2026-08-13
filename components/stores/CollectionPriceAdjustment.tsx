@@ -107,23 +107,28 @@ export default function CollectionPriceAdjustment({ storeId, storeName }: { stor
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-        <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>
-          Collection Price Adjustments for {storeName}
-        </h3>
-        {collections.length > 0 && (
-          <div style={{ width: '220px' }}>
-            <Input
-              type="text"
-              label="Search collections"
-              labelHidden
-              placeholder="Search collections..."
-              value={searchQuery}
-              onChange={(val) => setSearchQuery(val)}
-              autoComplete="off"
-            />
-          </div>
-        )}
+      <div style={{ marginBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+          <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>
+            Collection Price Adjustments for {storeName}
+          </h3>
+          {collections.length > 0 && (
+            <div style={{ width: '220px' }}>
+              <Input
+                type="text"
+                label="Search collections"
+                labelHidden
+                placeholder="Search collections..."
+                value={searchQuery}
+                onChange={(val) => setSearchQuery(val)}
+                autoComplete="off"
+              />
+            </div>
+          )}
+        </div>
+        <p style={{ fontSize: '12.5px', color: '#b91c1c', fontWeight: 600, backgroundColor: '#fef2f2', padding: '8px 12px', borderRadius: '6px', border: '1px solid #fca5a5', display: 'block' }}>
+          Note: For a global adjustment, click "Select All", enter a "Bulk Apply" percentage, and click "Save Collection".
+        </p>
       </div>
 
       {collections.length === 0 ? (

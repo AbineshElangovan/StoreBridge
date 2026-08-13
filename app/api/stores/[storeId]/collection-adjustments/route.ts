@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAdminClient } from "@/lib/shopify/admin";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ storeId: string }> }
@@ -127,16 +129,11 @@ export async function PUT(
       }
     });
 
-    // Trigger price application asynchronously so it doesn't block the UI response
-    // We must apply adjustments to the TARGET store(s), because variant maps belong to target stores.
-    const activeStores = await prisma.store.findMany({ where: { isActive: true } });
-    const targetStores = activeStores.filter(s => !s.isMaster);
-    
-    for (const ts of targetStores) {
-      applyPriceAdjustmentToStore(ts.id).catch(err => {
-        console.error(`[CollectionAdjustments:PUT] Failed to apply price adjustments for target store ${ts.id}:`, err);
-      });
-    }
+    // Trigger price application for the specific store that was updated in the background
+    // This allows the UI to return instantly without waiting for Shopify to finish syncing.
+    applyPriceAdjustmentToStore(storeId).catch((err: any) => {
+      console.error(`[CollectionAdjustments:PUT] Failed to apply price adjustments for store ${storeId}:`, err.message);
+    });
 
     return NextResponse.json({ success: true, count: updatedAdjustments.length });
   } catch (error: any) {

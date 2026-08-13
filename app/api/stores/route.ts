@@ -139,16 +139,31 @@ export async function PUT(req: NextRequest) {
 
     // We only trigger price adjustments on the connected (target) stores.
     // The master store is the source of truth and its Shopify prices should not be overridden by the app.
-    const activeStores = await prisma.store.findMany({ where: { isActive: true } });
-    const targetStores = activeStores.filter((s: any) => !s.isMaster && stores.some((updatedStore: any) => updatedStore.id === s.id));
+    const updatedStoreIds = stores.map((s: any) => s.id);
 
-    Promise.all(targetStores.map(async (s: any) => {
-      try {
-        await applyPriceAdjustmentToStore(s.id);
-      } catch (adjustErr: any) {
-        console.error(`[Stores API] Failed to apply bulk price adjustments for store ${s.id}:`, adjustErr.message);
+    const updatedConnections = await (prisma as any).storeConnection.findMany({
+      where: { sourceStoreId: { in: updatedStoreIds } }
+    });
+    const connectedTargetStoreIds = updatedConnections.map((c: any) => c.targetStoreId);
+
+    const activeStores = await prisma.store.findMany({ where: { isActive: true } });
+    
+    const targetStoreIdsToUpdate = new Set<string>();
+    activeStores.forEach((s: any) => {
+      if (!s.isMaster) {
+        if (updatedStoreIds.includes(s.id) || connectedTargetStoreIds.includes(s.id)) {
+          targetStoreIdsToUpdate.add(s.id);
+        }
       }
-    })).catch(console.error);
+    });
+
+    await Promise.all(Array.from(targetStoreIdsToUpdate).map(async (storeId) => {
+      try {
+        await applyPriceAdjustmentToStore(storeId);
+      } catch (adjustErr: any) {
+        console.error(`[Stores API] Failed to apply bulk price adjustments for store ${storeId}:`, adjustErr.message);
+      }
+    }));
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

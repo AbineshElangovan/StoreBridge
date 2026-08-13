@@ -57,6 +57,18 @@ export async function updateLocalProductCache(shopDomain: string, payload: any, 
       });
 
       const parsedPrice = parseFloat(variant.price || "0");
+      
+      // Price Matching Validation for Permanent Base Price
+      let parsedBasePrice = parsedPrice; // Default to new price (manual update or new product)
+      if (existingCache) {
+        if (existingCache.price === parsedPrice) {
+          // MATCH! StoreBridge expected this price update. Retain the existing permanent base price.
+          parsedBasePrice = existingCache.basePrice;
+        } else {
+          // MISMATCH! Merchant manually changed the price in Shopify. Treat as new permanent base price.
+          parsedBasePrice = parsedPrice;
+        }
+      }
       const trueInventory = variant.inventory_quantity ?? 0;
 
       let finalSku = sku;
@@ -79,12 +91,14 @@ export async function updateLocalProductCache(shopDomain: string, payload: any, 
             imageUrl: newImageUrl,
             inventoryQuantity: trueInventory,
             price: parsedPrice,
+            basePrice: parsedBasePrice,
           }
         });
       } else {
         const needsUpdate = existingCache.sku !== finalSku ||
           existingCache.title !== fullTitle ||
           existingCache.price !== parsedPrice ||
+          existingCache.basePrice !== parsedBasePrice ||
           existingCache.tags !== productTags ||
           (newImageUrl !== null && existingCache.imageUrl !== newImageUrl);
 
@@ -98,6 +112,7 @@ export async function updateLocalProductCache(shopDomain: string, payload: any, 
               ...(newImageUrl !== null ? { imageUrl: newImageUrl } : {}),
               shopifyProductId,
               price: parsedPrice,
+              basePrice: parsedBasePrice,
             },
           });
         }

@@ -23,7 +23,8 @@ export async function verifyWebhook(req: Request) {
     throw new Error("Missing required Shopify webhook headers.");
   }
 
-  const rawBody = await req.text();
+  const buffer = Buffer.from(await req.arrayBuffer());
+  const rawBody = buffer.toString("utf8");
   const secret = process.env.SHOPIFY_API_SECRET;
 
   if (!secret) {
@@ -32,7 +33,7 @@ export async function verifyWebhook(req: Request) {
 
   const generatedHash = crypto
     .createHmac("sha256", secret)
-    .update(rawBody, "utf8")
+    .update(buffer)
     .digest("base64");
 
   // Prevent timing attacks using crypto.timingSafeEqual

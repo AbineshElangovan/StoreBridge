@@ -23,7 +23,9 @@ export default function PriceAdjustmentPage() {
 
   const loadData = React.useCallback(async () => {
     try {
-      const storesRes = await shopifyFetch(`/api/stores?active=false&t=${Date.now()}`, { cache: 'no-store' });
+      const searchParams = new URLSearchParams(window.location.search);
+      const shopParam = searchParams.get('shop') || '';
+      const storesRes = await shopifyFetch(`/api/stores?active=false&shop=${shopParam}&t=${Date.now()}`, { cache: 'no-store' });
       if (storesRes.ok) {
         const storesJson = await storesRes.json();
         const loadedStores = storesJson.stores || [];
@@ -77,7 +79,7 @@ export default function PriceAdjustmentPage() {
   }, [toastMessage]);
 
   const handleStoreAdjustmentChange = (storeId: string, val: string) => {
-    const numericValue = val.replace(/[^0-9]/g, '');
+    const numericValue = val.replace(/[^0-9.-]/g, '');
     
     setStoreAdjustments(prev => ({
       ...prev,
@@ -180,7 +182,7 @@ export default function PriceAdjustmentPage() {
                   <ThemedSection
                     key={s.id}
                     title={`${s.label || s.shopDomain} Adjustments`}
-                    description={`Manage both global and collection-specific price adjustments for ${s.shopDomain}`}
+                    description={`Manage collection-specific price adjustments for ${s.shopDomain}`}
                     bgColor={t.bg}
                     borderColor={t.border}
                     stripeColor={t.stripe}
@@ -188,53 +190,7 @@ export default function PriceAdjustmentPage() {
                     descColor={t.desc}
                   >
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                      
-                      {/* Top Row: Global Store Adjustment */}
-                      <div style={{ padding: '24px', backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-                          <div>
-                            <span style={{ fontWeight: 700, fontSize: '15px', color: '#111827' }}>
-                              Global Store Adjustment
-                            </span>
-                            <div style={{ color: '#6b7280', fontSize: '13px', marginTop: '4px' }}>
-                              Applies to all products in this store
-                            </div>
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', backgroundColor: '#f9fafb', padding: '12px 16px', borderRadius: '8px', border: '1px solid #f3f4f6' }}>
-                            {storeSuccessText[s.id] && (
-                              <span style={{
-                                color: storeSuccessText[s.id].startsWith('✓') ? '#16a34a' : '#dc2626',
-                                fontSize: '13px',
-                                fontWeight: 500,
-                                marginRight: '8px'
-                              }}>
-                                {storeSuccessText[s.id]}
-                              </span>
-                            )}
-                            <div style={{ width: '120px' }}>
-                              <Input
-                                type="text"
-                                label="Percentage"
-                                labelHidden
-                                suffix="%"
-                                value={storeAdjustments[s.id] !== undefined ? storeAdjustments[s.id] : '0'}
-                                onChange={(val) => handleStoreAdjustmentChange(s.id, val)}
-                                autoComplete="off"
-                              />
-                            </div>
-                            <button
-                              className="px-4 py-2 bg-[var(--color-primary-dark)] text-white text-sm font-bold rounded-lg hover:bg-[var(--color-primary)] transition-colors shadow-sm disabled:opacity-50"
-                              disabled={storeSaving[s.id]}
-                              onClick={() => handleStoreSave(s.id)}
-                            >
-                              {storeSaving[s.id] ? 'Saving...' : 'Set Global'}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Bottom Row: Collection Adjustment */}
+                      {/* Collection Adjustment */}
                       <div style={{ padding: '24px', backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                         <CollectionPriceAdjustment storeId={s.id} storeName={s.label || s.shopDomain} />
                       </div>

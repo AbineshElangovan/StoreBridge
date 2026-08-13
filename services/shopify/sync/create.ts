@@ -253,11 +253,19 @@ export async function processProductCreate(shopDomain: string, payload: any, web
       if (payload.variants && payload.variants.length > 0) {
         const productCollections = payload.tags ? payload.tags.split(',').map((t: string) => t.trim()) : [];
         productInput.variants = await Promise.all(payload.variants.map(async (v: any) => {
+          const rawCompareAtPrice = parseFloat(v.compareAtPrice || "0");
+          const safeBasePrice = rawCompareAtPrice > 0 ? rawCompareAtPrice : parseFloat(v.price || "0");
+          const newPriceStr = await calculateAdjustedPrice(safeBasePrice, targetStore, productCollections);
+          const isAdjusted = parseFloat(newPriceStr) !== safeBasePrice;
+          
           const variantInput: any = {
-            price: await calculateAdjustedPrice(v.price, sourceStore, targetStore, productCollections),
+            price: newPriceStr,
             sku: v.sku?.trim() || "",
             inventoryItem: { tracked: true }
           };
+          if (isAdjusted) {
+             variantInput.compareAtPrice = safeBasePrice.toFixed(2);
+          }
           const options: string[] = [];
           if (v.option1) options.push(v.option1);
           if (v.option2) options.push(v.option2);

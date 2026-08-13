@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
     if (error.message === "Webhook signature verification failed.") {
       return new NextResponse("Unauthorized", { status: 401 });
     }
-    return new NextResponse("Internal Server Error", { status: 500 });
+    // Return 200 even on internal errors to prevent Shopify from deleting the webhook subscription
+    return new NextResponse("Internal Server Error Handled", { status: 200 });
   }
 }

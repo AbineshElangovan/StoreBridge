@@ -251,11 +251,20 @@ export async function processProductUpdate(shopDomain: string, payload: any, web
         const matchingTargetVar = targetVariants.find((tv: any) => tv.sku?.trim().toLowerCase() === sku.toLowerCase());
 
         const productCollections = payload.tags ? payload.tags.split(',').map((t: string) => t.trim()) : [];
+        const rawCompareAtPrice = parseFloat(sourceVar.compareAtPrice || "0");
+        const safeBasePrice = rawCompareAtPrice > 0 ? rawCompareAtPrice : parseFloat(sourceVar.price || "0");
+        const newPriceStr = await calculateAdjustedPrice(safeBasePrice, targetStore, productCollections);
+        const isAdjusted = parseFloat(newPriceStr) !== safeBasePrice;
+
         const variantInput: any = {
-          price: await calculateAdjustedPrice(sourceVar.price, sourceStore, targetStore, productCollections),
+          price: newPriceStr,
           sku: sku,
           inventoryItem: { tracked: true }
         };
+        
+        if (isAdjusted) {
+           variantInput.compareAtPrice = safeBasePrice.toFixed(2);
+        }
 
         const options: string[] = [];
         if (sourceVar.option1) options.push(sourceVar.option1);

@@ -12,57 +12,12 @@ import {
 import { syncProductCollectionsByTags } from './collection-sync';
 
 export async function calculateAdjustedPrice(
-  sourcePriceStr: string, 
-  sourceStore: any, 
+  sourceBasePrice: number, 
   targetStore: any,
   productCollections: string[] = []
 ): Promise<string> {
-  const sourcePrice = parseFloat(sourcePriceStr || "0");
-  if (isNaN(sourcePrice)) return sourcePriceStr;
-
-  // 1. Calculate Base Price (Reverse source adjustment)
-  let basePrice = sourcePrice;
-  
-  // Find applicable collection rules for SOURCE store to reverse them
-  const sourceRules = await prisma.collectionPriceAdjustment.findMany({
-    where: {
-      storeId: sourceStore?.id,
-      enabled: true,
-      collection: { title: { in: productCollections } }
-    },
-    include: { collection: true }
-  });
-
-  if (sourceRules.length > 0) {
-    if (sourceRules.length > 1) {
-      console.warn(`[Pricing] Source store ${sourceStore?.shopDomain} has multiple conflicting collection rules for product. Falling back to Store rule.`);
-      if (sourceStore && sourceStore.isPriceAdjustmentEnabled) {
-        const value = sourceStore.priceAdjustmentValue || 0;
-        if (sourceStore.priceAdjustmentType === 'PERCENTAGE' && value !== -100) {
-          basePrice = sourcePrice / (1 + value / 100);
-        } else if (sourceStore.priceAdjustmentType === 'FIXED') {
-          basePrice = sourcePrice - value;
-        }
-      }
-    } else {
-      const rule = sourceRules[0];
-      if (rule.adjustmentType === 'PERCENTAGE' && rule.adjustmentValue !== -100) {
-        basePrice = sourcePrice / (1 + rule.adjustmentValue / 100);
-      } else if (rule.adjustmentType === 'FIXED') {
-        basePrice = sourcePrice - rule.adjustmentValue;
-      }
-    }
-  } else {
-    // Fallback to source store rule
-    if (sourceStore && sourceStore.isPriceAdjustmentEnabled) {
-      const value = sourceStore.priceAdjustmentValue || 0;
-      if (sourceStore.priceAdjustmentType === 'PERCENTAGE' && value !== -100) {
-        basePrice = sourcePrice / (1 + value / 100);
-      } else if (sourceStore.priceAdjustmentType === 'FIXED') {
-        basePrice = sourcePrice - value;
-      }
-    }
-  }
+  // 1. Calculate Base Price (Directly use source base price)
+  let basePrice = sourceBasePrice;
 
   // 2. Apply Target Adjustment
   let adjusted = basePrice;
@@ -121,13 +76,34 @@ export async function applyPriceAdjustmentToStore(storeId: string) {
     return;
   }
 
-  // Find the Master store to treat as the source store
-  const sourceStore = await prisma.store.findFirst({
+  let sourceStore: any = null;
+
+  const isConnected = await (prisma as any).storeConnection.findFirst({
     where: {
-      isMaster: true,
-      isActive: true
+      OR: [
+        { sourceStoreId: targetStore.id },
+        { targetStoreId: targetStore.id }
+      ]
     }
   });
+
+  const isStandalone = !targetStore.isMaster && !isConnected;
+
+  if (isStandalone) {
+    sourceStore = targetStore;
+  } else {
+    const connection = await (prisma as any).storeConnection.findFirst({
+      where: { targetStoreId: targetStore.id }
+    });
+    
+    if (connection) {
+      sourceStore = await prisma.store.findUnique({ where: { id: connection.sourceStoreId } });
+    } else {
+      sourceStore = targetStore.isMaster ? targetStore : await prisma.store.findFirst({
+        where: { isMaster: true, isActive: true }
+      });
+    }
+  }
 
   if (!sourceStore) {
     console.error(`[PriceAdjustment] Source store not found for target ${targetStore.shopDomain}`);
@@ -158,7 +134,7 @@ export async function applyPriceAdjustmentToStore(storeId: string) {
 
   for (const [productId, maps] of Object.entries(mapsByProduct)) {
     const variantsUpdateInput: any[] = [];
-    const cacheUpdates: { variantId: string; price: number }[] = [];
+    const cacheUpdates: { variantId: string; price: number; basePrice: number }[] = [];
 
     for (const map of maps) {
       if (!map.sku) continue;
@@ -184,25 +160,52 @@ export async function applyPriceAdjustmentToStore(storeId: string) {
       });
       const collectionTitles = productCollections.map(pc => pc.collection.title);
 
-      const newPriceStr = await calculateAdjustedPrice(sourceCache.price.toString(), sourceStore, targetStore, collectionTitles);
+      // IMPORTANT: Use sourceCache.basePrice to calculate the new price!
+      // If basePrice is 0 (old data), fallback to price.
+      const safeBasePrice = sourceCache.basePrice > 0 ? sourceCache.basePrice : sourceCache.price;
+      const newPriceStr = await calculateAdjustedPrice(safeBasePrice, targetStore, collectionTitles);
       const newPrice = parseFloat(newPriceStr);
+      
+      // If the new price is different from the base price, we push the base price to compareAtPrice
+      // If they are the same (0% adjustment), we clear the compareAtPrice by passing null.
+      const isAdjusted = newPrice !== safeBasePrice;
+      const compareAtPriceStr = isAdjusted ? safeBasePrice.toFixed(2) : null;
 
       variantsUpdateInput.push({
         id: map.shopifyVariantId,
-        price: newPriceStr
+        price: newPriceStr,
+        compareAtPrice: compareAtPriceStr
       });
 
       cacheUpdates.push({
         variantId: map.shopifyVariantId,
-        price: newPrice
+        price: newPrice,
+        basePrice: safeBasePrice
       });
     }
 
     if (variantsUpdateInput.length === 0) continue;
 
-    console.log(`[PriceAdjustment] Updating ${variantsUpdateInput.length} variants for product ${productId} in Shopify...`);
+    console.log(`[PriceAdjustment] Saving Expected Prices to local DB for product ${productId}...`);
 
     try {
+      // Update local productCache database records BEFORE calling Shopify to prevent webhook race conditions.
+      // ProductCache.price acts as the Expected StoreBridge Price.
+      for (const update of cacheUpdates) {
+        await prisma.productCache.updateMany({
+          where: {
+            storeId,
+            shopifyVariantId: update.variantId
+          },
+          data: {
+            price: update.price,
+            basePrice: update.basePrice
+          }
+        });
+      }
+
+      console.log(`[PriceAdjustment] Sending price updates to Shopify for product ${productId}...`);
+
       // Use Shopify's productVariantsBulkUpdate mutation to update variant prices
       const response: any = await client.request(`
         mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
@@ -210,6 +213,7 @@ export async function applyPriceAdjustmentToStore(storeId: string) {
             productVariants {
               id
               price
+              compareAtPrice
             }
             userErrors {
               field
@@ -227,19 +231,6 @@ export async function applyPriceAdjustmentToStore(storeId: string) {
       const userErrors = response?.data?.productVariantsBulkUpdate?.userErrors || [];
       if (userErrors.length > 0) {
         console.error(`[PriceAdjustment] Shopify returned errors for product ${productId}:`, userErrors.map((e: any) => e.message).join(', '));
-      }
-
-      // Update local productCache database records
-      for (const update of cacheUpdates) {
-        await prisma.productCache.updateMany({
-          where: {
-            storeId,
-            shopifyVariantId: update.variantId
-          },
-          data: {
-            price: update.price
-          }
-        });
       }
 
       console.log(`[PriceAdjustment] Successfully updated prices for product ${productId} on Shopify and local cache.`);

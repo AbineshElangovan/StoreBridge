@@ -12,27 +12,30 @@ automatically_update_urls_on_dev = true
 api_version = "2026-10"
 
   [[webhooks.subscriptions]]
-  topics = [ "app/uninstalled" ]
   uri = "/api/webhooks/app-uninstalled"
+  topics = [ "app/uninstalled" ]
 
   [[webhooks.subscriptions]]
-  topics = [ "products/create" ]
-  uri = "/api/webhooks/products-create"
-
-  [[webhooks.subscriptions]]
-  topics = [ "products/update" ]
-  uri = "/api/webhooks/products-update"
-
-  [[webhooks.subscriptions]]
-  topics = [ "products/delete" ]
-  uri = "/api/webhooks/products-delete"
-
-  [[webhooks.subscriptions]]
-  topics = [ "inventory_levels/update" ]
   uri = "/api/webhooks/inventory-levels-update"
+  topics = [ "inventory_levels/update" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/api/webhooks/products-create"
+  topics = [ "products/create" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/api/webhooks/products-delete"
+  topics = [ "products/delete" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/api/webhooks/products-update"
+  topics = [ "products/update" ]
+
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_inventory,read_products,read_publications,write_inventory,write_products,write_publications,read_locations"
+scopes = "write_inventory,read_inventory,read_products,write_products,read_publications,write_publications"
+optional_scopes = [ ]
+use_legacy_install_flow = false
 
 [auth]
 redirect_urls = [ "https://dz50mdfc-3000.inc1.devtunnels.ms/api/auth/callback" ]

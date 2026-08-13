@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
         sku: p.sku || 'N/A',
         store: p.store.label || p.store.shopDomain,
         price: p.price,
-        priceText: `₹${(p.price).toFixed(2)}`,
+        priceText: (p.price).toFixed(2),
         inventoryQuantity: p.inventoryQuantity,
         stockLevel:
           p.inventoryQuantity === 0

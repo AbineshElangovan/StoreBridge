@@ -2,15 +2,18 @@
 
 import { getSessionToken } from "@shopify/app-bridge/utilities/session-token";
 
+let appBridgeTimedOut = false;
+
 export async function shopifyFetch(input: RequestInfo, init: RequestInit = {}) {
 
-  const maxRetries = 20; // Fast fail if it's taking too long
+  const maxRetries = 5; // Reduced from 20 to prevent long 2s load delays
   let retries = 0;
   let delay = 100;
 
   const hasHost = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("host");
 
   while (
+    !appBridgeTimedOut &&
     hasHost &&
     typeof window !== "undefined" &&
     !(window as any).shopifyApp &&
@@ -19,6 +22,10 @@ export async function shopifyFetch(input: RequestInfo, init: RequestInit = {}) {
   ) {
     await new Promise((resolve) => setTimeout(resolve, delay));
     retries++;
+  }
+  
+  if (retries >= maxRetries) {
+    appBridgeTimedOut = true;
   }
 
   const app = typeof window !== "undefined" ? (window as any).shopifyApp : null;

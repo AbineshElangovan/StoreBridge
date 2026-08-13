@@ -54,11 +54,11 @@ export function DashboardCharts({ chartData }: DashboardChartsProps) {
         <div className="col-span-1 md:col-span-2">
           <BarChart
             title="Sales Value — Current Store"
-            subtitle="Estimated revenue for this store (₹500 per unit)"
+            subtitle="Estimated revenue for this store (500 per unit)"
             data={currentStoreData}
             xKey="name"
             bars={[
-              { key: 'Total Sales Value', color: '#0db69d', name: 'Sales Value (₹)' },
+              { key: 'Total Sales Value', color: '#0db69d', name: 'Sales Value' },
             ]}
           />
         </div>
@@ -67,7 +67,6 @@ export function DashboardCharts({ chartData }: DashboardChartsProps) {
             title="Sales Share %"
             subtitle="Current store sales"
             data={salesPieData}
-            unit="₹"
           />
         </div>
         <div className="col-span-1 md:col-span-1">
