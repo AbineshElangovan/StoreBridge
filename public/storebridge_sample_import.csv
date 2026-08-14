@@ -1,0 +1,5 @@
+Title,Description,Price,Inventory tracked,Available,Option1 Name,Option1 Value,Option2 Name,Option2 Value,Tags,Status
+Ceramic Coffee Mug,"<p>High-quality ceramic mug perfect for your morning coffee.</p>",12.50,Yes,100,,,,,coffee,ACTIVE
+Premium Cotton T-Shirt,"<p>Breathable 100% cotton t-shirt.</p>",25.99,Yes,50,Color,Black,Size,Medium,apparel,ACTIVE
+Premium Cotton T-Shirt,,25.99,Yes,30,Color,White,Size,Large,,,ACTIVE
+Wireless Headphones,"<p>Noise-canceling over-ear wireless headphones.</p>",199.99,Yes,15,,,,,electronics,ACTIVE

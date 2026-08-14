@@ -491,53 +491,6 @@ export default function ConnectionsPage() {
         </div>
       )}
 
-      {isMaster && connections.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-sm mb-8">
-          <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h2 className="font-bold text-xl text-slate-900 mb-1">Manual Synchronization</h2>
-              <p className="text-slate-500 text-sm">Select destination stores to force an immediate catalog push.</p>
-            </div>
-          </div>
-          
-          <div className="bg-slate-50 border border-slate-100 rounded-xl p-5 mb-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {connections.map((conn) => (
-                <label key={conn.targetStoreId} className="flex items-center gap-3 cursor-pointer bg-white border border-slate-200 rounded-lg p-3 shadow-sm hover:border-primary-300 transition-colors">
-                  <input 
-                    type="checkbox"
-                    className="w-4 h-4 text-primary-DEFAULT rounded border-gray-300 focus:ring-primary-DEFAULT cursor-pointer"
-                    checked={selectedStores.includes(conn.targetStoreId)}
-                    onChange={() => handleToggleSyncSelection(conn.targetStoreId)}
-                  />
-                  <span className="text-sm font-medium text-slate-700 truncate" title={conn.targetStore.label || conn.targetStore.shopDomain}>{conn.targetStore.label || conn.targetStore.shopDomain.split('.')[0]}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex gap-3 mt-4">
-            <button
-              onClick={handleSelectAllSync}
-              className="px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors shadow-sm"
-            >
-              {selectedStores.length === connections.length ? 'Deselect All' : 'Select All'}
-            </button>
-            <button
-              onClick={handleSync}
-              disabled={selectedStores.length === 0 || syncing}
-              className="px-6 py-2 bg-[var(--color-primary-dark)] text-white text-sm font-semibold rounded-lg hover:bg-[var(--color-primary)] transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 w-full md:w-auto justify-center"
-            >
-              {syncing ? (
-                <>
-                  <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                  Syncing...
-                </>
-              ) : 'Sync Selected Stores'}
-            </button>
-          </div>
-        </div>
-      )}
 
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
         <h2 className="font-bold text-lg text-slate-900 mb-4">Master store behaviour</h2>

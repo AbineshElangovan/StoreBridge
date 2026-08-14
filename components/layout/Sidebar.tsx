@@ -56,8 +56,7 @@ export function Sidebar() {
       title: 'CATALOG',
       items: [
         { label: 'Products', href: '/products', icon: ProductIcon },
-        { label: 'Import & Sync', href: '/sync', icon: ImportIcon, hideInSingleStore: true },
-       
+        { label: 'Import & Sync', href: '/sync', icon: ImportIcon },
       ]
     },
     {

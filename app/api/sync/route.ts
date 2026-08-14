@@ -28,11 +28,20 @@ export async function GET(req: NextRequest) {
       AND: [
         baseStoreFilter,
         ...(status && status !== 'ALL' ? [{ status }] : []),
-        ...(search ? [{ sku: { contains: search, mode: 'insensitive' } }] : []),
+        ...(search ? [{
+          OR: [
+            { sku: { contains: search, mode: 'insensitive' } },
+            { productTitle: { contains: search, mode: 'insensitive' } },
+            { sourceStore: { label: { contains: search, mode: 'insensitive' } } },
+            { sourceStore: { shopDomain: { contains: search, mode: 'insensitive' } } },
+            { destinationStore: { label: { contains: search, mode: 'insensitive' } } },
+            { destinationStore: { shopDomain: { contains: search, mode: 'insensitive' } } },
+          ]
+        }] : []),
       ] as any
     };
 
-    const [logs, total, totalStats, successStats, failedStats] = await Promise.all([
+    const [logs, total, totalStats, successStats, failedStats, pendingStats, skippedStats] = await Promise.all([
       prisma.syncLog.findMany({
         where,
         orderBy: { createdAt: 'desc' },
@@ -47,6 +56,8 @@ export async function GET(req: NextRequest) {
       prisma.syncLog.count({ where: baseStoreFilter }),
       prisma.syncLog.count({ where: { ...baseStoreFilter, status: 'SUCCESS' } }),
       prisma.syncLog.count({ where: { ...baseStoreFilter, status: 'FAILED' } }),
+      prisma.syncLog.count({ where: { ...baseStoreFilter, status: 'PENDING' } }),
+      prisma.syncLog.count({ where: { ...baseStoreFilter, status: 'SKIPPED' } }),
     ]);
 
     return NextResponse.json({
@@ -61,6 +72,8 @@ export async function GET(req: NextRequest) {
         total: totalStats,
         success: successStats,
         failed: failedStats,
+        pending: pendingStats,
+        skipped: skippedStats,
       }
     });
 

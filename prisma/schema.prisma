@@ -54,6 +54,7 @@ model Store {
   productBaseSkus            ProductBaseSku[]
   variantBaseSkus            VariantBaseSku[]
   activityLogs               ActivityLog[]
+  importHistories            ImportHistory[]
 
   @@map("stores")
 }
@@ -444,4 +445,27 @@ model ActivityLog {
   @@index([productTitle])
   @@index([createdAt])
   @@map("activity_logs")
+}
+
+// -----------------------------------------------------------------------------
+// IMPORT HISTORY
+// -----------------------------------------------------------------------------
+
+model ImportHistory {
+  id             String   @id @default(uuid())
+  storeId        String
+  filename       String
+  totalProducts  Int
+  successCount   Int
+  failedCount    Int
+  skippedCount   Int
+  status         String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([createdAt])
+  @@map("import_history")
 }
