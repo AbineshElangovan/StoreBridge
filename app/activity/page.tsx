@@ -11,13 +11,12 @@ import {
   InlineStack,
   Box,
   Icon,
-  Pagination,
   Button,
 } from "@shopify/polaris";
 import { ProductAddIcon, EditIcon, DeleteIcon, CartIcon, InfoIcon, SearchIcon, ExportIcon } from "@shopify/polaris-icons";
 import { shopifyFetch } from "@/lib/shopify/Client";
 import { StoreRoleBadge } from '@/components/ui/StoreRoleBadge';
-import { Loading, SearchBar, CustomSelect } from '@/components/common';
+import { Loading, SearchBar, CustomSelect, Pagination } from '@/components/common';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 
 export default function ActivityPage() {
@@ -258,7 +257,6 @@ export default function ActivityPage() {
                 </svg>
                 {isExporting ? 'Exporting...' : 'Export'}
               </button>
-            <StoreRoleBadge />
           </div>
         </div>
 
@@ -406,11 +404,9 @@ export default function ActivityPage() {
               
                 <div className="flex justify-center mt-6 border-t border-gray-100 pt-4 pb-2">
                   <Pagination
-                    hasPrevious={page > 1}
-                    onPrevious={() => setPage(page - 1)}
-                    hasNext={page < totalPages}
-                    onNext={() => setPage(page + 1)}
-                    label={`Page ${page} of ${totalPages}`}
+                    page={page}
+                    totalPages={totalPages}
+                    onPageChange={setPage}
                   />
                 </div>
             </Box>

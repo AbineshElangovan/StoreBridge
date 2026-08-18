@@ -7,8 +7,8 @@ import { shopifyFetch } from '@/lib/shopify/Client';
 import { Button } from '@/components/common/Button';
 import { ThemedSection } from '@/components/ui/ThemedSection';
 import { LocalizedDate } from '@/components/common/LocalizedDate';
+import { Loading, Toast } from '@/components/common';
 import { StoreRoleBadge } from '@/components/ui/StoreRoleBadge';
-import { Loading } from '@/components/common';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 
 export default function SettingsPage() {
@@ -20,6 +20,12 @@ export default function SettingsPage() {
   const [debugOutput, setDebugOutput] = useState<string>('');
   const [autoSync, setAutoSync] = useState<boolean>(true);
   const [dataRetentionEnabled, setDataRetentionEnabled] = useState<boolean>(true);
+  const [notifyLowStock, setNotifyLowStock] = useState<boolean>(true);
+  const [notifyInventoryUpdate, setNotifyInventoryUpdate] = useState<boolean>(true);
+  const [notifyPriceUpdate, setNotifyPriceUpdate] = useState<boolean>(true);
+  const [notifySyncUpdate, setNotifySyncUpdate] = useState<boolean>(true);
+  const [notifySyncFailure, setNotifySyncFailure] = useState<boolean>(true);
+  const [notifyStoreUpdate, setNotifyStoreUpdate] = useState<boolean>(true);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -62,11 +68,16 @@ export default function SettingsPage() {
       const settingsRes = await shopifyFetch(`/api/settings?t=${Date.now()}`, { cache: 'no-store' });
       if (settingsRes.ok) {
         const settingsJson = await settingsRes.json();
-        const threshVal = settingsJson.settings.lowStockThreshold;
-        setAutoSync(settingsJson.settings.autoSyncEnabled);
-        if (typeof settingsJson.settings.dataRetentionEnabled === 'boolean') {
-          setDataRetentionEnabled(settingsJson.settings.dataRetentionEnabled);
-        }
+        const s = settingsJson.settings || {};
+        const threshVal = s.lowStockThreshold;
+        setAutoSync(s.autoSyncEnabled);
+        if (typeof s.dataRetentionEnabled === 'boolean') setDataRetentionEnabled(s.dataRetentionEnabled);
+        if (typeof s.notifyLowStock === 'boolean') setNotifyLowStock(s.notifyLowStock);
+        if (typeof s.notifyInventoryUpdate === 'boolean') setNotifyInventoryUpdate(s.notifyInventoryUpdate);
+        if (typeof s.notifyPriceUpdate === 'boolean') setNotifyPriceUpdate(s.notifyPriceUpdate);
+        if (typeof s.notifySyncUpdate === 'boolean') setNotifySyncUpdate(s.notifySyncUpdate);
+        if (typeof s.notifySyncFailure === 'boolean') setNotifySyncFailure(s.notifySyncFailure);
+        if (typeof s.notifyStoreUpdate === 'boolean') setNotifyStoreUpdate(s.notifyStoreUpdate);
 
         if ([5, 10, 20].includes(threshVal)) {
           setThreshold(threshVal.toString());
@@ -185,13 +196,19 @@ export default function SettingsPage() {
         ? parseInt(customThreshold, 10) || 15
         : parseInt(threshold, 10);
 
-      // Save threshold, autoSync, and dataRetention settings
+      // Save threshold, autoSync, dataRetention, and notification settings
       const settingsRes = await shopifyFetch('/api/settings', {
         method: 'PUT',
         body: JSON.stringify({
           lowStockThreshold: finalThreshold,
           autoSyncEnabled: autoSync,
           dataRetentionEnabled: dataRetentionEnabled,
+          notifyLowStock,
+          notifyInventoryUpdate,
+          notifyPriceUpdate,
+          notifySyncUpdate,
+          notifySyncFailure,
+          notifyStoreUpdate,
         }),
       });
 
@@ -229,9 +246,6 @@ export default function SettingsPage() {
             <p style={{ marginTop: 4, color: '#6b7280', fontSize: '0.875rem' }}>
               Manage store connections, threshold alerts, and synchronization rules.
             </p>
-          </div>
-          <div>
-            <StoreRoleBadge />
           </div>
         </div>
 
@@ -370,6 +384,8 @@ export default function SettingsPage() {
           </div>
         </div>
 
+
+
         {/* Full-width Data Handling Section */}
         <div className={`mt-2 w-full ${isStandalone ? 'max-w-4xl' : ''}`}>
           <ThemedSection
@@ -400,50 +416,13 @@ export default function SettingsPage() {
         </div>
       </div>
       
+      {/* Floating Toast Notification */}
       {toastMessage && (
-        <div
-          style={{
-            position: 'fixed',
-            bottom: '24px',
-            right: '24px',
-            zIndex: 9999,
-            backgroundColor: toastMessage.type === 'success' ? '#16a34a' : '#dc2626',
-            color: '#ffffff',
-            padding: '12px 24px',
-            borderRadius: '8px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: '14px',
-            fontWeight: 500,
-            animation: 'settingsToastSlideIn 0.3s ease-out',
-            border: '1px solid rgba(255,255,255,0.2)',
-          }}
-        >
-          <style>{`
-            @keyframes settingsToastSlideIn {
-              from { transform: translateY(100px); opacity: 0; }
-              to { transform: translateY(0); opacity: 1; }
-            }
-          `}</style>
-          <span>{toastMessage.message}</span>
-          <button
-            onClick={() => setToastMessage(null)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#ffffff',
-              cursor: 'pointer',
-              marginLeft: '12px',
-              fontSize: '14px',
-              opacity: 0.8,
-              lineHeight: 1
-            }}
-          >
-            ✕
-          </button>
-        </div>
+        <Toast
+          content={toastMessage.message}
+          error={toastMessage.type === 'error'}
+          onDismiss={() => setToastMessage(null)}
+        />
       )}
     </div>
   );

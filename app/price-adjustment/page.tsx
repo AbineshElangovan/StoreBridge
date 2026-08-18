@@ -160,9 +160,6 @@ export default function PriceAdjustmentPage() {
               Configure store-specific and collection-based pricing rules for synchronized products.
             </p>
           </div>
-          <div>
-            <StoreRoleBadge />
-          </div>
         </div>
 
         <div className="flex flex-col gap-6">

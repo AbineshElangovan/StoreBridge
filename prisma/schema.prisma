@@ -55,6 +55,7 @@ model Store {
   variantBaseSkus            VariantBaseSku[]
   activityLogs               ActivityLog[]
   importHistories            ImportHistory[]
+  notifications              Notification[]
 
   @@map("stores")
 }
@@ -234,6 +235,12 @@ model StoreSetting {
   skuSequence            Int      @default(1)
   isSkuGenerationEnabled Boolean  @default(true)
   dataRetentionEnabled   Boolean  @default(true)
+  notifyLowStock         Boolean  @default(true)
+  notifyInventoryUpdate  Boolean  @default(true)
+  notifyPriceUpdate      Boolean  @default(true)
+  notifySyncUpdate       Boolean  @default(true)
+  notifySyncFailure      Boolean  @default(true)
+  notifyStoreUpdate      Boolean  @default(true)
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
@@ -469,3 +476,44 @@ model ImportHistory {
   @@index([createdAt])
   @@map("import_history")
 }
+
+// -----------------------------------------------------------------------------
+// NOTIFICATION SYSTEM
+// -----------------------------------------------------------------------------
+
+enum NotificationType {
+  LOW_STOCK
+  OUT_OF_STOCK
+  STOCKOUT_RISK
+  CONNECTED_STORE_UPDATE
+  INVENTORY_UPDATE
+  PRICE_UPDATE
+  SYNC_UPDATE
+  SYNC_FAILURE
+  PRODUCT_UPDATED
+  IMPORT_COMPLETED
+}
+
+model Notification {
+  id               String           @id @default(uuid())
+  recipientStoreId String
+  type             NotificationType
+  title            String
+  message          String
+  productId        String?
+  productTitle     String?
+  sourceStoreId    String?
+  targetStoreId    String?
+  isRead           Boolean          @default(false)
+  metadata         Json?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  recipientStore Store @relation(fields: [recipientStoreId], references: [id], onDelete: Cascade)
+
+  @@index([recipientStoreId])
+  @@index([recipientStoreId, isRead])
+  @@index([recipientStoreId, createdAt])
+  @@map("notifications")
+}
+

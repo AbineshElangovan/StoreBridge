@@ -30,7 +30,7 @@ export function PageLoader({
         .ys-sk-spinner {
           width: 52px; height: 52px;
           border: 5px solid #e5e7eb;
-          border-top-color: #6366f1;
+          border-top-color: #0db69d;
           border-radius: 50%;
           animation: sk-spin 0.75s linear infinite;
         }
@@ -41,7 +41,7 @@ export function PageLoader({
         .ys-sk-ping {
           position: absolute;
           width: 52px; height: 52px;
-          border: 3px solid #6366f1;
+          border: 3px solid #0db69d;
           border-radius: 50%;
           animation: sk-ping 1.2s ease-out infinite;
         }
@@ -78,7 +78,7 @@ export function PageLoader({
                style={{
                  width: 7, height: 7,
                  borderRadius: '50%',
-                 backgroundColor: '#6366f1',
+                 backgroundColor: '#0db69d',
                  animation: `sk-pulse 1.2s ease-in-out ${i * 0.2}s infinite`,
                }}
             />
@@ -119,8 +119,8 @@ export function PageLoader({
           <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden' }}>
             <div style={{ display: 'flex' }}>
               {Array.from({ length: cols }).map((_, j) => (
-                <div key={j} style={{ flex: j === 0 ? '0 0 60px' : 1, padding: '12px 16px', background: '#ede9fe', borderRight: j < cols - 1 ? '1px solid #ddd6fe' : 'none' }}>
-                  <div className="ys-sk-box" style={{ height: 11, width: '70%', background: '#c4b5fd' }} />
+                <div key={j} style={{ flex: j === 0 ? '0 0 60px' : 1, padding: '12px 16px', background: '#e6f4f1', borderRight: j < cols - 1 ? '1px solid #b2e2d8' : 'none' }}>
+                  <div className="ys-sk-box" style={{ height: 11, width: '70%', background: '#99f6e4' }} />
                 </div>
               ))}
             </div>

@@ -1,0 +1,427 @@
+'use client';
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { shopifyFetch } from '@/lib/shopify/Client';
+import { PageLoader } from '@/components/common/PageLoader';
+import {
+  Page,
+  Layout,
+  Card,
+  BlockStack,
+  InlineStack,
+  Text,
+  EmptyState,
+  Banner,
+  Box,
+  Button,
+} from '@shopify/polaris';
+import { SettingsIcon, RefreshIcon } from '@shopify/polaris-icons';
+import { Pagination } from '@/components/common/Pagination';
+import { Toast } from '@/components/common/Toast';
+import {
+  NotificationCard,
+  NotificationFilters,
+  NotificationPreferencesModal,
+  NotificationItem,
+} from '@/components/notifications';
+
+import { useStoreContext } from '@/components/providers/StoreProvider';
+
+interface StoreOption {
+  label: string;
+  value: string;
+}
+
+export default function NotificationsPage() {
+  const { currentStore, isMaster, isStandalone } = useStoreContext();
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
+  // Filters
+  const [typeFilter, setTypeFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'unread' | 'read'>('all');
+  const [storeFilter, setStoreFilter] = useState('ALL');
+  const [storeOptions, setStoreOptions] = useState<StoreOption[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Modals & Dialogs
+  const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+
+  // Toast
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastError, setToastError] = useState(false);
+
+  // Preferences State
+  const [preferences, setPreferences] = useState({
+    notifyLowStock: true,
+    notifyInventoryUpdate: true,
+    notifyPriceUpdate: true,
+    notifySyncUpdate: true,
+    notifySyncFailure: true,
+    notifyStoreUpdate: true,
+  });
+  const [savingPrefs, setSavingPrefs] = useState(false);
+  const [prefsSuccess, setPrefsSuccess] = useState(false);
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Fetch store options - only if current store is Master
+  useEffect(() => {
+    if (!isMaster) {
+      setStoreOptions([]);
+      return;
+    }
+
+    const fetchStores = async () => {
+      try {
+        const res = await shopifyFetch('/api/stores');
+        if (res.ok) {
+          const data = await res.json();
+          const stores = data.stores || [];
+          const options: StoreOption[] = [{ label: 'All stores', value: 'ALL' }];
+          stores.forEach((s: any) => {
+            if (!s.isStandalone) {
+              options.push({
+                label: s.label || s.shopDomain || s.id,
+                value: s.id,
+              });
+            }
+          });
+          setStoreOptions(options);
+        }
+      } catch (err) {
+        console.error('[NotificationsPage] Error fetching stores:', err);
+      }
+    };
+    fetchStores();
+  }, [isMaster]);
+
+  // Fetch Preferences
+  useEffect(() => {
+    const fetchPreferences = async () => {
+      try {
+        const res = await shopifyFetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.settings) {
+            setPreferences({
+              notifyLowStock: data.settings.notifyLowStock ?? true,
+              notifyInventoryUpdate: data.settings.notifyInventoryUpdate ?? true,
+              notifyPriceUpdate: data.settings.notifyPriceUpdate ?? true,
+              notifySyncUpdate: data.settings.notifySyncUpdate ?? true,
+              notifySyncFailure: data.settings.notifySyncFailure ?? true,
+              notifyStoreUpdate: data.settings.notifyStoreUpdate ?? true,
+            });
+          }
+        }
+      } catch (err) {
+        console.error('[NotificationsPage] Error fetching preferences:', err);
+      }
+    };
+    fetchPreferences();
+  }, []);
+
+  // Load Notifications
+  const loadNotifications = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.append('page', page.toString());
+      params.append('limit', '15');
+      if (typeFilter && typeFilter !== 'ALL') params.append('type', typeFilter);
+      if (statusFilter && statusFilter !== 'all') params.append('status', statusFilter);
+      if (storeFilter && storeFilter !== 'ALL') params.append('storeId', storeFilter);
+      if (debouncedSearch.trim() !== '') params.append('search', debouncedSearch.trim());
+
+      const res = await shopifyFetch(`/api/notifications?${params.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data.notifications || []);
+        setTotalCount(data.total || 0);
+        setUnreadCount(data.unreadCount || 0);
+        setTotalPages(data.totalPages || 1);
+      } else {
+        setNotifications([]);
+      }
+    } catch (err) {
+      console.error('[NotificationsPage] Error loading notifications:', err);
+      setNotifications([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, typeFilter, statusFilter, storeFilter, debouncedSearch]);
+
+  useEffect(() => {
+    loadNotifications();
+  }, [loadNotifications]);
+
+  // Dispatch custom window event so Bell icon synchronizes dynamically
+  const notifyBellUpdate = () => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('notification-updated'));
+    }
+  };
+
+  // Mark single notification as read
+  const handleMarkAsRead = async (id: string) => {
+    try {
+      // Optimistic update
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+      );
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+      notifyBellUpdate();
+
+      await shopifyFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
+    } catch (err) {
+      console.error('[NotificationsPage] Error marking as read:', err);
+      loadNotifications();
+    }
+  };
+
+  // Mark all notifications as read
+  const handleMarkAllRead = async () => {
+    try {
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+      notifyBellUpdate();
+
+      const res = await shopifyFetch('/api/notifications', {
+        method: 'PUT',
+        body: JSON.stringify({ action: 'markAllRead' }),
+      });
+
+      if (res.ok) {
+        setToastMessage('All notifications marked as read');
+        setToastError(false);
+      }
+    } catch (err) {
+      console.error('[NotificationsPage] Error marking all as read:', err);
+      loadNotifications();
+    }
+  };
+
+  // Delete single notification
+  const handleDeleteNotification = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this notification?")) {
+      return;
+    }
+    try {
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      setTotalCount((c) => Math.max(0, c - 1));
+      const res = await shopifyFetch(`/api/notifications?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setToastMessage('Notification deleted');
+        setToastError(false);
+        notifyBellUpdate();
+      } else {
+        loadNotifications();
+      }
+    } catch (err) {
+      console.error('[NotificationsPage] Error deleting notification:', err);
+      loadNotifications();
+    }
+  };
+
+  // Delete all notifications
+  const handleDeleteAll = async () => {
+    if (!window.confirm("Are you sure you want to delete all notifications?\n\nThis action cannot be undone and will permanently remove all notifications for this store.")) {
+      return;
+    }
+
+    setIsDeletingAll(true);
+    try {
+      const res = await shopifyFetch('/api/notifications', { method: 'DELETE' });
+      if (res.ok) {
+        setNotifications([]);
+        setTotalCount(0);
+        setUnreadCount(0);
+        setToastMessage('All notifications deleted successfully');
+        setToastError(false);
+        notifyBellUpdate();
+      } else {
+        const data = await res.json();
+        setToastMessage(data.error || 'Failed to delete notifications');
+        setToastError(true);
+      }
+    } catch (err: any) {
+      setToastMessage(err.message || 'Error deleting notifications');
+      setToastError(true);
+    } finally {
+      setIsDeletingAll(false);
+    }
+  };
+
+  // Save Preferences
+  const handleSavePreferences = async () => {
+    setSavingPrefs(true);
+    setPrefsSuccess(false);
+    try {
+      const res = await shopifyFetch('/api/settings', {
+        method: 'POST',
+        body: JSON.stringify({ settings: preferences }),
+      });
+
+      if (res.ok) {
+        setPrefsSuccess(true);
+        setToastMessage('Preferences saved successfully');
+        setToastError(false);
+        setTimeout(() => {
+          setIsPreferencesOpen(false);
+          setPrefsSuccess(false);
+        }, 1200);
+      } else {
+        const errorData = await res.json();
+        setToastMessage(errorData.error || 'Failed to save preferences');
+        setToastError(true);
+      }
+    } catch (err: any) {
+      setToastMessage(err.message || 'Error saving preferences');
+      setToastError(true);
+    } finally {
+      setSavingPrefs(false);
+    }
+  };
+
+  return (
+    <Page>
+      {/* Custom Green Themed Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Notifications</h1>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {unreadCount} unread of {totalCount} notifications
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={loadNotifications}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 transition-colors cursor-pointer shadow-2xs"
+            >
+              <div style={{ width: 14, height: 14 }}>
+                <RefreshIcon />
+              </div>
+              Refresh
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsPreferencesOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-[#0db69d] hover:bg-[#0b9c86] transition-colors cursor-pointer shadow-xs"
+            >
+              <div style={{ width: 14, height: 14 }}>
+                <SettingsIcon />
+              </div>
+              Notification Preferences
+            </button>
+          </div>
+        </div>
+
+        <Layout>
+          {/* Top Filters & Search Section */}
+          <Layout.Section>
+            <NotificationFilters
+              typeFilter={typeFilter}
+              onTypeChange={(t) => {
+                setTypeFilter(t);
+                setPage(1);
+              }}
+              statusFilter={statusFilter}
+              onStatusChange={(s) => {
+                setStatusFilter(s);
+                setPage(1);
+              }}
+              storeFilter={storeFilter}
+              onStoreChange={(st) => {
+                setStoreFilter(st);
+                setPage(1);
+              }}
+              storeOptions={storeOptions}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              unreadCount={unreadCount}
+              totalCount={totalCount}
+              onMarkAllRead={handleMarkAllRead}
+              onOpenDeleteAllModal={handleDeleteAll}
+            />
+          </Layout.Section>
+
+          {/* Main Notifications List Section */}
+          <Layout.Section>
+            {loading ? (
+              <Box padding="800">
+                <PageLoader />
+              </Box>
+            ) : notifications.length === 0 ? (
+              <Card>
+                <EmptyState
+                  heading="No notifications found"
+                  image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+                >
+                  <p>
+                    {searchQuery || typeFilter !== 'ALL' || statusFilter !== 'all'
+                      ? 'Try adjusting your filters or search query.'
+                      : 'You are all caught up! No notifications right now.'}
+                  </p>
+                </EmptyState>
+              </Card>
+            ) : (
+              <BlockStack gap="300">
+                {notifications.map((item) => (
+                  <NotificationCard
+                    key={item.id}
+                    item={item}
+                    onMarkAsRead={handleMarkAsRead}
+                    onDelete={handleDeleteNotification}
+                  />
+                ))}
+
+                {/* Reusable Pagination Controls */}
+                <Pagination
+                  page={page}
+                  totalPages={totalPages}
+                  onPageChange={setPage}
+                  className="py-4"
+                />
+              </BlockStack>
+            )}
+          </Layout.Section>
+        </Layout>
+
+        {/* Preferences Modal */}
+        <NotificationPreferencesModal
+          open={isPreferencesOpen}
+          onClose={() => setIsPreferencesOpen(false)}
+          prefs={preferences}
+          onChange={setPreferences}
+          onSave={handleSavePreferences}
+          saving={savingPrefs}
+          saveSuccess={prefsSuccess}
+        />
+
+        {/* Toast Feedback */}
+        {toastMessage && (
+          <Toast
+            content={toastMessage}
+            error={toastError}
+            onDismiss={() => setToastMessage(null)}
+          />
+        )}
+      </Page>
+  );
+}

@@ -461,6 +461,23 @@ export async function processProductCreate(shopDomain: string, payload: any, web
         // Auto-publish to all sales channels so the product appears on the storefront
         await publishProductToAllChannels(targetStore.shopDomain, createdProduct.id);
 
+        // Dispatch notification to target store (e.g. Karur)
+        try {
+          const { createNotification } = require('@/services/notification-service');
+          await createNotification({
+            recipientStoreId: targetStore.id,
+            type: 'PRODUCT_UPDATED',
+            title: 'Product Created',
+            message: `Product ${payload.title} was synchronized from ${sourceStore.label || sourceStore.shopDomain}`,
+            productId: String(createdProduct.id),
+            productTitle: payload.title,
+            sourceStoreId: sourceStore.id,
+            targetStoreId: targetStore.id,
+          });
+        } catch (notifErr) {
+          console.error('[ProductSync:Create] Error creating target notification:', notifErr);
+        }
+
         console.log(`[ProductSync:Create] Successfully created product "${payload.title}" in target store ${targetStore.shopDomain} (Request ID: ${syncResult.requestId}, Duration: ${syncResult.durationMs}ms)`);
       }
     } finally {

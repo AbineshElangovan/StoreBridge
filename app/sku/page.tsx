@@ -123,7 +123,6 @@ export default function SkuSettingsPage() {
             Manage product prefixes, sequence rules, and collection restrictions.
           </p>
         </div>
-        <StoreRoleBadge />
       </div>
 
       {!hasWriteAccess && (

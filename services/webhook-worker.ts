@@ -1,15 +1,16 @@
 import { prisma } from "@/lib/db/prisma";
 import { WebhookStatus } from "@prisma/client";
+import { createNotification } from "@/services/notification-service";
 
 // Import your existing sync logic here
-import { 
-  processProductUpdate, 
-  processProductCreate, 
+import {
+  processProductUpdate,
+  processProductCreate,
   processProductDelete,
-  hasSyncLock, 
-  releaseSyncLock, 
-  updateLocalProductCache, 
-  withLock 
+  hasSyncLock,
+  releaseSyncLock,
+  updateLocalProductCache,
+  withLock
 } from "@/services/product-sync";
 import { generateSkusForProductIfNeeded } from "@/services/sku";
 import { createMasterProductMapping, findMappingByVariantId } from "@/services/product-mapping";
@@ -38,16 +39,16 @@ export async function processWebhookQueue() {
 
     for (const job of pendingJobs) {
       const startTime = Date.now();
-      
+
       // 2. Lock the job (Transaction to prevent double processing)
       // We update it to PROCESSING. If another worker already took it, this will fail or return 0 records.
       try {
         const result = await prisma.webhookQueue.updateMany({
-          where: { 
-            id: job.id, 
-            status: WebhookStatus.PENDING 
+          where: {
+            id: job.id,
+            status: WebhookStatus.PENDING
           },
-          data: { 
+          data: {
             status: WebhookStatus.PROCESSING,
             attempts: { increment: 1 }
           }
@@ -58,8 +59,8 @@ export async function processWebhookQueue() {
           continue;
         }
       } catch (lockError) {
-         console.log(`[WebhookWorker] Could not lock job ${job.id}. Skipping.`);
-         continue;
+        console.log(`[WebhookWorker] Could not lock job ${job.id}. Skipping.`);
+        continue;
       }
 
       console.log(`[WebhookWorker] Processing job ${job.id} | Topic: ${job.topic} | Store: ${job.shopDomain}`);
@@ -105,14 +106,14 @@ export async function processWebhookQueue() {
 
         await prisma.webhookQueue.update({
           where: { id: job.id },
-          data: { 
-            status: nextStatus, 
-            error: `${error.message}\n${error.stack || ''}` 
+          data: {
+            status: nextStatus,
+            error: `${error.message}\n${error.stack || ''}`
           }
         });
 
         console.error(`[WebhookWorker] Job ${job.id} failed (Attempt ${newAttempts}/${MAX_RETRIES}) in ${duration}ms. Error: ${error.message}`);
-        
+
         if (isFinalFailure) {
           console.error(`[WebhookWorker] Job ${job.id} reached maximum retries and is marked as FAILED.`);
         }
@@ -138,7 +139,7 @@ async function handleProductsCreate(shop: string, payload: any, webhookId: strin
 
   if (!store) return;
 
-  const isStandalone = !store.isMaster && 
+  const isStandalone = !store.isMaster &&
     (await prisma.storeConnection.count({
       where: {
         OR: [
@@ -148,8 +149,56 @@ async function handleProductsCreate(shop: string, payload: any, webhookId: strin
       }
     })) === 0;
 
-  if (!store.isMaster && !isStandalone) {
-    console.log(`[Worker:products/create] Ignored event from Sub Store: ${shop}`);
+  if (!store.isMaster) {
+    console.log(`[Worker:products/create] Processing ${isStandalone ? 'Standalone' : 'Sub'} Store product create: ${shop}`);
+    await updateLocalProductCache(shop, payload);
+
+    const sku = payload.variants?.[0]?.sku || null;
+    const collectionStr = payload.collections?.map((c: any) => c.title).join(', ') || null;
+
+    // Create ActivityLog for this store
+    await prisma.activityLog.create({
+      data: {
+        storeId: store.id,
+        productId: String(payload.id),
+        productTitle: payload.title || "Unknown Product",
+        sku: sku,
+        eventType: "CREATE",
+        description: `Product created with ${payload.variants?.length || 1} variants`,
+        collection: collectionStr,
+      },
+    });
+
+    // Store receives its own Product Created notification
+    await createNotification({
+      recipientStoreId: store.id,
+      type: 'PRODUCT_UPDATED',
+      title: 'Product Created',
+      message: `Product ${payload.title} was created successfully`,
+      productId: String(payload.id),
+      productTitle: payload.title,
+      sourceStoreId: store.id,
+      targetStoreId: store.id,
+    });
+
+    // Only connected Sub stores (not standalone) notify Master
+    if (!isStandalone) {
+      const masterStore = await prisma.store.findFirst({
+        where: { isMaster: true, isActive: true }
+      });
+      if (masterStore && masterStore.id !== store.id) {
+        await createNotification({
+          recipientStoreId: masterStore.id,
+          type: 'CONNECTED_STORE_UPDATE',
+          title: 'Connected Store Product Created',
+          message: `${store.label || store.shopDomain} created product ${payload.title}`,
+          productId: String(payload.id),
+          productTitle: payload.title,
+          sourceStoreId: store.id,
+          targetStoreId: masterStore.id,
+        });
+      }
+    }
     return;
   }
 
@@ -166,14 +215,14 @@ async function handleProductsCreate(shop: string, payload: any, webhookId: strin
     // Fetch the absolute latest source of truth from Shopify FIRST
     const { fetchLatestShopifyProduct } = require('@/services/shopify/product-fetcher');
     let enrichedPayload = payload;
-    
+
     const latestPayload = await fetchLatestShopifyProduct(shop, payload.id);
     if (latestPayload) {
       latestPayload.variants.forEach((latestVariant: any) => {
-         const originalVariant = payload.variants?.find((v: any) => v.admin_graphql_api_id === latestVariant.admin_graphql_api_id || v.id == latestVariant.id);
-         if (!latestVariant.sku && originalVariant?.sku) {
-             latestVariant.sku = originalVariant.sku;
-         }
+        const originalVariant = payload.variants?.find((v: any) => v.admin_graphql_api_id === latestVariant.admin_graphql_api_id || v.id == latestVariant.id);
+        if (!latestVariant.sku && originalVariant?.sku) {
+          latestVariant.sku = originalVariant.sku;
+        }
       });
       enrichedPayload = latestPayload;
     }
@@ -187,21 +236,21 @@ async function handleProductsCreate(shop: string, payload: any, webhookId: strin
         const variantIdStr = variant.admin_graphql_api_id?.split('/').pop() || String(variant.id);
         const productIdStr = String(enrichedPayload.id);
         const inventoryItemIdStr = variant.inventory_item_id ? String(variant.inventory_item_id) : null;
-        
+
         const existingMapping = await prisma.productMapping.findUnique({
-           where: { storeId_shopifyVariantId: { storeId: storeRecord.id, shopifyVariantId: variantIdStr } }
+          where: { storeId_shopifyVariantId: { storeId: storeRecord.id, shopifyVariantId: variantIdStr } }
         });
-        
+
         if (!existingMapping) {
           const mapping = await createMasterProductMapping(
-            storeRecord.id, 
-            productIdStr, 
-            variantIdStr, 
-            variant.sku || null, 
+            storeRecord.id,
+            productIdStr,
+            variantIdStr,
+            variant.sku || null,
             inventoryItemIdStr
           );
           if (!mapping) {
-             throw new Error(`Failed to persist mapping for variant ${variantIdStr}`);
+            throw new Error(`Failed to persist mapping for variant ${variantIdStr}`);
           }
         }
       }
@@ -213,7 +262,7 @@ async function handleProductsCreate(shop: string, payload: any, webhookId: strin
     // Create ActivityLog for CREATE
     if (storeRecord) {
       const sku = enrichedPayload.variants?.[0]?.sku || null;
-      
+
       const productCache = await prisma.productCache.findFirst({
         where: { storeId: storeRecord.id, shopifyProductId: `gid://shopify/Product/${enrichedPayload.id}` },
         include: { collections: { include: { collection: true } } }
@@ -226,7 +275,7 @@ async function handleProductsCreate(shop: string, payload: any, webhookId: strin
       const allStoreIds = [storeRecord.id, ...connections.map(c => c.targetStoreId)];
 
       const activities = await Promise.all(
-        allStoreIds.map(id => 
+        allStoreIds.map(id =>
           prisma.activityLog.create({
             data: {
               storeId: id,
@@ -243,6 +292,36 @@ async function handleProductsCreate(shop: string, payload: any, webhookId: strin
           })
         )
       );
+
+      // Create notification for Product Created (for current store always, plus Master if connected)
+      await createNotification({
+        recipientStoreId: storeRecord.id,
+        type: 'PRODUCT_UPDATED',
+        title: 'Product Created',
+        message: `Product ${enrichedPayload.title} was created successfully`,
+        productId: String(enrichedPayload.id),
+        productTitle: enrichedPayload.title,
+        sourceStoreId: storeRecord.id,
+        targetStoreId: storeRecord.id,
+      });
+
+      if (!storeRecord.isMaster) {
+        const masterStore = await prisma.store.findFirst({
+          where: { isMaster: true, isActive: true }
+        });
+        if (masterStore && masterStore.id !== storeRecord.id) {
+          await createNotification({
+            recipientStoreId: masterStore.id,
+            type: 'CONNECTED_STORE_UPDATE',
+            title: 'Connected Store Product Created',
+            message: `${storeRecord.label || storeRecord.shopDomain} created product ${enrichedPayload.title}`,
+            productId: String(enrichedPayload.id),
+            productTitle: enrichedPayload.title,
+            sourceStoreId: storeRecord.id,
+            targetStoreId: masterStore.id,
+          });
+        }
+      }
     }
   });
 }
@@ -255,7 +334,7 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
 
   if (!store) return;
 
-  const isStandalone = !store.isMaster && 
+  const isStandalone = !store.isMaster &&
     (await prisma.storeConnection.count({
       where: {
         OR: [
@@ -265,8 +344,141 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
       }
     })) === 0;
 
-  if (!store.isMaster && !isStandalone) {
-    console.log(`[Worker:products/update] Ignored event from Sub Store: ${shop}`);
+  if (!store.isMaster) {
+    console.log(`[Worker:products/update] Processing ${isStandalone ? 'Standalone' : 'Sub'} Store product update: ${shop}`);
+    
+    // 1. Fetch previous cache
+    const productCache = await prisma.productCache.findFirst({
+      where: { storeId: store.id, shopifyProductId: `gid://shopify/Product/${payload.id}` },
+    });
+
+    // 2. Update local cache for Store
+    await updateLocalProductCache(shop, payload, 'products/update');
+
+    // 3. Create ActivityLog
+    const sku = payload.variants?.[0]?.sku || null;
+    await prisma.activityLog.create({
+      data: {
+        storeId: store.id,
+        productId: String(payload.id),
+        productTitle: payload.title || "Unknown Product",
+        sku: sku,
+        eventType: "UPDATE",
+        description: `Product updated in catalog`,
+      },
+    });
+
+    // 4. Check price changed vs product details changed
+    const oldPrice = productCache?.price;
+    const newPrice = payload.variants?.[0]?.price ? parseFloat(payload.variants[0].price) : null;
+    const isPriceChanged = oldPrice !== null && newPrice !== null && oldPrice !== newPrice;
+
+    if (isPriceChanged) {
+      // Store receives Price Update
+      await createNotification({
+        recipientStoreId: store.id,
+        type: 'PRICE_UPDATE',
+        title: 'Price Update',
+        message: `${payload.title} price updated: ₹${oldPrice} → ₹${newPrice}`,
+        productId: String(payload.id),
+        productTitle: payload.title,
+        sourceStoreId: store.id,
+      });
+    } else {
+      // Store receives Product Update
+      await createNotification({
+        recipientStoreId: store.id,
+        type: 'PRODUCT_UPDATED',
+        title: 'Product Updated',
+        message: `${payload.title} was updated`,
+        productId: String(payload.id),
+        productTitle: payload.title,
+        sourceStoreId: store.id,
+      });
+    }
+
+    // 5. Master Store receives CONNECTED_STORE_UPDATE only if connected
+    if (!isStandalone) {
+      const masterStore = await prisma.store.findFirst({
+        where: { isMaster: true, isActive: true }
+      });
+      if (masterStore && masterStore.id !== store.id) {
+        await createNotification({
+          recipientStoreId: masterStore.id,
+          type: 'CONNECTED_STORE_UPDATE',
+          title: 'Connected Store Update',
+          message: `${store.label || store.shopDomain} updated product ${payload.title}`,
+          productId: String(payload.id),
+          productTitle: payload.title,
+          sourceStoreId: store.id,
+          targetStoreId: masterStore.id,
+        });
+      }
+    }
+
+    // 6. Check out of stock vs low stock for Store
+    if (payload.variants && Array.isArray(payload.variants)) {
+      for (const variant of payload.variants) {
+        const qty = variant.inventory_quantity;
+        if (typeof qty === 'number') {
+          if (qty === 0) {
+            await createNotification({
+              recipientStoreId: store.id,
+              type: 'OUT_OF_STOCK',
+              title: 'Out of Stock Alert',
+              message: `${payload.title} is completely out of stock (0 units remaining)`,
+              productId: String(payload.id),
+              productTitle: payload.title,
+              sourceStoreId: store.id,
+            });
+            if (!isStandalone) {
+              const masterStore = await prisma.store.findFirst({
+                where: { isMaster: true, isActive: true }
+              });
+              if (masterStore && masterStore.id !== store.id) {
+                await createNotification({
+                  recipientStoreId: masterStore.id,
+                  type: 'OUT_OF_STOCK',
+                  title: 'Out of Stock Alert',
+                  message: `${store.label || store.shopDomain}: ${payload.title} is completely out of stock`,
+                  productId: String(payload.id),
+                  productTitle: payload.title,
+                  sourceStoreId: store.id,
+                  targetStoreId: masterStore.id,
+                });
+              }
+            }
+          } else if (qty > 0 && qty <= store.lowStockThreshold) {
+            await createNotification({
+              recipientStoreId: store.id,
+              type: 'LOW_STOCK',
+              title: 'Low Stock Alert',
+              message: `${payload.title} has ${qty} unit${qty === 1 ? '' : 's'} remaining (Threshold: ${store.lowStockThreshold})`,
+              productId: String(payload.id),
+              productTitle: payload.title,
+              sourceStoreId: store.id,
+            });
+            if (!isStandalone) {
+              const masterStore = await prisma.store.findFirst({
+                where: { isMaster: true, isActive: true }
+              });
+              if (masterStore && masterStore.id !== store.id) {
+                await createNotification({
+                  recipientStoreId: masterStore.id,
+                  type: 'LOW_STOCK',
+                  title: 'Low Stock Alert',
+                  message: `${store.label || store.shopDomain}: ${payload.title} has ${qty} unit${qty === 1 ? '' : 's'} remaining (Threshold: ${store.lowStockThreshold})`,
+                  productId: String(payload.id),
+                  productTitle: payload.title,
+                  sourceStoreId: store.id,
+                  targetStoreId: masterStore.id,
+                });
+              }
+            }
+          }
+        }
+      }
+    }
     return;
   }
 
@@ -282,14 +494,14 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
   await withLock(lockKey, async () => {
     const { fetchLatestShopifyProduct } = require('@/services/shopify/product-fetcher');
     let currentPayload = payload;
-    
+
     const latestPayload = await fetchLatestShopifyProduct(shop, payload.id);
     if (latestPayload) {
       latestPayload.variants.forEach((latestVariant: any) => {
-         const originalVariant = payload.variants?.find((v: any) => v.admin_graphql_api_id === latestVariant.admin_graphql_api_id || v.id == latestVariant.id);
-         if (!latestVariant.sku && originalVariant?.sku) {
-             latestVariant.sku = originalVariant.sku;
-         }
+        const originalVariant = payload.variants?.find((v: any) => v.admin_graphql_api_id === latestVariant.admin_graphql_api_id || v.id == latestVariant.id);
+        if (!latestVariant.sku && originalVariant?.sku) {
+          latestVariant.sku = originalVariant.sku;
+        }
       });
       currentPayload = latestPayload;
     }
@@ -298,7 +510,7 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
 
     await updateLocalProductCache(shop, currentPayload, 'products/update'); // Pass topic if required
     await processProductUpdate(shop, currentPayload, webhookId);
-    
+
     // Verify Product Mapping exists for all variants
     const storeRecord = await prisma.store.findUnique({ where: { shopDomain: shop } });
     if (storeRecord && currentPayload.variants) {
@@ -306,7 +518,7 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
         const variantIdStr = variant.admin_graphql_api_id?.split('/').pop() || String(variant.id);
         const mapping = await findMappingByVariantId(storeRecord.id, variantIdStr);
         if (!mapping) {
-           throw new Error(`Data Inconsistency: Mapping missing for variant ${variantIdStr}`);
+          throw new Error(`Data Inconsistency: Mapping missing for variant ${variantIdStr}`);
         }
       }
 
@@ -326,7 +538,7 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
         const allStoreIds = [storeRecord.id, ...connections.map(c => c.targetStoreId)];
 
         const activities = await Promise.all(
-          allStoreIds.map(id => 
+          allStoreIds.map(id =>
             prisma.activityLog.create({
               data: {
                 storeId: id,
@@ -343,6 +555,124 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
             })
           )
         );
+
+        // 1. Check if price changed vs product details changed
+        const oldPrice = productCache?.price;
+        const newPrice = currentPayload.variants?.[0]?.price ? parseFloat(currentPayload.variants[0].price) : null;
+        const isPriceChanged = oldPrice !== null && newPrice !== null && oldPrice !== newPrice;
+
+        if (isPriceChanged) {
+          // Rule: If price changes -> ONLY create Price Update notification (never duplicate with Product Update)
+          await createNotification({
+            recipientStoreId: storeRecord.id,
+            type: 'PRICE_UPDATE',
+            title: 'Price Update',
+            message: `${currentPayload.title} price updated: ₹${oldPrice} → ₹${newPrice}`,
+            productId: String(currentPayload.id),
+            productTitle: currentPayload.title,
+            sourceStoreId: storeRecord.id,
+            targetStoreId: storeRecord.id,
+          });
+        } else {
+          // Title / description / SKU / variant changed -> Product Update
+          await createNotification({
+            recipientStoreId: storeRecord.id,
+            type: 'PRODUCT_UPDATED',
+            title: 'Product Updated',
+            message: `${currentPayload.title} was updated`,
+            productId: String(currentPayload.id),
+            productTitle: currentPayload.title,
+            sourceStoreId: storeRecord.id,
+            targetStoreId: storeRecord.id,
+          });
+        }
+
+        // 2. If update occurred on a Connected Store, notify the Master Store
+        if (!storeRecord.isMaster) {
+          const masterStore = await prisma.store.findFirst({
+            where: { isMaster: true, isActive: true }
+          });
+          if (masterStore) {
+            await createNotification({
+              recipientStoreId: masterStore.id,
+              type: 'CONNECTED_STORE_UPDATE',
+              title: 'Connected Store Update',
+              message: `${storeRecord.label || storeRecord.shopDomain} updated product ${currentPayload.title}`,
+              productId: String(currentPayload.id),
+              productTitle: currentPayload.title,
+              sourceStoreId: storeRecord.id,
+              targetStoreId: masterStore.id,
+            });
+          }
+        }
+
+        // 3. Check for Out of Stock vs Low Stock on variants
+        if (currentPayload.variants && Array.isArray(currentPayload.variants)) {
+          for (const variant of currentPayload.variants) {
+            const qty = variant.inventory_quantity;
+            if (typeof qty === 'number') {
+              if (qty === 0) {
+                // Out of Stock (quantity === 0)
+                await createNotification({
+                  recipientStoreId: storeRecord.id,
+                  type: 'OUT_OF_STOCK',
+                  title: 'Out of Stock Alert',
+                  message: `${currentPayload.title} is completely out of stock (0 units remaining)`,
+                  productId: String(currentPayload.id),
+                  productTitle: currentPayload.title,
+                  sourceStoreId: storeRecord.id,
+                });
+
+                if (!storeRecord.isMaster) {
+                  const masterStore = await prisma.store.findFirst({
+                    where: { isMaster: true, isActive: true }
+                  });
+                  if (masterStore) {
+                    await createNotification({
+                      recipientStoreId: masterStore.id,
+                      type: 'OUT_OF_STOCK',
+                      title: 'Out of Stock Alert',
+                      message: `${storeRecord.label || storeRecord.shopDomain}: ${currentPayload.title} is completely out of stock`,
+                      productId: String(currentPayload.id),
+                      productTitle: currentPayload.title,
+                      sourceStoreId: storeRecord.id,
+                      targetStoreId: masterStore.id,
+                    });
+                  }
+                }
+              } else if (qty > 0 && qty <= storeRecord.lowStockThreshold) {
+                // Low Stock (quantity > 0 && quantity <= threshold)
+                await createNotification({
+                  recipientStoreId: storeRecord.id,
+                  type: 'LOW_STOCK',
+                  title: 'Low Stock Alert',
+                  message: `${currentPayload.title} has ${qty} unit${qty === 1 ? '' : 's'} remaining (Threshold: ${storeRecord.lowStockThreshold})`,
+                  productId: String(currentPayload.id),
+                  productTitle: currentPayload.title,
+                  sourceStoreId: storeRecord.id,
+                });
+
+                if (!storeRecord.isMaster) {
+                  const masterStore = await prisma.store.findFirst({
+                    where: { isMaster: true, isActive: true }
+                  });
+                  if (masterStore) {
+                    await createNotification({
+                      recipientStoreId: masterStore.id,
+                      type: 'LOW_STOCK',
+                      title: 'Low Stock Alert',
+                      message: `${storeRecord.label || storeRecord.shopDomain}: ${currentPayload.title} has ${qty} unit${qty === 1 ? '' : 's'} remaining (Threshold: ${storeRecord.lowStockThreshold})`,
+                      productId: String(currentPayload.id),
+                      productTitle: currentPayload.title,
+                      sourceStoreId: storeRecord.id,
+                      targetStoreId: masterStore.id,
+                    });
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
   });
@@ -355,7 +685,7 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
 
   if (!store) return;
 
-  const isStandalone = !store.isMaster && 
+  const isStandalone = !store.isMaster &&
     (await prisma.storeConnection.count({
       where: {
         OR: [
@@ -365,10 +695,20 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
       }
     })) === 0;
 
-  if (!store.isMaster && !isStandalone) {
-    console.log(`[Worker:products/delete] Ignored sync propagation from Sub Store, but cleaning up local cache: ${shop}`);
+  if (!store.isMaster) {
+    console.log(`[Worker:products/delete] Processing ${isStandalone ? 'Standalone' : 'Sub'} Store product delete: ${shop}`);
     const deletedGid = `gid://shopify/Product/${payload.id}`;
-    
+
+    const cacheForLog = await prisma.productCache.findFirst({
+      where: { storeId: store.id, shopifyProductId: deletedGid },
+      select: { title: true }
+    });
+    const productTitle = cacheForLog?.title || payload.title || "Deleted Product";
+
+    const mappedVariantsCount = await prisma.variantMap.count({
+      where: { storeId: store.id, shopifyProductId: deletedGid },
+    });
+
     await prisma.variantMap.deleteMany({
       where: { storeId: store.id, shopifyProductId: deletedGid },
     });
@@ -384,6 +724,48 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
     await prisma.productCache.deleteMany({
       where: { storeId: store.id, shopifyProductId: deletedGid },
     });
+
+    // Create ActivityLog for DELETE
+    await prisma.activityLog.create({
+      data: {
+        storeId: store.id,
+        productId: String(payload.id),
+        productTitle: productTitle,
+        eventType: "DELETE",
+        description: `Product removed from catalog`,
+      },
+    });
+
+    // Store receives its own Product Deleted notification
+    await createNotification({
+      recipientStoreId: store.id,
+      type: 'PRODUCT_UPDATED',
+      title: 'Product Deleted',
+      message: `Product ${productTitle} was deleted from catalog`,
+      productId: String(payload.id),
+      productTitle: productTitle,
+      sourceStoreId: store.id,
+      targetStoreId: store.id,
+    });
+
+    // Only notify Master store if the product was actually synced/mapped across the network and not standalone
+    if (mappedVariantsCount > 0 && !isStandalone) {
+      const masterStore = await prisma.store.findFirst({
+        where: { isMaster: true, isActive: true }
+      });
+      if (masterStore && masterStore.id !== store.id) {
+        await createNotification({
+          recipientStoreId: masterStore.id,
+          type: 'CONNECTED_STORE_UPDATE',
+          title: 'Connected Store Product Deleted',
+          message: `${store.label || store.shopDomain} deleted product ${productTitle}`,
+          productId: String(payload.id),
+          productTitle: productTitle,
+          sourceStoreId: store.id,
+          targetStoreId: masterStore.id,
+        });
+      }
+    }
     return;
   }
 
@@ -413,7 +795,7 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
     const allStoreIds = [store.id, ...connections.map(c => c.targetStoreId)];
 
     const activities = await Promise.all(
-      allStoreIds.map(id => 
+      allStoreIds.map(id =>
         prisma.activityLog.create({
           data: {
             storeId: id,
@@ -430,12 +812,42 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
         })
       )
     );
+
+    // Create notification for Product Deleted
+    if (!store.isMaster) {
+      const masterStore = await prisma.store.findFirst({
+        where: { isMaster: true, isActive: true }
+      });
+      if (masterStore) {
+        await createNotification({
+          recipientStoreId: masterStore.id,
+          type: 'CONNECTED_STORE_UPDATE',
+          title: 'Connected Store Product Deleted',
+          message: `${store.label || store.shopDomain} deleted product ${productTitle}`,
+          productId: String(payload.id),
+          productTitle: productTitle,
+          sourceStoreId: store.id,
+          targetStoreId: masterStore.id,
+        });
+      }
+    } else {
+      await createNotification({
+        recipientStoreId: store.id,
+        type: 'PRODUCT_UPDATED',
+        title: 'Product Deleted',
+        message: `Product ${productTitle} was deleted from catalog`,
+        productId: String(payload.id),
+        productTitle: productTitle,
+        sourceStoreId: store.id,
+        targetStoreId: store.id,
+      });
+    }
   }
 
   // Replicate deletion to target stores
   const { processProductDelete } = require('@/services/shopify/product-sync');
   await processProductDelete(shop, payload, webhookId);
-  
+
   // Delete the Mapping
   if (store) {
     const { deleteMappingsForProduct } = require('@/services/product-mapping');
@@ -444,9 +856,9 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
       console.warn(`[Worker:products/delete] Warning: Mapping not found to delete for product ${payload.id}`);
     }
   }
-  
+
   console.log(`[Worker:products/delete] sync complete for ${shop}`);
-  
+
   await prisma.variantMap.deleteMany({
     where: { storeId: store?.id, shopifyProductId: deletedGid },
   });
@@ -481,54 +893,118 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
   let cache: any = null;
 
   if (storeRecord) {
-    // Attempt to find product info from variant map for ActivityLog BEFORE it gets updated
+    // Attempt to find product info from variant map or product mapping
     const inventoryGid = `gid://shopify/InventoryItem/${inventory_item_id}`;
     variantMap = await prisma.variantMap.findFirst({
-      where: { storeId: storeRecord.id, inventoryItemId: inventoryGid },
+      where: {
+        storeId: storeRecord.id,
+        OR: [
+          { inventoryItemId: inventoryGid },
+          { inventoryItemId: String(inventory_item_id) },
+        ]
+      },
     });
-    
-    if (variantMap) {
+
+    if (variantMap && variantMap.shopifyVariantId) {
       cache = await prisma.productCache.findFirst({
-        where: { storeId: storeRecord.id, shopifyVariantId: variantMap.shopifyVariantId || '' }
+        where: { storeId: storeRecord.id, shopifyVariantId: variantMap.shopifyVariantId }
       });
-      if (cache) {
-        previousQuantity = cache.inventoryQuantity;
+    }
+
+    if (!cache) {
+      const pMapping = await prisma.productMapping.findFirst({
+        where: {
+          storeId: storeRecord.id,
+          OR: [
+            { inventoryItemId: inventoryGid },
+            { inventoryItemId: String(inventory_item_id) },
+          ]
+        }
+      });
+      if (pMapping) {
+        cache = await prisma.productCache.findFirst({
+          where: { storeId: storeRecord.id, shopifyVariantId: pMapping.shopifyVariantId }
+        });
       }
+    }
+
+    if (cache) {
+      previousQuantity = cache.inventoryQuantity;
     }
   }
 
-  const { processInventoryUpdate } = require('@/services/shopify/inventory-sync');
-  await processInventoryUpdate(
-    shop,
-    inventory_item_id.toString(),
-    location_id.toString(),
-    available,
-    webhookId
-  );
+  const isStandalone = storeRecord && !storeRecord.isMaster &&
+    (await prisma.storeConnection.count({
+      where: {
+        OR: [
+          { sourceStoreId: storeRecord.id },
+          { targetStoreId: storeRecord.id }
+        ]
+      }
+    })) === 0;
 
-  if (storeRecord && cache && previousQuantity !== null) {
-    const diff = available - previousQuantity;
-    
+  if (!isStandalone) {
+    const { processInventoryUpdate } = require('@/services/shopify/inventory-sync');
+    await processInventoryUpdate(
+      shop,
+      inventory_item_id.toString(),
+      location_id.toString(),
+      available,
+      webhookId
+    );
+  } else if (cache) {
+    // Update local cache for standalone store
+    await prisma.productCache.updateMany({
+      where: { id: cache.id },
+      data: { inventoryQuantity: available }
+    });
+  }
+
+  if (storeRecord && cache) {
+    const diff = previousQuantity !== null ? available - previousQuantity : 0;
+    const prodId = cache.shopifyProductId?.split('/').pop() || '';
+    const prodTitle = cache.title || 'Product';
+    const prodSku = cache.sku || variantMap?.sku || null;
+
     if (diff !== 0) {
-      const connections = await prisma.storeConnection.findMany({
-        where: { sourceStoreId: storeRecord.id }
-      });
-      const allStoreIds = [storeRecord.id, ...connections.map(c => c.targetStoreId)];
-      
+      let allStoreIds = [storeRecord.id];
+      if (!isStandalone) {
+        if (storeRecord.isMaster) {
+          const connections = await prisma.storeConnection.findMany({
+            where: { sourceStoreId: storeRecord.id }
+          });
+          allStoreIds = [storeRecord.id, ...connections.map(c => c.targetStoreId)];
+        } else {
+          const masterConn = await prisma.storeConnection.findFirst({
+            where: { targetStoreId: storeRecord.id }
+          });
+          if (masterConn) {
+            const siblingConns = await prisma.storeConnection.findMany({
+              where: { sourceStoreId: masterConn.sourceStoreId }
+            });
+            allStoreIds = Array.from(new Set([
+              storeRecord.id,
+              masterConn.sourceStoreId,
+              ...siblingConns.map(c => c.targetStoreId)
+            ]));
+          }
+        }
+      }
+
       const isSale = diff < 0;
       const eventType = isSale ? "SOLD" : "UPDATE";
-      const description = isSale 
+      const description = isSale
         ? `${Math.abs(diff)} item(s) sold (New stock: ${available})`
         : `Inventory manually adjusted by +${diff} (New stock: ${available})`;
 
-      const activities = await Promise.all(
-        allStoreIds.map(id => 
+      await Promise.all(
+        allStoreIds.map(id =>
           prisma.activityLog.create({
             data: {
               storeId: id,
-              productId: cache.shopifyProductId.split('/').pop() || '',
-              productTitle: cache.title,
-              sku: cache.sku || variantMap.sku,
+              productId: prodId,
+              productTitle: prodTitle,
+              sku: prodSku,
               eventType: eventType as any,
               description: description,
               quantity: Math.abs(diff)
@@ -539,6 +1015,108 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
           })
         )
       );
+
+      // Create notification for Product Sold / Inventory Adjustment
+      if (isSale) {
+        await createNotification({
+          recipientStoreId: storeRecord.id,
+          type: 'INVENTORY_UPDATE',
+          title: 'Product Sold',
+          message: `${prodTitle} - ${Math.abs(diff)} item(s) sold (New stock: ${available})`,
+          productId: prodId,
+          productTitle: prodTitle,
+          sourceStoreId: storeRecord.id,
+          targetStoreId: storeRecord.id,
+        });
+
+        if (!storeRecord.isMaster && !isStandalone) {
+          const masterStore = await prisma.store.findFirst({
+            where: { isMaster: true, isActive: true }
+          });
+          if (masterStore && masterStore.id !== storeRecord.id) {
+            await createNotification({
+              recipientStoreId: masterStore.id,
+              type: 'CONNECTED_STORE_UPDATE',
+              title: 'Connected Store Product Sold',
+              message: `${storeRecord.label || storeRecord.shopDomain}: ${prodTitle} - ${Math.abs(diff)} item(s) sold (New stock: ${available})`,
+              productId: prodId,
+              productTitle: prodTitle,
+              sourceStoreId: storeRecord.id,
+              targetStoreId: masterStore.id,
+            });
+          }
+        }
+      } else {
+        await createNotification({
+          recipientStoreId: storeRecord.id,
+          type: 'INVENTORY_UPDATE',
+          title: 'Inventory Adjusted',
+          message: `${prodTitle} - Stock adjusted by +${diff} (New stock: ${available})`,
+          productId: prodId,
+          productTitle: prodTitle,
+          sourceStoreId: storeRecord.id,
+          targetStoreId: storeRecord.id,
+        });
+      }
+    }
+
+    // Check OUT_OF_STOCK vs LOW_STOCK
+    if (available === 0) {
+      await createNotification({
+        recipientStoreId: storeRecord.id,
+        type: 'OUT_OF_STOCK',
+        title: 'Out of Stock Alert',
+        message: `${prodTitle} is completely out of stock (0 units remaining)`,
+        productId: prodId,
+        productTitle: prodTitle,
+        sourceStoreId: storeRecord.id,
+      });
+
+      if (!storeRecord.isMaster && !isStandalone) {
+        const masterStore = await prisma.store.findFirst({
+          where: { isMaster: true, isActive: true }
+        });
+        if (masterStore && masterStore.id !== storeRecord.id) {
+          await createNotification({
+            recipientStoreId: masterStore.id,
+            type: 'OUT_OF_STOCK',
+            title: 'Out of Stock Alert',
+            message: `${storeRecord.label || storeRecord.shopDomain}: ${prodTitle} is completely out of stock`,
+            productId: prodId,
+            productTitle: prodTitle,
+            sourceStoreId: storeRecord.id,
+            targetStoreId: masterStore.id,
+          });
+        }
+      }
+    } else if (available > 0 && available <= storeRecord.lowStockThreshold) {
+      await createNotification({
+        recipientStoreId: storeRecord.id,
+        type: 'LOW_STOCK',
+        title: 'Low Stock Alert',
+        message: `${prodTitle} has ${available} unit${available === 1 ? '' : 's'} remaining (Threshold: ${storeRecord.lowStockThreshold})`,
+        productId: prodId,
+        productTitle: prodTitle,
+        sourceStoreId: storeRecord.id,
+      });
+
+      if (!storeRecord.isMaster && !isStandalone) {
+        const masterStore = await prisma.store.findFirst({
+          where: { isMaster: true, isActive: true }
+        });
+        if (masterStore && masterStore.id !== storeRecord.id) {
+          await createNotification({
+            recipientStoreId: masterStore.id,
+            type: 'LOW_STOCK',
+            title: 'Low Stock Alert',
+            message: `${storeRecord.label || storeRecord.shopDomain}: ${prodTitle} has ${available} unit${available === 1 ? '' : 's'} remaining (Threshold: ${storeRecord.lowStockThreshold})`,
+            productId: prodId,
+            productTitle: prodTitle,
+            sourceStoreId: storeRecord.id,
+            targetStoreId: masterStore.id,
+          });
+        }
+      }
     }
   }
 }

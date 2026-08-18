@@ -3,6 +3,7 @@ import { getAdminClient } from '@/lib/shopify/admin';
 import { setInventoryQuantity } from '@/lib/shopify/inventory';
 import { createSyncLog } from '@/lib/shopify/sync-log';
 import { linkConnectedProductMapping, findMappingByVariantId } from '@/services/product-mapping';
+import { createNotification } from '@/services/notification-service';
 import {
   PRODUCT_SET_MUTATION, PRODUCT_DELETE_MUTATION, PRODUCT_VARIANTS_DELETE_MUTATION,
   GET_VARIANT_BY_SKU_QUERY, GET_PRODUCT_BY_ID_QUERY, LOCATIONS_QUERY,
@@ -238,6 +239,17 @@ export async function applyPriceAdjustmentToStore(storeId: string) {
       console.error(`[PriceAdjustment] Failed to update variants for product ${productId}:`, err.message);
     }
   }
+
+  // Trigger PRICE_UPDATE notification for target store
+  const storeLabel = targetStore.label || targetStore.shopDomain;
+  await createNotification({
+    recipientStoreId: storeId,
+    type: 'PRICE_UPDATE',
+    title: 'Price Adjustment Updated',
+    message: `Price adjustments applied successfully for ${storeLabel}`,
+    sourceStoreId: sourceStore?.id,
+    targetStoreId: storeId,
+  });
 
   console.log(`[PriceAdjustment] Bulk price adjustment completed for store ${storeId}`);
 }

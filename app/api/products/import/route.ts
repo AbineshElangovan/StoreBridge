@@ -269,6 +269,30 @@ export async function POST(req: NextRequest) {
         console.error("Failed to log import history:", err);
       }
 
+      // 5. Dispatch Notification for Import Completion
+      try {
+        const { createNotification } = require('@/services/notification-service');
+        if (successCount > 0 && failedCount === 0) {
+          await createNotification({
+            recipientStoreId: targetStore.id,
+            type: 'SYNC_UPDATE',
+            title: 'Import Completed',
+            message: `Successfully imported ${successCount} products from ${filename || 'CSV'}`,
+            sourceStoreId: targetStore.id,
+          });
+        } else if (failedCount > 0) {
+          await createNotification({
+            recipientStoreId: targetStore.id,
+            type: 'SYNC_FAILURE',
+            title: 'Import Failed',
+            message: `Import from ${filename || 'CSV'} partially failed: ${failedCount} products failed`,
+            sourceStoreId: targetStore.id,
+          });
+        }
+      } catch (notifErr) {
+        console.error("Failed to create import notification:", notifErr);
+      }
+
       return NextResponse.json({ 
         success: true, 
         result: {

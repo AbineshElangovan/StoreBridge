@@ -153,9 +153,6 @@ export default function DashboardPage() {
               Live overview of your connected Shopify store.
             </p>
           </div>
-          <div>
-            <StoreRoleBadge />
-          </div>
         </div>
 
         <DashboardCards stats={stats} lowStockThreshold={lowStockThreshold} />

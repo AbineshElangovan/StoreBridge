@@ -3,6 +3,7 @@ import { createSyncLog } from '@/lib/shopify/sync-log';
 import { setInventoryQuantity, adjustInventoryQuantity } from '@/lib/shopify/inventory';
 import { syncLock } from '@/lib/shopify/sync-lock';
 import { getAdminClient } from '@/lib/shopify/admin';
+import { createNotification } from '@/services/notification-service';
 
 async function fetchDefaultLocation(shopDomain: string): Promise<string | null> {
   try {
@@ -95,6 +96,7 @@ export async function processInventoryUpdate(
     console.log(`[${new Date().toISOString()}] [SyncService] Delta calculation START for SKU ${sku}`);
     const previousQuantity = sourceCachedProduct ? sourceCachedProduct.inventoryQuantity : trueTotalInventory;
     const delta = trueTotalInventory - previousQuantity;
+    const productTitle = sourceCachedProduct?.title || sku;
 
     console.log(`[${new Date().toISOString()}] [SyncService:Webhook] SKU: ${sku} | Shop: ${shopDomain}`);
     console.log(`[${new Date().toISOString()}] [SyncService:Webhook] [Cached Quantity]: ${previousQuantity}`);
@@ -113,6 +115,98 @@ export async function processInventoryUpdate(
         },
       });
       console.log(`[${new Date().toISOString()}] [SyncService] ProductCache updated for source store ${shopDomain}`);
+
+      // 1. Trigger INVENTORY_UPDATE notification
+      await createNotification({
+        recipientStoreId: sourceStore.id,
+        type: 'INVENTORY_UPDATE',
+        title: 'Inventory Update',
+        message: `${productTitle} inventory changed from ${previousQuantity} → ${trueTotalInventory}`,
+        productId: shopifyProductId,
+        productTitle,
+        sourceStoreId: sourceStore.id,
+      });
+
+      // 2. Trigger OUT_OF_STOCK or LOW_STOCK notification
+      if (trueTotalInventory === 0) {
+        // OUT OF STOCK (quantity === 0)
+        await createNotification({
+          recipientStoreId: sourceStore.id,
+          type: 'OUT_OF_STOCK',
+          title: 'Out of Stock Alert',
+          message: `${productTitle} is completely out of stock (0 units remaining)`,
+          productId: shopifyProductId,
+          productTitle,
+          sourceStoreId: sourceStore.id,
+        });
+
+        const isStandalone = !sourceStore.isMaster &&
+          (await prisma.storeConnection.count({
+            where: {
+              OR: [
+                { sourceStoreId: sourceStore.id },
+                { targetStoreId: sourceStore.id }
+              ]
+            }
+          })) === 0;
+
+        if (!sourceStore.isMaster && !isStandalone) {
+          const masterStore = await prisma.store.findFirst({
+            where: { isMaster: true, isActive: true }
+          });
+          if (masterStore && masterStore.id !== sourceStore.id) {
+            await createNotification({
+              recipientStoreId: masterStore.id,
+              type: 'OUT_OF_STOCK',
+              title: 'Out of Stock Alert',
+              message: `${sourceStore.label || sourceStore.shopDomain}: ${productTitle} is completely out of stock`,
+              productId: shopifyProductId,
+              productTitle,
+              sourceStoreId: sourceStore.id,
+              targetStoreId: masterStore.id,
+            });
+          }
+        }
+      } else if (trueTotalInventory > 0 && trueTotalInventory <= sourceStore.lowStockThreshold) {
+        // LOW STOCK (0 < quantity <= threshold)
+        await createNotification({
+          recipientStoreId: sourceStore.id,
+          type: 'LOW_STOCK',
+          title: 'Low Stock Alert',
+          message: `${productTitle} has ${trueTotalInventory} unit${trueTotalInventory === 1 ? '' : 's'} remaining (Threshold: ${sourceStore.lowStockThreshold})`,
+          productId: shopifyProductId,
+          productTitle,
+          sourceStoreId: sourceStore.id,
+        });
+
+        const isStandalone = !sourceStore.isMaster &&
+          (await prisma.storeConnection.count({
+            where: {
+              OR: [
+                { sourceStoreId: sourceStore.id },
+                { targetStoreId: sourceStore.id }
+              ]
+            }
+          })) === 0;
+
+        if (!sourceStore.isMaster && !isStandalone) {
+          const masterStore = await prisma.store.findFirst({
+            where: { isMaster: true, isActive: true }
+          });
+          if (masterStore && masterStore.id !== sourceStore.id) {
+            await createNotification({
+              recipientStoreId: masterStore.id,
+              type: 'LOW_STOCK',
+              title: 'Low Stock Alert',
+              message: `${sourceStore.label || sourceStore.shopDomain}: ${productTitle} has ${trueTotalInventory} unit${trueTotalInventory === 1 ? '' : 's'} remaining (Threshold: ${sourceStore.lowStockThreshold})`,
+              productId: shopifyProductId,
+              productTitle,
+              sourceStoreId: sourceStore.id,
+              targetStoreId: masterStore.id,
+            });
+          }
+        }
+      }
     }
 
     if (!sourceStore.autoSyncEnabled) {
@@ -254,6 +348,46 @@ export async function processInventoryUpdate(
           },
         });
         console.log(`[${new Date().toISOString()}] [SyncService] Target ProductCache updated for ${target.store.shopDomain}`);
+
+        const targetProdTitle = targetCachedProduct?.title || productTitle;
+        const targetProdId = target.shopifyProductId?.split('/').pop() || '';
+
+        // Notify target store about synchronized stock change
+        await createNotification({
+          recipientStoreId: target.store.id,
+          type: 'INVENTORY_UPDATE',
+          title: 'Inventory Synchronized',
+          message: `${targetProdTitle} stock updated to ${targetNewQuantity} (Synced from ${sourceStore.label || sourceStore.shopDomain})`,
+          productId: targetProdId,
+          productTitle: targetProdTitle,
+          sourceStoreId: sourceStore.id,
+          targetStoreId: target.store.id,
+        });
+
+        // Trigger LOW_STOCK / OUT_OF_STOCK alerts for target store if applicable
+        if (targetNewTotalQuantity === 0) {
+          await createNotification({
+            recipientStoreId: target.store.id,
+            type: 'OUT_OF_STOCK',
+            title: 'Out of Stock Alert',
+            message: `${targetProdTitle} is completely out of stock (0 units remaining)`,
+            productId: targetProdId,
+            productTitle: targetProdTitle,
+            sourceStoreId: sourceStore.id,
+            targetStoreId: target.store.id,
+          });
+        } else if (targetNewTotalQuantity > 0 && targetNewTotalQuantity <= target.store.lowStockThreshold) {
+          await createNotification({
+            recipientStoreId: target.store.id,
+            type: 'LOW_STOCK',
+            title: 'Low Stock Alert',
+            message: `${targetProdTitle} has ${targetNewTotalQuantity} unit${targetNewTotalQuantity === 1 ? '' : 's'} remaining (Threshold: ${target.store.lowStockThreshold})`,
+            productId: targetProdId,
+            productTitle: targetProdTitle,
+            sourceStoreId: sourceStore.id,
+            targetStoreId: target.store.id,
+          });
+        }
 
         console.log(`[${new Date().toISOString()}] [SyncService] Delta-synced SKU ${sku} to ${target.store.shopDomain}: ${targetPrevQuantity} -> ${targetNewQuantity} (delta: ${delta})`);
       } catch (error: any) {

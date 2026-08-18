@@ -1,7 +1,5 @@
-import { useAppBridge } from "@shopify/app-bridge-react";
-import { authenticatedFetch } from "@shopify/app-bridge/utilities";
+import { shopifyFetch } from "@/lib/shopify/Client";
 
 export function useAuthenticatedFetch() {
-  const app = useAppBridge();
-  return authenticatedFetch(app);
+  return (uri: RequestInfo, options?: RequestInit) => shopifyFetch(uri, options);
 }

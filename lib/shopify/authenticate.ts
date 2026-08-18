@@ -43,12 +43,20 @@ export async function authenticate(req: NextRequest) {
 
   const shop = payload.dest.replace(/^https?:\/\//, "");
 
-  const store = await prisma.store.findUnique({ where: { shopDomain: shop } });
+  let store = await prisma.store.findUnique({ where: { shopDomain: shop } });
+  if (!store) {
+    const shopPrefix = shop.split('.')[0];
+    store = await prisma.store.findFirst({ where: { shopDomain: { contains: shopPrefix, mode: 'insensitive' }, isActive: true } });
+  }
+  if (!store && process.env.NODE_ENV === "development") {
+    store = await prisma.store.findFirst({ where: { isActive: true } });
+  }
+
   if (!store || !store.isActive) {
     throw new AuthError("Store not installed or inactive");
   }
 
-  return { shop, store };
+  return { shop: store.shopDomain, store };
 }
 
 export function handleApiError(error: any) {

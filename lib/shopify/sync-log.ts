@@ -15,6 +15,8 @@ interface LogSyncParams {
   webhookEventId?: string;
 }
 
+import { createNotification } from '@/services/notification-service';
+
 export async function createSyncLog(params: LogSyncParams): Promise<SyncLog> {
   try {
     const log = await prisma.syncLog.create({
@@ -30,6 +32,24 @@ export async function createSyncLog(params: LogSyncParams): Promise<SyncLog> {
         webhookEventId: params.webhookEventId,
       },
     });
+
+    if (params.status === 'FAILED') {
+      try {
+        await createNotification({
+          recipientStoreId: params.sourceStoreId,
+          type: 'SYNC_FAILURE',
+          title: 'Sync Failure',
+          message: `Product sync failed for SKU ${params.sku}: ${params.failureReason || 'Target store replication error'}`,
+          productTitle: `SKU: ${params.sku}`,
+          sourceStoreId: params.sourceStoreId,
+          targetStoreId: params.destinationStoreId,
+          metadata: { sku: params.sku },
+        });
+      } catch (notifErr) {
+        console.error('[SyncLog] Failed to create sync failure notification:', notifErr);
+      }
+    }
+
     return log;
   } catch (error) {
     console.error('Error creating sync log:', error);

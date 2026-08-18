@@ -211,7 +211,7 @@ export async function processProductDelete(shopDomain: string, payload: any, web
         // Only clean up local DB if Shopify confirmed the product is gone.
         if (shouldCleanupLocal) {
           if (targetMappingId) {
-             await prisma.productMapping.delete({ where: { id: targetMappingId }});
+             await prisma.productMapping.deleteMany({ where: { id: targetMappingId }});
              console.log(`[ProductSync:Delete] Deleted target ProductMapping for ${targetStore.shopDomain}.`);
           }
           await prisma.variantMap.deleteMany({
@@ -244,7 +244,7 @@ export async function processProductDelete(shopDomain: string, payload: any, web
     }
 
     if (masterMapping) {
-      await prisma.productMapping.delete({ where: { id: masterMapping.id } });
+      await prisma.productMapping.deleteMany({ where: { id: masterMapping.id } });
     }
 
     await prisma.variantMap.deleteMany({

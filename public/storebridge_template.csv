@@ -1,0 +1,2 @@
+Title,Description,Price,Inventory tracked,Available,Option1 Name,Option1 Value,Option2 Name,Option2 Value,Option3 Name,Option3 Value,SKU,Vendor,Type,Tags,Status
+Sample Product Title,"<p>Detailed product description goes here.</p>",29.99,Yes,50,Color,Blue,Size,Medium,,,SKU-12345,StoreBridge,Clothing,"tag1, tag2",ACTIVE

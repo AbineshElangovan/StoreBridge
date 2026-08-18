@@ -10,10 +10,12 @@ import {
   SettingsIcon,
   LinkIcon,
   CodeIcon,
-  ClockIcon
+  ClockIcon,
+  NotificationIcon
 } from '@shopify/polaris-icons';
 import { Icon } from '@shopify/polaris';
 import { useStoreContext } from '@/components/providers/StoreProvider';
+import { shopifyFetch } from '@/lib/shopify/Client';
 
 interface MenuItem {
   label: string;
@@ -35,6 +37,37 @@ export function Sidebar() {
   const host = searchParams.get('host');
   
   const { currentStore, isStandalone, canManageNetwork, loading } = useStoreContext();
+  const [unreadCount, setUnreadCount] = React.useState<number>(0);
+
+  React.useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const shopParam = shop ? `&shop=${encodeURIComponent(shop)}` : '';
+        const res = await shopifyFetch(`/api/notifications?limit=1${shopParam}`);
+        if (res.ok) {
+          const json = await res.json();
+          setUnreadCount(json.unreadCount || 0);
+        }
+      } catch (e) {
+        // silent fail
+      }
+    };
+
+    fetchUnread();
+
+    const handleCountChange = (event: any) => {
+      if (typeof event?.detail === 'number') {
+        setUnreadCount(event.detail);
+      }
+    };
+
+    window.addEventListener('notification-count-changed', handleCountChange);
+    window.addEventListener('notification-updated', fetchUnread);
+    return () => {
+      window.removeEventListener('notification-count-changed', handleCountChange);
+      window.removeEventListener('notification-updated', fetchUnread);
+    };
+  }, [shop]);
 
   const createHref = (basePath: string) => {
     const queryParams = new URLSearchParams();
@@ -49,29 +82,35 @@ export function Sidebar() {
       title: 'OVERVIEW',
       items: [
         { label: 'Dashboard', href: '/', icon: HomeIcon },
+        { label: 'Notifications', href: '/dashboard/notifications', icon: NotificationIcon, badge: unreadCount > 0 ? String(unreadCount) : undefined },
         { label: 'Activity', href: '/activity', icon: ClockIcon },
       ]
     },
     {
-      title: 'CATALOG',
+      title: 'INVENTORY',
       items: [
         { label: 'Products', href: '/products', icon: ProductIcon },
+      ]
+    },
+    {
+      title: 'OPERATIONS',
+      items: [
         { label: 'Import & Sync', href: '/sync', icon: ImportIcon },
       ]
     },
     {
       title: 'RULES',
       items: [
-        { label: 'SKU generation', href: '/sku', icon: DiscountIcon },
-        { label: 'Price adjustment', href: '/price-adjustment', icon: CashDollarIcon },
-        { label: 'Store connections', href: '/connections', icon: LinkIcon },
+        { label: 'SKU Generation', href: '/sku', icon: DiscountIcon },
+        { label: 'Price Adjustment', href: '/price-adjustment', icon: CashDollarIcon },
+        { label: 'Store Connections', href: '/connections', icon: LinkIcon },
         { label: 'Settings', href: '/settings', icon: SettingsIcon },
       ]
     },
     {
       title: 'RESOURCES',
       items: [
-        { label: 'Developer docs', href: '#', icon: CodeIcon },
+        { label: 'Developer Docs', href: '#', icon: CodeIcon },
       ]
     }
   ];
@@ -80,7 +119,7 @@ export function Sidebar() {
     <div className="w-[260px] flex-shrink-0 border-r border-[#0db69d]/10 bg-[#f0fdfa] h-screen sticky top-0 flex flex-col">
       {/* Brand */}
       <div className="px-6 py-6 flex items-center gap-3">
-        <Image src="/logo.png" alt="Logo" width={32} height={32} className='rounded-lg' />
+        <Image src="/logo.png" alt="Logo" width={32} height={32} className='rounded-lg' style={{ width: 'auto', height: 'auto' }} priority />
         <div>
           <h2 className="text-[15px] font-bold text-gray-900 leading-tight">StoreBridge</h2>
           <p className="text-[11px] text-gray-500 leading-tight">Multi-store inventory sync</p>
@@ -88,23 +127,20 @@ export function Sidebar() {
       </div>
 
       <div className="px-4 mb-6">
-        <h3 className="px-3 mb-2 text-[11px] font-bold text-gray-500 tracking-wider uppercase">
-          {isStandalone ? 'STORE' : 'STORES'}
-        </h3>
-        <div className={`px-3 py-2 rounded-lg border shadow-sm flex flex-col relative ${isStandalone ? 'bg-blue-50 border-blue-200' : 'bg-[#ecfdf5] border-[#a7f3d0]'}`}>
-          <span className={`text-sm font-semibold flex items-center justify-between ${isStandalone ? 'text-blue-900' : 'text-[#065f46]'}`}>
-            {loading ? 'Loading...' : (currentStore?.label || currentStore?.shopDomain || 'Current Store')}
+        <div className={`px-3.5 py-3 rounded-xl border shadow-xs flex flex-col relative ${isStandalone ? 'bg-blue-50 border-blue-200' : 'bg-[#e6f4f1] border-[#b2e2d8]'}`}>
+          <span className={`text-sm font-bold flex items-center justify-between ${isStandalone ? 'text-blue-900' : 'text-[#064e3b]'}`}>
+            {loading ? 'Loading...' : (currentStore?.label || currentStore?.shopDomain || 'ESHAN Master Store')}
           </span>
-          <span className={`text-[11px] font-bold mt-1 tracking-wide uppercase ${isStandalone ? 'text-blue-700' : 'text-[#059669]'}`}>
-            {isStandalone ? 'Standalone' : (currentStore?.isMaster ? 'Master Store' : 'Connected Store')}
+          <span className={`text-[10px] font-extrabold mt-1 tracking-wider uppercase ${isStandalone ? 'text-blue-700' : 'text-[#047857]'}`}>
+            {isStandalone ? 'STANDALONE STORE' : (currentStore?.isMaster ? 'MASTER STORE' : 'CONNECTED STORE')}
           </span>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-scroll px-4 pb-6 ys-sidebar-scroll">
         {menuSections.map((section, idx) => (
-          <div key={idx} className="mb-6">
-            <h3 className="px-3 mb-2 text-[11px] font-bold text-gray-500 tracking-wider uppercase">
+          <div key={idx} className="mb-5">
+            <h3 className="px-3 mb-2 text-[11px] font-bold text-gray-400 tracking-wider uppercase">
               {section.title}
             </h3>
             <div className="space-y-0.5">
@@ -124,9 +160,9 @@ export function Sidebar() {
                     <span className={isActive ? 'text-[#0b9c86]' : 'text-gray-400 group-hover:text-white transition-colors'}>
                       <Icon source={item.icon} tone="inherit" />
                     </span>
-                    {item.label}
+                    <span className="flex-1">{item.label}</span>
                     {item.badge && (
-                      <span className="ml-auto bg-blue-100 text-blue-700 py-0.5 px-2 rounded-full text-xs font-medium">
+                      <span className="bg-red-500 text-white font-extrabold text-[11px] px-2 py-0.5 rounded-full shadow-xs">
                         {item.badge}
                       </span>
                     )}

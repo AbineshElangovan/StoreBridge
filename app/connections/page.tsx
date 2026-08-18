@@ -281,9 +281,6 @@ export default function ConnectionsPage() {
           <h1 className="text-2xl font-bold text-slate-900">Store connections</h1>
           <p className="text-slate-500 mt-1">One master, unlimited connected stores</p>
         </div>
-        <div className="flex items-center gap-4">
-          <StoreRoleBadge />
-        </div>
       </div>
 
       {!isMaster && currentStoreUniqueId && (

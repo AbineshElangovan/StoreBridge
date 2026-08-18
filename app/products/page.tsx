@@ -126,7 +126,6 @@ export default function ProductsPage() {
           </div>
           
           <div className="flex flex-wrap lg:flex-nowrap items-center gap-4">
-            <StoreRoleBadge />
             {/* Overall Search Bar */}
             <div className="relative w-full md:w-80 shadow-sm rounded-lg">
               <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">

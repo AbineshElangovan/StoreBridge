@@ -10,17 +10,35 @@ export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
 
-  // Read threshold from store settings so it updates when changed in Settings
-  const primaryStore = await prisma.store.findFirst({ where: { isActive: true } });
+  // Read master store and connected stores for this network
+  const primaryStore = await prisma.store.findFirst({ where: { isMaster: true, isActive: true } }) 
+    || await prisma.store.findFirst({ where: { isActive: true } });
   const lowStockThreshold = primaryStore?.lowStockThreshold ?? 10;
 
-  const totalProducts = await prisma.productCache.count();
-  const invResult = await prisma.productCache.aggregate({ _sum: { inventoryQuantity: true } });
-  const totalInventory = invResult._sum.inventoryQuantity ?? 0;
-  const activeProducts = await prisma.productCache.count({ where: { inventoryQuantity: { gt: 0 } } });
-  const lowStockCount = await prisma.productCache.count({ where: { inventoryQuantity: { lte: lowStockThreshold } } });
+  // Find connected stores (exclude standalone/unconnected stores)
+  const connections = primaryStore ? await prisma.storeConnection.findMany({
+    where: { sourceStoreId: primaryStore.id }
+  }) : [];
+  const connectedStoreIds = connections.map((c: any) => c.targetStoreId);
+  const visibleStoreIds = primaryStore ? [primaryStore.id, ...connectedStoreIds] : [];
 
-  const latestSync = await prisma.syncLog.findFirst({ orderBy: { createdAt: 'desc' } });
+  const totalProducts = await prisma.productCache.count({ where: { storeId: { in: visibleStoreIds } } });
+  const invResult = await prisma.productCache.aggregate({
+    where: { storeId: { in: visibleStoreIds } },
+    _sum: { inventoryQuantity: true }
+  });
+  const totalInventory = invResult._sum.inventoryQuantity ?? 0;
+  const activeProducts = await prisma.productCache.count({
+    where: { storeId: { in: visibleStoreIds }, inventoryQuantity: { gt: 0 } }
+  });
+  const lowStockCount = await prisma.productCache.count({
+    where: { storeId: { in: visibleStoreIds }, inventoryQuantity: { lte: lowStockThreshold } }
+  });
+
+  const latestSync = await prisma.syncLog.findFirst({
+    where: { sourceStoreId: { in: visibleStoreIds } },
+    orderBy: { createdAt: 'desc' }
+  });
   let timeStr = 'Just now';
   if (latestSync) {
     const diffMins = Math.floor((Date.now() - latestSync.createdAt.getTime()) / 60000);
@@ -29,8 +47,11 @@ export default async function DashboardPage() {
 
   const stats = { totalProducts, totalInventory, lowStock: lowStockCount, activeProducts, lastUpdated: timeStr };
 
-  // ── Chart data – one combined array per store ──
-  const stores = await prisma.store.findMany({ include: { productCaches: true } });
+  // ── Chart data – one combined array per store (only Master + connected stores) ──
+  const stores = await prisma.store.findMany({
+    where: { id: { in: visibleStoreIds }, isActive: true },
+    include: { productCaches: true }
+  });
 
   const combinedData = stores.map((s) => {
     const products = s.productCaches.length;
@@ -145,7 +166,6 @@ export default async function DashboardPage() {
             <p className="text-[13px] text-gray-500 mt-0.5">Everything syncing across {stores.length} stores, in real time</p>
           </div>
         <div className="flex flex-wrap items-center gap-3">
-          <StoreRoleBadge />
           <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-full text-xs font-medium border border-green-100">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
             Live · {timeStr}

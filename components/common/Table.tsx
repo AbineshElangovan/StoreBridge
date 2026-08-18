@@ -41,7 +41,7 @@ export interface TableProps {
 function TableSpinner() {
   return (
     <div className="flex flex-col items-center justify-center p-[56px_20px] gap-4">
-      <div className="w-11 h-11 rounded-full border-4 border-gray-200 border-t-indigo-600 animate-spin" />
+      <div className="w-11 h-11 rounded-full border-4 border-gray-200 border-t-[#0db69d] animate-spin" />
       <p className="m-0 text-[13px] text-gray-400 font-medium">Loading data…</p>
     </div>
   );
@@ -346,22 +346,36 @@ export function Table({
               `Showing ${(currentPage - 1) * itemsPerPage + 1}–${Math.min(currentPage * itemsPerPage, filteredItems.length)} of ${filteredItems.length} records`
             )}
           </span>
-          <div className="flex gap-1.5">
+          <div className="inline-flex items-center gap-3 bg-white px-2 py-1 rounded-xl border border-gray-200 shadow-2xs">
             <button
               onClick={() => handlePageChange(Math.max(currentPage - 1, 1))}
               disabled={currentPage <= 1 || loading}
-              style={{ cursor: currentPage <= 1 || loading ? 'not-allowed' : 'pointer' }}
-              className="p-[6px_14px] border border-gray-300 rounded-lg text-[13px] transition duration-150 disabled:opacity-50 disabled:bg-gray-50 disabled:text-gray-400 bg-white text-gray-700 hover:bg-gray-50"
-            >← Prev</button>
-            <span className="p-[6px_12px] text-[13px] text-gray-500 border border-gray-200 rounded-lg bg-slate-50">
-              {currentPage} / {totalPages}
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                currentPage <= 1 || loading
+                  ? 'bg-[#eaebee] text-gray-400 cursor-not-allowed opacity-50'
+                  : 'bg-[#e4e5e7] hover:bg-[#d8d9dc] text-gray-800 cursor-pointer shadow-2xs'
+              }`}
+              aria-label="Previous page"
+            >
+              ‹
+            </button>
+
+            <span className="text-xs font-semibold text-gray-700 select-none px-1">
+              Page {currentPage} of {totalPages}
             </span>
+
             <button
               onClick={() => handlePageChange(Math.min(currentPage + 1, totalPages))}
               disabled={currentPage >= totalPages || loading}
-              style={{ cursor: currentPage >= totalPages || loading ? 'not-allowed' : 'pointer' }}
-              className="p-[6px_14px] border border-gray-300 rounded-lg text-[13px] transition duration-150 disabled:opacity-50 disabled:bg-gray-50 disabled:text-gray-400 bg-white text-gray-700 hover:bg-gray-50"
-            >Next →</button>
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                currentPage >= totalPages || loading
+                  ? 'bg-[#eaebee] text-gray-400 cursor-not-allowed opacity-50'
+                  : 'bg-[#e4e5e7] hover:bg-[#d8d9dc] text-gray-800 cursor-pointer shadow-2xs'
+              }`}
+              aria-label="Next page"
+            >
+              ›
+            </button>
           </div>
         </div>
       )}

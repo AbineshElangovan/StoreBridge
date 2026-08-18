@@ -572,6 +572,23 @@ export async function processProductUpdate(shopDomain: string, payload: any, web
         // Auto-publish to all sales channels during update as well
         await publishProductToAllChannels(targetStore.shopDomain, targetProductId);
 
+        // Dispatch notification to target store (e.g. Karur)
+        try {
+          const { createNotification } = require('@/services/notification-service');
+          await createNotification({
+            recipientStoreId: targetStore.id,
+            type: 'PRODUCT_UPDATED',
+            title: 'Product Updated',
+            message: `Product ${mergedTitle} was synchronized from ${sourceStore.label || sourceStore.shopDomain}`,
+            productId: String(targetProductId),
+            productTitle: mergedTitle,
+            sourceStoreId: sourceStore.id,
+            targetStoreId: targetStore.id,
+          });
+        } catch (notifErr) {
+          console.error('[ProductSync:Update] Error creating target notification:', notifErr);
+        }
+
         console.log(`[ProductSync:Update] Successfully updated product "${mergedTitle}" in target store ${targetStore.shopDomain} (Request ID: ${syncResult.requestId}, Duration: ${syncResult.durationMs}ms)`);
         releaseSyncLock(targetStore.shopDomain, targetProductId, mergedTitle);
     }

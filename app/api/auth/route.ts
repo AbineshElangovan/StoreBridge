@@ -33,24 +33,31 @@ export async function GET(req: NextRequest) {
       `<!DOCTYPE html>
       <html>
         <head>
+          <meta http-equiv="refresh" content="0; url=${topRedirectUrl}" />
+          <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
           <script type="text/javascript">
-            try {
-              if (window.top && window.top.location) {
-                window.top.location.href = "${topRedirectUrl}";
+            function redirectTop() {
+              if (window.shopify && typeof window.shopify.open === "function") {
+                window.shopify.open("${topRedirectUrl}", "_top");
               } else {
-                window.location.href = "${topRedirectUrl}";
+                var link = document.getElementById("redir-link");
+                if (link) link.click();
               }
-            } catch (e) {
-              const link = document.createElement('a');
-              link.href = "${topRedirectUrl}";
-              link.target = "_top";
-              document.body.appendChild(link);
-              link.click();
+            }
+            if (document.readyState === "loading") {
+              document.addEventListener("DOMContentLoaded", redirectTop);
+            } else {
+              redirectTop();
             }
           </script>
         </head>
-        <body>
-          <p>Redirecting to Shopify authorization...</p>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #f6f6f7;">
+          <div style="text-align: center;">
+            <p style="color: #6d7175; font-size: 14px; margin-bottom: 12px;">Redirecting to Shopify authorization...</p>
+            <a id="redir-link" href="${topRedirectUrl}" target="_top" style="display: inline-block; padding: 8px 16px; background: #008060; color: #fff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 13px;">
+              Click here to continue
+            </a>
+          </div>
         </body>
       </html>`,
       {

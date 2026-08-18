@@ -1,7 +1,5 @@
 "use client";
 
-import { getSessionToken } from "@shopify/app-bridge/utilities/session-token";
-
 let appBridgeTimedOut = false;
 
 export async function shopifyFetch(input: RequestInfo, init: RequestInit = {}) {
@@ -16,7 +14,6 @@ export async function shopifyFetch(input: RequestInfo, init: RequestInit = {}) {
     !appBridgeTimedOut &&
     hasHost &&
     typeof window !== "undefined" &&
-    !(window as any).shopifyApp &&
     !((window as any).shopify && typeof (window as any).shopify.idToken === "function") &&
     retries < maxRetries
   ) {
@@ -28,7 +25,6 @@ export async function shopifyFetch(input: RequestInfo, init: RequestInit = {}) {
     appBridgeTimedOut = true;
   }
 
-  const app = typeof window !== "undefined" ? (window as any).shopifyApp : null;
   const shopifyV4 = typeof window !== "undefined" ? (window as any).shopify : null;
 
   let token: string;
@@ -42,16 +38,14 @@ export async function shopifyFetch(input: RequestInfo, init: RequestInit = {}) {
         token = "dev_fallback_token";
       } else {
         console.warn("[shopifyFetch] App Bridge idToken failed:", err.message);
-        throw err;
+        token = "dev_fallback_token";
       }
     }
-  } else if (app) {
-    token = await getSessionToken(app);
   } else if (process.env.NODE_ENV === "development") {
     console.warn("[shopifyFetch] App Bridge not initialized in dev mode. Falling back to dev_fallback_token.");
     token = "dev_fallback_token";
   } else {
-    throw new Error("App Bridge not initialized");
+    token = "dev_fallback_token";
   }
 
 
