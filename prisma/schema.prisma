@@ -332,6 +332,7 @@ enum AuthStatus {
 model WebhookQueue {
   id         String        @id @default(uuid())
   webhookId  String        @unique // From X-Shopify-Webhook-Id to prevent duplicates
+  eventId    String?       // From X-Shopify-Event-Id for event correlation
   topic      String
   shopDomain String
   apiVersion String?
@@ -344,6 +345,7 @@ model WebhookQueue {
 
   @@index([status, createdAt])
   @@index([shopDomain, topic])
+  @@index([eventId])
   @@map("webhook_queue")
 }
 
@@ -436,6 +438,7 @@ model ActivityLog {
   productId    String?
   productTitle String
   sku          String?
+  imageUrl     String?
   eventType    ActivityEventType
   description  String
   quantity     Int?

@@ -47,14 +47,15 @@ export function NotificationFilters({
 }: NotificationFiltersProps) {
   const typeOptions = [
     { label: 'All types', value: 'ALL' },
-    { label: 'Product Updates', value: 'PRODUCT_UPDATED' },
     { label: 'Low Stock', value: 'LOW_STOCK' },
     { label: 'Out of Stock', value: 'OUT_OF_STOCK' },
     { label: 'Inventory Updates', value: 'INVENTORY_UPDATE' },
-    { label: 'Price Updates', value: 'PRICE_UPDATE' },
+    { label: 'Product Updates', value: 'PRODUCT_UPDATED' },
     { label: 'Connected Stores', value: 'CONNECTED_STORE_UPDATE' },
+    { label: 'Price Updates', value: 'PRICE_UPDATE' },
     { label: 'Sync Success', value: 'SYNC_UPDATE' },
     { label: 'Sync Failures', value: 'SYNC_FAILURE' },
+    { label: 'Import Completed', value: 'IMPORT_COMPLETED' },
   ];
 
   return (

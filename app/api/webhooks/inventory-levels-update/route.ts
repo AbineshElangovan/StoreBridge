@@ -5,17 +5,31 @@ import { processWebhookQueue } from "@/services/webhook-worker";
 
 export async function POST(req: NextRequest) {
   try {
-    const { topic, shop, webhookId, rawBody } = await verifyWebhook(req);
+    const { topic, shop, webhookId, eventId, rawBody } = await verifyWebhook(req);
     const apiVersion = req.headers.get("x-shopify-api-version") || null;
+    const timeISO = new Date().toISOString();
+
+    console.log(`[Webhook:Received] Time: ${timeISO} | Shop: ${shop} | Topic: ${topic} | WebhookId: ${webhookId} | EventId: ${eventId}`);
 
     if (topic !== 'inventory_levels/update') {
       return new NextResponse('Ignored topic', { status: 200 });
     }
 
     try {
+      const existingJob = await prisma.webhookQueue.findUnique({
+        where: { webhookId },
+        select: { id: true }
+      });
+
+      if (existingJob) {
+        console.log(`[Webhook:Ignored] WebhookId: ${webhookId} | Reason: duplicate_webhook_id`);
+        return new NextResponse("Webhook processed successfully", { status: 200 });
+      }
+
       await prisma.webhookQueue.create({
         data: {
           webhookId,
+          eventId,
           topic,
           shopDomain: shop,
           apiVersion,
@@ -23,11 +37,11 @@ export async function POST(req: NextRequest) {
           status: "PENDING",
         },
       });
-      console.log(`[Webhook:${topic}] Queued ${webhookId} for ${shop}`);
+      console.log(`[Webhook:${topic}] Queued ${webhookId} (Event: ${eventId}) for ${shop}`);
       processWebhookQueue().catch(console.error);
     } catch (e: any) {
       if (e.code === 'P2002') {
-        console.log(`[Webhook:${topic}] Duplicate webhook ignored: ${webhookId}`);
+        console.log(`[Webhook:Ignored] WebhookId: ${webhookId} | Reason: duplicate_webhook_id`);
       } else {
         throw e;
       }

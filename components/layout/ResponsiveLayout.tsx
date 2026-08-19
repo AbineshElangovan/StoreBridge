@@ -83,7 +83,7 @@ export function ResponsiveLayout({
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-[var(--bg-page)] relative pt-[60px] md:pt-0">
         {/* Desktop Top Header */}
-        <div className="hidden md:flex h-14 bg-white border-b border-gray-200 px-6 items-center justify-between sticky top-0 z-30 shadow-2xs">
+        <div className="hidden md:flex h-16 min-h-[64px] py-3 bg-white border-b border-gray-200 px-6 items-center justify-between sticky top-0 z-30 shadow-xs">
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">StoreBridge</span>
             <span className="text-gray-300">/</span>

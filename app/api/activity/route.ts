@@ -140,9 +140,24 @@ export async function GET(req: NextRequest) {
       
       enrichedActivities = activities.map((a: any) => ({
         ...a,
-        imageUrl: (a.productId && imageUrlMap.get(a.productId)) || (a.sku && imageUrlMap.get(a.sku)) || null
+        imageUrl: a.imageUrl || (a.productId && imageUrlMap.get(a.productId)) || (a.sku && imageUrlMap.get(a.sku)) || null
+      })) as any;
+    } else {
+      enrichedActivities = activities.map((a: any) => ({
+        ...a,
+        imageUrl: a.imageUrl || null
       })) as any;
     }
+
+    // Deduplicate past duplicate log entries created within the same 60-second window
+    const seenMap = new Set<string>();
+    const deduplicatedActivities = enrichedActivities.filter((a: any) => {
+      const timeBucket = Math.floor(new Date(a.createdAt).getTime() / 60000);
+      const key = `${a.storeId}_${a.eventType}_${a.productTitle}_${a.sku || ''}_${timeBucket}`;
+      if (seenMap.has(key)) return false;
+      seenMap.add(key);
+      return true;
+    });
     
     let storeOptions: any[] = [];
     if (isMultiStore) {
@@ -168,7 +183,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      activities: enrichedActivities,
+      activities: deduplicatedActivities,
       pagination: {
         total: totalActivities,
         page,

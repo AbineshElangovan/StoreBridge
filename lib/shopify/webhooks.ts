@@ -18,6 +18,7 @@ export async function verifyWebhook(req: Request) {
   const topic = req.headers.get("x-shopify-topic");
   const shop = req.headers.get("x-shopify-shop-domain");
   const webhookId = req.headers.get("x-shopify-webhook-id");
+  const eventId = req.headers.get("x-shopify-event-id") || webhookId;
 
   if (!hmac || !topic || !shop || !webhookId) {
     throw new Error("Missing required Shopify webhook headers.");
@@ -45,5 +46,5 @@ export async function verifyWebhook(req: Request) {
     }
   }
 
-  return { topic, shop, webhookId, rawBody };
+  return { topic, shop, webhookId, eventId, rawBody };
 }

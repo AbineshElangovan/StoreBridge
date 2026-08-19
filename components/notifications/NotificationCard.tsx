@@ -181,19 +181,17 @@ export function NotificationCard({
               )}
             </div>
 
-            <Tooltip content="Delete notification">
-              <button
-                type="button"
-                onClick={() => onDelete(item.id)}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors cursor-pointer border border-red-100 shadow-2xs"
-                title="Delete notification"
-              >
-                <div style={{ width: 14, height: 14 }} className="[&_svg]:fill-red-600 [&_svg]:text-red-600 text-red-600 flex items-center justify-center">
-                  <DeleteIcon />
-                </div>
-                <span>Delete</span>
-              </button>
-            </Tooltip>
+            <button
+              type="button"
+              onClick={() => onDelete(item.id)}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors cursor-pointer border border-red-100 shadow-2xs"
+              
+            >
+              <div style={{ width: 14, height: 14 }} className="[&_svg]:fill-red-600 [&_svg]:text-red-600 text-red-600 flex items-center justify-center">
+                <DeleteIcon />
+              </div>
+              <span>Delete</span>
+            </button>
           </InlineStack>
         </Box>
       </BlockStack>

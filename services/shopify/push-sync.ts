@@ -30,6 +30,53 @@ export async function pushProductsToDestinations(sourceStoreId: string, targetSt
     await cleanupOrphanedProducts(targetStore.id);
   }
 
+  // Check if target stores are ALREADY 100% in sync to avoid redundant API loops
+  const sourceCaches = await prisma.productCache.findMany({
+    where: { storeId: sourceStore.id },
+    select: { sku: true, inventoryQuantity: true }
+  });
+
+  let isAlreadySynced = false;
+  if (sourceCaches.length > 0) {
+    let allTargetsMatched = true;
+    for (const targetStore of targetStores) {
+      const targetCaches = await prisma.productCache.findMany({
+        where: { storeId: targetStore.id },
+        select: { sku: true, inventoryQuantity: true }
+      });
+
+      const targetMapBySku = new Map(targetCaches.filter(c => c.sku).map(c => [c.sku, c.inventoryQuantity]));
+      const sourceSkus = sourceCaches.map(c => c.sku).filter(Boolean);
+
+      if (sourceSkus.length === 0 || targetCaches.length < sourceCaches.length) {
+        allTargetsMatched = false;
+        break;
+      }
+
+      const hasAllSkusAndQuantities = sourceSkus.every(sku => {
+        const targetQty = targetMapBySku.get(sku as string);
+        const sourceItem = sourceCaches.find(c => c.sku === sku);
+        return targetQty !== undefined && targetQty === sourceItem?.inventoryQuantity;
+      });
+
+      if (!hasAllSkusAndQuantities) {
+        allTargetsMatched = false;
+        break;
+      }
+    }
+    isAlreadySynced = allTargetsMatched;
+  }
+
+  if (isAlreadySynced) {
+    console.log(`[PushSync] All target stores are ALREADY in sync with ${sourceStore.shopDomain}. Skipping redundant API calls.`);
+    return {
+      success: true,
+      isAlreadySynced: true,
+      syncedProducts: sourceCaches.length,
+      message: "Selected stores are already fully in sync! No changes were required."
+    };
+  }
+
   // 1. Fetch Source Products
   let hasNextPage = true;
   let cursor: string | null = null;
@@ -115,4 +162,11 @@ export async function pushProductsToDestinations(sourceStoreId: string, targetSt
       });
     }
   }
+
+  return {
+    success: failedCount === 0,
+    isAlreadySynced: false,
+    syncedProducts: allSourceProducts.length,
+    message: failedCount === 0 ? "Synchronization completed successfully!" : "Sync finished with errors."
+  };
 }

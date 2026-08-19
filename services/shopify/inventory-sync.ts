@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db/prisma';
 import { createSyncLog } from '@/lib/shopify/sync-log';
 import { setInventoryQuantity, adjustInventoryQuantity } from '@/lib/shopify/inventory';
 import { syncLock } from '@/lib/shopify/sync-lock';
+import { acquireRichSyncLock } from '@/services/shopify/locks';
 import { getAdminClient } from '@/lib/shopify/admin';
 import { createNotification } from '@/services/notification-service';
 
@@ -115,98 +116,6 @@ export async function processInventoryUpdate(
         },
       });
       console.log(`[${new Date().toISOString()}] [SyncService] ProductCache updated for source store ${shopDomain}`);
-
-      // 1. Trigger INVENTORY_UPDATE notification
-      await createNotification({
-        recipientStoreId: sourceStore.id,
-        type: 'INVENTORY_UPDATE',
-        title: 'Inventory Update',
-        message: `${productTitle} inventory changed from ${previousQuantity} → ${trueTotalInventory}`,
-        productId: shopifyProductId,
-        productTitle,
-        sourceStoreId: sourceStore.id,
-      });
-
-      // 2. Trigger OUT_OF_STOCK or LOW_STOCK notification
-      if (trueTotalInventory === 0) {
-        // OUT OF STOCK (quantity === 0)
-        await createNotification({
-          recipientStoreId: sourceStore.id,
-          type: 'OUT_OF_STOCK',
-          title: 'Out of Stock Alert',
-          message: `${productTitle} is completely out of stock (0 units remaining)`,
-          productId: shopifyProductId,
-          productTitle,
-          sourceStoreId: sourceStore.id,
-        });
-
-        const isStandalone = !sourceStore.isMaster &&
-          (await prisma.storeConnection.count({
-            where: {
-              OR: [
-                { sourceStoreId: sourceStore.id },
-                { targetStoreId: sourceStore.id }
-              ]
-            }
-          })) === 0;
-
-        if (!sourceStore.isMaster && !isStandalone) {
-          const masterStore = await prisma.store.findFirst({
-            where: { isMaster: true, isActive: true }
-          });
-          if (masterStore && masterStore.id !== sourceStore.id) {
-            await createNotification({
-              recipientStoreId: masterStore.id,
-              type: 'OUT_OF_STOCK',
-              title: 'Out of Stock Alert',
-              message: `${sourceStore.label || sourceStore.shopDomain}: ${productTitle} is completely out of stock`,
-              productId: shopifyProductId,
-              productTitle,
-              sourceStoreId: sourceStore.id,
-              targetStoreId: masterStore.id,
-            });
-          }
-        }
-      } else if (trueTotalInventory > 0 && trueTotalInventory <= sourceStore.lowStockThreshold) {
-        // LOW STOCK (0 < quantity <= threshold)
-        await createNotification({
-          recipientStoreId: sourceStore.id,
-          type: 'LOW_STOCK',
-          title: 'Low Stock Alert',
-          message: `${productTitle} has ${trueTotalInventory} unit${trueTotalInventory === 1 ? '' : 's'} remaining (Threshold: ${sourceStore.lowStockThreshold})`,
-          productId: shopifyProductId,
-          productTitle,
-          sourceStoreId: sourceStore.id,
-        });
-
-        const isStandalone = !sourceStore.isMaster &&
-          (await prisma.storeConnection.count({
-            where: {
-              OR: [
-                { sourceStoreId: sourceStore.id },
-                { targetStoreId: sourceStore.id }
-              ]
-            }
-          })) === 0;
-
-        if (!sourceStore.isMaster && !isStandalone) {
-          const masterStore = await prisma.store.findFirst({
-            where: { isMaster: true, isActive: true }
-          });
-          if (masterStore && masterStore.id !== sourceStore.id) {
-            await createNotification({
-              recipientStoreId: masterStore.id,
-              type: 'LOW_STOCK',
-              title: 'Low Stock Alert',
-              message: `${sourceStore.label || sourceStore.shopDomain}: ${productTitle} has ${trueTotalInventory} unit${trueTotalInventory === 1 ? '' : 's'} remaining (Threshold: ${sourceStore.lowStockThreshold})`,
-              productId: shopifyProductId,
-              productTitle,
-              sourceStoreId: sourceStore.id,
-              targetStoreId: masterStore.id,
-            });
-          }
-        }
-      }
     }
 
     if (!sourceStore.autoSyncEnabled) {
@@ -219,20 +128,52 @@ export async function processInventoryUpdate(
       return;
     }
 
+    // Determine connected target store IDs based on network topology
+    let allowedTargetStoreIds: string[] = [];
+
+    if (sourceStore.isMaster) {
+      const connections = await prisma.storeConnection.findMany({
+        where: { sourceStoreId: sourceStore.id },
+        select: { targetStoreId: true }
+      });
+      allowedTargetStoreIds = connections.map(c => c.targetStoreId);
+    } else {
+      const masterConn = await prisma.storeConnection.findFirst({
+        where: { targetStoreId: sourceStore.id }
+      });
+      if (!masterConn) {
+        console.log(`[SyncService] Store ${shopDomain} is standalone (not connected to master). Skipping target replication.`);
+        return;
+      }
+      const siblingConns = await prisma.storeConnection.findMany({
+        where: { sourceStoreId: masterConn.sourceStoreId },
+        select: { targetStoreId: true }
+      });
+      allowedTargetStoreIds = Array.from(new Set([
+        masterConn.sourceStoreId,
+        ...siblingConns.map(c => c.targetStoreId).filter(id => id !== sourceStore.id)
+      ]));
+    }
+
+    if (allowedTargetStoreIds.length === 0) {
+      console.log(`[SyncService] No active connected target stores found for ${shopDomain}. Skipping target replication.`);
+      return;
+    }
+
     const targetVariantMaps = await prisma.variantMap.findMany({
       where: {
         sku,
-        storeId: { not: sourceStore.id },
+        storeId: { in: allowedTargetStoreIds },
       },
       include: {
         store: true,
       },
     });
 
-    console.log(`[${new Date().toISOString()}] [SyncService] Found ${targetVariantMaps.length} target store(s) for SKU ${sku}`);
+    console.log(`[${new Date().toISOString()}] [SyncService] Found ${targetVariantMaps.length} connected target store(s) for SKU ${sku}`);
 
     if (targetVariantMaps.length === 0) {
-      console.log(`[${new Date().toISOString()}] [SyncService] SKU ${sku} is not mapped in any other stores. Finished.`);
+      console.log(`[${new Date().toISOString()}] [SyncService] SKU ${sku} is not mapped in any connected target stores. Finished.`);
       return;
     }
 
@@ -329,6 +270,7 @@ export async function processInventoryUpdate(
         }
 
         console.log(`[${new Date().toISOString()}] [SyncService] Requesting Shopify inventory set for ${target.store.shopDomain}...`);
+        acquireRichSyncLock(target.store.shopDomain, target.inventoryItemId, targetNewQuantity, 'INVENTORY_SYNC', 30000);
         await setInventoryQuantity(
           target.store.shopDomain,
           target.inventoryItemId,

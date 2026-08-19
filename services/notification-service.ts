@@ -98,13 +98,21 @@ export async function createNotification(params: CreateNotificationParams) {
     }
 
     // 4. Anti-Spam De-duplication for ALL notification types (10 minute window)
-    if (productId || productTitle) {
+    const cleanProductId = productId ? productId.replace(/^gid:\/\/shopify\/(Product|Variant)\//, '').trim() : null;
+
+    if (cleanProductId || productTitle) {
       const recentDuplicate = await prisma.notification.findFirst({
         where: {
           recipientStoreId,
           type,
           title,
-          ...(productId ? { productId } : { productTitle }),
+          OR: [
+            ...(cleanProductId ? [
+              { productId: cleanProductId },
+              { productId: `gid://shopify/Product/${cleanProductId}` }
+            ] : []),
+            ...(productTitle ? [{ productTitle }] : [])
+          ],
           createdAt: {
             gte: new Date(Date.now() - 10 * 60 * 1000), // 10 minutes
           },
@@ -235,19 +243,9 @@ export async function getNotifications(recipientStoreId: string, options: Notifi
 
     if (storeIdFilter && storeIdFilter !== 'ALL') {
       const activeFilterId = targetStoreIds.includes(storeIdFilter) ? storeIdFilter : recipientStoreId;
-      andConditions.push({
-        OR: [
-          { recipientStoreId: activeFilterId },
-          { sourceStoreId: activeFilterId },
-        ]
-      });
+      andConditions.push({ recipientStoreId: activeFilterId });
     } else {
-      andConditions.push({
-        OR: [
-          { recipientStoreId: { in: targetStoreIds } },
-          { sourceStoreId: { in: targetStoreIds } },
-        ]
-      });
+      andConditions.push({ recipientStoreId: { in: targetStoreIds } });
     }
   } else {
     // For Sub-Store and Standalone stores: strictly only their own inbox
@@ -255,7 +253,11 @@ export async function getNotifications(recipientStoreId: string, options: Notifi
   }
 
   if (type && type !== 'ALL') {
-    andConditions.push({ type: type as NotificationType });
+    if (type === 'LOW_STOCK') {
+      andConditions.push({ type: { in: ['LOW_STOCK', 'STOCKOUT_RISK'] } });
+    } else {
+      andConditions.push({ type: type as NotificationType });
+    }
   }
 
   if (status === 'unread') {
@@ -271,6 +273,7 @@ export async function getNotifications(recipientStoreId: string, options: Notifi
         { title: { contains: query, mode: 'insensitive' } },
         { message: { contains: query, mode: 'insensitive' } },
         { productTitle: { contains: query, mode: 'insensitive' } },
+        { sku: { contains: query, mode: 'insensitive' } },
       ]
     });
   }
@@ -292,7 +295,7 @@ export async function getNotifications(recipientStoreId: string, options: Notifi
     prisma.notification.count({ where: whereClause }),
     prisma.notification.count({
       where: {
-        ...whereClause,
+        recipientStoreId: isMaster ? { in: targetStoreIds } : recipientStoreId,
         isRead: false,
       },
     }),
@@ -398,9 +401,33 @@ export async function markAsRead(recipientStoreId: string, notificationId: strin
  */
 export async function markAllAsRead(recipientStoreId: string) {
   try {
+    const currentStore = await prisma.store.findUnique({
+      where: { id: recipientStoreId },
+      select: { isMaster: true }
+    });
+
+    let targetStoreIds = [recipientStoreId];
+    if (currentStore?.isMaster) {
+      const connections = await prisma.storeConnection.findMany({
+        where: {
+          OR: [
+            { sourceStoreId: recipientStoreId },
+            { targetStoreId: recipientStoreId },
+          ]
+        }
+      });
+      targetStoreIds = Array.from(
+        new Set([
+          recipientStoreId,
+          ...connections.map((c) => c.sourceStoreId),
+          ...connections.map((c) => c.targetStoreId),
+        ])
+      );
+    }
+
     return await prisma.notification.updateMany({
       where: {
-        recipientStoreId: recipientStoreId,
+        recipientStoreId: { in: targetStoreIds },
         isRead: false,
       },
       data: {

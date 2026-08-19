@@ -18,6 +18,7 @@ import {
 import { SettingsIcon, RefreshIcon } from '@shopify/polaris-icons';
 import { Pagination } from '@/components/common/Pagination';
 import { Toast } from '@/components/common/Toast';
+import { ConfirmToast } from '@/components/ui/ConfirmToast';
 import {
   NotificationCard,
   NotificationFilters,
@@ -52,6 +53,7 @@ export default function NotificationsPage() {
   // Modals & Dialogs
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
 
   // Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -216,9 +218,6 @@ export default function NotificationsPage() {
 
   // Delete single notification
   const handleDeleteNotification = async (id: string) => {
-    if (!window.confirm("Are you sure you want to delete this notification?")) {
-      return;
-    }
     try {
       setNotifications((prev) => prev.filter((n) => n.id !== id));
       setTotalCount((c) => Math.max(0, c - 1));
@@ -238,10 +237,6 @@ export default function NotificationsPage() {
 
   // Delete all notifications
   const handleDeleteAll = async () => {
-    if (!window.confirm("Are you sure you want to delete all notifications?\n\nThis action cannot be undone and will permanently remove all notifications for this store.")) {
-      return;
-    }
-
     setIsDeletingAll(true);
     try {
       const res = await shopifyFetch('/api/notifications', { method: 'DELETE' });
@@ -299,129 +294,146 @@ export default function NotificationsPage() {
   return (
     <Page>
       {/* Custom Green Themed Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">Notifications</h1>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {unreadCount} unread of {totalCount} notifications
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={loadNotifications}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 transition-colors cursor-pointer shadow-2xs"
-            >
-              <div style={{ width: 14, height: 14 }}>
-                <RefreshIcon />
-              </div>
-              Refresh
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsPreferencesOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-[#0db69d] hover:bg-[#0b9c86] transition-colors cursor-pointer shadow-xs"
-            >
-              <div style={{ width: 14, height: 14 }}>
-                <SettingsIcon />
-              </div>
-              Notification Preferences
-            </button>
-          </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827', margin: 0 }}>
+            Notifications
+          </h1>
+          <p style={{ marginTop: 4, color: '#6b7280', fontSize: '0.875rem' }}>
+            Real-time alerts for inventory updates, stock thresholds, and store sync events.
+          </p>
         </div>
 
-        <Layout>
-          {/* Top Filters & Search Section */}
-          <Layout.Section>
-            <NotificationFilters
-              typeFilter={typeFilter}
-              onTypeChange={(t) => {
-                setTypeFilter(t);
-                setPage(1);
-              }}
-              statusFilter={statusFilter}
-              onStatusChange={(s) => {
-                setStatusFilter(s);
-                setPage(1);
-              }}
-              storeFilter={storeFilter}
-              onStoreChange={(st) => {
-                setStoreFilter(st);
-                setPage(1);
-              }}
-              storeOptions={storeOptions}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              unreadCount={unreadCount}
-              totalCount={totalCount}
-              onMarkAllRead={handleMarkAllRead}
-              onOpenDeleteAllModal={handleDeleteAll}
-            />
-          </Layout.Section>
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={loadNotifications}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 transition-colors cursor-pointer shadow-2xs"
+          >
+            <div style={{ width: 14, height: 14 }}>
+              <RefreshIcon />
+            </div>
+            Refresh
+          </button>
 
-          {/* Main Notifications List Section */}
-          <Layout.Section>
-            {loading ? (
-              <Box padding="800">
-                <PageLoader />
-              </Box>
-            ) : notifications.length === 0 ? (
-              <Card>
-                <EmptyState
-                  heading="No notifications found"
-                  image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
-                >
-                  <p>
-                    {searchQuery || typeFilter !== 'ALL' || statusFilter !== 'all'
-                      ? 'Try adjusting your filters or search query.'
-                      : 'You are all caught up! No notifications right now.'}
-                  </p>
-                </EmptyState>
-              </Card>
-            ) : (
-              <BlockStack gap="300">
-                {notifications.map((item) => (
-                  <NotificationCard
-                    key={item.id}
-                    item={item}
-                    onMarkAsRead={handleMarkAsRead}
-                    onDelete={handleDeleteNotification}
-                  />
-                ))}
+          <button
+            type="button"
+            onClick={() => setIsPreferencesOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-[#0db69d] hover:bg-[#0b9c86] transition-colors cursor-pointer shadow-xs"
+          >
+            <div style={{ width: 14, height: 14 }}>
+              <SettingsIcon />
+            </div>
+            Notification Preferences
+          </button>
+        </div>
+      </div>
 
-                {/* Reusable Pagination Controls */}
-                <Pagination
-                  page={page}
-                  totalPages={totalPages}
-                  onPageChange={setPage}
-                  className="py-4"
-                />
-              </BlockStack>
-            )}
-          </Layout.Section>
-        </Layout>
+      <ConfirmToast
+        open={showDeleteAllConfirm}
+        message={`Delete all ${totalCount} notifications?`}
+        subMessage="This action will permanently delete all alerts for this store."
+        confirmLabel="Delete All"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={isDeletingAll}
+        onConfirm={async () => {
+          setShowDeleteAllConfirm(false);
+          await handleDeleteAll();
+        }}
+        onCancel={() => setShowDeleteAllConfirm(false)}
+      />
 
-        {/* Preferences Modal */}
-        <NotificationPreferencesModal
-          open={isPreferencesOpen}
-          onClose={() => setIsPreferencesOpen(false)}
-          prefs={preferences}
-          onChange={setPreferences}
-          onSave={handleSavePreferences}
-          saving={savingPrefs}
-          saveSuccess={prefsSuccess}
-        />
-
-        {/* Toast Feedback */}
-        {toastMessage && (
-          <Toast
-            content={toastMessage}
-            error={toastError}
-            onDismiss={() => setToastMessage(null)}
+      <Layout>
+        {/* Top Filters & Search Section */}
+        <Layout.Section>
+          <NotificationFilters
+            typeFilter={typeFilter}
+            onTypeChange={(t) => {
+              setTypeFilter(t);
+              setPage(1);
+            }}
+            statusFilter={statusFilter}
+            onStatusChange={(s) => {
+              setStatusFilter(s);
+              setPage(1);
+            }}
+            storeFilter={storeFilter}
+            onStoreChange={(st) => {
+              setStoreFilter(st);
+              setPage(1);
+            }}
+            storeOptions={storeOptions}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            unreadCount={unreadCount}
+            totalCount={totalCount}
+            onMarkAllRead={handleMarkAllRead}
+            onOpenDeleteAllModal={() => setShowDeleteAllConfirm(true)}
           />
-        )}
-      </Page>
+        </Layout.Section>
+
+        {/* Main Notifications List Section */}
+        <Layout.Section>
+          {loading ? (
+            <Box padding="800">
+              <PageLoader />
+            </Box>
+          ) : notifications.length === 0 ? (
+            <Card>
+              <EmptyState
+                heading="No notifications found"
+                image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+              >
+                <p>
+                  {searchQuery || typeFilter !== 'ALL' || statusFilter !== 'all'
+                    ? 'Try adjusting your filters or search query.'
+                    : 'You are all caught up! No notifications right now.'}
+                </p>
+              </EmptyState>
+            </Card>
+          ) : (
+            <BlockStack gap="300">
+              {notifications.map((item) => (
+                <NotificationCard
+                  key={item.id}
+                  item={item}
+                  onMarkAsRead={handleMarkAsRead}
+                  onDelete={handleDeleteNotification}
+                />
+              ))}
+
+              {/* Reusable Pagination Controls */}
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                onPageChange={setPage}
+                className="py-4"
+              />
+            </BlockStack>
+          )}
+        </Layout.Section>
+      </Layout>
+
+      {/* Preferences Modal */}
+      <NotificationPreferencesModal
+        open={isPreferencesOpen}
+        onClose={() => setIsPreferencesOpen(false)}
+        prefs={preferences}
+        onChange={setPreferences}
+        onSave={handleSavePreferences}
+        saving={savingPrefs}
+        saveSuccess={prefsSuccess}
+      />
+
+      {/* Toast Feedback */}
+      {toastMessage && (
+        <Toast
+          content={toastMessage}
+          error={toastError}
+          onDismiss={() => setToastMessage(null)}
+        />
+      )}
+    </Page>
   );
 }

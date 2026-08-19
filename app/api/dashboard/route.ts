@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { authenticate, handleApiError } from '@/lib/shopify/authenticate';
-import { hasValidShopifyAccessToken } from '@/services/shopify/utils';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,7 +54,6 @@ export async function GET(req: NextRequest) {
     const currentStoreProducts: any[] = [];
     for (const p of rawCurrentStoreProducts) {
       const siblings = productsByParent.get(p.shopifyProductId);
-      // If there are multiple variants for this product, and this row's title doesn't contain ' - ', it's the stale parent
       if (siblings.length > 1 && !p.title.includes(' - ')) {
         continue;
       }
@@ -90,13 +88,29 @@ export async function GET(req: NextRequest) {
     const failedSyncs = totalSyncs - successSyncs;
     const syncStats = { totalSyncs, successSyncs, failedSyncs };
 
-    // Filter low stock using current store's threshold settings
-    const lowStockProducts = currentStoreProducts
+    // Deduplicate low stock products by product title so variant duplicates don't show up twice
+    const lowStockMap = new Map();
+    currentStoreProducts
       .filter((p: any) => p.inventoryQuantity <= store.lowStockThreshold)
+      .forEach((p: any) => {
+        const key = p.title?.trim() || p.sku?.trim();
+        if (!lowStockMap.has(key)) {
+          lowStockMap.set(key, p);
+        }
+      });
+    const lowStockProducts = Array.from(lowStockMap.values())
       .sort((a: any, b: any) => a.inventoryQuantity - b.inventoryQuantity)
       .slice(0, 50);
 
-    const recentlyAddedProducts = currentStoreProducts
+    // Deduplicate recently added products by title
+    const recentlyAddedMap = new Map();
+    currentStoreProducts.forEach((p: any) => {
+      const key = p.title?.trim() || p.sku?.trim();
+      if (!recentlyAddedMap.has(key)) {
+        recentlyAddedMap.set(key, p);
+      }
+    });
+    const recentlyAddedProducts = Array.from(recentlyAddedMap.values())
       .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 50);
 

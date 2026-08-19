@@ -1,0 +1,93 @@
+'use client';
+
+import React from 'react';
+
+interface FilterStore {
+  id: string;
+  label: string;
+}
+
+interface InsightFiltersProps {
+  stores: FilterStore[];
+  collections: string[];
+  selectedStore: string;
+  selectedRange: string;
+  selectedCollection: string;
+  onStoreChange: (val: string) => void;
+  onRangeChange: (val: string) => void;
+  onCollectionChange: (val: string) => void;
+}
+
+export function InsightFilters({
+  stores,
+  collections,
+  selectedStore,
+  selectedRange,
+  selectedCollection,
+  onStoreChange,
+  onRangeChange,
+  onCollectionChange,
+}: InsightFiltersProps) {
+  return (
+    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 mb-6">
+      {/* Store Selector */}
+      <div className="relative w-full sm:w-auto">
+        <select
+          value={selectedStore}
+          onChange={(e) => onStoreChange(e.target.value)}
+          className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 sm:py-2 pr-9 text-xs sm:text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0db69d]/20 focus:border-[#0db69d] cursor-pointer shadow-2xs transition-colors"
+        >
+          {stores.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-500">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </div>
+
+      {/* Date Range Selector */}
+      <div className="relative w-full sm:w-auto">
+        <select
+          value={selectedRange}
+          onChange={(e) => onRangeChange(e.target.value)}
+          className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 sm:py-2 pr-9 text-xs sm:text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0db69d]/20 focus:border-[#0db69d] cursor-pointer shadow-2xs transition-colors"
+        >
+          <option value="7">Last 7 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="90">Last 90 days</option>
+          <option value="365">Last 1 year</option>
+        </select>
+        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-500">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </div>
+
+      {/* Collection Selector */}
+      <div className="relative w-full sm:w-auto">
+        <select
+          value={selectedCollection}
+          onChange={(e) => onCollectionChange(e.target.value)}
+          className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 sm:py-2 pr-9 text-xs sm:text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0db69d]/20 focus:border-[#0db69d] cursor-pointer shadow-2xs transition-colors"
+        >
+          {collections.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-500">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </div>
+    </div>
+  );
+}

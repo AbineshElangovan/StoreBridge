@@ -94,7 +94,9 @@ export function NotificationBell() {
         const unread = json.unreadCount || 0;
         setUnreadCount(unread);
         if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: unread }));
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: unread }));
+          }, 0);
         }
       } else {
         setNotifications([]);
@@ -115,10 +117,43 @@ export function NotificationBell() {
     const handleNotificationUpdate = () => fetchNotifications(activeFilter);
     window.addEventListener('notification-updated', handleNotificationUpdate);
 
+    // Real-Time Server-Sent Events (SSE) Stream
+    let eventSource: EventSource | null = null;
+    try {
+      const shopParam = shop ? `?shop=${encodeURIComponent(shop)}` : '';
+      eventSource = new EventSource(`/api/notifications/stream${shopParam}`);
+
+      eventSource.addEventListener('new-notification', (e: any) => {
+        try {
+          const newNotif = JSON.parse(e.data);
+          setNotifications((prev) => {
+            if (prev.some((n) => n.id === newNotif.id)) return prev;
+            return [newNotif, ...prev];
+          });
+          setUnreadCount((prev) => {
+            const nextCount = prev + 1;
+            setTimeout(() => {
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: nextCount }));
+              }
+            }, 0);
+            return nextCount;
+          });
+        } catch (err) {
+          console.error('[Notification SSE] Parse error:', err);
+        }
+      });
+    } catch (err) {
+      console.error('[Notification SSE] Connection error:', err);
+    }
+
     return () => {
       window.removeEventListener('notification-updated', handleNotificationUpdate);
+      if (eventSource) {
+        eventSource.close();
+      }
     };
-  }, [activeFilter]);
+  }, [activeFilter, shop]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -187,16 +222,19 @@ export function NotificationBell() {
           setIsOpen(!isOpen);
           if (!isOpen) fetchNotifications(activeFilter);
         }}
-        className="relative w-10 h-10 bg-white hover:bg-gray-100/80 text-gray-700 hover:text-gray-900 border border-gray-200/90 rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-slate-400 flex items-center justify-center shadow-2xs cursor-pointer"
+        className="relative w-10 h-10 bg-[#0db69d] hover:bg-[#0b9c87] text-white border border-[#0db69d]/40 rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-[#0db69d]/50 flex items-center justify-center shadow-xs cursor-pointer"
         aria-label="Notifications"
       >
-        <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
         </svg>
         {/* Only render badge if unreadCount > 0 */}
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-extrabold rounded-full flex items-center justify-center shadow-2xs border border-white animate-pulse">
-            {unreadCount > 99 ? '99+' : unreadCount}
+          <span className="absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px]">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+            <span className="relative inline-flex min-w-[18px] h-[18px] px-1 bg-red-600 text-white text-[10px] font-extrabold rounded-full items-center justify-center shadow-sm border border-white">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
           </span>
         )}
       </button>

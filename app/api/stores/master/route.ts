@@ -16,9 +16,18 @@ export async function PUT(req: NextRequest) {
 
     // Verify ownership/access before updating master store
     const connections = await (prisma as any).storeConnection.findMany({
-      where: { sourceStoreId: store.id }
+      where: {
+        OR: [
+          { sourceStoreId: store.id },
+          { targetStoreId: store.id }
+        ]
+      }
     });
-    const authorizedStoreIds = new Set([store.id, ...connections.map((c: any) => c.targetStoreId)]);
+    const authorizedStoreIds = new Set([
+      store.id,
+      ...connections.map((c: any) => c.sourceStoreId),
+      ...connections.map((c: any) => c.targetStoreId)
+    ]);
     
     if (!authorizedStoreIds.has(storeId)) {
       return NextResponse.json({ success: false, error: `Unauthorized to modify store ${storeId}` }, { status: 403 });

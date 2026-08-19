@@ -17,9 +17,7 @@ export function CsvUploader({ file, isValidating, onFileSelect, onValidate, onDi
   };
 
   const handleDirectClick = () => {
-    if (window.confirm("Are you sure you want to directly import without previewing? This will push changes immediately.")) {
-      if (onDirectImport) onDirectImport();
-    }
+    if (onDirectImport) onDirectImport();
   };
 
   return (

@@ -11,7 +11,7 @@ export function ManualSyncPanel() {
   
   const [selectedStores, setSelectedStores] = useState<string[]>([]);
   const [syncing, setSyncing] = useState(false);
-  const [result, setResult] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [result, setResult] = useState<{ type: 'success' | 'error' | 'warning', message: string } | null>(null);
 
   useEffect(() => {
     fetchConnections();
@@ -20,8 +20,17 @@ export function ManualSyncPanel() {
   const fetchConnections = async () => {
     try {
       const res = await shopifyFetch('/api/connections', { cache: 'no-store' });
-      const data = await res.json();
-      if (data.connections) {
+      if (!res.ok) {
+        setConnections([]);
+        return;
+      }
+      const text = await res.text();
+      if (!text || text.trim() === '') {
+        setConnections([]);
+        return;
+      }
+      const data = JSON.parse(text);
+      if (data && data.connections) {
         // Find master store
         const master = data.masterStore || (data.connections.length > 0 && data.connections[0].sourceStore) || { id: 'unknown', shopDomain: 'Master Store' };
         setMasterStore(master);
@@ -64,9 +73,14 @@ export function ManualSyncPanel() {
         })
       });
 
-      const data = await res.json();
-      if (data.success) {
-        setResult({ type: 'success', message: 'Synchronization triggered successfully!' });
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
+      if (res.ok && data.success) {
+        if (data.isAlreadySynced) {
+          setResult({ type: 'warning', message: data.message || '⚠️ Selected stores are already fully in sync! No changes were needed.' });
+        } else {
+          setResult({ type: 'success', message: data.message || 'Synchronization completed successfully!' });
+        }
       } else {
         setResult({ type: 'error', message: data.error || 'Failed to trigger sync' });
       }
@@ -122,7 +136,13 @@ export function ManualSyncPanel() {
       </div>
 
       {result && (
-        <div className={`px-6 py-4 text-sm font-medium ${result.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+        <div className={`px-6 py-4 text-sm font-bold ${
+          result.type === 'success'
+            ? 'bg-green-50 text-green-800 border-t border-green-200'
+            : result.type === 'warning'
+            ? 'bg-amber-50 text-amber-900 border-t border-amber-200'
+            : 'bg-red-50 text-red-800 border-t border-red-200'
+        }`}>
           {result.message}
         </div>
       )}

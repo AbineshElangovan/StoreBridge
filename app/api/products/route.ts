@@ -170,10 +170,11 @@ export async function GET(req: NextRequest) {
           groupedProducts[title] = [];
         }
         
-        // Group by SKU if available, otherwise fallback to the shopify product ID so variants of the same product merge
+        // Group by SKU if available, title, or shopify product ID so variants of the same product merge
         const existingItem = groupedProducts[title].find((i: any) => 
           (item.sku !== 'N/A' && i.sku === item.sku) || 
-          (item.sku === 'N/A' && i.shopifyProductId === p.shopifyProductId)
+          (item.sku === 'N/A' && i.shopifyProductId === p.shopifyProductId) ||
+          (i.title && item.title && i.title.trim() === item.title.trim())
         );
         
         if (existingItem) {

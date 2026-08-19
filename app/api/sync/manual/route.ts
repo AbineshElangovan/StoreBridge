@@ -25,22 +25,67 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "One or more selected stores are not explicitly connected to your store." }, { status: 400 });
     }
 
-    // Start background sync
+    // Fast Pre-Check: Are target stores already in sync?
+    const sourceCaches = await prisma.productCache.findMany({
+      where: { storeId: store.id },
+      select: { sku: true, inventoryQuantity: true }
+    });
+
+    let isAlreadySynced = false;
+    if (sourceCaches.length > 0) {
+      let allTargetsMatched = true;
+      for (const targetId of selectedTargetStoreIds) {
+        const targetCaches = await prisma.productCache.findMany({
+          where: { storeId: targetId },
+          select: { sku: true, inventoryQuantity: true }
+        });
+
+        const targetMapBySku = new Map(targetCaches.filter(c => c.sku).map(c => [c.sku, c.inventoryQuantity]));
+        const sourceSkus = sourceCaches.map(c => c.sku).filter(Boolean);
+
+        if (sourceSkus.length === 0 || targetCaches.length < sourceCaches.length) {
+          allTargetsMatched = false;
+          break;
+        }
+
+        const hasAllSkusAndQuantities = sourceSkus.every(sku => {
+          const targetQty = targetMapBySku.get(sku as string);
+          const sourceItem = sourceCaches.find(c => c.sku === sku);
+          return targetQty !== undefined && targetQty === sourceItem?.inventoryQuantity;
+        });
+
+        if (!hasAllSkusAndQuantities) {
+          allTargetsMatched = false;
+          break;
+        }
+      }
+      isAlreadySynced = allTargetsMatched;
+    }
+
+    if (isAlreadySynced) {
+      console.log("[Manual Sync API] Target stores are ALREADY in sync. Skipping sync process.");
+      return NextResponse.json({
+        success: true,
+        isAlreadySynced: true,
+        message: "⚠️ Selected stores are already fully in sync! No changes were needed."
+      });
+    }
+
+    // Stores need sync: run in background to prevent HTTP timeouts
     setTimeout(async () => {
       try {
-        console.log("[Manual Sync] Starting background manual sync for", selectedTargetStoreIds.length, "stores");
-        
-        // Fetch valid target stores
-        // We only need the source store ID, which is `store.id` from the authenticate() call.
+        console.log("[Manual Sync API] Starting background push sync for", selectedTargetStoreIds.length, "stores");
         await pushProductsToDestinations(store.id, selectedTargetStoreIds);
-        
-        console.log("[Manual Sync] Completed full push sync to selected stores.");
       } catch (err: any) {
-        console.error("[Manual Sync] Background Error:", err);
+        console.error("[Manual Sync API] Background Error:", err);
       }
-    }, 100);
+    }, 50);
 
-    return NextResponse.json({ success: true, message: "Sync initiated" });
+    return NextResponse.json({
+      success: true,
+      isAlreadySynced: false,
+      message: "Synchronization initiated successfully!"
+    });
   } catch (err: any) {
     console.error("[Manual Sync API] POST Error:", err.message);
     return handleApiError(err);

@@ -18,6 +18,53 @@ import { createMasterProductMapping, findMappingByVariantId } from "@/services/p
 const BATCH_SIZE = 20;
 const MAX_RETRIES = 3;
 
+function isCatalogMetadataChanged(payload: any, cachedProducts: any[]): boolean {
+  if (!cachedProducts || cachedProducts.length === 0) {
+    return true; // No existing cache, treat as initial/meaningful update
+  }
+
+  const firstCache = cachedProducts[0];
+
+  // 1. Check title
+  if (payload.title && firstCache.title) {
+    const cachedCleanTitle = firstCache.title.split(' - ')[0].trim();
+    if (payload.title.trim() !== cachedCleanTitle) return true;
+  }
+
+  // 2. Check tags
+  if (payload.tags !== undefined && (payload.tags || '') !== (firstCache.tags || '')) {
+    return true;
+  }
+
+  // 3. Check variants for Price, SKU, or Option changes
+  if (payload.variants && Array.isArray(payload.variants)) {
+    for (const v of payload.variants) {
+      const vSku = v.sku?.trim();
+      const vPrice = v.price ? parseFloat(v.price) : null;
+      const vId = String(v.id);
+
+      const cachedVar = cachedProducts.find((cp: any) =>
+        (cp.sku && vSku && cp.sku.trim() === vSku) ||
+        cp.shopifyVariantId.endsWith(vId)
+      );
+
+      if (!cachedVar) {
+        return true; // New variant added
+      }
+
+      if (vPrice !== null && cachedVar.price !== null && Math.abs(vPrice - cachedVar.price) > 0.001) {
+        return true; // Price changed
+      }
+
+      if (vSku && cachedVar.sku && vSku.toLowerCase() !== cachedVar.sku.toLowerCase()) {
+        return true; // SKU changed
+      }
+    }
+  }
+
+  return false; // Only inventory levels changed
+}
+
 export async function processWebhookQueue() {
   console.log(`[WebhookWorker] Starting queue processing...`);
   let processedCount = 0;
@@ -40,8 +87,25 @@ export async function processWebhookQueue() {
     for (const job of pendingJobs) {
       const startTime = Date.now();
 
-      // 2. Lock the job (Transaction to prevent double processing)
-      // We update it to PROCESSING. If another worker already took it, this will fail or return 0 records.
+      // Idempotency check for repeated webhook delivery replays
+      const duplicateCompleted = await prisma.webhookQueue.findFirst({
+        where: {
+          webhookId: job.webhookId,
+          status: WebhookStatus.COMPLETED,
+          id: { not: job.id }
+        }
+      });
+
+      if (duplicateCompleted) {
+        console.log(`[WebhookWorker:Ignored] WebhookId: ${job.webhookId} | Reason: duplicate_webhook_id`);
+        await prisma.webhookQueue.update({
+          where: { id: job.id },
+          data: { status: WebhookStatus.COMPLETED, error: 'Duplicate webhookId ignored' }
+        });
+        continue;
+      }
+
+      // 2. Lock the job
       try {
         const result = await prisma.webhookQueue.updateMany({
           where: {
@@ -63,13 +127,13 @@ export async function processWebhookQueue() {
         continue;
       }
 
-      console.log(`[WebhookWorker] Processing job ${job.id} | Topic: ${job.topic} | Store: ${job.shopDomain}`);
+      const eventIdStr = (job as any).eventId || job.webhookId;
+      console.log(`[WebhookWorker] Processing job ${job.id} | Topic: ${job.topic} | Store: ${job.shopDomain} | WebhookId: ${job.webhookId} | EventId: ${eventIdStr}`);
 
       // 3. Process the job
       try {
         const payload = job.payload as any;
 
-        // Route the job to the correct handler based on topic
         switch (job.topic) {
           case 'products/create':
             await handleProductsCreate(job.shopDomain, payload, job.webhookId);
@@ -94,13 +158,12 @@ export async function processWebhookQueue() {
           data: { status: WebhookStatus.COMPLETED, error: null }
         });
 
-        console.log(`[WebhookWorker] Successfully completed job ${job.id} in ${duration}ms.`);
+        console.log(`[WebhookWorker:Finished] Time: ${new Date().toISOString()} | WebhookId: ${job.webhookId} | EventId: ${eventIdStr} | Status: PROCESSED | Duration: ${duration}ms`);
         processedCount++;
 
       } catch (error: any) {
-        // 5. Handle Failure and Retries
         const duration = Date.now() - startTime;
-        const newAttempts = job.attempts + 1; // We already incremented once during lock
+        const newAttempts = job.attempts + 1;
         const isFinalFailure = newAttempts >= MAX_RETRIES;
         const nextStatus = isFinalFailure ? WebhookStatus.FAILED : WebhookStatus.PENDING;
 
@@ -112,7 +175,7 @@ export async function processWebhookQueue() {
           }
         });
 
-        console.error(`[WebhookWorker] Job ${job.id} failed (Attempt ${newAttempts}/${MAX_RETRIES}) in ${duration}ms. Error: ${error.message}`);
+        console.error(`[WebhookWorker:Failed] WebhookId: ${job.webhookId} failed (Attempt ${newAttempts}/${MAX_RETRIES}) in ${duration}ms. Error: ${error.message}`);
 
         if (isFinalFailure) {
           console.error(`[WebhookWorker] Job ${job.id} reached maximum retries and is marked as FAILED.`);
@@ -156,18 +219,30 @@ async function handleProductsCreate(shop: string, payload: any, webhookId: strin
     const sku = payload.variants?.[0]?.sku || null;
     const collectionStr = payload.collections?.map((c: any) => c.title).join(', ') || null;
 
-    // Create ActivityLog for this store
-    await prisma.activityLog.create({
-      data: {
+    // Create ActivityLog for this store (with deduplication)
+    const imgUrl = payload.image?.src || payload.images?.[0]?.src || null;
+    const existingLog = await prisma.activityLog.findFirst({
+      where: {
         storeId: store.id,
         productId: String(payload.id),
-        productTitle: payload.title || "Unknown Product",
-        sku: sku,
         eventType: "CREATE",
-        description: `Product created with ${payload.variants?.length || 1} variants`,
-        collection: collectionStr,
-      },
+        createdAt: { gte: new Date(Date.now() - 60000) }
+      }
     });
+    if (!existingLog) {
+      await prisma.activityLog.create({
+        data: {
+          storeId: store.id,
+          productId: String(payload.id),
+          productTitle: payload.title || "Unknown Product",
+          sku: sku,
+          imageUrl: imgUrl,
+          eventType: "CREATE",
+          description: `Product created with ${payload.variants?.length || 1} variants`,
+          collection: collectionStr,
+        },
+      });
+    }
 
     // Store receives its own Product Created notification
     await createNotification({
@@ -269,29 +344,29 @@ async function handleProductsCreate(shop: string, payload: any, webhookId: strin
       });
       const collectionStr = productCache?.collections?.map((c: any) => c.collection.title).join(', ') || null;
 
-      const connections = await prisma.storeConnection.findMany({
-        where: { sourceStoreId: storeRecord.id }
+      const imgUrl = enrichedPayload.image?.src || enrichedPayload.images?.[0]?.src || productCache?.imageUrl || null;
+      const existingLog = await prisma.activityLog.findFirst({
+        where: {
+          storeId: storeRecord.id,
+          productId: String(enrichedPayload.id),
+          eventType: "CREATE",
+          createdAt: { gte: new Date(Date.now() - 60000) }
+        }
       });
-      const allStoreIds = [storeRecord.id, ...connections.map(c => c.targetStoreId)];
-
-      const activities = await Promise.all(
-        allStoreIds.map(id =>
-          prisma.activityLog.create({
-            data: {
-              storeId: id,
-              productId: String(enrichedPayload.id),
-              productTitle: enrichedPayload.title || "Unknown Product",
-              sku: sku,
-              eventType: "CREATE",
-              description: `Product created with ${enrichedPayload.variants?.length || 1} variants`,
-              collection: collectionStr,
-            },
-            include: {
-              store: { select: { id: true, label: true, shopDomain: true, isMaster: true } }
-            }
-          })
-        )
-      );
+      if (!existingLog) {
+        await prisma.activityLog.create({
+          data: {
+            storeId: storeRecord.id,
+            productId: String(enrichedPayload.id),
+            productTitle: enrichedPayload.title || "Unknown Product",
+            sku: sku,
+            imageUrl: imgUrl,
+            eventType: "CREATE",
+            description: `Product created with ${enrichedPayload.variants?.length || 1} variants`,
+            collection: collectionStr,
+          }
+        });
+      }
 
       // Create notification for Product Created (for current store always, plus Master if connected)
       await createNotification({
@@ -344,37 +419,57 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
       }
     })) === 0;
 
-  if (!store.isMaster) {
-    console.log(`[Worker:products/update] Processing ${isStandalone ? 'Standalone' : 'Sub'} Store product update: ${shop}`);
-    
-    // 1. Fetch previous cache
-    const productCache = await prisma.productCache.findFirst({
-      where: { storeId: store.id, shopifyProductId: `gid://shopify/Product/${payload.id}` },
-    });
+  // 1. Fetch previous cache
+  const productCaches = await prisma.productCache.findMany({
+    where: { storeId: store.id, shopifyProductId: `gid://shopify/Product/${payload.id}` },
+  });
 
-    // 2. Update local cache for Store
+  // 2. Disambiguate: Is this purely an inventory-only change?
+  const metadataChanged = isCatalogMetadataChanged(payload, productCaches);
+
+  if (!metadataChanged) {
+    console.log(`[WebhookWorker:Ignored] WebhookId: ${webhookId} | Reason: inventory_only for ${shop} (Product: ${payload.title})`);
+    await updateLocalProductCache(shop, payload, 'products/update');
+    return;
+  }
+
+  if (!store.isMaster) {
+    console.log(`[Worker:products/update] Processing ${isStandalone ? 'Standalone' : 'Sub'} Store catalog update: ${shop}`);
+
+    // Update local cache for Store
     await updateLocalProductCache(shop, payload, 'products/update');
 
-    // 3. Create ActivityLog
+    // Create ActivityLog ONLY when metadata actually changes
     const sku = payload.variants?.[0]?.sku || null;
-    await prisma.activityLog.create({
-      data: {
+    const imgUrl = payload.image?.src || payload.images?.[0]?.src || productCaches[0]?.imageUrl || null;
+    const existingLog = await prisma.activityLog.findFirst({
+      where: {
         storeId: store.id,
         productId: String(payload.id),
-        productTitle: payload.title || "Unknown Product",
-        sku: sku,
         eventType: "UPDATE",
-        description: `Product updated in catalog`,
-      },
+        createdAt: { gte: new Date(Date.now() - 60000) }
+      }
     });
+    if (!existingLog) {
+      await prisma.activityLog.create({
+        data: {
+          storeId: store.id,
+          productId: String(payload.id),
+          productTitle: payload.title || "Unknown Product",
+          sku: sku,
+          imageUrl: imgUrl,
+          eventType: "UPDATE",
+          description: `Product details updated in catalog`,
+        },
+      });
+    }
 
-    // 4. Check price changed vs product details changed
-    const oldPrice = productCache?.price;
+    // Check price changed vs product details changed
+    const oldPrice = productCaches[0]?.price;
     const newPrice = payload.variants?.[0]?.price ? parseFloat(payload.variants[0].price) : null;
-    const isPriceChanged = oldPrice !== null && newPrice !== null && oldPrice !== newPrice;
+    const isPriceChanged = oldPrice !== null && oldPrice !== undefined && newPrice !== null && oldPrice !== newPrice;
 
     if (isPriceChanged) {
-      // Store receives Price Update
       await createNotification({
         recipientStoreId: store.id,
         type: 'PRICE_UPDATE',
@@ -385,7 +480,6 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
         sourceStoreId: store.id,
       });
     } else {
-      // Store receives Product Update
       await createNotification({
         recipientStoreId: store.id,
         type: 'PRODUCT_UPDATED',
@@ -397,7 +491,6 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
       });
     }
 
-    // 5. Master Store receives CONNECTED_STORE_UPDATE only if connected
     if (!isStandalone) {
       const masterStore = await prisma.store.findFirst({
         where: { isMaster: true, isActive: true }
@@ -413,70 +506,6 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
           sourceStoreId: store.id,
           targetStoreId: masterStore.id,
         });
-      }
-    }
-
-    // 6. Check out of stock vs low stock for Store
-    if (payload.variants && Array.isArray(payload.variants)) {
-      for (const variant of payload.variants) {
-        const qty = variant.inventory_quantity;
-        if (typeof qty === 'number') {
-          if (qty === 0) {
-            await createNotification({
-              recipientStoreId: store.id,
-              type: 'OUT_OF_STOCK',
-              title: 'Out of Stock Alert',
-              message: `${payload.title} is completely out of stock (0 units remaining)`,
-              productId: String(payload.id),
-              productTitle: payload.title,
-              sourceStoreId: store.id,
-            });
-            if (!isStandalone) {
-              const masterStore = await prisma.store.findFirst({
-                where: { isMaster: true, isActive: true }
-              });
-              if (masterStore && masterStore.id !== store.id) {
-                await createNotification({
-                  recipientStoreId: masterStore.id,
-                  type: 'OUT_OF_STOCK',
-                  title: 'Out of Stock Alert',
-                  message: `${store.label || store.shopDomain}: ${payload.title} is completely out of stock`,
-                  productId: String(payload.id),
-                  productTitle: payload.title,
-                  sourceStoreId: store.id,
-                  targetStoreId: masterStore.id,
-                });
-              }
-            }
-          } else if (qty > 0 && qty <= store.lowStockThreshold) {
-            await createNotification({
-              recipientStoreId: store.id,
-              type: 'LOW_STOCK',
-              title: 'Low Stock Alert',
-              message: `${payload.title} has ${qty} unit${qty === 1 ? '' : 's'} remaining (Threshold: ${store.lowStockThreshold})`,
-              productId: String(payload.id),
-              productTitle: payload.title,
-              sourceStoreId: store.id,
-            });
-            if (!isStandalone) {
-              const masterStore = await prisma.store.findFirst({
-                where: { isMaster: true, isActive: true }
-              });
-              if (masterStore && masterStore.id !== store.id) {
-                await createNotification({
-                  recipientStoreId: masterStore.id,
-                  type: 'LOW_STOCK',
-                  title: 'Low Stock Alert',
-                  message: `${store.label || store.shopDomain}: ${payload.title} has ${qty} unit${qty === 1 ? '' : 's'} remaining (Threshold: ${store.lowStockThreshold})`,
-                  productId: String(payload.id),
-                  productTitle: payload.title,
-                  sourceStoreId: store.id,
-                  targetStoreId: masterStore.id,
-                });
-              }
-            }
-          }
-        }
       }
     }
     return;
@@ -508,21 +537,27 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
 
     currentPayload = await generateSkusForProductIfNeeded(shop, currentPayload);
 
-    await updateLocalProductCache(shop, currentPayload, 'products/update'); // Pass topic if required
+    await updateLocalProductCache(shop, currentPayload, 'products/update');
     await processProductUpdate(shop, currentPayload, webhookId);
 
-    // Verify Product Mapping exists for all variants
     const storeRecord = await prisma.store.findUnique({ where: { shopDomain: shop } });
     if (storeRecord && currentPayload.variants) {
       for (const variant of currentPayload.variants) {
         const variantIdStr = variant.admin_graphql_api_id?.split('/').pop() || String(variant.id);
         const mapping = await findMappingByVariantId(storeRecord.id, variantIdStr);
         if (!mapping) {
-          throw new Error(`Data Inconsistency: Mapping missing for variant ${variantIdStr}`);
+          if (storeRecord.isMaster) {
+            const { createMasterProductMapping } = require('@/services/product-mapping');
+            await createMasterProductMapping(
+              storeRecord.id,
+              String(currentPayload.id),
+              variantIdStr,
+              variant.sku || `AUTOGEN-${variantIdStr}`
+            );
+          }
         }
       }
 
-      // Create ActivityLog for UPDATE
       if (storeRecord) {
         const sku = currentPayload.variants?.[0]?.sku || null;
 
@@ -532,37 +567,35 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
         });
         const collectionStr = productCache?.collections?.map((c: any) => c.collection.title).join(', ') || null;
 
-        const connections = await prisma.storeConnection.findMany({
-          where: { sourceStoreId: storeRecord.id }
+        const imgUrl = currentPayload.image?.src || currentPayload.images?.[0]?.src || productCache?.imageUrl || null;
+        const existingLog = await prisma.activityLog.findFirst({
+          where: {
+            storeId: storeRecord.id,
+            productId: String(currentPayload.id),
+            eventType: "UPDATE",
+            createdAt: { gte: new Date(Date.now() - 60000) }
+          }
         });
-        const allStoreIds = [storeRecord.id, ...connections.map(c => c.targetStoreId)];
+        if (!existingLog) {
+          await prisma.activityLog.create({
+            data: {
+              storeId: storeRecord.id,
+              productId: String(currentPayload.id),
+              productTitle: currentPayload.title || "Unknown Product",
+              sku: sku,
+              imageUrl: imgUrl,
+              eventType: "UPDATE",
+              description: `Product details updated in catalog`,
+              collection: collectionStr,
+            }
+          });
+        }
 
-        const activities = await Promise.all(
-          allStoreIds.map(id =>
-            prisma.activityLog.create({
-              data: {
-                storeId: id,
-                productId: String(currentPayload.id),
-                productTitle: currentPayload.title || "Unknown Product",
-                sku: sku,
-                eventType: "UPDATE",
-                description: `Product details or inventory updated`,
-                collection: collectionStr,
-              },
-              include: {
-                store: { select: { id: true, label: true, shopDomain: true, isMaster: true } }
-              }
-            })
-          )
-        );
-
-        // 1. Check if price changed vs product details changed
         const oldPrice = productCache?.price;
         const newPrice = currentPayload.variants?.[0]?.price ? parseFloat(currentPayload.variants[0].price) : null;
-        const isPriceChanged = oldPrice !== null && newPrice !== null && oldPrice !== newPrice;
+        const isPriceChanged = oldPrice !== null && oldPrice !== undefined && newPrice !== null && oldPrice !== newPrice;
 
         if (isPriceChanged) {
-          // Rule: If price changes -> ONLY create Price Update notification (never duplicate with Product Update)
           await createNotification({
             recipientStoreId: storeRecord.id,
             type: 'PRICE_UPDATE',
@@ -574,7 +607,6 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
             targetStoreId: storeRecord.id,
           });
         } else {
-          // Title / description / SKU / variant changed -> Product Update
           await createNotification({
             recipientStoreId: storeRecord.id,
             type: 'PRODUCT_UPDATED',
@@ -587,7 +619,6 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
           });
         }
 
-        // 2. If update occurred on a Connected Store, notify the Master Store
         if (!storeRecord.isMaster) {
           const masterStore = await prisma.store.findFirst({
             where: { isMaster: true, isActive: true }
@@ -603,74 +634,6 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
               sourceStoreId: storeRecord.id,
               targetStoreId: masterStore.id,
             });
-          }
-        }
-
-        // 3. Check for Out of Stock vs Low Stock on variants
-        if (currentPayload.variants && Array.isArray(currentPayload.variants)) {
-          for (const variant of currentPayload.variants) {
-            const qty = variant.inventory_quantity;
-            if (typeof qty === 'number') {
-              if (qty === 0) {
-                // Out of Stock (quantity === 0)
-                await createNotification({
-                  recipientStoreId: storeRecord.id,
-                  type: 'OUT_OF_STOCK',
-                  title: 'Out of Stock Alert',
-                  message: `${currentPayload.title} is completely out of stock (0 units remaining)`,
-                  productId: String(currentPayload.id),
-                  productTitle: currentPayload.title,
-                  sourceStoreId: storeRecord.id,
-                });
-
-                if (!storeRecord.isMaster) {
-                  const masterStore = await prisma.store.findFirst({
-                    where: { isMaster: true, isActive: true }
-                  });
-                  if (masterStore) {
-                    await createNotification({
-                      recipientStoreId: masterStore.id,
-                      type: 'OUT_OF_STOCK',
-                      title: 'Out of Stock Alert',
-                      message: `${storeRecord.label || storeRecord.shopDomain}: ${currentPayload.title} is completely out of stock`,
-                      productId: String(currentPayload.id),
-                      productTitle: currentPayload.title,
-                      sourceStoreId: storeRecord.id,
-                      targetStoreId: masterStore.id,
-                    });
-                  }
-                }
-              } else if (qty > 0 && qty <= storeRecord.lowStockThreshold) {
-                // Low Stock (quantity > 0 && quantity <= threshold)
-                await createNotification({
-                  recipientStoreId: storeRecord.id,
-                  type: 'LOW_STOCK',
-                  title: 'Low Stock Alert',
-                  message: `${currentPayload.title} has ${qty} unit${qty === 1 ? '' : 's'} remaining (Threshold: ${storeRecord.lowStockThreshold})`,
-                  productId: String(currentPayload.id),
-                  productTitle: currentPayload.title,
-                  sourceStoreId: storeRecord.id,
-                });
-
-                if (!storeRecord.isMaster) {
-                  const masterStore = await prisma.store.findFirst({
-                    where: { isMaster: true, isActive: true }
-                  });
-                  if (masterStore) {
-                    await createNotification({
-                      recipientStoreId: masterStore.id,
-                      type: 'LOW_STOCK',
-                      title: 'Low Stock Alert',
-                      message: `${storeRecord.label || storeRecord.shopDomain}: ${currentPayload.title} has ${qty} unit${qty === 1 ? '' : 's'} remaining (Threshold: ${storeRecord.lowStockThreshold})`,
-                      productId: String(currentPayload.id),
-                      productTitle: currentPayload.title,
-                      sourceStoreId: storeRecord.id,
-                      targetStoreId: masterStore.id,
-                    });
-                  }
-                }
-              }
-            }
           }
         }
       }
@@ -700,10 +663,34 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
     const deletedGid = `gid://shopify/Product/${payload.id}`;
 
     const cacheForLog = await prisma.productCache.findFirst({
-      where: { storeId: store.id, shopifyProductId: deletedGid },
-      select: { title: true }
+      where: {
+        OR: [
+          { storeId: store.id, shopifyProductId: deletedGid },
+          { storeId: store.id, shopifyProductId: String(payload.id) },
+          { shopifyProductId: deletedGid },
+          { shopifyProductId: String(payload.id) },
+        ]
+      },
+      select: { title: true, sku: true, imageUrl: true }
     });
-    const productTitle = cacheForLog?.title || payload.title || "Deleted Product";
+
+    let productTitle = cacheForLog?.title || payload.title;
+    if (!productTitle || productTitle === 'Deleted Product' || productTitle === 'Unknown Product') {
+      const pastLog = await prisma.activityLog.findFirst({
+        where: {
+          productId: { in: [String(payload.id), deletedGid] }
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { productTitle: true }
+      });
+      if (pastLog?.productTitle && pastLog.productTitle !== 'Deleted Product' && pastLog.productTitle !== 'Unknown Product') {
+        productTitle = pastLog.productTitle;
+      }
+    }
+
+    if (!productTitle || productTitle === 'Deleted Product' || productTitle === 'Unknown Product') {
+      productTitle = payload.title || `Product #${payload.id}`;
+    }
 
     const mappedVariantsCount = await prisma.variantMap.count({
       where: { storeId: store.id, shopifyProductId: deletedGid },
@@ -725,23 +712,36 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
       where: { storeId: store.id, shopifyProductId: deletedGid },
     });
 
-    // Create ActivityLog for DELETE
-    await prisma.activityLog.create({
-      data: {
+    // Create ActivityLog for DELETE (with deduplication & imageUrl)
+    const imgUrl = cacheForLog?.imageUrl || payload.image?.src || payload.images?.[0]?.src || null;
+    const existingLog = await prisma.activityLog.findFirst({
+      where: {
         storeId: store.id,
         productId: String(payload.id),
-        productTitle: productTitle,
         eventType: "DELETE",
-        description: `Product removed from catalog`,
-      },
+        createdAt: { gte: new Date(Date.now() - 60000) }
+      }
     });
+    if (!existingLog) {
+      await prisma.activityLog.create({
+        data: {
+          storeId: store.id,
+          productId: String(payload.id),
+          productTitle: productTitle,
+          sku: cacheForLog?.sku || null,
+          imageUrl: imgUrl,
+          eventType: "DELETE",
+          description: `Product "${productTitle}" removed from catalog`,
+        },
+      });
+    }
 
     // Store receives its own Product Deleted notification
     await createNotification({
       recipientStoreId: store.id,
       type: 'PRODUCT_UPDATED',
       title: 'Product Deleted',
-      message: `Product ${productTitle} was deleted from catalog`,
+      message: `Product "${productTitle}" was deleted from catalog`,
       productId: String(payload.id),
       productTitle: productTitle,
       sourceStoreId: store.id,
@@ -758,7 +758,7 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
           recipientStoreId: masterStore.id,
           type: 'CONNECTED_STORE_UPDATE',
           title: 'Connected Store Product Deleted',
-          message: `${store.label || store.shopDomain} deleted product ${productTitle}`,
+          message: `${store.label || store.shopDomain} deleted product "${productTitle}"`,
           productId: String(payload.id),
           productTitle: productTitle,
           sourceStoreId: store.id,
@@ -780,38 +780,62 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
   // Fetch cache for logging BEFORE processProductDelete wipes it out
   const deletedGid = `gid://shopify/Product/${payload.id}`;
   const cacheForLog = await prisma.productCache.findFirst({
-    where: { storeId: store?.id, shopifyProductId: deletedGid },
+    where: {
+      OR: [
+        { storeId: store?.id, shopifyProductId: deletedGid },
+        { storeId: store?.id, shopifyProductId: String(payload.id) },
+        { shopifyProductId: deletedGid },
+        { shopifyProductId: String(payload.id) },
+      ]
+    },
     include: { collections: { include: { collection: true } } }
   });
 
-  const productTitle = cacheForLog?.title || `Product ${payload.id}`;
+  let productTitle = cacheForLog?.title || payload.title;
+  if (!productTitle || productTitle === 'Deleted Product' || productTitle === 'Unknown Product') {
+    const pastLog = await prisma.activityLog.findFirst({
+      where: {
+        productId: { in: [String(payload.id), deletedGid] }
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { productTitle: true }
+    });
+    if (pastLog?.productTitle && pastLog.productTitle !== 'Deleted Product' && pastLog.productTitle !== 'Unknown Product') {
+      productTitle = pastLog.productTitle;
+    }
+  }
+
+  if (!productTitle || productTitle === 'Deleted Product' || productTitle === 'Unknown Product') {
+    productTitle = payload.title || `Product #${payload.id}`;
+  }
+
   const productSku = cacheForLog?.sku || null;
   const collectionStr = cacheForLog?.collections?.map((c: any) => c.collection.title).join(', ') || null;
 
   if (store) {
-    const connections = await prisma.storeConnection.findMany({
-      where: { sourceStoreId: store.id }
+    const imgUrl = cacheForLog?.imageUrl || payload.image?.src || payload.images?.[0]?.src || null;
+    const existingLog = await prisma.activityLog.findFirst({
+      where: {
+        storeId: store.id,
+        productId: String(payload.id),
+        eventType: "DELETE",
+        createdAt: { gte: new Date(Date.now() - 60000) }
+      }
     });
-    const allStoreIds = [store.id, ...connections.map(c => c.targetStoreId)];
-
-    const activities = await Promise.all(
-      allStoreIds.map(id =>
-        prisma.activityLog.create({
-          data: {
-            storeId: id,
-            productId: String(payload.id),
-            productTitle: productTitle,
-            sku: productSku,
-            eventType: "DELETE",
-            description: `Product removed from catalog`,
-            collection: collectionStr,
-          },
-          include: {
-            store: { select: { id: true, label: true, shopDomain: true, isMaster: true } }
-          }
-        })
-      )
-    );
+    if (!existingLog) {
+      await prisma.activityLog.create({
+        data: {
+          storeId: store.id,
+          productId: String(payload.id),
+          productTitle: productTitle,
+          sku: productSku,
+          imageUrl: imgUrl,
+          eventType: "DELETE",
+          description: `Product "${productTitle}" removed from catalog`,
+          collection: collectionStr,
+        }
+      });
+    }
 
     // Create notification for Product Deleted
     if (!store.isMaster) {
@@ -823,7 +847,7 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
           recipientStoreId: masterStore.id,
           type: 'CONNECTED_STORE_UPDATE',
           title: 'Connected Store Product Deleted',
-          message: `${store.label || store.shopDomain} deleted product ${productTitle}`,
+          message: `${store.label || store.shopDomain} deleted product "${productTitle}"`,
           productId: String(payload.id),
           productTitle: productTitle,
           sourceStoreId: store.id,
@@ -835,7 +859,7 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
         recipientStoreId: store.id,
         type: 'PRODUCT_UPDATED',
         title: 'Product Deleted',
-        message: `Product ${productTitle} was deleted from catalog`,
+        message: `Product "${productTitle}" was deleted from catalog`,
         productId: String(payload.id),
         productTitle: productTitle,
         sourceStoreId: store.id,
@@ -888,52 +912,71 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
     where: { shopDomain: shop },
   });
 
+  if (!storeRecord) return;
+
+  // 1. RICH SYNC LOCK CHECK (ECHO PREVENTION)
+  const { hasRichSyncLock, releaseRichSyncLock } = require('@/services/shopify/locks');
+  if (hasRichSyncLock(shop, String(inventory_item_id), available)) {
+    console.log(`[WebhookWorker:Ignored] WebhookId: ${webhookId} | Reason: sync_echo for ${shop} (Item: ${inventory_item_id}, Stock: ${available})`);
+    releaseRichSyncLock(shop, String(inventory_item_id), available);
+
+    // Update local cache quietly
+    const inventoryGid = `gid://shopify/InventoryItem/${inventory_item_id}`;
+    const vMap = await prisma.variantMap.findFirst({
+      where: { storeId: storeRecord.id, OR: [{ inventoryItemId: inventoryGid }, { inventoryItemId: String(inventory_item_id) }] }
+    });
+    if (vMap?.shopifyVariantId) {
+      await prisma.productCache.updateMany({
+        where: { storeId: storeRecord.id, shopifyVariantId: vMap.shopifyVariantId },
+        data: { inventoryQuantity: available }
+      });
+    }
+    return;
+  }
+
   let previousQuantity: number | null = null;
   let variantMap: any = null;
   let cache: any = null;
 
-  if (storeRecord) {
-    // Attempt to find product info from variant map or product mapping
-    const inventoryGid = `gid://shopify/InventoryItem/${inventory_item_id}`;
-    variantMap = await prisma.variantMap.findFirst({
+  const inventoryGid = `gid://shopify/InventoryItem/${inventory_item_id}`;
+  variantMap = await prisma.variantMap.findFirst({
+    where: {
+      storeId: storeRecord.id,
+      OR: [
+        { inventoryItemId: inventoryGid },
+        { inventoryItemId: String(inventory_item_id) },
+      ]
+    },
+  });
+
+  if (variantMap && variantMap.shopifyVariantId) {
+    cache = await prisma.productCache.findFirst({
+      where: { storeId: storeRecord.id, shopifyVariantId: variantMap.shopifyVariantId }
+    });
+  }
+
+  if (!cache) {
+    const pMapping = await prisma.productMapping.findFirst({
       where: {
         storeId: storeRecord.id,
         OR: [
           { inventoryItemId: inventoryGid },
           { inventoryItemId: String(inventory_item_id) },
         ]
-      },
-    });
-
-    if (variantMap && variantMap.shopifyVariantId) {
-      cache = await prisma.productCache.findFirst({
-        where: { storeId: storeRecord.id, shopifyVariantId: variantMap.shopifyVariantId }
-      });
-    }
-
-    if (!cache) {
-      const pMapping = await prisma.productMapping.findFirst({
-        where: {
-          storeId: storeRecord.id,
-          OR: [
-            { inventoryItemId: inventoryGid },
-            { inventoryItemId: String(inventory_item_id) },
-          ]
-        }
-      });
-      if (pMapping) {
-        cache = await prisma.productCache.findFirst({
-          where: { storeId: storeRecord.id, shopifyVariantId: pMapping.shopifyVariantId }
-        });
       }
-    }
-
-    if (cache) {
-      previousQuantity = cache.inventoryQuantity;
+    });
+    if (pMapping) {
+      cache = await prisma.productCache.findFirst({
+        where: { storeId: storeRecord.id, shopifyVariantId: pMapping.shopifyVariantId }
+      });
     }
   }
 
-  const isStandalone = storeRecord && !storeRecord.isMaster &&
+  if (cache) {
+    previousQuantity = cache.inventoryQuantity;
+  }
+
+  const isStandalone = !storeRecord.isMaster &&
     (await prisma.storeConnection.count({
       where: {
         OR: [
@@ -953,7 +996,6 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
       webhookId
     );
   } else if (cache) {
-    // Update local cache for standalone store
     await prisma.productCache.updateMany({
       where: { id: cache.id },
       data: { inventoryQuantity: available }
@@ -961,60 +1003,43 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
   }
 
   if (storeRecord && cache) {
-    const diff = previousQuantity !== null ? available - previousQuantity : 0;
+    const prevQty = previousQuantity !== null ? previousQuantity : available;
+    const diff = available - prevQty;
     const prodId = cache.shopifyProductId?.split('/').pop() || '';
     const prodTitle = cache.title || 'Product';
     const prodSku = cache.sku || variantMap?.sku || null;
 
     if (diff !== 0) {
-      let allStoreIds = [storeRecord.id];
-      if (!isStandalone) {
-        if (storeRecord.isMaster) {
-          const connections = await prisma.storeConnection.findMany({
-            where: { sourceStoreId: storeRecord.id }
-          });
-          allStoreIds = [storeRecord.id, ...connections.map(c => c.targetStoreId)];
-        } else {
-          const masterConn = await prisma.storeConnection.findFirst({
-            where: { targetStoreId: storeRecord.id }
-          });
-          if (masterConn) {
-            const siblingConns = await prisma.storeConnection.findMany({
-              where: { sourceStoreId: masterConn.sourceStoreId }
-            });
-            allStoreIds = Array.from(new Set([
-              storeRecord.id,
-              masterConn.sourceStoreId,
-              ...siblingConns.map(c => c.targetStoreId)
-            ]));
-          }
-        }
-      }
-
       const isSale = diff < 0;
       const eventType = isSale ? "SOLD" : "UPDATE";
       const description = isSale
         ? `${Math.abs(diff)} item(s) sold (New stock: ${available})`
         : `Inventory manually adjusted by +${diff} (New stock: ${available})`;
 
-      await Promise.all(
-        allStoreIds.map(id =>
-          prisma.activityLog.create({
-            data: {
-              storeId: id,
-              productId: prodId,
-              productTitle: prodTitle,
-              sku: prodSku,
-              eventType: eventType as any,
-              description: description,
-              quantity: Math.abs(diff)
-            },
-            include: {
-              store: { select: { id: true, label: true, shopDomain: true, isMaster: true } }
-            }
-          })
-        )
-      );
+      // Create ActivityLog ONLY for originating store (with deduplication & imageUrl)
+      const imgUrl = cache?.imageUrl || null;
+      const existingLog = await prisma.activityLog.findFirst({
+        where: {
+          storeId: storeRecord.id,
+          productId: prodId,
+          eventType: eventType as any,
+          createdAt: { gte: new Date(Date.now() - 30000) }
+        }
+      });
+      if (!existingLog) {
+        await prisma.activityLog.create({
+          data: {
+            storeId: storeRecord.id,
+            productId: prodId,
+            productTitle: prodTitle,
+            sku: prodSku,
+            imageUrl: imgUrl,
+            eventType: eventType as any,
+            description: description,
+            quantity: Math.abs(diff)
+          }
+        });
+      }
 
       // Create notification for Product Sold / Inventory Adjustment
       if (isSale) {
@@ -1060,7 +1085,8 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
       }
     }
 
-    // Check OUT_OF_STOCK vs LOW_STOCK
+    // STATE TRANSITION ALERTS
+    // OUT_OF_STOCK: Trigger whenever stock reaches 0 (anti-spam guarded by NotificationService)
     if (available === 0) {
       await createNotification({
         recipientStoreId: storeRecord.id,
@@ -1089,7 +1115,9 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
           });
         }
       }
-    } else if (available > 0 && available <= storeRecord.lowStockThreshold) {
+    }
+    // LOW_STOCK: Trigger whenever stock is <= lowStockThreshold and > 0
+    else if (available > 0 && available <= storeRecord.lowStockThreshold) {
       await createNotification({
         recipientStoreId: storeRecord.id,
         type: 'LOW_STOCK',

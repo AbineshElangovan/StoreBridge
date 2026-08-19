@@ -93,6 +93,13 @@ export function Sidebar() {
       ]
     },
     {
+      title: 'ANALYTICS',
+      items: [
+        { label: 'Product Insights', href: '/insights', icon: HeartIcon },
+        { label: 'Inventory Planning', href: '/insights/planning', icon: ClockIcon },
+      ]
+    },
+    {
       title: 'OPERATIONS',
       items: [
         { label: 'Import & Sync', href: '/sync', icon: ImportIcon },
@@ -103,7 +110,18 @@ export function Sidebar() {
       items: [
         { label: 'SKU Generation', href: '/sku', icon: DiscountIcon },
         { label: 'Price Adjustment', href: '/price-adjustment', icon: CashDollarIcon },
+        { label: 'Inventory Rules', href: '/inventory-rules', icon: DiscountIcon },
+      ]
+    },
+    {
+      title: 'MULTI-STORE',
+      items: [
         { label: 'Store Connections', href: '/connections', icon: LinkIcon },
+      ]
+    },
+    {
+      title: 'SETTINGS',
+      items: [
         { label: 'Settings', href: '/settings', icon: SettingsIcon },
       ]
     },
@@ -119,7 +137,7 @@ export function Sidebar() {
     <div className="w-[260px] flex-shrink-0 border-r border-[#0db69d]/10 bg-[#f0fdfa] h-screen sticky top-0 flex flex-col">
       {/* Brand */}
       <div className="px-6 py-6 flex items-center gap-3">
-        <Image src="/logo.png" alt="Logo" width={32} height={32} className='rounded-lg' style={{ width: 'auto', height: 'auto' }} priority />
+        <Image src="/logo.png" alt="Logo" width={32} height={32} className="w-8 h-8 rounded-lg object-contain" priority />
         <div>
           <h2 className="text-[15px] font-bold text-gray-900 leading-tight">StoreBridge</h2>
           <p className="text-[11px] text-gray-500 leading-tight">Multi-store inventory sync</p>

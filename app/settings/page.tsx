@@ -10,6 +10,7 @@ import { LocalizedDate } from '@/components/common/LocalizedDate';
 import { Loading, Toast } from '@/components/common';
 import { StoreRoleBadge } from '@/components/ui/StoreRoleBadge';
 import { useStoreContext } from '@/components/providers/StoreProvider';
+import { ConfirmToast } from '@/components/ui/ConfirmToast';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -37,6 +38,7 @@ export default function SettingsPage() {
   const [masterStoreId, setMasterStoreId] = useState<string | null>(null);
 
   const [standaloneSaving, setStandaloneSaving] = useState(false);
+  const [confirmState, setConfirmState] = useState<{ open: boolean; storeId: string; autoLabel: string; isAlreadyMaster: boolean; type: 'MASTER' | 'STANDALONE' } | null>(null);
 
   const loadData = React.useCallback(async () => {
     try {
@@ -126,10 +128,27 @@ export default function SettingsPage() {
     setMasterLabels(prev => ({ ...prev, [storeId]: val }));
   };
 
-  const handleSetMaster = async (storeId: string, autoLabel: string, isAlreadyMaster: boolean = false) => {
-    const confirmMsg = isAlreadyMaster ? "Are you sure you want to update the Master Label?" : "Are you sure you want to change the Master Store?";
-    if (!window.confirm(confirmMsg)) return;
+  const promptSetMaster = (storeId: string, autoLabel: string, isAlreadyMaster: boolean = false) => {
+    setConfirmState({
+      open: true,
+      storeId,
+      autoLabel,
+      isAlreadyMaster,
+      type: 'MASTER'
+    });
+  };
 
+  const promptMakeStandalone = (storeId: string) => {
+    setConfirmState({
+      open: true,
+      storeId,
+      autoLabel: '',
+      isAlreadyMaster: false,
+      type: 'STANDALONE'
+    });
+  };
+
+  const handleSetMaster = async (storeId: string, autoLabel: string) => {
     setMasterSaving(true);
     try {
       const res = await shopifyFetch('/api/stores/master', {
@@ -162,10 +181,6 @@ export default function SettingsPage() {
   };
 
   const handleMakeStandalone = async (storeId: string) => {
-    if (!window.confirm("Make this store standalone?\n\nThis store will stop synchronizing with the current multi-store network. Its Shopify data and account will remain intact.")) {
-      return;
-    }
-
     setStandaloneSaving(true);
     try {
       const res = await shopifyFetch('/api/stores/standalone', {
@@ -303,17 +318,17 @@ export default function SettingsPage() {
                               </span>
                             ) : (
                               <button
-                                className="px-3 py-1.5 bg-[var(--color-primary-dark)] text-white text-sm font-semibold rounded-lg hover:bg-[var(--color-primary)] transition-colors shadow-sm disabled:opacity-50"
+                                className="px-3 py-1.5 bg-[var(--color-primary-dark)] text-white text-sm font-semibold rounded-lg hover:bg-[var(--color-primary)] transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
                                 disabled={masterSaving}
-                                onClick={() => handleSetMaster(s.id, masterLabels[s.id] || (s.label || s.shopDomain).replace('.myshopify.com', ''), false)}
+                                onClick={() => promptSetMaster(s.id, masterLabels[s.id] || (s.label || s.shopDomain).replace('.myshopify.com', ''), false)}
                               >
                                 {masterSaving ? 'Saving...' : 'Make Master'}
                               </button>
                             )}
                             <button
-                              className="px-3 py-1.5 bg-blue-600 border border-transparent text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50"
+                              className="px-3 py-1.5 bg-blue-600 border border-transparent text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
                               disabled={standaloneSaving}
-                              onClick={() => handleMakeStandalone(s.id)}
+                              onClick={() => promptMakeStandalone(s.id)}
                             >
                               Make Standalone
                             </button>
@@ -416,6 +431,37 @@ export default function SettingsPage() {
         </div>
       </div>
       
+      <ConfirmToast
+        open={!!confirmState?.open}
+        message={
+          confirmState?.type === 'STANDALONE'
+            ? 'Make this store standalone?'
+            : confirmState?.isAlreadyMaster
+            ? 'Update Master Store Label?'
+            : 'Change Master Store?'
+        }
+        subMessage={
+          confirmState?.type === 'STANDALONE'
+            ? 'This store will stop synchronizing with the multi-store network.'
+            : 'All connected stores will align synchronization with this store.'
+        }
+        confirmLabel={confirmState?.type === 'STANDALONE' ? 'Make Standalone' : 'Set as Master'}
+        cancelLabel="Cancel"
+        variant={confirmState?.type === 'STANDALONE' ? 'standalone' : 'master'}
+        loading={masterSaving || standaloneSaving}
+        onConfirm={async () => {
+          if (!confirmState) return;
+          const { storeId, autoLabel, type } = confirmState;
+          setConfirmState(null);
+          if (type === 'STANDALONE') {
+            await handleMakeStandalone(storeId);
+          } else {
+            await handleSetMaster(storeId, autoLabel);
+          }
+        }}
+        onCancel={() => setConfirmState(null)}
+      />
+
       {/* Floating Toast Notification */}
       {toastMessage && (
         <Toast
