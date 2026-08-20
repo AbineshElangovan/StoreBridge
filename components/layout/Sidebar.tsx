@@ -110,7 +110,6 @@ export function Sidebar() {
       items: [
         { label: 'SKU Generation', href: '/sku', icon: DiscountIcon },
         { label: 'Price Adjustment', href: '/price-adjustment', icon: CashDollarIcon },
-        { label: 'Inventory Rules', href: '/inventory-rules', icon: DiscountIcon },
       ]
     },
     {

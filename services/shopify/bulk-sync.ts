@@ -265,10 +265,12 @@ export async function syncStoreA(shopDomain: string) {
     },
     create: {
       shopDomain: normalizedShop,
-      accessToken: "", 
+      accessToken: "",
       scope: "",
       label: shopInfo.name,
       isActive: true,
+      bestSellerThreshold: 20,
+      deadStockDays: 90,
     },
   });
 

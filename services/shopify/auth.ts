@@ -257,6 +257,8 @@ export async function handleAuthCallback(req: NextRequest) {
         scope: scope || "",
         isActive: true,
         label: shopLabel,
+        bestSellerThreshold: 20,
+        deadStockDays: 90,
         uniqueStoreId: `STORE-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
       },
     });

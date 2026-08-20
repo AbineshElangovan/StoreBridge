@@ -33,9 +33,9 @@ export function InsightTable({
   const getHeaderInfo = () => {
     switch (activeTab) {
       case 'best-sellers':
-        return { title: 'Best sellers', subtitle: 'Top products with 20+ units sold.' };
+        return { title: 'Best sellers', subtitle: 'Top performing products exceeding store performance threshold.' };
       case 'slow-movers':
-        return { title: 'Slow movers', subtitle: 'Products selling below 20 units in selected date window.' };
+        return { title: 'Slow movers', subtitle: 'Products selling at or below store performance threshold.' };
       case 'dead-stock':
         return { title: 'Dead stock', subtitle: 'Products with stock on hand but 0 sales in selected period.' };
       case 'store-comparison':
@@ -128,8 +128,10 @@ export function InsightTable({
             {p.title}
           </div>
           {p.storeLabel && (
-            <div className="text-[10px] text-gray-400 font-medium truncate max-w-[180px]">
-              {p.storeLabel}
+            <div className="mt-1">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-bold bg-sky-100 text-sky-800 border border-sky-200 shadow-2xs whitespace-nowrap">
+                {p.storeLabel}
+              </span>
             </div>
           )}
         </div>
@@ -137,7 +139,7 @@ export function InsightTable({
     ),
     unsold_duration_node: (
       <span className="inline-flex items-center justify-center bg-[#fff0f0] text-[#991b1b] border border-[#fee2e2] px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap shadow-2xs">
-        {p.daysUnsold || 30} days
+        {p.daysWithoutSale ?? p.daysUnsold ?? 0} days
       </span>
     ),
     stock_node: (

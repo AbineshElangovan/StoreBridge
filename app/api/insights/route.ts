@@ -18,33 +18,59 @@ export async function GET(req: NextRequest) {
 
     const dateThreshold = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000);
 
-    // 1. Fetch connected stores for scope filtering
-    const connections = await (prisma as any).storeConnection.findMany({
-      where: {
-        OR: [
-          { sourceStoreId: currentStore.id },
-          { targetStoreId: currentStore.id }
-        ]
-      },
-      include: {
-        sourceStore: true,
-        targetStore: true
-      }
-    });
-
+    // 1. Derive authorized stores server-side
     const storeMap = new Map<string, any>();
     storeMap.set(currentStore.id, currentStore);
-    connections.forEach((c: any) => {
-      if (c.sourceStore) storeMap.set(c.sourceStore.id, c.sourceStore);
-      if (c.targetStore) storeMap.set(c.targetStore.id, c.targetStore);
-    });
+
+    const isMaster = !!currentStore.isMaster;
+
+    if (isMaster) {
+      const connections = await (prisma as any).storeConnection.findMany({
+        where: {
+          OR: [
+            { sourceStoreId: currentStore.id },
+            { targetStoreId: currentStore.id }
+          ]
+        },
+        include: {
+          sourceStore: true,
+          targetStore: true
+        }
+      });
+      connections.forEach((c: any) => {
+        if (c.sourceStore) storeMap.set(c.sourceStore.id, c.sourceStore);
+        if (c.targetStore) storeMap.set(c.targetStore.id, c.targetStore);
+      });
+    }
 
     const authorizedStoreIds = Array.from(storeMap.keys());
-    const targetStoreIds = storeFilter === 'all'
-      ? authorizedStoreIds
-      : authorizedStoreIds.filter(id => id === storeFilter);
 
-    // 2. Fetch distinct collections for filter dropdown
+    // Server-side Scope Enforcement for Store Selection
+    let targetStoreIds: string[];
+    if (isMaster) {
+      targetStoreIds = (storeFilter === 'all' || !storeFilter)
+        ? authorizedStoreIds
+        : authorizedStoreIds.filter(id => id === storeFilter);
+      if (targetStoreIds.length === 0) targetStoreIds = authorizedStoreIds;
+    } else {
+      // Standalone & Connected stores are strictly scoped to their own store
+      targetStoreIds = [currentStore.id];
+    }
+
+    // Return store filter dropdown options based on store access
+    const storeFilterOptions = isMaster
+      ? [
+          { id: 'all', label: 'All stores' },
+          ...authorizedStoreIds.map(id => {
+            const s = storeMap.get(id);
+            return { id: s?.id || id, label: s?.label || s?.shopDomain || id };
+          })
+        ]
+      : [
+          { id: currentStore.id, label: currentStore.label || currentStore.shopDomain }
+        ];
+
+    // 2. Fetch distinct collections for authorized stores
     const collectionsDb = await prisma.collection.findMany({
       where: { storeId: { in: authorizedStoreIds } },
       select: { title: true },
@@ -52,7 +78,7 @@ export async function GET(req: NextRequest) {
     });
     const collectionList = ['All collections', ...collectionsDb.map(c => c.title)];
 
-    // 3. Fetch sales activity logs in date range for authorized stores
+    // 3. Fetch sales activity logs for target stores
     const activityWhere: any = {
       storeId: { in: targetStoreIds },
       eventType: 'SOLD',
@@ -75,13 +101,14 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    // Also fetch last sold date per product across all time history
+    // Fetch last sold date per product across all time history
     const allSalesHistory = await prisma.activityLog.findMany({
       where: {
         storeId: { in: targetStoreIds },
         eventType: 'SOLD'
       },
       select: {
+        storeId: true,
         sku: true,
         productTitle: true,
         createdAt: true
@@ -91,34 +118,36 @@ export async function GET(req: NextRequest) {
 
     const lastSoldMap = new Map<string, Date>();
     allSalesHistory.forEach(log => {
-      const key = log.productTitle?.trim() || log.sku?.trim();
-      if (key && !lastSoldMap.has(key)) {
-        lastSoldMap.set(key, log.createdAt);
-      }
-    });
-
-    // Aggregate sales metrics by Product Title to deduplicate auto-generated store SKU variants
-    const salesByTitle = new Map<string, { unitsSold: number; revenue: number }>();
-
-    salesLogs.forEach(log => {
-      if (log.eventType === 'SOLD') {
-        const qty = Math.max(0, log.quantity || 0);
-        const amt = Math.max(0, log.amount || 0);
-
-        if (qty > 0 || amt > 0) {
-          const key = log.productTitle?.trim() || log.sku?.trim();
-          if (key) {
-            const existing = salesByTitle.get(key) || { unitsSold: 0, revenue: 0 };
-            salesByTitle.set(key, {
-              unitsSold: existing.unitsSold + qty,
-              revenue: existing.revenue + amt
-            });
-          }
+      const titleKey = log.productTitle?.trim() || log.sku?.trim();
+      if (titleKey && log.storeId) {
+        const comboKey = `${log.storeId}:${titleKey}`;
+        if (!lastSoldMap.has(comboKey)) {
+          lastSoldMap.set(comboKey, log.createdAt);
         }
       }
     });
 
-    // 4. Fetch products from ProductCache matching target stores
+    const isAllStores = isMaster && storeFilter === 'all';
+
+    // Aggregate sales metrics per store and product
+    const salesByTitleMap = new Map<string, { unitsSold: number; revenue: number }>();
+    salesLogs.forEach(log => {
+      if (log.eventType === 'SOLD') {
+        const qty = Math.max(0, log.quantity || 0);
+        const amt = Math.max(0, log.amount || 0);
+        const titleKey = log.productTitle?.trim() || log.sku?.trim();
+        if (titleKey && log.storeId) {
+          const mapKey = isAllStores ? titleKey : `${log.storeId}:${titleKey}`;
+          const existing = salesByTitleMap.get(mapKey) || { unitsSold: 0, revenue: 0 };
+          salesByTitleMap.set(mapKey, {
+            unitsSold: existing.unitsSold + qty,
+            revenue: existing.revenue + amt
+          });
+        }
+      }
+    });
+
+    // 4. Query ProductCache matching target stores
     const productWhere: any = {
       storeId: { in: targetStoreIds }
     };
@@ -153,25 +182,46 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    // Deduplicate and process products by Product Title
+    const storeConfigMap = new Map<string, { bestSellerThreshold: number; deadStockDays: number }>();
+    if (targetStoreIds.length > 0) {
+      try {
+        const dbConfigRows: any[] = await prisma.$queryRawUnsafe(
+          `SELECT "id", "bestSellerThreshold", "deadStockDays" FROM "stores" WHERE "id" IN (${targetStoreIds.map(id => `'${id}'`).join(',')});`
+        );
+        dbConfigRows.forEach((r: any) => storeConfigMap.set(r.id, {
+          bestSellerThreshold: r.bestSellerThreshold,
+          deadStockDays: r.deadStockDays
+        }));
+      } catch (e) {}
+    }
+
+    // Process products and evaluate using each store's saved threshold
     const enrichedProductsMap = new Map<string, any>();
 
     rawProducts.forEach(p => {
-      const key = p.title?.trim() || p.sku?.trim();
-      if (!key) return;
+      const titleKey = p.title?.trim() || p.sku?.trim();
+      if (!titleKey) return;
 
-      const sales = salesByTitle.get(key) || { unitsSold: 0, revenue: 0 };
+      const mapKey = isAllStores ? titleKey : `${p.storeId}:${titleKey}`;
+      const storeObj = p.store || storeMap.get(p.storeId);
+      const dbConfig = storeConfigMap.get(p.storeId);
+
+      const bestSellerThreshold = (storeObj as any)?.bestSellerThreshold ?? dbConfig?.bestSellerThreshold ?? (currentStore.bestSellerThreshold || 20);
+      const deadStockDays = (storeObj as any)?.deadStockDays ?? dbConfig?.deadStockDays ?? (currentStore.deadStockDays || 90);
+      const lowStockThreshold = storeObj?.lowStockThreshold ?? 10;
+
+      const sales = salesByTitleMap.get(mapKey) || { unitsSold: 0, revenue: 0 };
       const currentStock = Math.max(0, p.inventoryQuantity || 0);
-      const lowStockThreshold = p.store?.lowStockThreshold || 10;
+      const storeName = p.store?.label || p.store?.shopDomain || 'Store';
 
-      const lastSoldDate = lastSoldMap.get(key);
-      const daysUnsold = lastSoldDate
+      const lastSoldDate = lastSoldMap.get(`${p.storeId}:${titleKey}`);
+      const daysWithoutSale = lastSoldDate
         ? Math.floor((Date.now() - new Date(lastSoldDate).getTime()) / (1000 * 60 * 60 * 24))
         : Math.floor((Date.now() - new Date(p.createdAt).getTime()) / (1000 * 60 * 60 * 24));
 
       const calculatedRevenue = sales.revenue > 0 ? sales.revenue : (sales.unitsSold * (p.price || 0));
 
-      if (!enrichedProductsMap.has(key)) {
+      if (!enrichedProductsMap.has(mapKey)) {
         let stockHealth: 'OUT_OF_STOCK' | 'CRITICAL' | 'HEALTHY' = 'HEALTHY';
         if (currentStock === 0) {
           stockHealth = 'OUT_OF_STOCK';
@@ -179,7 +229,12 @@ export async function GET(req: NextRequest) {
           stockHealth = 'CRITICAL';
         }
 
-        enrichedProductsMap.set(key, {
+        const isOutOfStock = currentStock === 0;
+        const isBestSeller = !isOutOfStock && sales.unitsSold > bestSellerThreshold;
+        const isSlowMover = !isOutOfStock && !isBestSeller && sales.unitsSold > 0;
+        const isDeadStock = !isOutOfStock && sales.unitsSold === 0 && daysWithoutSale >= deadStockDays;
+
+        enrichedProductsMap.set(mapKey, {
           id: p.id,
           title: p.title,
           sku: p.sku || 'N/A',
@@ -190,15 +245,23 @@ export async function GET(req: NextRequest) {
           currentStock,
           stockHealth,
           lowStockThreshold,
+          bestSellerThreshold,
+          deadStockDays,
+          isBestSeller,
+          isSlowMover,
+          isDeadStock,
+          isOutOfStock,
           lastSoldAt: lastSoldDate ? lastSoldDate.toISOString() : null,
-          daysUnsold,
-          storeLabel: p.store?.label || p.store?.shopDomain || 'Store',
+          daysWithoutSale,
+          daysUnsold: daysWithoutSale,
+          storeLabels: new Set<string>([storeName]),
           storeId: p.storeId
         });
       } else {
-        const existing = enrichedProductsMap.get(key);
+        const existing = enrichedProductsMap.get(mapKey);
         existing.currentStock += currentStock;
-        // recalculate combined stock health
+        existing.storeLabels.add(storeName);
+
         if (existing.currentStock === 0) {
           existing.stockHealth = 'OUT_OF_STOCK';
         } else if (existing.currentStock <= lowStockThreshold) {
@@ -206,37 +269,44 @@ export async function GET(req: NextRequest) {
         } else {
           existing.stockHealth = 'HEALTHY';
         }
+
+        existing.isOutOfStock = existing.currentStock === 0;
+        existing.isBestSeller = !existing.isOutOfStock && existing.unitsSold > bestSellerThreshold;
+        existing.isSlowMover = !existing.isOutOfStock && !existing.isBestSeller && existing.unitsSold > 0;
+        existing.isDeadStock = !existing.isOutOfStock && existing.unitsSold === 0 && existing.daysWithoutSale >= deadStockDays;
       }
     });
 
-    const allProducts = Array.from(enrichedProductsMap.values());
+    const allProducts = Array.from(enrichedProductsMap.values()).map(p => ({
+      ...p,
+      storeLabel: isAllStores && p.storeLabels.size > 1 
+        ? 'Multi-Store'
+        : Array.from(p.storeLabels)[0] || 'Store'
+    }));
 
-    // Calculate total Units Sold and Total Revenue for stat cards
+    // 5. Calculate Stat Cards
     let totalUnitsSold = 0;
     let totalRevenue = 0;
+    let slowMoversCount = 0;
+    let deadStockCount = 0;
 
     allProducts.forEach(p => {
       totalUnitsSold += p.unitsSold;
       totalRevenue += p.revenue;
+      if (p.isSlowMover) slowMoversCount += 1;
+      if (p.isDeadStock) deadStockCount += 1;
     });
-
-    // 5. Calculate Stat Card Counts
-    const slowMoversCount = allProducts.filter(p => p.currentStock > 0 && p.unitsSold > 0 && p.unitsSold < 20).length;
-    const deadStockCount = allProducts.filter(p => p.currentStock > 0 && p.unitsSold === 0).length;
 
     // 6. Filter & Sort data based on selected TAB
     let tabData: any[] = [];
 
     if (tab === 'best-sellers') {
-      tabData = allProducts.filter(p => p.unitsSold >= 20).sort((a, b) => b.unitsSold - a.unitsSold);
+      tabData = allProducts.filter(p => p.isBestSeller).sort((a, b) => b.unitsSold - a.unitsSold);
     } else if (tab === 'slow-movers') {
-      tabData = allProducts.filter(p => p.currentStock > 0 && p.unitsSold > 0 && p.unitsSold < 20)
-        .sort((a, b) => a.unitsSold - b.unitsSold);
+      tabData = allProducts.filter(p => p.isSlowMover).sort((a, b) => a.unitsSold - b.unitsSold);
     } else if (tab === 'dead-stock') {
-      tabData = allProducts.filter(p => p.currentStock > 0 && p.unitsSold === 0)
-        .sort((a, b) => b.daysUnsold - a.daysUnsold);
+      tabData = allProducts.filter(p => p.isDeadStock).sort((a, b) => b.daysUnsold - a.daysUnsold);
     } else if (tab === 'store-comparison') {
-      // Aggregate by store
       const storeStatsMap = new Map<string, any>();
       targetStoreIds.forEach(id => {
         const storeObj = storeMap.get(id);
@@ -246,6 +316,8 @@ export async function GET(req: NextRequest) {
             storeName: storeObj.label || storeObj.shopDomain,
             domain: storeObj.shopDomain,
             isMaster: storeObj.isMaster,
+            bestSellerThreshold: storeObj.bestSellerThreshold || storeConfigMap.get(storeObj.id)?.bestSellerThreshold || 20,
+            deadStockDays: storeObj.deadStockDays || storeConfigMap.get(storeObj.id)?.deadStockDays || 90,
             unitsSold: 0,
             revenue: 0,
             productCount: 0,
@@ -275,11 +347,14 @@ export async function GET(req: NextRequest) {
       tabData = Array.from(storeStatsMap.values()).sort((a, b) => b.revenue - a.revenue);
     }
 
-    // 7. Server-side Pagination (15 records per page)
+    // 7. Server-side Pagination
     const totalCount = tabData.length;
     const totalPages = Math.ceil(totalCount / limit) || 1;
     const startIndex = (page - 1) * limit;
     const paginatedData = tabData.slice(startIndex, startIndex + limit);
+
+    const currentStoreConfig = targetStoreIds.length === 1 ? storeConfigMap.get(targetStoreIds[0]) : null;
+    const responseDeadStockDays = currentStoreConfig?.deadStockDays || (currentStore as any).deadStockDays;
 
     return NextResponse.json({
       success: true,
@@ -287,16 +362,11 @@ export async function GET(req: NextRequest) {
         unitsSold: totalUnitsSold,
         revenue: totalRevenue,
         slowMoversCount,
-        deadStockCount
+        deadStockCount,
+        deadStockDays: responseDeadStockDays
       },
       filters: {
-        stores: [
-          { id: 'all', label: 'All stores' },
-          ...authorizedStoreIds.map(id => {
-            const s = storeMap.get(id);
-            return { id: s?.id || id, label: s?.label || s?.shopDomain || id };
-          })
-        ],
+        stores: storeFilterOptions,
         collections: collectionList
       },
       data: paginatedData,

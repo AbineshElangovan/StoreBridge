@@ -59,7 +59,15 @@ export default function InsightsPage() {
         const json = await res.json();
         if (json.success) {
           setStats(json.stats || { unitsSold: 0, revenue: 0, slowMoversCount: 0, deadStockCount: 0 });
-          if (json.filters) setFilters(json.filters);
+          if (json.filters) {
+            setFilters(json.filters);
+            if (json.filters.stores && json.filters.stores.length > 0) {
+              const exists = json.filters.stores.some((s: any) => s.id === selectedStore);
+              if (!exists) {
+                setSelectedStore(json.filters.stores[0].id);
+              }
+            }
+          }
           setData(json.data || []);
           if (json.pagination) setPagination(json.pagination);
         }
@@ -124,6 +132,7 @@ export default function InsightsPage() {
       <InsightStats
         stats={stats}
         rangeDays={parseInt(selectedRange, 10)}
+        deadStockDays={(stats as any).deadStockDays}
       />
 
       {/* Reusable Tab Navigation */}

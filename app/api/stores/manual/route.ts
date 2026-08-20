@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
     const manualStoresCount = await prisma.store.count({
       where: { scope: "manual" }
     });
-    
+
     const storeNumber = manualStoresCount + 1;
     const manualShopDomain = `test-store-${storeNumber}.local`;
     const label = `Test Store ${storeNumber}`;
@@ -22,17 +22,19 @@ export async function POST(req: NextRequest) {
         scope: "manual",
         isActive: true,
         label: label,
+        bestSellerThreshold: 20,
+        deadStockDays: 90,
       }
     });
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       store: {
         id: store.id,
         uniqueStoreId: store.uniqueStoreId,
         label: store.label,
         shopDomain: store.shopDomain
-      } 
+      }
     });
   } catch (err: any) {
     console.error("[Manual Store API] POST Error:", err.message);

@@ -11,11 +11,13 @@ import { Loading, Toast } from '@/components/common';
 import { StoreRoleBadge } from '@/components/ui/StoreRoleBadge';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 import { ConfirmToast } from '@/components/ui/ConfirmToast';
+import { StorePerformanceRules, StorePerformanceSetting } from '@/components/settings/StorePerformanceRules';
 
 export default function SettingsPage() {
   const router = useRouter();
   const { isStandalone } = useStoreContext();
   const [stores, setStores] = useState<any[]>([]);
+  const [performanceStores, setPerformanceStores] = useState<StorePerformanceSetting[]>([]);
   const [threshold, setThreshold] = useState<string>('15');
   const [customThreshold, setCustomThreshold] = useState<string>('15');
   const [debugOutput, setDebugOutput] = useState<string>('');
@@ -71,6 +73,7 @@ export default function SettingsPage() {
       if (settingsRes.ok) {
         const settingsJson = await settingsRes.json();
         const s = settingsJson.settings || {};
+        if (settingsJson.stores) setPerformanceStores(settingsJson.stores);
         const threshVal = s.lowStockThreshold;
         setAutoSync(s.autoSyncEnabled);
         if (typeof s.dataRetentionEnabled === 'boolean') setDataRetentionEnabled(s.dataRetentionEnabled);
@@ -94,6 +97,31 @@ export default function SettingsPage() {
       setLoading(false);
     }
   }, []);
+
+  const handleSavePerformanceRules = async (targetStoreId: string, bestSellerThreshold: number, deadStockDays: number) => {
+    try {
+      const res = await shopifyFetch('/api/settings', {
+        method: 'PUT',
+        body: JSON.stringify({
+          targetStoreId,
+          bestSellerThreshold,
+          deadStockDays
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (data.stores) setPerformanceStores(data.stores);
+        setToastMessage({ message: '✅ Store Performance Rules saved.', type: 'success' });
+        return true;
+      } else {
+        setToastMessage({ message: `❌ Save failed: ${data.error}`, type: 'error' });
+        return false;
+      }
+    } catch (err: any) {
+      setToastMessage({ message: '❌ Save failed.', type: 'error' });
+      return false;
+    }
+  };
 
   useEffect(() => {
     loadData();
@@ -400,6 +428,15 @@ export default function SettingsPage() {
         </div>
 
 
+
+        {/* Store Performance Rules Section */}
+        <div className={`mt-2 w-full ${isStandalone ? 'max-w-4xl' : ''}`}>
+          <StorePerformanceRules
+            stores={performanceStores}
+            onSavePerformanceRules={handleSavePerformanceRules}
+            isSaving={saving}
+          />
+        </div>
 
         {/* Full-width Data Handling Section */}
         <div className={`mt-2 w-full ${isStandalone ? 'max-w-4xl' : ''}`}>
