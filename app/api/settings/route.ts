@@ -24,16 +24,13 @@ async function getAuthorizedStores(currentStore: any) {
   let dbStores: any[] = [];
   if (ids.length > 0) {
     try {
-      dbStores = await prisma.$queryRawUnsafe(`SELECT "id", "bestSellerThreshold", "deadStockDays" FROM "stores" WHERE "id" IN (${ids.map(id => `'${id}'`).join(',')});`);
+      dbStores = await prisma.$queryRawUnsafe(`SELECT "id", "bestSellerThreshold", "deadStockDays", "forecastPeriodDays", "salesHistoryPeriodDays", "supplierLeadTimeDays", "safetyStockDays" FROM "stores" WHERE "id" IN (${ids.map(id => `'${id}'`).join(',')});`);
     } catch (rawErr) {
       // Ignore error if raw query fails
     }
   }
-  const dbDataMap = new Map<string, { bestSellerThreshold?: number; deadStockDays?: number }>();
-  dbStores.forEach((row: any) => dbDataMap.set(row.id, {
-    bestSellerThreshold: row.bestSellerThreshold,
-    deadStockDays: row.deadStockDays
-  }));
+  const dbDataMap = new Map<string, any>();
+  dbStores.forEach((row: any) => dbDataMap.set(row.id, row));
 
   return Array.from(storeMap.values()).map((s: any) => {
     const dbRow = dbDataMap.get(s.id);
@@ -44,6 +41,10 @@ async function getAuthorizedStores(currentStore: any) {
       isMaster: !!s.isMaster,
       bestSellerThreshold: s.bestSellerThreshold ?? dbRow?.bestSellerThreshold ?? 20,
       deadStockDays: s.deadStockDays ?? dbRow?.deadStockDays ?? 90,
+      forecastPeriodDays: s.forecastPeriodDays ?? dbRow?.forecastPeriodDays ?? 7,
+      salesHistoryPeriodDays: s.salesHistoryPeriodDays ?? dbRow?.salesHistoryPeriodDays ?? 30,
+      supplierLeadTimeDays: s.supplierLeadTimeDays ?? dbRow?.supplierLeadTimeDays ?? 7,
+      safetyStockDays: s.safetyStockDays ?? dbRow?.safetyStockDays ?? 3,
       lowStockThreshold: s.lowStockThreshold
     };
   });
@@ -61,6 +62,10 @@ export async function GET(req: NextRequest) {
         lowStockThreshold: store.lowStockThreshold,
         bestSellerThreshold: store.bestSellerThreshold,
         deadStockDays: store.deadStockDays,
+        forecastPeriodDays: (store as any).forecastPeriodDays ?? 7,
+        salesHistoryPeriodDays: (store as any).salesHistoryPeriodDays ?? 30,
+        supplierLeadTimeDays: (store as any).supplierLeadTimeDays ?? 7,
+        safetyStockDays: (store as any).safetyStockDays ?? 3,
         autoSyncEnabled: store.autoSyncEnabled,
         dataRetentionEnabled: storeSetting?.dataRetentionEnabled ?? true,
         notifyLowStock: storeSetting?.notifyLowStock ?? true,
@@ -86,6 +91,10 @@ export async function PUT(req: NextRequest) {
       targetStoreId,
       bestSellerThreshold,
       deadStockDays,
+      forecastPeriodDays,
+      salesHistoryPeriodDays,
+      supplierLeadTimeDays,
+      safetyStockDays,
       lowStockThreshold, 
       autoSyncEnabled, 
       dataRetentionEnabled,
@@ -131,6 +140,46 @@ export async function PUT(req: NextRequest) {
       }
     }
 
+    if (forecastPeriodDays !== undefined) {
+      const parsedFc = Number(forecastPeriodDays);
+      if (!Number.isInteger(parsedFc) || parsedFc <= 0) {
+        return NextResponse.json({ 
+          success: false, 
+          error: "Forecast period days must be an integer greater than 0." 
+        }, { status: 400 });
+      }
+    }
+
+    if (salesHistoryPeriodDays !== undefined) {
+      const parsedSh = Number(salesHistoryPeriodDays);
+      if (!Number.isInteger(parsedSh) || parsedSh <= 0) {
+        return NextResponse.json({ 
+          success: false, 
+          error: "Sales history period days must be an integer greater than 0." 
+        }, { status: 400 });
+      }
+    }
+
+    if (supplierLeadTimeDays !== undefined) {
+      const parsedLt = Number(supplierLeadTimeDays);
+      if (!Number.isInteger(parsedLt) || parsedLt <= 0) {
+        return NextResponse.json({ 
+          success: false, 
+          error: "Supplier lead time days must be an integer greater than 0." 
+        }, { status: 400 });
+      }
+    }
+
+    if (safetyStockDays !== undefined) {
+      const parsedSs = Number(safetyStockDays);
+      if (!Number.isInteger(parsedSs) || parsedSs <= 0) {
+        return NextResponse.json({ 
+          success: false, 
+          error: "Safety stock days must be an integer greater than 0." 
+        }, { status: 400 });
+      }
+    }
+
     if (lowStockThreshold !== undefined) {
       const parsedLow = Number(lowStockThreshold);
       if (!Number.isInteger(parsedLow) || parsedLow <= 0) {
@@ -145,6 +194,10 @@ export async function PUT(req: NextRequest) {
     if (
       typeof bestSellerThreshold === 'number' ||
       typeof deadStockDays === 'number' ||
+      typeof forecastPeriodDays === 'number' ||
+      typeof salesHistoryPeriodDays === 'number' ||
+      typeof supplierLeadTimeDays === 'number' ||
+      typeof safetyStockDays === 'number' ||
       typeof lowStockThreshold === 'number' ||
       typeof autoSyncEnabled === 'boolean'
     ) {
@@ -154,6 +207,10 @@ export async function PUT(req: NextRequest) {
           data: {
             ...(typeof bestSellerThreshold === 'number' && { bestSellerThreshold }),
             ...(typeof deadStockDays === 'number' && { deadStockDays }),
+            ...(typeof forecastPeriodDays === 'number' && { forecastPeriodDays }),
+            ...(typeof salesHistoryPeriodDays === 'number' && { salesHistoryPeriodDays }),
+            ...(typeof supplierLeadTimeDays === 'number' && { supplierLeadTimeDays }),
+            ...(typeof safetyStockDays === 'number' && { safetyStockDays }),
             ...(typeof lowStockThreshold === 'number' && { lowStockThreshold }),
             ...(typeof autoSyncEnabled === 'boolean' && { autoSyncEnabled }),
           }
@@ -163,6 +220,10 @@ export async function PUT(req: NextRequest) {
         const sets: string[] = [];
         if (typeof bestSellerThreshold === 'number') sets.push(`"bestSellerThreshold" = ${bestSellerThreshold}`);
         if (typeof deadStockDays === 'number') sets.push(`"deadStockDays" = ${deadStockDays}`);
+        if (typeof forecastPeriodDays === 'number') sets.push(`"forecastPeriodDays" = ${forecastPeriodDays}`);
+        if (typeof salesHistoryPeriodDays === 'number') sets.push(`"salesHistoryPeriodDays" = ${salesHistoryPeriodDays}`);
+        if (typeof supplierLeadTimeDays === 'number') sets.push(`"supplierLeadTimeDays" = ${supplierLeadTimeDays}`);
+        if (typeof safetyStockDays === 'number') sets.push(`"safetyStockDays" = ${safetyStockDays}`);
         if (typeof lowStockThreshold === 'number') sets.push(`"lowStockThreshold" = ${lowStockThreshold}`);
         if (typeof autoSyncEnabled === 'boolean') sets.push(`"autoSyncEnabled" = ${autoSyncEnabled}`);
         if (sets.length > 0) {

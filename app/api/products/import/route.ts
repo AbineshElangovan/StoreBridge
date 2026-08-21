@@ -77,6 +77,14 @@ export async function POST(req: NextRequest) {
         console.error("Failed to fetch location and publications", err);
       }
 
+      // Fetch store SKU settings for auto generation fallback
+      let storeSetting = await prisma.storeSetting.findUnique({ where: { storeId: targetStore.id } });
+      if (!storeSetting) {
+        storeSetting = await prisma.storeSetting.create({
+          data: { storeId: targetStore.id, skuPrefix: "SKU", skuSequence: 1, isSkuGenerationEnabled: true }
+        });
+      }
+
       // Import in series to respect rate limits and follow rules safely
       for (const productData of productsToImport) {
         try {
@@ -132,10 +140,33 @@ export async function POST(req: NextRequest) {
           }
           
           // Convert variants to productSet variant format
-          productInput.variants = productData.variants.map((v: any) => {
+          productInput.variants = [];
+          for (const v of productData.variants) {
+            let variantSku = (v.sku || "").trim();
+
+            // Auto-generate SKU if SKU column is left empty in CSV
+            if (!variantSku) {
+              const updatedSetting = await prisma.storeSetting.update({
+                where: { storeId: targetStore.id },
+                data: { skuSequence: { increment: 1 } },
+                select: { skuSequence: true }
+              });
+              const sequenceNum = updatedSetting.skuSequence - 1;
+              const seqPadded = sequenceNum.toString().padStart(4, '0');
+              const prefix = storeSetting?.skuPrefix || "SKU";
+
+              let optStr = "";
+              if (v.option1Value && v.option1Value !== "Default Title") {
+                const opts = [v.option1Value, v.option2Value, v.option3Value].filter(Boolean);
+                optStr = opts.map(o => o.toString().toUpperCase().replace(/[\s\/]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')).join('-');
+              }
+
+              variantSku = optStr ? `STB-${prefix}-${optStr}-${seqPadded}` : `STB-${prefix}-${seqPadded}`;
+            }
+
             const variantInput: any = {
               price: v.price?.toString(),
-              sku: v.sku, // StoreBridge SKU generator fallback should ideally happen here if sku is empty
+              sku: variantSku,
               inventoryItem: v.inventoryTracked ? { tracked: true } : undefined, // Tell Shopify to track inventory
               inventoryQuantities: (v.inventoryQuantity > 0 && locationId) ? [{
                 locationId: locationId,
@@ -167,8 +198,8 @@ export async function POST(req: NextRequest) {
                 { name: "Default Title", optionName: "Title" }
               ];
             }
-            return variantInput;
-          });
+            productInput.variants.push(variantInput);
+          }
 
           // GraphQL mutation to create product using productSet (Required in API 2024-04+)
           const query = `
@@ -202,6 +233,54 @@ export async function POST(req: NextRequest) {
           } else {
             successCount++;
             
+                // Assign product to collection if collection column was provided in CSV
+                if (productData.collection && data.productSet?.product?.id) {
+                  try {
+                    const collQuery = `
+                      query findCollection($query: String!) {
+                        collections(first: 1, query: $query) {
+                          edges { node { id } }
+                        }
+                      }
+                    `;
+                    const collRes = await client.request(collQuery, {
+                      variables: { query: `title:'${productData.collection.replace(/'/g, "\\'")}'` }
+                    });
+                    const collData = collRes.data || collRes;
+                    let collectionId = collData.collections?.edges[0]?.node?.id;
+
+                    if (!collectionId) {
+                      const createCollMutation = `
+                        mutation collectionCreate($input: CollectionInput!) {
+                          collectionCreate(input: $input) {
+                            collection { id }
+                            userErrors { field message }
+                          }
+                        }
+                      `;
+                      const createRes = await client.request(createCollMutation, {
+                        variables: { input: { title: productData.collection } }
+                      });
+                      const createData = createRes.data || createRes;
+                      collectionId = createData.collectionCreate?.collection?.id;
+                    }
+
+                    if (collectionId) {
+                      await client.request(`
+                        mutation collectionAddProducts($id: ID!, $productIds: [ID!]!) {
+                          collectionAddProducts(id: $id, productIds: $productIds) {
+                            userErrors { field message }
+                          }
+                        }
+                      `, {
+                        variables: { id: collectionId, productIds: [data.productSet.product.id] }
+                      });
+                    }
+                  } catch (collErr) {
+                    console.error("Failed to assign product to collection:", collErr);
+                  }
+                }
+
                 // Explicitly publish to all Sales Channels if Active
                 if (productData.status === 'ACTIVE' && publications.length > 0 && data.productSet?.product?.id) {
                   try {
@@ -218,7 +297,7 @@ export async function POST(req: NextRequest) {
                       }
                     });
                   } catch (pubErr) {
-                    console.error("Failed to publish to all channels (You likely need to add 'read_publications,write_publications' to SHOPIFY_SCOPES in .env and reconnect the store):", pubErr);
+                    console.error("Failed to publish to all channels:", pubErr);
                   }
                 }
           }

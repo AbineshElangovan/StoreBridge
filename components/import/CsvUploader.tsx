@@ -20,6 +20,23 @@ export function CsvUploader({ file, isValidating, onFileSelect, onValidate, onDi
     if (onDirectImport) onDirectImport();
   };
 
+  const handleDownloadSampleCsv = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const csvContent = `Title,Description,Price,Inventory tracked,Available,Option1 Name,Option1 Value,Option2 Name,Option2 Value,Option3 Name,Option3 Value,SKU,Vendor,Type,Tags,Status,collection
+Baggy Denim pant,"<p>Baggy Pant</p>",799.00,Yes,10,Color,Beige,Size,Medium,,,,"ESHAN Coimbatore Store",Trousers in Pants,Pants,ACTIVE,PANTS
+Ceramic Tea Mug,"<p>High-quality ceramic mug perfect for your morning coffee.</p>",125.00,Yes,100,,,,,,,,StoreBridge,Home,Accessories,ACTIVE,MENS ACCESSORIES
+`;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'sample_products.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div>
       <div className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors py-16 px-4 mb-6 flex flex-col items-center justify-center text-center">
@@ -46,9 +63,10 @@ export function CsvUploader({ file, isValidating, onFileSelect, onValidate, onDi
         </label>
         
         <a 
-          href="/test_product.csv" 
-          download
-          className="text-xs text-blue-600 hover:text-blue-800 underline mt-4 inline-flex items-center gap-1"
+          href="/storebridge_sample_import.csv" 
+          download="sample_products.csv"
+          onClick={handleDownloadSampleCsv}
+          className="text-xs text-blue-600 hover:text-blue-800 underline mt-4 inline-flex items-center gap-1 cursor-pointer font-medium"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />

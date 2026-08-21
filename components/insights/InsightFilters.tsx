@@ -29,13 +29,13 @@ export function InsightFilters({
   onCollectionChange,
 }: InsightFiltersProps) {
   return (
-    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 mb-6">
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 w-full">
       {/* Store Selector */}
-      <div className="relative w-full sm:w-auto">
+      <div className="relative w-full">
         <select
           value={selectedStore}
           onChange={(e) => onStoreChange(e.target.value)}
-          className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 sm:py-2 pr-9 text-xs sm:text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0db69d]/20 focus:border-[#0db69d] cursor-pointer shadow-2xs transition-colors"
+          className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 pr-9 text-xs sm:text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0db69d]/20 focus:border-[#0db69d] cursor-pointer shadow-2xs transition-colors"
         >
           {stores.map((s) => (
             <option key={s.id} value={s.id}>
@@ -51,11 +51,11 @@ export function InsightFilters({
       </div>
 
       {/* Date Range Selector */}
-      <div className="relative w-full sm:w-auto">
+      <div className="relative w-full">
         <select
           value={selectedRange}
           onChange={(e) => onRangeChange(e.target.value)}
-          className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 sm:py-2 pr-9 text-xs sm:text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0db69d]/20 focus:border-[#0db69d] cursor-pointer shadow-2xs transition-colors"
+          className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 pr-9 text-xs sm:text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0db69d]/20 focus:border-[#0db69d] cursor-pointer shadow-2xs transition-colors"
         >
           <option value="7">Last 7 days</option>
           <option value="30">Last 30 days</option>
@@ -70,11 +70,11 @@ export function InsightFilters({
       </div>
 
       {/* Collection Selector */}
-      <div className="relative w-full sm:w-auto">
+      <div className="relative w-full">
         <select
           value={selectedCollection}
           onChange={(e) => onCollectionChange(e.target.value)}
-          className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 sm:py-2 pr-9 text-xs sm:text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0db69d]/20 focus:border-[#0db69d] cursor-pointer shadow-2xs transition-colors"
+          className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 pr-9 text-xs sm:text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0db69d]/20 focus:border-[#0db69d] cursor-pointer shadow-2xs transition-colors"
         >
           {collections.map((c) => (
             <option key={c} value={c}>

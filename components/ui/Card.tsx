@@ -8,19 +8,19 @@ export interface CardProps {
   headerAction?: React.ReactNode;
 }
 
-export function Card({ title, description, children, padding = '24px', headerAction }: CardProps) {
+export function Card({ title, description, children, padding, headerAction }: CardProps) {
   return (
-    <div className="ys-card">
+    <div className="ys-card w-full overflow-hidden">
       {(title || description || headerAction) && (
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="p-4 sm:p-5 border-b border-[var(--border-color)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            {title && <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{title}</h2>}
-            {description && <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '4px' }}>{description}</p>}
+            {title && <h2 className="text-base sm:text-lg font-bold text-[var(--text-primary)] m-0">{title}</h2>}
+            {description && <p className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1 m-0">{description}</p>}
           </div>
-          {headerAction && <div>{headerAction}</div>}
+          {headerAction && <div className="self-start sm:self-auto shrink-0">{headerAction}</div>}
         </div>
       )}
-      <div style={{ padding }}>
+      <div style={{ padding: padding !== undefined ? padding : undefined }} className={padding === undefined ? 'p-4 sm:p-6' : ''}>
         {children}
       </div>
     </div>

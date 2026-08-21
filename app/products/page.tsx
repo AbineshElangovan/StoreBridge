@@ -102,7 +102,6 @@ export default function ProductsPage() {
       badgeRules: { Active: 'success', Inactive: 'critical' },
     },
     { title: 'Updated Date', key: 'updatedDate' },
-    { title: 'Updated Time', key: 'updatedTime' },
   ];
 
   if (loading) {
@@ -156,8 +155,7 @@ export default function ProductsPage() {
                     columns={columns}
                     items={filterProducts(allProducts).map(item => ({
                       ...item,
-                      updatedDate: <LocalizedDate date={item.updatedDate} format="date" />,
-                      updatedTime: <LocalizedDate date={item.updatedTime} format="time" />
+                      updatedDate: <LocalizedDate date={item.updatedDate || item.updatedAt} format="datetime" />
                     }))}
                     searchable={false}
                     filterable
@@ -202,8 +200,7 @@ export default function ProductsPage() {
                         columns={columns}
                         items={filteredItems.map(item => ({
                           ...item,
-                          updatedDate: <LocalizedDate date={item.updatedDate} format="date" />,
-                          updatedTime: <LocalizedDate date={item.updatedTime} format="time" />
+                          updatedDate: <LocalizedDate date={item.updatedDate || item.updatedAt} format="datetime" />
                         }))}
                         searchable={false}
                         filterable

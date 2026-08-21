@@ -260,9 +260,9 @@ export default function ActivityPage() {
           </div>
         </div>
 
-        <div className="w-full bg-white overflow-hidden rounded-xl border border-gray-200 shadow-sm">
-            <div className="p-3 px-5 border-b border-slate-100 bg-slate-50/50 flex gap-3 flex-wrap items-center">
-              <div className="flex-1 min-w-[250px]">
+        <div className="w-full bg-white overflow-hidden rounded-xl border border-gray-200 shadow-2xs">
+            <div className="p-3.5 sm:p-4 px-4 sm:px-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <div className="w-full sm:w-auto flex-1 sm:min-w-[220px]">
                   <SearchBar
                     label="Search"
                     labelHidden
@@ -277,7 +277,7 @@ export default function ActivityPage() {
                 </div>
 
               {/* Custom Tailwind Collection Select */}
-              <div className="min-w-[180px]">
+              <div className="w-full sm:w-auto sm:min-w-[170px]">
                 <CustomSelect
                   label="Collection"
                   labelHidden
@@ -294,7 +294,7 @@ export default function ActivityPage() {
 
               {/* Custom Tailwind Store Select (Master Only) */}
               {isMaster && isMultiStore && (
-                <div className="min-w-[180px]">
+                <div className="w-full sm:w-auto sm:min-w-[160px]">
                   <CustomSelect
                     label="Store"
                     labelHidden
@@ -311,7 +311,7 @@ export default function ActivityPage() {
               )}
 
               {/* Date Filter Select */}
-              <div className="min-w-[150px]">
+              <div className="w-full sm:w-auto sm:min-w-[140px]">
                   <CustomSelect
                     label="Date Range"
                     labelHidden

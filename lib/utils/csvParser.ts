@@ -19,6 +19,7 @@ export interface ParsedProduct {
   vendor: string;
   productType: string;
   status: string;
+  collection?: string;
   variants: ParsedVariant[];
 }
 
@@ -44,6 +45,7 @@ export function parseProductsFromCsv(rows: any[]): ParseResult {
     const description = row["Body (HTML)"] || row["Description"] || "";
     const vendor = row["Vendor"] || "StoreBridge";
     const productType = row["Type"] || "";
+    const collection = row["collection"] || row["Collection"] || "";
     const tags = row["Tags"] ? row["Tags"].split(',').map((t: string) => t.trim()).filter(Boolean) : [];
     let status = "ACTIVE";
     if (row["Status"]) {
@@ -56,7 +58,8 @@ export function parseProductsFromCsv(rows: any[]): ParseResult {
     const price = parseFloat(row["Variant Price"] || row["Price"] || "0");
     const sku = row["Variant SKU"] || row["SKU"] || "";
     const available = parseInt(row["Variant Inventory Qty"] || row["Available"] || row["Inventory quantity"] || "0", 10);
-    const inventoryTracked = (row["Variant Inventory Tracker"] || row["Inventory tracked"] || "shopify").toLowerCase() !== "no" && (row["Variant Inventory Tracker"] || row["Inventory tracked"] || "") !== "";
+    const rawTracked = (row["Variant Inventory Tracker"] || row["Inventory tracked"] || "").toString().trim().toLowerCase();
+    const inventoryTracked = rawTracked !== "no" && rawTracked !== "false" && rawTracked !== "0";
 
     if (!title && !handle) {
       errors.push({ row: rowNum, error: "Missing Title or Handle" });
@@ -82,6 +85,7 @@ export function parseProductsFromCsv(rows: any[]): ParseResult {
         vendor,
         productType,
         status,
+        collection,
         variants: []
       };
     }

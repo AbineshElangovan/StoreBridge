@@ -145,27 +145,27 @@ export function StorePerformanceRules({
           return (
             <div
               key={store.id}
-              className="flex flex-col gap-4 p-5 border border-sky-100 rounded-xl bg-white shadow-2xs"
+              className="flex flex-col gap-4 p-4 sm:p-5 border border-sky-100 rounded-xl bg-white shadow-2xs"
             >
               {/* Header Info */}
-              <div className="flex items-center justify-between gap-4 border-b border-gray-100 pb-3">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-base font-bold text-gray-900 truncate">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="text-sm sm:text-base font-bold text-gray-900 truncate">
                     {store.label}
                   </span>
                   {store.isMaster && (
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200 tracking-wider">
+                    <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200 tracking-wider">
                       MASTER STORE
                     </span>
                   )}
                 </div>
-                <span className="text-xs text-gray-900 font-bold tracking-tight bg-gray-100 px-2.5 py-1 rounded-md border border-gray-200 truncate">
+                <span className="self-start sm:self-auto text-xs text-gray-900 font-bold tracking-tight bg-gray-100 px-2.5 py-1 rounded-md border border-gray-200 truncate max-w-full sm:max-w-xs">
                   {store.shopDomain}
                 </span>
               </div>
 
               {/* Threshold Controls */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 <NumberSettingInput
                   id={`bs-threshold-${store.id}`}
                   label="Best Seller Threshold"
@@ -190,10 +190,10 @@ export function StorePerformanceRules({
               </div>
 
               {/* Action Buttons & Status */}
-              <div className="flex items-center justify-end gap-3 pt-2 border-t border-gray-100">
+              <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2.5 pt-3 border-t border-gray-100">
                 {successStoreId === store.id && (
-                  <span className="text-xs font-bold text-emerald-600 mr-auto flex items-center gap-1">
-                    <svg className="w-4 h-4 fill-current text-emerald-600" viewBox="0 0 20 20">
+                  <span className="text-xs font-bold text-emerald-600 sm:mr-auto flex items-center gap-1">
+                    <svg className="w-4 h-4 fill-current text-emerald-600 shrink-0" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
                     Store Performance Rules saved!
@@ -204,7 +204,7 @@ export function StorePerformanceRules({
                   type="button"
                   disabled={isSaving || savingStoreId === store.id}
                   onClick={() => handleCancel(store.id)}
-                  className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 disabled:opacity-50 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                  className="w-full sm:w-auto px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 disabled:opacity-50 text-xs font-bold rounded-lg transition-colors cursor-pointer text-center"
                 >
                   Cancel
                 </button>
@@ -213,37 +213,38 @@ export function StorePerformanceRules({
                   type="button"
                   disabled={isSaving || savingStoreId === store.id}
                   onClick={() => handleSave(store.id)}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 text-xs font-bold rounded-lg transition-colors shadow-2xs cursor-pointer flex items-center gap-1.5"
+                  className="w-full sm:w-auto px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 text-xs font-bold rounded-lg transition-colors shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-center"
                 >
                   {savingStoreId === store.id ? 'Saving...' : 'Save'}
                 </button>
               </div>
 
               {/* Dynamic Classification Preview Banner */}
-              <div className="mt-1 pt-3 border-t border-gray-100 flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-gray-500 font-semibold text-[11px] uppercase tracking-wider mr-1">
+              <div className="mt-1 pt-3 border-t border-gray-100 flex flex-col gap-2">
+                <span className="text-gray-500 font-semibold text-[11px] uppercase tracking-wider">
                   Insights Rules:
                 </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+                  <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-1.5 rounded-md font-semibold truncate">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0"></span>
+                    Best Seller: <strong className="font-bold truncate">{validBs ? `> ${validBs} sales` : 'Set threshold'}</strong>
+                  </span>
 
-                <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-1 rounded-md font-semibold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
-                  Best Seller: <strong className="font-bold">{validBs ? `> ${validBs} sales` : 'Set threshold'}</strong>
-                </span>
+                  <span className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-1.5 rounded-md font-semibold truncate">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-600 shrink-0"></span>
+                    Slow Mover: <strong className="font-bold truncate">{validBs ? `1 to ${validBs} sales` : 'Set threshold'}</strong>
+                  </span>
 
-                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-1 rounded-md font-semibold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
-                  Slow Mover: <strong className="font-bold">{validBs ? `1 to ${validBs} sales` : 'Set threshold'}</strong>
-                </span>
+                  <span className="inline-flex items-center gap-1.5 bg-rose-50 text-rose-800 border border-rose-200 px-2.5 py-1.5 rounded-md font-semibold truncate">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-600 shrink-0"></span>
+                    Dead Stock: <strong className="font-bold truncate">{validDs ? `0 sales (${validDs}+ days)` : 'Set days'}</strong>
+                  </span>
 
-                <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-800 border border-rose-200 px-2.5 py-1 rounded-md font-semibold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
-                  Dead Stock: <strong className="font-bold">{validDs ? `0 sales (${validDs}+ days, in stock)` : 'Set days'}</strong>
-                </span>
-
-                <span className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 border border-gray-200 px-2.5 py-1 rounded-md font-semibold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-gray-500"></span>
-                  Out of Stock: <strong className="font-bold">0 stock</strong>
-                </span>
+                  <span className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-700 border border-gray-200 px-2.5 py-1.5 rounded-md font-semibold truncate">
+                    <span className="w-1.5 h-1.5 rounded-full bg-gray-500 shrink-0"></span>
+                    Out of Stock: <strong className="font-bold truncate">0 stock</strong>
+                  </span>
+                </div>
               </div>
             </div>
           );

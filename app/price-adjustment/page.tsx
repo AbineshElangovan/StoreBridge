@@ -149,14 +149,14 @@ export default function PriceAdjustmentPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      <div className="flex flex-col gap-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
+      <div className="flex flex-col gap-6 sm:gap-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827', margin: 0 }}>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 m-0">
               Price Adjustment
             </h1>
-            <p style={{ marginTop: 4, color: '#6b7280', fontSize: '0.875rem' }}>
+            <p className="mt-1 text-xs sm:text-sm text-gray-500 m-0">
               Configure store-specific and collection-based pricing rules for synchronized products.
             </p>
           </div>
@@ -164,7 +164,7 @@ export default function PriceAdjustmentPage() {
 
         <div className="flex flex-col gap-6">
             {stores.length === 0 ? (
-              <p style={{ color: '#9ca3af', fontSize: '13px' }}>No stores available to configure.</p>
+              <p className="text-xs sm:text-sm text-gray-500 m-0">No stores available to configure.</p>
             ) : (
               stores.map((s, index) => {
                 // Alternate between 3 distinct colors, avoiding Yellow!
@@ -186,12 +186,11 @@ export default function PriceAdjustmentPage() {
                     titleColor={t.title}
                     descColor={t.desc}
                   >
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    <div className="flex flex-col gap-4 sm:gap-6 mt-2">
                       {/* Collection Adjustment */}
-                      <div style={{ padding: '24px', backgroundColor: '#ffffff', border: '1px solid #e5e7eb', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                      <div className="p-4 sm:p-6 bg-white border border-gray-200 rounded-xl shadow-2xs overflow-x-auto">
                         <CollectionPriceAdjustment storeId={s.id} storeName={s.label || s.shopDomain} />
                       </div>
-
                     </div>
                   </ThemedSection>
                 );
@@ -202,24 +201,10 @@ export default function PriceAdjustmentPage() {
       
       {toastMessage && (
         <div
-          style={{
-            position: 'fixed',
-            bottom: '24px',
-            right: '24px',
-            zIndex: 9999,
-            backgroundColor: toastMessage.type === 'success' ? '#16a34a' : '#dc2626',
-            color: '#ffffff',
-            padding: '12px 24px',
-            borderRadius: '8px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: '14px',
-            fontWeight: 500,
-            animation: 'settingsToastSlideIn 0.3s ease-out',
-            border: '1px solid rgba(255,255,255,0.2)',
-          }}
+          className={`fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 px-4 sm:px-6 py-3 rounded-lg shadow-lg flex items-center justify-between gap-3 text-xs sm:text-sm font-semibold text-white max-w-[calc(100vw-32px)] sm:max-w-md ${
+            toastMessage.type === 'success' ? 'bg-emerald-600 border border-emerald-500' : 'bg-red-600 border border-red-500'
+          }`}
+          style={{ animation: 'settingsToastSlideIn 0.3s ease-out' }}
         >
           <style>{`
             @keyframes settingsToastSlideIn {
@@ -227,19 +212,10 @@ export default function PriceAdjustmentPage() {
               to { transform: translateY(0); opacity: 1; }
             }
           `}</style>
-          <span>{toastMessage.message}</span>
+          <span className="truncate">{toastMessage.message}</span>
           <button
             onClick={() => setToastMessage(null)}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#ffffff',
-              cursor: 'pointer',
-              marginLeft: '12px',
-              fontSize: '14px',
-              opacity: 0.8,
-              lineHeight: 1
-            }}
+            className="bg-transparent border-none text-white cursor-pointer ml-2 text-sm opacity-80 hover:opacity-100 shrink-0"
           >
             ✕
           </button>

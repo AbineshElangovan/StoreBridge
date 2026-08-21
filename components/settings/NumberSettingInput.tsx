@@ -43,7 +43,7 @@ export const NumberSettingInput: React.FC<NumberSettingInputProps> = ({
         {label}
       </label>
       
-      <div className="relative max-w-xs">
+      <div className="relative w-full max-w-full">
         <input
           id={id}
           type="number"
@@ -53,7 +53,7 @@ export const NumberSettingInput: React.FC<NumberSettingInputProps> = ({
           placeholder={placeholder}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className={`w-full px-3 py-1.5 text-sm font-medium rounded-lg border transition-all duration-150 outline-none ${
+          className={`w-full px-3 py-2 text-sm font-medium rounded-lg border transition-all duration-150 outline-none ${
             error
               ? 'border-red-500 bg-red-50/50 text-red-900 focus:ring-2 focus:ring-red-200'
               : 'border-gray-300 bg-white text-gray-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100'
@@ -69,11 +69,11 @@ export const NumberSettingInput: React.FC<NumberSettingInputProps> = ({
           {error}
         </p>
       ) : helpText ? (
-        <div className="mt-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200/80 rounded-lg text-xs flex items-center gap-1.5 max-w-xs shadow-2xs">
-          <span className="font-black text-indigo-800 text-[11px] shrink-0">
+        <div className="mt-1.5 px-2.5 py-1 bg-indigo-50 border border-indigo-200/80 rounded-lg text-xs flex items-start gap-1.5 w-full shadow-2xs">
+          <span className="font-black text-indigo-800 text-[11px] shrink-0 mt-0.5">
             Note:
           </span>
-          <span className="font-semibold text-indigo-950 truncate">
+          <span className="font-semibold text-indigo-950 text-[11px] leading-tight">
             {helpText}
           </span>
         </div>

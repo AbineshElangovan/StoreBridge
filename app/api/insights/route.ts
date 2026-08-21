@@ -85,8 +85,8 @@ export async function GET(req: NextRequest) {
       createdAt: { gte: dateThreshold }
     };
 
-    if (collectionFilter !== 'all') {
-      activityWhere.collection = collectionFilter;
+    if (collectionFilter !== 'all' && collectionFilter !== 'All collections') {
+      activityWhere.collection = { equals: collectionFilter, mode: 'insensitive' };
     }
 
     const salesLogs = await prisma.activityLog.findMany({
@@ -152,11 +152,11 @@ export async function GET(req: NextRequest) {
       storeId: { in: targetStoreIds }
     };
 
-    if (collectionFilter !== 'all') {
+    if (collectionFilter !== 'all' && collectionFilter !== 'All collections') {
       const collectionRecords = await prisma.collection.findMany({
         where: {
           storeId: { in: targetStoreIds },
-          title: collectionFilter
+          title: { equals: collectionFilter, mode: 'insensitive' }
         },
         include: {
           products: {
@@ -165,7 +165,9 @@ export async function GET(req: NextRequest) {
         }
       });
       const cacheIds = collectionRecords.flatMap(c => c.products.map(p => p.productCacheId));
-      productWhere.id = { in: cacheIds };
+      if (cacheIds.length > 0) {
+        productWhere.id = { in: cacheIds };
+      }
     }
 
     const rawProducts = await prisma.productCache.findMany({

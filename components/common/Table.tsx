@@ -8,6 +8,8 @@ export interface ColumnConfig {
   key: string;
   type?: 'text' | 'image' | 'badge' | 'bold' | 'status' | 'custom_html' | 'react_node';
   badgeRules?: { [key: string]: 'success' | 'critical' | 'warning' | 'info' };
+  width?: string;
+  align?: 'left' | 'center' | 'right';
 }
 
 export interface TableProps {
@@ -231,28 +233,30 @@ export function Table({
 
       {/* ── Table Header / Toolbar ── */}
       {(title || searchable || filterable) && !loading && (
-        <div className="p-4 px-5 border-b border-slate-100 bg-slate-50/50 flex flex-wrap items-center justify-between gap-4">
+        <div className="p-3 sm:p-4 px-4 sm:px-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
           
           {/* Left Side: Title */}
           <div className="flex items-center gap-3">
             {title && (
-              <h3 style={{ fontSize: '18px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: headerColor, margin: 0 }}>
+              <h3 className="text-base sm:text-lg font-bold uppercase tracking-wider m-0" style={{ color: headerColor }}>
                 {title}
               </h3>
             )}
           </div>
 
           {/* Right Side: Search & Filter */}
-          <div className="flex gap-3 flex-wrap items-center ml-auto">
+          <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 items-stretch sm:items-center w-full sm:w-auto sm:ml-auto">
             {searchable && (searchKey || serverSide) && (
-              <SearchInput
-                value={query}
-                onChange={setQuery}
-                placeholder={`Search ${title?.replace(/[^a-zA-Z ]/g, '').trim() || 'records'}…`}
-              />
+              <div className="w-full sm:w-auto flex-1 sm:min-w-[200px]">
+                <SearchInput
+                  value={query}
+                  onChange={setQuery}
+                  placeholder={`Search ${title?.replace(/[^a-zA-Z ]/g, '').trim() || 'records'}…`}
+                />
+              </div>
             )}
             {filterable && filterKey && (
-              <div className="min-w-[160px]">
+              <div className="w-full sm:w-auto sm:min-w-[160px]">
                 <CustomSelect
                   options={filterOptions}
                   value={currentFilterValue}
@@ -261,7 +265,7 @@ export function Table({
               </div>
             )}
             {(query || currentFilterValue !== 'ALL') && (
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-gray-400 self-end sm:self-center shrink-0">
                 {serverSide ? (totalItems ?? items.length) : filteredItems.length} result{((serverSide ? (totalItems ?? items.length) : filteredItems.length) !== 1) ? 's' : ''}
               </span>
             )}
@@ -275,20 +279,22 @@ export function Table({
           {errorState}
         </div>
       ) : (
-        <div className="relative overflow-x-auto">
-          <table className="w-full border-collapse table-auto">
+        <div className="relative overflow-x-auto w-full">
+          <table className="w-full min-w-[640px] border-collapse">
             <thead>
               <tr>
                 {columns.map((col, i) => (
                   <th
                     key={col.key}
                     style={{
+                      width: col.width,
                       backgroundColor: headerBg,
                       color: headerText,
                       borderBottom: `2px solid ${headerColor}44`,
                       borderRight: i < columns.length - 1 ? '1px solid #f1f5f9' : 'none',
+                      textAlign: col.align || 'left',
                     }}
-                    className="p-[12px_16px] font-bold text-xs text-left uppercase tracking-wider whitespace-nowrap"
+                    className="p-[10px_8px] font-bold text-xs uppercase tracking-wider whitespace-nowrap overflow-hidden text-ellipsis"
                   >
                     {col.title}
                   </th>
@@ -314,9 +320,11 @@ export function Table({
                       <td
                         key={col.key}
                         style={{
+                          width: col.width,
                           borderRight: ci < columns.length - 1 ? '1px solid #f8f9ff' : 'none',
+                          textAlign: col.align || 'left',
                         }}
-                        className="p-[12px_16px] border-b border-slate-100 text-[13px] align-middle"
+                        className="p-[8px_8px] border-b border-slate-100 text-[13px] align-middle overflow-hidden text-ellipsis"
                       >
                         {renderCell(item, col)}
                       </td>

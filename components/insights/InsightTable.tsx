@@ -124,12 +124,12 @@ export function InsightTable({
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <div className="text-xs sm:text-sm font-semibold text-gray-900 truncate max-w-[180px] sm:max-w-xs" title={p.title}>
+          <div className="text-xs sm:text-sm font-semibold text-gray-900 truncate max-w-full sm:max-w-xs md:max-w-sm" title={p.title}>
             {p.title}
           </div>
           {p.storeLabel && (
             <div className="mt-1">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-bold bg-sky-100 text-sky-800 border border-sky-200 shadow-2xs whitespace-nowrap">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-sky-100 text-sky-800 border border-sky-200 shadow-2xs whitespace-nowrap">
                 {p.storeLabel}
               </span>
             </div>

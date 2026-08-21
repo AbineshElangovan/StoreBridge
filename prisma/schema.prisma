@@ -25,8 +25,12 @@ model Store {
   masterLabel              String? @unique
   isActive                 Boolean @default(true)
   lowStockThreshold        Int     @default(10)
-  bestSellerThreshold      Int     
-  deadStockDays            Int     
+  bestSellerThreshold      Int
+  deadStockDays            Int
+  forecastPeriodDays       Int     @default(7)
+  salesHistoryPeriodDays   Int     @default(30)
+  supplierLeadTimeDays     Int     @default(7)
+  safetyStockDays          Int     @default(3)
   autoSyncEnabled          Boolean @default(true)
   priceAdjustmentValue     Int     @default(0)
   priceAdjustmentType      String  @default("PERCENTAGE")
