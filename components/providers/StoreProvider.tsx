@@ -50,11 +50,49 @@ const StoreContext = createContext<StoreContextValue>({
 
 export const useStoreContext = () => useContext(StoreContext);
 
+function matchesStore(s: StoreInfo, target: string | null) {
+  if (!target) return false;
+  const clean = target.trim().toLowerCase();
+  const prefix = clean.split('.')[0].replace(/^https?:\/\//, '');
+
+  const sDomain = (s.shopDomain || '').toLowerCase();
+  const sLabel = (s.label || '').toLowerCase();
+  const sMasterLabel = (s.masterLabel || '').toLowerCase();
+  const sId = (s.id || '').toLowerCase();
+
+  return (
+    sDomain === clean ||
+    sDomain.includes(prefix) ||
+    (prefix.length > 2 && sDomain.split('.')[0].includes(prefix)) ||
+    sLabel.includes(prefix) ||
+    sMasterLabel.includes(prefix) ||
+    sId === clean
+  );
+}
+
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [activeStores, setActiveStores] = useState<StoreInfo[]>([]);
+  const [serverCurrentStoreId, setServerCurrentStoreId] = useState<string | null>(null);
+  const [serverCurrentShopDomain, setServerCurrentShopDomain] = useState<string | null>(null);
+  const [savedShopDomain, setSavedShopDomain] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
   const currentShopDomain = searchParams.get('shop');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const shopParam = new URLSearchParams(window.location.search).get('shop');
+      if (shopParam) {
+        setSavedShopDomain(shopParam);
+        try { localStorage.setItem('storebridge_active_shop', shopParam); } catch (e) {}
+      } else {
+        try {
+          const stored = localStorage.getItem('storebridge_active_shop');
+          if (stored) setSavedShopDomain(stored);
+        } catch (e) {}
+      }
+    }
+  }, [currentShopDomain]);
 
   useEffect(() => {
     async function loadStores() {
@@ -66,6 +104,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             // Only consider genuinely active stores for the count
             const active = data.stores.filter((s: StoreInfo) => s.isActive);
             setActiveStores(active);
+            if (data.currentStoreId) setServerCurrentStoreId(data.currentStoreId);
+            if (data.currentShopDomain) setServerCurrentShopDomain(data.currentShopDomain);
           }
         }
       } catch (err) {
@@ -75,10 +115,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
     }
     loadStores();
-  }, []);
+  }, [currentShopDomain]);
 
-  const currentStore = activeStores.find(s => s.shopDomain === currentShopDomain) || 
-                       (activeStores.length > 0 ? activeStores[0] : null);
+  const currentStore = 
+    (currentShopDomain ? activeStores.find(s => matchesStore(s, currentShopDomain)) : null) ||
+    (serverCurrentStoreId ? activeStores.find(s => s.id === serverCurrentStoreId) : null) ||
+    (serverCurrentShopDomain ? activeStores.find(s => s.shopDomain === serverCurrentShopDomain) : null) ||
+    (savedShopDomain ? activeStores.find(s => matchesStore(s, savedShopDomain)) : null) ||
+    (activeStores.length > 0 ? activeStores[0] : null);
   
   const storeCount = activeStores.length;
   

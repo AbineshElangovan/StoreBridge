@@ -1,8 +1,8 @@
 -- AlterTable
-ALTER TABLE "stores" ADD COLUMN "forecastPeriodDays" INTEGER;
-ALTER TABLE "stores" ADD COLUMN "salesHistoryPeriodDays" INTEGER;
-ALTER TABLE "stores" ADD COLUMN "supplierLeadTimeDays" INTEGER;
-ALTER TABLE "stores" ADD COLUMN "safetyStockDays" INTEGER;
+ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "forecastPeriodDays" INTEGER;
+ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "salesHistoryPeriodDays" INTEGER;
+ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "supplierLeadTimeDays" INTEGER;
+ALTER TABLE "stores" ADD COLUMN IF NOT EXISTS "safetyStockDays" INTEGER;
 
 -- Update existing records with default initial values
 UPDATE "stores" SET "forecastPeriodDays" = 7 WHERE "forecastPeriodDays" IS NULL;

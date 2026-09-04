@@ -36,8 +36,20 @@ export function Sidebar() {
   const shop = searchParams.get('shop');
   const host = searchParams.get('host');
   
-  const { currentStore, isStandalone, canManageNetwork, loading } = useStoreContext();
+  const { activeStores, currentStore, isStandalone, canManageNetwork, loading } = useStoreContext();
   const [unreadCount, setUnreadCount] = React.useState<number>(0);
+
+  const handleStoreSwitch = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedShop = e.target.value;
+    if (selectedShop) {
+      try {
+        localStorage.setItem('storebridge_active_shop', selectedShop);
+      } catch (err) {}
+      const url = new URL(window.location.href);
+      url.searchParams.set('shop', selectedShop);
+      window.location.href = url.toString();
+    }
+  };
 
   React.useEffect(() => {
     const fetchUnread = async () => {
@@ -144,14 +156,53 @@ export function Sidebar() {
       </div>
 
       <div className="px-4 mb-6">
-        <div className={`px-3.5 py-3 rounded-xl border shadow-xs flex flex-col relative ${isStandalone ? 'bg-blue-50 border-blue-200' : 'bg-[#e6f4f1] border-[#b2e2d8]'}`}>
-          <span className={`text-sm font-bold flex items-center justify-between ${isStandalone ? 'text-blue-900' : 'text-[#064e3b]'}`}>
-            {loading ? 'Loading...' : (currentStore?.label || currentStore?.shopDomain || 'ESHAN Master Store')}
-          </span>
-          <span className={`text-[10px] font-extrabold mt-1 tracking-wider uppercase ${isStandalone ? 'text-blue-700' : 'text-[#047857]'}`}>
-            {isStandalone ? 'STANDALONE STORE' : (currentStore?.isMaster ? 'MASTER STORE' : 'CONNECTED STORE')}
-          </span>
-        </div>
+        {(() => {
+          const isMasterStore = currentStore?.isMaster;
+          const isConnectedStore = !isMasterStore && !isStandalone;
+
+          let boxStyle = 'bg-blue-100 border-blue-300 text-blue-950';
+          let badgeStyle = 'text-blue-800 font-black';
+
+          if (isMasterStore) {
+            boxStyle = 'bg-emerald-100 border-emerald-300 text-emerald-950';
+            badgeStyle = 'text-emerald-800 font-black';
+          } else if (isConnectedStore) {
+            boxStyle = 'bg-purple-100 border-purple-300 text-purple-950';
+            badgeStyle = 'text-purple-800 font-black';
+          }
+
+          const roleLabel = isStandalone 
+            ? 'STANDALONE STORE' 
+            : (isMasterStore ? 'MASTER STORE' : 'CONNECTED STORE');
+
+          return (
+            <div className={`px-3 py-2.5 rounded-xl border shadow-2xs flex flex-col relative transition-colors ${boxStyle}`}>
+              {activeStores.length > 1 ? (
+                <select
+                  value={currentStore?.shopDomain || ''}
+                  onChange={handleStoreSwitch}
+                  className="bg-transparent text-sm font-bold border-none outline-none focus:ring-0 cursor-pointer w-full pr-1 truncate"
+                >
+                  {activeStores.map((s) => {
+                    const tag = s.isMaster ? '(Master)' : (isStandalone ? '(Standalone)' : '(Connected)');
+                    return (
+                      <option key={s.id} value={s.shopDomain} className="bg-white text-gray-900 font-semibold py-1">
+                        {s.label || s.shopDomain} {tag}
+                      </option>
+                    );
+                  })}
+                </select>
+              ) : (
+                <span className="text-sm font-bold truncate">
+                  {loading ? 'Loading...' : (currentStore?.label || currentStore?.shopDomain || 'ESHAN Store')}
+                </span>
+              )}
+              <span className={`text-[10px] font-extrabold mt-0.5 tracking-wider uppercase ${badgeStyle}`}>
+                {roleLabel}
+              </span>
+            </div>
+          );
+        })()}
       </div>
 
       <div className="flex-1 overflow-y-scroll px-4 pb-6 ys-sidebar-scroll">

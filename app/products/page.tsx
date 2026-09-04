@@ -9,6 +9,9 @@ import { LocalizedDate } from '@/components/common/LocalizedDate';
 import { StoreRoleBadge } from '@/components/ui/StoreRoleBadge';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 
+import Link from 'next/link';
+import { getProductUrl } from '@/lib/utils/productUrl';
+
 export default function ProductsPage() {
   const { isStandalone } = useStoreContext();
   const [data, setData] = useState<any>(null);
@@ -79,7 +82,7 @@ export default function ProductsPage() {
 
   const columns: ColumnConfig[] = [
     { title: 'Image', key: 'imageUrls', type: 'image' },
-    { title: 'Product Name', key: 'title', type: 'bold' },
+    { title: 'Product Name', key: 'title_node', type: 'react_node' },
     { title: 'SKU', key: 'sku' },
     { title: 'Store', key: 'store' },
     { title: 'Price', key: 'priceText', type: 'bold' },
@@ -155,6 +158,14 @@ export default function ProductsPage() {
                     columns={columns}
                     items={filterProducts(allProducts).map(item => ({
                       ...item,
+                      title_node: (
+                        <Link 
+                          href={getProductUrl(item)}
+                          className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
+                        >
+                          {item.title}
+                        </Link>
+                      ),
                       updatedDate: <LocalizedDate date={item.updatedDate || item.updatedAt} format="datetime" />
                     }))}
                     searchable={false}
@@ -200,6 +211,14 @@ export default function ProductsPage() {
                         columns={columns}
                         items={filteredItems.map(item => ({
                           ...item,
+                          title_node: (
+                            <Link 
+                              href={getProductUrl(item)}
+                              className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
+                            >
+                              {item.title}
+                            </Link>
+                          ),
                           updatedDate: <LocalizedDate date={item.updatedDate || item.updatedAt} format="datetime" />
                         }))}
                         searchable={false}

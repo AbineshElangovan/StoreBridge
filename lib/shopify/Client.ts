@@ -50,13 +50,21 @@ export async function shopifyFetch(input: RequestInfo, init: RequestInit = {}) {
 
 
   let requestInput = input;
+  let activeShopDomain = "";
   if (typeof window !== "undefined" && window.location) {
     const windowParams = new URLSearchParams(window.location.search);
-    const shop = windowParams.get("shop");
-    if (shop && typeof requestInput === "string" && requestInput.startsWith("/")) {
+    const shopFromUrl = windowParams.get("shop");
+    if (shopFromUrl) {
+      activeShopDomain = shopFromUrl;
+      try { localStorage.setItem("storebridge_active_shop", shopFromUrl); } catch (e) {}
+    } else {
+      try { activeShopDomain = localStorage.getItem("storebridge_active_shop") || ""; } catch (e) {}
+    }
+
+    if (activeShopDomain && typeof requestInput === "string" && requestInput.startsWith("/")) {
       const targetUrl = new URL(requestInput, window.location.origin);
       if (!targetUrl.searchParams.has("shop")) {
-        targetUrl.searchParams.set("shop", shop);
+        targetUrl.searchParams.set("shop", activeShopDomain);
         requestInput = targetUrl.pathname + targetUrl.search;
       }
     }
@@ -65,12 +73,18 @@ export async function shopifyFetch(input: RequestInfo, init: RequestInit = {}) {
   console.log("[Frontend: shopifyFetch] URL:", requestInput);
   console.log("[Frontend: shopifyFetch] Token starts with:", token?.substring(0, 15));
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+    ...(init.headers as Record<string, string> || {}),
+  };
+
+  if (activeShopDomain) {
+    headers["x-shopify-shop-domain"] = activeShopDomain;
+  }
+
   return fetch(requestInput, {
     ...init,
-    headers: {
-      ...(init.headers || {}),
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
+    headers,
   });
 }

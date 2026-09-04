@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { DashboardCards } from '@/components/dashboard/DashboardCards';
 import { StoreRoleBadge } from '@/components/ui/StoreRoleBadge';
 import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
@@ -9,11 +11,13 @@ import type { ColumnConfig } from '@/components/common/Table';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import { LocalizedDate } from '@/components/common/LocalizedDate';
 import { useStoreContext } from '@/components/providers/StoreProvider';
+import { getProductUrl } from '@/lib/utils/productUrl';
 
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const { isStandalone, loading: contextLoading } = useStoreContext();
+  const router = useRouter();
 
   useEffect(() => {
 
@@ -100,6 +104,14 @@ export default function DashboardPage() {
   const lowStockProducts = (data?.lowStockProducts || []).map((p: any) => ({
     id: p.id,
     imageUrls: p.imageUrls || (p.imageUrl ? [p.imageUrl] : []),
+    title_node: (
+      <Link 
+        href={getProductUrl(p)}
+        className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
+      >
+        {p.title}
+      </Link>
+    ),
     title: p.title,
     sku: p.sku || 'N/A',
     inventoryQuantity: p.inventoryQuantity,
@@ -110,7 +122,7 @@ export default function DashboardPage() {
 
   const lowStockColumns: ColumnConfig[] = [
     { title: 'Image', key: 'imageUrls', type: 'image' },
-    { title: 'Product Name', key: 'title', type: 'bold' },
+    { title: 'Product Name', key: 'title_node', type: 'react_node' },
     { title: 'SKU', key: 'sku' },
     { title: 'Quantity', key: 'inventoryQuantity', type: 'bold' },
     { title: 'Stock Level', key: 'stockLevel', type: 'badge', badgeRules: { Critical: 'critical', Low: 'warning' } },
@@ -121,6 +133,14 @@ export default function DashboardPage() {
   const recentlyAddedProducts = (data?.recentlyAddedProducts || []).map((p: any) => ({
     id: p.id,
     imageUrls: p.imageUrls || (p.imageUrl ? [p.imageUrl] : []),
+    title_node: (
+      <Link 
+        href={getProductUrl(p)}
+        className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
+      >
+        {p.title}
+      </Link>
+    ),
     title: p.title,
     vendor: 'ESHAN',
     sku: p.sku || 'N/A',
@@ -132,7 +152,7 @@ export default function DashboardPage() {
 
   const recentlyAddedColumns: ColumnConfig[] = [
     { title: 'Image', key: 'imageUrls', type: 'image' },
-    { title: 'Product Name', key: 'title', type: 'bold' },
+    { title: 'Product Name', key: 'title_node', type: 'react_node' },
     { title: 'Vendor', key: 'vendor' },
     { title: 'SKU', key: 'sku' },
     { title: 'Stock', key: 'inventoryQuantity', type: 'bold' },

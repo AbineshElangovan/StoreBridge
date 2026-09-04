@@ -6,6 +6,7 @@ import { Icon } from '@shopify/polaris';
 import { MenuIcon, XIcon } from '@shopify/polaris-icons';
 import { NotificationBell } from '@/components/layout/NotificationBell';
 import { StoreRoleBadge } from '@/components/ui/StoreRoleBadge';
+import { useNavbarTitle } from '@/components/providers/NavbarTitleContext';
 
 export function ResponsiveLayout({ 
   sidebar, 
@@ -16,6 +17,27 @@ export function ResponsiveLayout({
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const pathname = usePathname();
+  const { customTitle } = useNavbarTitle();
+
+  const getBreadcrumbDisplay = () => {
+    if (customTitle) return customTitle;
+    if (!pathname || pathname === '/') return 'Dashboard';
+
+    const segments = pathname.split('/').filter(Boolean);
+    const lastSegment = segments[segments.length - 1] || '';
+
+    // Check if last segment is UUID or numeric ID (e.g. B576e76e-C268-45d8-945e-B54b800bda1f or 10304904134947)
+    const isIdOrUuid = /^[0-9a-fA-F-]{8,}/.test(lastSegment) || /^\d+$/.test(lastSegment);
+
+    if (isIdOrUuid) {
+      if (segments[0] === 'products') {
+        return 'Products / Product Details';
+      }
+      return 'Details';
+    }
+
+    return lastSegment.replace(/[-_]+/g, ' ');
+  };
 
   // Close sidebar on navigation (mobile)
   useEffect(() => {
@@ -88,7 +110,7 @@ export function ResponsiveLayout({
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">StoreBridge</span>
             <span className="text-gray-300">/</span>
             <span className="text-sm font-bold text-gray-800 capitalize">
-              {pathname === '/' ? 'Dashboard' : pathname.split('/').pop()?.replace('-', ' ')}
+              {getBreadcrumbDisplay()}
             </span>
           </div>
 

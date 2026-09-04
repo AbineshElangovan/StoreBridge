@@ -12,6 +12,7 @@ import { prisma } from '@/lib/db/prisma';
 import { TimezoneProvider } from '@/components/providers/TimezoneContext';
 import { LiveRefresher } from '@/components/providers/LiveRefresher';
 import { StoreProvider } from '@/components/providers/StoreProvider';
+import { NavbarTitleProvider } from '@/components/providers/NavbarTitleContext';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,21 +42,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         <meta name="shopify-api-key" content={process.env.NEXT_PUBLIC_SHOPIFY_API_KEY} />
-        <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+        <Script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" strategy="beforeInteractive" />
       </head>
       <body className={inter.className}>
         <ShopifyProvider>
           <StoreProvider>
-            <ResponsiveLayout sidebar={
-              <Suspense key="sidebar-suspense" fallback={<div className="w-[260px] bg-white border-r h-full animate-pulse" />}>
-                <Sidebar />
-              </Suspense>
-            }>
-              <TimezoneProvider>
-                <LiveRefresher key="live-refresher" />
-                {children}
-              </TimezoneProvider>
-            </ResponsiveLayout>
+            <NavbarTitleProvider>
+              <ResponsiveLayout sidebar={
+                <Suspense key="sidebar-suspense" fallback={<div className="w-[260px] bg-white border-r h-full animate-pulse" />}>
+                  <Sidebar />
+                </Suspense>
+              }>
+                <TimezoneProvider>
+                  <LiveRefresher key="live-refresher" />
+                  {children}
+                </TimezoneProvider>
+              </ResponsiveLayout>
+            </NavbarTitleProvider>
           </StoreProvider>
         </ShopifyProvider>
       </body>

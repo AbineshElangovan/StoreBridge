@@ -37,6 +37,7 @@ export interface TableProps {
   filterValue?: string;
   onFilterChange?: (value: string) => void;
   itemsPerPage?: number;
+  onRowClick?: (item: any) => void;
 }
 
 /* ── Centered full-page spinner ── */
@@ -98,7 +99,7 @@ const ImageCell = ({ src }: { src: string | string[] }) => {
 
   if (errorIndex >= srcArray.length || !currentSrc) {
     return (
-      <div style={{ width: 40, height: 40, borderRadius: 6, backgroundColor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed #cbd5e1' }}>
+      <div style={{ width: 40, height: 40, borderRadius: 6, backgroundColor: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed #cbd5e1', margin: '0 auto' }}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
           <circle cx="8.5" cy="8.5" r="1.5" />
@@ -112,7 +113,7 @@ const ImageCell = ({ src }: { src: string | string[] }) => {
       src={currentSrc} 
       alt="Product" 
       onError={() => setErrorIndex(prev => prev + 1)} 
-      style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', border: '1px solid #e5e7eb', display: 'block' }} 
+      style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', border: '1px solid #e5e7eb', display: 'block', margin: '0 auto' }} 
     />
   );
 };
@@ -141,6 +142,7 @@ export function Table({
   filterValue: controlledFilterValue,
   onFilterChange,
   itemsPerPage = 10,
+  onRowClick,
 }: TableProps) {
   const [localQuery, setLocalQuery] = useState('');
   const [localFilterValue, setLocalFilterValue] = useState('ALL');
@@ -292,7 +294,7 @@ export function Table({
                       color: headerText,
                       borderBottom: `2px solid ${headerColor}44`,
                       borderRight: i < columns.length - 1 ? '1px solid #f1f5f9' : 'none',
-                      textAlign: col.align || 'left',
+                      textAlign: col.align || 'center',
                     }}
                     className="p-[10px_8px] font-bold text-xs uppercase tracking-wider whitespace-nowrap overflow-hidden text-ellipsis"
                   >
@@ -312,7 +314,21 @@ export function Table({
                 paginatedItems.map((item, index) => (
                   <tr
                     key={item.id ?? index}
-                    style={{ backgroundColor: index % 2 === 0 ? '#fff' : '#f8f9ff', transition: 'background-color 0.15s' }}
+                    onClick={(e) => {
+                      // Don't trigger if clicked on an anchor link or button inside the cell
+                      const target = e.target as HTMLElement;
+                      if (target.closest('a') || target.closest('button') || target.closest('input')) {
+                        return;
+                      }
+                      if (onRowClick) {
+                        onRowClick(item);
+                      }
+                    }}
+                    style={{
+                      backgroundColor: index % 2 === 0 ? '#fff' : '#f8f9ff',
+                      transition: 'background-color 0.15s',
+                      cursor: onRowClick ? 'pointer' : 'default'
+                    }}
                     onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = `${headerColor}0f`; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = index % 2 === 0 ? '#fff' : '#f8f9ff'; }}
                   >
@@ -322,7 +338,7 @@ export function Table({
                         style={{
                           width: col.width,
                           borderRight: ci < columns.length - 1 ? '1px solid #f8f9ff' : 'none',
-                          textAlign: col.align || 'left',
+                          textAlign: col.align || 'center',
                         }}
                         className="p-[8px_8px] border-b border-slate-100 text-[13px] align-middle overflow-hidden text-ellipsis"
                       >

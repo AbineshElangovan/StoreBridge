@@ -97,6 +97,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       total: enrichedStores.length,
+      currentStoreId: store.id,
+      currentShopDomain: store.shopDomain,
       stores: enrichedStores,
     });
   } catch (error: any) {

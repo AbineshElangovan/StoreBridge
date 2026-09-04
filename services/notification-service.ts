@@ -401,33 +401,9 @@ export async function markAsRead(recipientStoreId: string, notificationId: strin
  */
 export async function markAllAsRead(recipientStoreId: string) {
   try {
-    const currentStore = await prisma.store.findUnique({
-      where: { id: recipientStoreId },
-      select: { isMaster: true }
-    });
-
-    let targetStoreIds = [recipientStoreId];
-    if (currentStore?.isMaster) {
-      const connections = await prisma.storeConnection.findMany({
-        where: {
-          OR: [
-            { sourceStoreId: recipientStoreId },
-            { targetStoreId: recipientStoreId },
-          ]
-        }
-      });
-      targetStoreIds = Array.from(
-        new Set([
-          recipientStoreId,
-          ...connections.map((c) => c.sourceStoreId),
-          ...connections.map((c) => c.targetStoreId),
-        ])
-      );
-    }
-
     return await prisma.notification.updateMany({
       where: {
-        recipientStoreId: { in: targetStoreIds },
+        recipientStoreId: recipientStoreId,
         isRead: false,
       },
       data: {

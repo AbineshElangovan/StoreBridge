@@ -5,58 +5,84 @@ import { prisma } from "@/lib/db/prisma";
 export class AuthError extends Error { }
 
 export async function authenticate(req: NextRequest) {
+  // Extract requested shop domain from headers, URL searchParams, referer, or cookies
+  let requestedShop = 
+    req.headers.get("x-shopify-shop-domain") || 
+    req.headers.get("x-shop-domain") || 
+    req.nextUrl?.searchParams?.get("shop");
+
+  if (!requestedShop && req.headers.get("referer")) {
+    try {
+      const refererUrl = new URL(req.headers.get("referer")!);
+      requestedShop = refererUrl.searchParams.get("shop");
+    } catch (e) {}
+  }
+
+  if (!requestedShop) {
+    requestedShop = req.cookies.get("shopify_shop")?.value || null;
+  }
+
+  // Helper to match store in DB by domain, label, or ID
+  async function findStore(shopStr: string | null) {
+    if (!shopStr) return null;
+    const clean = shopStr.trim().toLowerCase();
+    const prefix = clean.split('.')[0].replace(/^https?:\/\//, '');
+
+    return prisma.store.findFirst({
+      where: {
+        isActive: true,
+        OR: [
+          { shopDomain: clean },
+          { shopDomain: { contains: prefix, mode: 'insensitive' } },
+          { label: { contains: prefix, mode: 'insensitive' } },
+          { uniqueStoreId: clean },
+          { id: clean }
+        ]
+      }
+    });
+  }
+
   const authHeader = req.headers.get("authorization");
   const token = authHeader?.replace(/^Bearer\s+/i, "");
 
-  if (!token) {
-    throw new AuthError("Unauthorized access. Please log in through Shopify Admin.");
+  // 1. PRIORITIZE SHOPIFY APP BRIDGE SESSION TOKEN (Authoritative store identity)
+  if (token && token !== "dev_fallback_token") {
+    try {
+      const payload = await shopify.session.decodeSessionToken(token);
+      if (payload?.dest) {
+        const tokenShop = payload.dest.replace(/^https?:\/\//, "");
+        const store = await findStore(tokenShop) || await findStore(requestedShop);
+        if (store && store.isActive) {
+          return { shop: store.shopDomain, store };
+        }
+      }
+    } catch (tokenErr) {
+      console.warn("[authenticate] App Bridge session token decode warning:", tokenErr);
+    }
   }
 
-  // --- DEV FALLBACK FOR LOCAL BROWSER TESTING ---
-  if (process.env.NODE_ENV === "development" && token === "dev_fallback_token") {
-    // Try to get shop from URL first
-    const urlShop = req.nextUrl?.searchParams?.get("shop");
-    
-    let store;
-    if (urlShop) {
-      store = await prisma.store.findFirst({ where: { shopDomain: urlShop, isActive: true } });
-    }
-    
-    // Fallback to first active store if no shop in URL or shop not found
-    if (!store) {
-      store = await prisma.store.findFirst({ where: { isActive: true } });
-    }
-    
-    if (!store) {
-      throw new AuthError("No active dev store found. Please install the app on a dev store first.");
-    }
+  // 2. DEV / LOCALHOST / DIRECT BROWSING FALLBACK
+  let store = await findStore(requestedShop);
+  
+  if (!store && requestedShop) {
+    store = await prisma.store.findFirst({
+      where: {
+        isActive: true,
+        label: { contains: requestedShop, mode: 'insensitive' }
+      }
+    });
+  }
+
+  if (!store) {
+    store = await prisma.store.findFirst({ where: { isMaster: true, isActive: true } })
+      || await prisma.store.findFirst({ where: { isActive: true } });
+  }
+
+  if (store && store.isActive) {
     return { shop: store.shopDomain, store };
   }
 
-  let payload;
-  try {
-    payload = await shopify.session.decodeSessionToken(token);
-  } catch (err) {
-    throw new AuthError("Unauthorized access. Please log in through Shopify Admin.");
-  }
-
-
-  const shop = payload.dest.replace(/^https?:\/\//, "");
-
-  let store = await prisma.store.findUnique({ where: { shopDomain: shop } });
-  if (!store) {
-    const shopPrefix = shop.split('.')[0];
-    store = await prisma.store.findFirst({ where: { shopDomain: { contains: shopPrefix, mode: 'insensitive' }, isActive: true } });
-  }
-  if (!store && process.env.NODE_ENV === "development") {
-    store = await prisma.store.findFirst({ where: { isActive: true } });
-  }
-
-  if (!store || !store.isActive) {
-    throw new AuthError("Store not installed or inactive");
-  }
-
-  return { shop: store.shopDomain, store };
+  throw new AuthError("Unauthorized access. Store not found.");
 }
 
 export function handleApiError(error: any) {

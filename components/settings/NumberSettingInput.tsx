@@ -52,7 +52,10 @@ export const NumberSettingInput: React.FC<NumberSettingInputProps> = ({
           disabled={disabled}
           placeholder={placeholder}
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={(e) => {
+            const cleanVal = e.target.value.replace(/^0+(?=\d)/, '');
+            onChange(cleanVal);
+          }}
           className={`w-full px-3 py-2 text-sm font-medium rounded-lg border transition-all duration-150 outline-none ${
             error
               ? 'border-red-500 bg-red-50/50 text-red-900 focus:ring-2 focus:ring-red-200'

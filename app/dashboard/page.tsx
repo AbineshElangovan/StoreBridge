@@ -1,4 +1,6 @@
 import { prisma } from '@/lib/db/prisma';
+import Link from 'next/link';
+import { getProductUrl } from '@/lib/utils/productUrl';
 import { DashboardCards } from '@/components/dashboard/DashboardCards';
 import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
 import { Table, ColumnConfig } from '@/components/common/Table';
@@ -108,6 +110,14 @@ export default async function DashboardPage() {
   const lowStockProducts = lowStockRaw.map((p) => ({
     id: p.id,
     imageUrl: p.imageUrl,
+    title_node: (
+      <Link 
+        href={getProductUrl(p)}
+        className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
+      >
+        {p.title}
+      </Link>
+    ),
     title: p.title,
     sku: p.sku || 'N/A',
     inventoryQuantity: p.inventoryQuantity,
@@ -118,7 +128,7 @@ export default async function DashboardPage() {
 
   const lowStockColumns: ColumnConfig[] = [
     { title: 'Image', key: 'imageUrl', type: 'image' },
-    { title: 'Product Name', key: 'title', type: 'bold' },
+    { title: 'Product Name', key: 'title_node', type: 'react_node' },
     { title: 'SKU', key: 'sku' },
     { title: 'Quantity', key: 'inventoryQuantity', type: 'bold' },
     { title: 'Stock Level', key: 'stockLevel', type: 'badge', badgeRules: { Critical: 'critical', Low: 'warning' } },
@@ -136,6 +146,14 @@ export default async function DashboardPage() {
   const recentlyAddedProducts = recentlyAddedRaw.map((p) => ({
     id: p.id,
     imageUrl: p.imageUrl,
+    title_node: (
+      <Link 
+        href={getProductUrl(p)}
+        className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
+      >
+        {p.title}
+      </Link>
+    ),
     title: p.title,
     vendor: 'ESHAN',
     sku: p.sku || 'N/A',
@@ -147,7 +165,7 @@ export default async function DashboardPage() {
 
   const recentlyAddedColumns: ColumnConfig[] = [
     { title: 'Image', key: 'imageUrl', type: 'image' },
-    { title: 'Product Name', key: 'title', type: 'bold' },
+    { title: 'Product Name', key: 'title_node', type: 'react_node' },
     { title: 'Vendor', key: 'vendor' },
     { title: 'SKU', key: 'sku' },
     { title: 'Stock', key: 'inventoryQuantity', type: 'bold' },
