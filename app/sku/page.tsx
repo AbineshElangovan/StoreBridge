@@ -110,8 +110,9 @@ export default function SkuSettingsPage() {
   }${skuSequence ? skuSequence.toString().padStart(4, "0") : "0001"}`;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto mb-16">
-      <div className="mb-6 border-b border-gray-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto mb-16 space-y-6">
+      {/* Header Banner */}
+      <div className="border-b border-gray-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 m-0">
             SKU Management & Variant Generator
