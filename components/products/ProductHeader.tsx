@@ -9,9 +9,11 @@ interface ProductHeaderProps {
   collection: string;
   vendor: string;
   onBack?: () => void;
+  onDelete?: () => void;
+  isDeleting?: boolean;
 }
 
-export function ProductHeader({ title, sku, collection, vendor, onBack }: ProductHeaderProps) {
+export function ProductHeader({ title, sku, collection, vendor, onBack, onDelete, isDeleting }: ProductHeaderProps) {
   const router = useRouter();
   const displayCollection = collection ? collection.toUpperCase() : '';
   const displayVendor = vendor ? vendor.toUpperCase() : '';
@@ -42,6 +44,20 @@ export function ProductHeader({ title, sku, collection, vendor, onBack }: Produc
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={isDeleting}
+            className="inline-flex items-center justify-center gap-1.5 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold shadow-2xs transition-all cursor-pointer"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Delete Product
+          </button>
+        )}
+
         <button
           type="button"
           onClick={handleBack}

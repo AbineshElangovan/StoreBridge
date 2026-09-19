@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { shopifyFetch } from '@/lib/shopify/Client';
+import { ConfirmToast } from '@/components/ui/ConfirmToast';
 
 export interface ProductVariantItem {
   id: string;
@@ -23,6 +24,9 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
   const [variantList, setVariantList] = useState<ProductVariantItem[]>(initialVariants);
   const [isSavingAll, setIsSavingAll] = useState<boolean>(false);
   const [modifiedIds, setModifiedIds] = useState<Set<string>>(new Set());
+  const [deletingVariant, setDeletingVariant] = useState<ProductVariantItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Sync state if prop changes
   React.useEffect(() => {
@@ -71,6 +75,30 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
     }
   };
 
+  const handleDeleteVariant = async () => {
+    if (!deletingVariant) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await shopifyFetch(`/api/products/${encodeURIComponent(productId)}?variantId=${encodeURIComponent(deletingVariant.id)}`, {
+        method: 'DELETE',
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setVariantList(prev => prev.filter(v => v.id !== deletingVariant.id));
+        setDeletingVariant(null);
+        if (onVariantUpdated) onVariantUpdated();
+      } else {
+        setDeleteError(json.error || 'Failed to delete variant');
+      }
+    } catch (err: any) {
+      console.error('Failed to delete variant:', err);
+      setDeleteError(err.message || 'Network error deleting variant');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div id="product-variants-section" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 shadow-2xs mb-6 scroll-mt-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -107,7 +135,7 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
       </div>
 
       <div className="overflow-x-auto w-full min-w-0">
-        <table className="w-full min-w-[520px] text-left border-collapse text-xs sm:text-sm">
+        <table className="w-full min-w-[580px] text-left border-collapse text-xs sm:text-sm">
           <thead>
             <tr className="border-b border-gray-200 text-gray-400 font-extrabold uppercase text-[10px] tracking-wider">
               <th className="py-2.5 px-3">Variant</th>
@@ -115,12 +143,13 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
               <th className="py-2.5 px-3 text-right">Price</th>
               <th className="py-2.5 px-3 text-center">Quantity</th>
               <th className="py-2.5 px-3 text-center">Status</th>
+              <th className="py-2.5 px-3 text-center">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 font-medium text-gray-900">
             {variantList.length === 0 ? (
               <tr>
-                <td colSpan={5} className="py-8 text-center text-gray-400 text-xs font-medium">
+                <td colSpan={6} className="py-8 text-center text-gray-400 text-xs font-medium">
                   No variants found for this product.
                 </td>
               </tr>
@@ -163,6 +192,18 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
                         {v.quantity > 0 ? 'Active' : 'Out of stock'}
                       </span>
                     </td>
+                    <td className="py-3.5 px-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setDeletingVariant(v)}
+                        className="p-1.5 text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/70 rounded-lg transition-colors cursor-pointer shadow-2xs inline-flex items-center justify-center"
+                        title={`Delete ${v.variantName}`}
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </td>
                   </tr>
                 );
               })
@@ -170,6 +211,19 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
           </tbody>
         </table>
       </div>
+
+      {/* Confirmation Toast for Variant Deletion */}
+      <ConfirmToast
+        open={Boolean(deletingVariant)}
+        message={`Delete variant "${deletingVariant?.variantName}"?`}
+        subMessage={`SKU: ${deletingVariant?.sku || 'N/A'}. Removes this variant from Shopify & StoreBridge.`}
+        confirmLabel="Yes, Delete"
+        cancelLabel="No"
+        variant="danger"
+        loading={isDeleting}
+        onConfirm={handleDeleteVariant}
+        onCancel={() => { setDeletingVariant(null); setDeleteError(null); }}
+      />
     </div>
   );
 }

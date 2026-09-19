@@ -29,7 +29,7 @@ export async function GET(
     const lowerHyphenated = hyphenatedId.toLowerCase();
     const lowerDecoded = decodedId.toLowerCase();
 
-    const matchConditions = [
+    const matchConditions: any[] = [
       { id: decodedId },
       { id: lowerDecoded },
       { id: cleanNumericId },
@@ -43,7 +43,11 @@ export async function GET(
       { sku: decodedId },
       { sku: cleanNumericId },
       { sku: hyphenatedId },
-      { sku: spaceId }
+      { sku: spaceId },
+      { sku: { equals: decodedId, mode: 'insensitive' } },
+      { sku: { equals: cleanNumericId, mode: 'insensitive' } },
+      { sku: { equals: hyphenatedId, mode: 'insensitive' } },
+      { sku: { equals: spaceId, mode: 'insensitive' } }
     ];
 
     // 1. Find target product by id, shopifyProductId, or SKU in current store
@@ -278,6 +282,12 @@ export async function GET(
       overallHealth = 'Low';
     }
 
+    // Determine parent product title
+    let mainProductTitle = targetProduct.title || 'Product';
+    if (mainProductTitle.includes(' - ')) {
+      mainProductTitle = mainProductTitle.split(' - ')[0].trim();
+    }
+
     // Extract collection title
     const collectionNames = targetProduct.collections.map(cp => cp.collection.title);
     const collectionName = collectionNames.length > 0 ? collectionNames.join(', ') : (targetProduct.tags ? targetProduct.tags.split(',')[0] : 'General');
@@ -287,7 +297,7 @@ export async function GET(
       product: {
         id: targetProduct.id,
         shopifyProductId: targetProduct.shopifyProductId,
-        title: targetProduct.title,
+        title: mainProductTitle,
         sku: targetProduct.sku || 'N/A',
         collection: collectionName,
         vendor: 'StoreBridge', // Default vendor
@@ -296,15 +306,27 @@ export async function GET(
         status: totalCurrentStock > 0 ? 'Active' : 'Draft',
         currentStock: totalCurrentStock,
         healthStatus: overallHealth,
-        variants: variantsInDb.map(v => ({
-          id: v.id,
-          shopifyVariantId: v.shopifyVariantId,
-          variantName: v.title === targetProduct.title ? (v.sku || 'Default Variant') : v.title,
-          sku: v.sku || 'N/A',
-          price: v.price || 0,
-          quantity: v.inventoryQuantity || 0,
-          status: v.inventoryQuantity > 0 ? 'Active' : 'Out of Stock'
-        })),
+        variants: variantsInDb.map(v => {
+          const rawTitle = v.title || '';
+          let variantName = rawTitle;
+          if (rawTitle.includes(' - ')) {
+            variantName = rawTitle;
+          } else if (rawTitle && rawTitle !== mainProductTitle && rawTitle !== 'Default Title') {
+            variantName = `${mainProductTitle} - ${rawTitle}`;
+          } else {
+            variantName = mainProductTitle;
+          }
+
+          return {
+            id: v.id,
+            shopifyVariantId: v.shopifyVariantId,
+            variantName,
+            sku: v.sku || 'N/A',
+            price: v.price || 0,
+            quantity: v.inventoryQuantity || 0,
+            status: v.inventoryQuantity > 0 ? 'Active' : 'Out of Stock'
+          };
+        }),
         performance: {
           unitsSold,
           revenue,
@@ -629,3 +651,240 @@ export async function PATCH(
     return handleApiError(err);
   }
 }
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { store } = await authenticate(req);
+    const { id: rawIdParam } = await params;
+    const searchParams = req.nextUrl.searchParams;
+    const variantIdParam = searchParams.get('variantId');
+
+    const rawId = Array.isArray(rawIdParam) ? (rawIdParam as string[]).join('/') : (rawIdParam as string || '');
+    const decodedId = decodeURIComponent(rawId).trim();
+    const cleanNumericId = decodedId
+      .replace(/^gid:\/\/shopify\/Product\//i, '')
+      .replace(/^gid%3a%2f%2fshopify%2fproduct%2f/i, '')
+      .split('/')
+      .pop() || decodedId;
+
+    const hyphenatedId = decodedId.replace(/\s+/g, '-');
+    const lowerDecoded = decodedId.toLowerCase();
+
+    // IF VARIANT ID IS PROVIDED: Delete only that specific variant
+    if (variantIdParam) {
+      const variantRecord = await prisma.productCache.findFirst({
+        where: {
+          id: variantIdParam,
+          storeId: store.id
+        }
+      });
+
+      if (!variantRecord) {
+        return NextResponse.json({ success: false, error: "Variant not found" }, { status: 404 });
+      }
+
+      const { shopifyProductId, shopifyVariantId, sku: variantSku, title: rawVariantTitle, imageUrl } = variantRecord;
+      const cleanVariantTitle = rawVariantTitle || 'Variant';
+
+      // 1. Delete variant from Shopify via GraphQL Admin Client
+      try {
+        const client = await getAdminClient(store.shopDomain);
+        const formattedProdGid = shopifyProductId.startsWith('gid://') 
+          ? shopifyProductId 
+          : `gid://shopify/Product/${shopifyProductId}`;
+        
+        const numericVarId = shopifyVariantId.replace(/^gid:\/\/shopify\/ProductVariant\//i, '');
+        const formattedVarGid = `gid://shopify/ProductVariant/${numericVarId}`;
+
+        const deleteVariantMutation = `
+          mutation productVariantsBulkDelete($productId: ID!, $variantsIds: [ID!]!) {
+            productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
+              userErrors { field message }
+            }
+          }
+        `;
+
+        await client.request(deleteVariantMutation, {
+          variables: {
+            productId: formattedProdGid,
+            variantsIds: [formattedVarGid]
+          }
+        });
+        console.log(`[Product Details API] Successfully deleted variant ${formattedVarGid} from Shopify (${store.shopDomain})`);
+      } catch (shopifyErr: any) {
+        console.warn("[Product Details API] Shopify Variant Delete warning:", shopifyErr.message);
+      }
+
+      // 2. Delete matching local product cache, variant map, and collection mapping records for variant
+      await prisma.collectionProduct.deleteMany({
+        where: { productCacheId: variantRecord.id }
+      });
+
+      await prisma.productCache.delete({
+        where: { id: variantRecord.id }
+      });
+
+      await prisma.variantMap.deleteMany({
+        where: {
+          storeId: store.id,
+          shopifyVariantId: shopifyVariantId
+        }
+      });
+
+      // 3. Record Activity Log (DELETE Event for Variant)
+      const storeLabel = store.label || store.shopDomain;
+      try {
+        await prisma.activityLog.create({
+          data: {
+            storeId: store.id,
+            productId: shopifyProductId,
+            productTitle: cleanVariantTitle,
+            sku: variantSku || null,
+            imageUrl: imageUrl || null,
+            eventType: "DELETE",
+            quantity: 1,
+            description: `Deleted variant "${cleanVariantTitle}" from ${storeLabel}`
+          }
+        });
+
+        // 4. Send persistent Store Notification
+        await createNotification({
+          recipientStoreId: store.id,
+          type: "PRODUCT_UPDATED",
+          title: "Variant Deleted",
+          message: `Variant "${cleanVariantTitle}" was deleted from ${storeLabel}`,
+          productId: shopifyProductId,
+          productTitle: cleanVariantTitle,
+          sourceStoreId: store.id
+        });
+      } catch (logErr: any) {
+        console.error("[Product Details API] ActivityLog/Notification delete variant error:", logErr.message);
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: `Variant "${cleanVariantTitle}" was successfully deleted.`
+      });
+    }
+
+    // PRODUCT-LEVEL DELETION (When no variantId searchParam is provided)
+    // 1. Find target product in database
+    const targetProduct = await prisma.productCache.findFirst({
+      where: {
+        storeId: store.id,
+        OR: [
+          { id: decodedId },
+          { id: lowerDecoded },
+          { id: cleanNumericId },
+          { id: hyphenatedId },
+          { shopifyProductId: decodedId },
+          { shopifyProductId: cleanNumericId },
+          { shopifyProductId: `gid://shopify/Product/${cleanNumericId}` },
+          { shopifyProductId: { endsWith: cleanNumericId } }
+        ]
+      }
+    });
+
+    if (!targetProduct) {
+      return NextResponse.json({ success: false, error: "Product not found" }, { status: 404 });
+    }
+
+    const { shopifyProductId, title: rawProductTitle, sku: productSku, imageUrl } = targetProduct;
+    const cleanTitle = rawProductTitle.split(' - ')[0].trim();
+
+    // 2. Delete product from Shopify via GraphQL Admin Client
+    try {
+      const client = await getAdminClient(store.shopDomain);
+      const formattedGid = shopifyProductId.startsWith('gid://') 
+        ? shopifyProductId 
+        : `gid://shopify/Product/${shopifyProductId}`;
+
+      const deleteMutation = `
+        mutation productDelete($input: ProductDeleteInput!) {
+          productDelete(input: $input) {
+            deletedProductId
+            userErrors { field message }
+          }
+        }
+      `;
+
+      await client.request(deleteMutation, {
+        variables: { input: { id: formattedGid } }
+      });
+      console.log(`[Product Details API] Successfully deleted product ${formattedGid} from Shopify (${store.shopDomain})`);
+    } catch (shopifyErr: any) {
+      console.warn("[Product Details API] Shopify Product Delete warning:", shopifyErr.message);
+    }
+
+    // 3. Delete matching local product cache, variant map, and collection mapping records
+    const matchingCaches = await prisma.productCache.findMany({
+      where: {
+        storeId: store.id,
+        shopifyProductId: shopifyProductId
+      },
+      select: { id: true }
+    });
+
+    const cacheIds = matchingCaches.map(c => c.id);
+
+    if (cacheIds.length > 0) {
+      await prisma.collectionProduct.deleteMany({
+        where: { productCacheId: { in: cacheIds } }
+      });
+
+      await prisma.productCache.deleteMany({
+        where: { id: { in: cacheIds } }
+      });
+
+      await prisma.variantMap.deleteMany({
+        where: {
+          storeId: store.id,
+          shopifyProductId: shopifyProductId
+        }
+      });
+    }
+
+    // 4. Record Activity Log (DELETE Event)
+    const storeLabel = store.label || store.shopDomain;
+    try {
+      await prisma.activityLog.create({
+        data: {
+          storeId: store.id,
+          productId: shopifyProductId,
+          productTitle: cleanTitle,
+          sku: productSku || null,
+          imageUrl: imageUrl || null,
+          eventType: "DELETE",
+          quantity: matchingCaches.length,
+          description: `Deleted product "${cleanTitle}" from ${storeLabel}`
+        }
+      });
+
+      // 5. Send persistent Store Notification
+      await createNotification({
+        recipientStoreId: store.id,
+        type: "PRODUCT_UPDATED",
+        title: "Product Deleted",
+        message: `Product "${cleanTitle}" was deleted from ${storeLabel}`,
+        productId: shopifyProductId,
+        productTitle: cleanTitle,
+        sourceStoreId: store.id
+      });
+    } catch (logErr: any) {
+      console.error("[Product Details API] ActivityLog/Notification delete error:", logErr.message);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Product "${cleanTitle}" was successfully deleted.`
+    });
+
+  } catch (err: any) {
+    console.error("[Product Details API] DELETE Error:", err);
+    return handleApiError(err);
+  }
+}
+

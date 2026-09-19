@@ -12,6 +12,7 @@ import { ProductVariants } from '@/components/products/ProductVariants';
 import { ProductPerformance } from '@/components/products/ProductPerformance';
 import { useNavbarTitle } from '@/components/providers/NavbarTitleContext';
 import { getCleanProductName } from '@/lib/utils/formatProductTitle';
+import { ConfirmToast } from '@/components/ui/ConfirmToast';
 
 export default function ProductDetailsPage() {
   const params = useParams();
@@ -30,22 +31,42 @@ export default function ProductDetailsPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [productData, setProductData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [activeProductId, setActiveProductId] = useState<string>(productId);
 
   const fetchProductDetails = useCallback(async () => {
-    if (!productId) return;
+    const idToFetch = activeProductId || productId;
+    if (!idToFetch) return;
     setLoading(true);
     setError(null);
     try {
-      const res = await shopifyFetch(`/api/products/${encodeURIComponent(productId)}`);
+      const res = await shopifyFetch(`/api/products/${encodeURIComponent(idToFetch)}`);
       if (res.ok) {
         const json = await res.json();
         if (json.success && json.product) {
           setProductData(json.product);
+          if (json.product.shopifyProductId) {
+            const cleanId = json.product.shopifyProductId.replace(/^gid:\/\/shopify\/Product\//i, '');
+            if (cleanId && cleanId !== activeProductId) {
+              setActiveProductId(cleanId);
+            }
+          }
         } else {
-          setError(json.error || 'Product not found');
+          // If 404 happens (e.g. after deleting the product or last variant), redirect to products page
+          if (productData) {
+            router.push('/products');
+          } else {
+            setError(json.error || 'Product not found');
+          }
         }
       } else {
-        setError('Failed to load product details');
+        if (productData) {
+          router.push('/products');
+        } else {
+          setError('Failed to load product details');
+        }
       }
     } catch (err: any) {
       console.error('[Product Details Page] Fetch error:', err);
@@ -53,11 +74,35 @@ export default function ProductDetailsPage() {
     } finally {
       setLoading(false);
     }
-  }, [productId]);
+  }, [productId, activeProductId, productData, router]);
 
   useEffect(() => {
     fetchProductDetails();
-  }, [fetchProductDetails]);
+  }, [productId]);
+
+  const handleDeleteProduct = async () => {
+    if (!productId) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      const targetId = productData?.shopifyProductId || productData?.id || productId;
+      const res = await shopifyFetch(`/api/products/${encodeURIComponent(targetId)}`, {
+        method: 'DELETE',
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setShowDeleteModal(false);
+        router.push('/products');
+      } else {
+        setDeleteError(json.error || 'Failed to delete product');
+      }
+    } catch (err: any) {
+      console.error('[Product Details Page] Delete error:', err);
+      setDeleteError(err.message || 'Network error deleting product');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Update navbar breadcrumb title dynamically with live product title
   useEffect(() => {
@@ -119,6 +164,8 @@ export default function ProductDetailsPage() {
         sku={productData.sku}
         collection={productData.collection}
         vendor={productData.vendor}
+        onDelete={() => setShowDeleteModal(true)}
+        isDeleting={isDeleting}
       />
 
       {/* Main Responsive Grid Layout */}
@@ -151,6 +198,19 @@ export default function ProductDetailsPage() {
           <StoreAvailability stores={productData.storeAvailability || []} />
         </div>
       </div>
+
+      {/* Confirmation Toast for Product Deletion */}
+      <ConfirmToast
+        open={showDeleteModal}
+        message={`Delete product "${productData?.title}"?`}
+        subMessage="This will permanently remove the product from Shopify and StoreBridge."
+        confirmLabel="Yes, Delete"
+        cancelLabel="No"
+        variant="danger"
+        loading={isDeleting}
+        onConfirm={handleDeleteProduct}
+        onCancel={() => setShowDeleteModal(false)}
+      />
     </div>
   );
 }

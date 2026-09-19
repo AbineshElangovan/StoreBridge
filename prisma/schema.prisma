@@ -130,6 +130,7 @@ model ProductCache {
   price             Float    @default(0.0)
   basePrice         Float    @default(0.0)
   inventoryQuantity Int      @default(0)
+  optionsJson       Json?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
