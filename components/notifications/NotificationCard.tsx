@@ -34,6 +34,12 @@ export interface NotificationItem {
   imageUrl?: string | null;
   isRead: boolean;
   createdAt: string;
+  metadata?: {
+    syncPending?: boolean;
+    syncAction?: 'UPDATE' | 'CREATE' | 'DELETE';
+    syncStatus?: 'PENDING' | 'ACCEPTED' | 'DECLINED';
+    payload?: any;
+  } | null;
   recipientStore?: {
     id: string;
     label?: string | null;
@@ -74,7 +80,7 @@ function getTypeBadge(type: string): { label: string; tone: 'critical' | 'warnin
     case 'INVENTORY_UPDATE':
       return { label: 'Inventory Update', tone: 'warning', iconSource: OrderIcon };
     case 'SYNC_UPDATE':
-      return { label: 'Sync Completed', tone: 'info', iconSource: RefreshIcon };
+      return { label: 'Sync Request', tone: 'info', iconSource: RefreshIcon };
     case 'SYNC_FAILURE':
       return { label: 'Sync Failure', tone: 'critical', iconSource: AlertCircleIcon };
     case 'CONNECTED_STORE_UPDATE':
@@ -90,9 +96,39 @@ export function NotificationCard({
   onDelete,
 }: NotificationCardProps) {
   const [imgError, setImgError] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'PENDING' | 'ACCEPTED' | 'DECLINED' | null>(
+    item.metadata?.syncStatus || (item.metadata?.syncPending ? 'PENDING' : null)
+  );
+
   const badgeInfo = getTypeBadge(item.type);
   const storeLabel = item.recipientStore?.label || item.recipientStore?.shopDomain || 'Store';
   const isMaster = item.recipientStore?.isMaster || false;
+
+  const handleSyncAction = async (action: 'ACCEPT' | 'DECLINE') => {
+    setIsSyncing(true);
+    try {
+      const { shopifyFetch } = await import('@/lib/shopify/Client');
+      const res = await shopifyFetch(`/api/notifications/${item.id}/sync-action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const json = await res.json().catch(() => ({ success: false }));
+
+      if (res.ok && json.success) {
+        setSyncStatus(action === 'ACCEPT' ? 'ACCEPTED' : 'DECLINED');
+        onMarkAsRead(item.id);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('notification-updated'));
+        }
+      }
+    } catch (err) {
+      console.error('[NotificationCard] Sync action error:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   return (
     <Card>
@@ -156,6 +192,40 @@ export function NotificationCard({
             <Text variant="bodySm" as="p" tone={item.isRead ? 'subdued' : 'base'}>
               {item.message}
             </Text>
+
+            {/* Sync Action Buttons: Yes, Sync / No, Skip */}
+            {syncStatus === 'PENDING' ? (
+              <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => handleSyncAction('ACCEPT')}
+                  disabled={isSyncing}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#0db69d] hover:bg-[#0b9c86] shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isSyncing ? 'Syncing...' : 'Yes, Sync'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSyncAction('DECLINE')}
+                  disabled={isSyncing}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-300 shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+                >
+                  No, Skip
+                </button>
+              </div>
+            ) : syncStatus === 'ACCEPTED' ? (
+              <div className="mt-2">
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                  ✓ Synced to store
+                </span>
+              </div>
+            ) : syncStatus === 'DECLINED' ? (
+              <div className="mt-2">
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 bg-gray-100 border border-gray-200 px-2.5 py-0.5 rounded-full">
+                  ✕ Sync skipped
+                </span>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -185,7 +255,6 @@ export function NotificationCard({
               type="button"
               onClick={() => onDelete(item.id)}
               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors cursor-pointer border border-red-100 shadow-2xs"
-              
             >
               <div style={{ width: 14, height: 14 }} className="[&_svg]:fill-red-600 [&_svg]:text-red-600 text-red-600 flex items-center justify-center">
                 <DeleteIcon />

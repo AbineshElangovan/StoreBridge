@@ -13,8 +13,10 @@ import { ProductPerformance } from '@/components/products/ProductPerformance';
 import { useNavbarTitle } from '@/components/providers/NavbarTitleContext';
 import { getCleanProductName } from '@/lib/utils/formatProductTitle';
 import { ConfirmToast } from '@/components/ui/ConfirmToast';
+import { useStoreContext } from '@/components/providers/StoreProvider';
 
 export default function ProductDetailsPage() {
+  const { isMaster } = useStoreContext();
   const params = useParams();
   const router = useRouter();
   const { setCustomTitle } = useNavbarTitle();
@@ -80,13 +82,18 @@ export default function ProductDetailsPage() {
     fetchProductDetails();
   }, [productId]);
 
-  const handleDeleteProduct = async () => {
+  const handleDeleteProduct = async (syncToConnected: boolean = false) => {
     if (!productId) return;
     setIsDeleting(true);
     setDeleteError(null);
     try {
       const targetId = productData?.shopifyProductId || productData?.id || productId;
-      const res = await shopifyFetch(`/api/products/${encodeURIComponent(targetId)}`, {
+      let url = `/api/products/${encodeURIComponent(targetId)}`;
+      if (isMaster) {
+        url += `?syncToConnected=${syncToConnected}`;
+      }
+
+      const res = await shopifyFetch(url, {
         method: 'DELETE',
       });
       const json = await res.json();
@@ -199,17 +206,17 @@ export default function ProductDetailsPage() {
         </div>
       </div>
 
-      {/* Confirmation Toast for Product Deletion */}
+      {/* Confirmation for Product Deletion */}
       <ConfirmToast
         open={showDeleteModal}
         message={`Delete product "${productData?.title}"?`}
-        subMessage="This will permanently remove the product from Shopify and StoreBridge."
+        subMessage={deleteError ? `Error: ${deleteError}` : "This will permanently remove the product from Shopify and StoreBridge."}
         confirmLabel="Yes, Delete"
         cancelLabel="No"
         variant="danger"
         loading={isDeleting}
-        onConfirm={handleDeleteProduct}
-        onCancel={() => setShowDeleteModal(false)}
+        onConfirm={() => handleDeleteProduct()}
+        onCancel={() => { setShowDeleteModal(false); setDeleteError(null); }}
       />
     </div>
   );

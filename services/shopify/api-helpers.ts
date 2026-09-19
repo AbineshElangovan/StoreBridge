@@ -15,7 +15,8 @@ export async function fetchDefaultLocation(shopDomain: string): Promise<string |
   try {
     const client = await getAdminClient(shopDomain);
     const response: any = await client.request(LOCATIONS_QUERY);
-    return response?.data?.locations?.edges?.[0]?.node?.id || null;
+    const resData = response?.data || response;
+    return resData?.locations?.edges?.[0]?.node?.id || null;
   } catch (error) {
     console.error(`[ProductSync] Failed to fetch location for ${shopDomain}:`, error);
     return null;

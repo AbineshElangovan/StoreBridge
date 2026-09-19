@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import { ConfirmToast } from '@/components/ui/ConfirmToast';
+import { useStoreContext } from '@/components/providers/StoreProvider';
 
 export interface ProductVariantItem {
   id: string;
@@ -21,12 +22,14 @@ interface ProductVariantsProps {
 }
 
 export function ProductVariants({ productId, variants: initialVariants, onVariantUpdated }: ProductVariantsProps) {
+  const { isMaster } = useStoreContext();
   const [variantList, setVariantList] = useState<ProductVariantItem[]>(initialVariants);
   const [isSavingAll, setIsSavingAll] = useState<boolean>(false);
   const [modifiedIds, setModifiedIds] = useState<Set<string>>(new Set());
   const [deletingVariant, setDeletingVariant] = useState<ProductVariantItem | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Sync state if prop changes
   React.useEffect(() => {
@@ -35,6 +38,7 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
   }, [initialVariants]);
 
   const handlePriceChange = (variantId: string, val: string) => {
+    setSaveError(null);
     const onlyDigits = val.replace(/[^\d]/g, '');
     const cleanStr = onlyDigits.replace(/^0+(?=\d)/, '');
     const num = cleanStr === '' ? 0 : Math.max(0, parseInt(cleanStr, 10) || 0);
@@ -43,6 +47,7 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
   };
 
   const handleQuantityChange = (variantId: string, val: string) => {
+    setSaveError(null);
     const onlyDigits = val.replace(/[^\d]/g, '');
     const cleanStr = onlyDigits.replace(/^0+(?=\d)/, '');
     const num = cleanStr === '' ? 0 : Math.max(0, parseInt(cleanStr, 10) || 0);
@@ -53,10 +58,15 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
   const saveAllModified = async () => {
     if (modifiedIds.size === 0) return;
     setIsSavingAll(true);
+    setSaveError(null);
     try {
       const modifiedVariants = variantList.filter(v => modifiedIds.has(v.id));
+      let hasError = false;
+      let lastErrorMessage = '';
+      const successfullySavedIds = new Set<string>();
+
       for (const v of modifiedVariants) {
-        await shopifyFetch(`/api/products/${encodeURIComponent(productId)}`, {
+        const res = await shopifyFetch(`/api/products/${encodeURIComponent(productId)}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -65,11 +75,37 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
             quantity: v.quantity
           })
         });
+
+        const json = await res.json().catch(() => ({ success: false, error: 'Invalid server response' }));
+
+        if (res.ok && json.success) {
+          successfullySavedIds.add(v.id);
+        } else {
+          hasError = true;
+          lastErrorMessage = json.error || `Failed to update variant ${v.variantName} (HTTP ${res.status})`;
+          break;
+        }
       }
-      setModifiedIds(new Set());
-      if (onVariantUpdated) onVariantUpdated();
-    } catch (err) {
+
+      setModifiedIds(prev => {
+        const next = new Set(prev);
+        successfullySavedIds.forEach(id => next.delete(id));
+        return next;
+      });
+
+      if (hasError) {
+        setSaveError(lastErrorMessage);
+      } else {
+        setSaveError(null);
+      }
+
+      // Re-fetch authoritative persisted product details from server
+      if (onVariantUpdated) {
+        onVariantUpdated();
+      }
+    } catch (err: any) {
       console.error('Failed to save variants:', err);
+      setSaveError(err.message || 'Network error while saving variants');
     } finally {
       setIsSavingAll(false);
     }
@@ -83,13 +119,13 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
       const res = await shopifyFetch(`/api/products/${encodeURIComponent(productId)}?variantId=${encodeURIComponent(deletingVariant.id)}`, {
         method: 'DELETE',
       });
-      const json = await res.json();
+      const json = await res.json().catch(() => ({ success: false, error: 'Invalid server response' }));
       if (res.ok && json.success) {
         setVariantList(prev => prev.filter(v => v.id !== deletingVariant.id));
         setDeletingVariant(null);
         if (onVariantUpdated) onVariantUpdated();
       } else {
-        setDeleteError(json.error || 'Failed to delete variant');
+        setDeleteError(json.error || `Failed to delete variant (HTTP ${res.status})`);
       }
     } catch (err: any) {
       console.error('Failed to delete variant:', err);
@@ -101,6 +137,19 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
 
   return (
     <div id="product-variants-section" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 shadow-2xs mb-6 scroll-mt-6">
+      {saveError && (
+        <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-3 text-xs text-rose-800">
+          <svg className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div className="flex-1">
+            <span className="font-bold block">Save Error</span>
+            <span>{saveError}</span>
+          </div>
+          <button type="button" onClick={() => setSaveError(null)} className="text-rose-500 hover:text-rose-700 font-bold">✕</button>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
           <h3 className="text-base font-bold text-gray-900 tracking-tight">
@@ -178,7 +227,7 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        value={v.quantity === 0 ? '0' : String(v.quantity).replace(/^0+(?=\d)/, '')}
+                        value={v.quantity <= 0 ? '0' : String(v.quantity).replace(/^0+(?=\d)/, '')}
                         onChange={(e) => handleQuantityChange(v.id, e.target.value)}
                         className="w-20 text-center bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0db69d]/20 focus:border-[#0db69d] shadow-2xs transition-colors"
                       />
@@ -212,11 +261,10 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
         </table>
       </div>
 
-      {/* Confirmation Toast for Variant Deletion */}
       <ConfirmToast
         open={Boolean(deletingVariant)}
         message={`Delete variant "${deletingVariant?.variantName}"?`}
-        subMessage={`SKU: ${deletingVariant?.sku || 'N/A'}. Removes this variant from Shopify & StoreBridge.`}
+        subMessage={deleteError ? `Error: ${deleteError}` : `SKU: ${deletingVariant?.sku || 'N/A'}. Removes this variant from Shopify & StoreBridge.`}
         confirmLabel="Yes, Delete"
         cancelLabel="No"
         variant="danger"

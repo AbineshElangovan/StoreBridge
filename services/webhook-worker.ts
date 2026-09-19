@@ -256,7 +256,6 @@ async function handleProductsCreate(shop: string, payload: any, webhookId: strin
       targetStoreId: store.id,
     });
 
-    // Only connected Sub stores (not standalone) notify Master
     if (!isStandalone) {
       const masterStore = await prisma.store.findFirst({
         where: { isMaster: true, isActive: true }
@@ -379,24 +378,6 @@ async function handleProductsCreate(shop: string, payload: any, webhookId: strin
         sourceStoreId: storeRecord.id,
         targetStoreId: storeRecord.id,
       });
-
-      if (!storeRecord.isMaster) {
-        const masterStore = await prisma.store.findFirst({
-          where: { isMaster: true, isActive: true }
-        });
-        if (masterStore && masterStore.id !== storeRecord.id) {
-          await createNotification({
-            recipientStoreId: masterStore.id,
-            type: 'CONNECTED_STORE_UPDATE',
-            title: 'Connected Store Product Created',
-            message: `${storeRecord.label || storeRecord.shopDomain} created product ${enrichedPayload.title}`,
-            productId: String(enrichedPayload.id),
-            productTitle: enrichedPayload.title,
-            sourceStoreId: storeRecord.id,
-            targetStoreId: masterStore.id,
-          });
-        }
-      }
     }
   });
 }
@@ -617,24 +598,6 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
             sourceStoreId: storeRecord.id,
             targetStoreId: storeRecord.id,
           });
-        }
-
-        if (!storeRecord.isMaster) {
-          const masterStore = await prisma.store.findFirst({
-            where: { isMaster: true, isActive: true }
-          });
-          if (masterStore) {
-            await createNotification({
-              recipientStoreId: masterStore.id,
-              type: 'CONNECTED_STORE_UPDATE',
-              title: 'Connected Store Update',
-              message: `${storeRecord.label || storeRecord.shopDomain} updated product ${currentPayload.title}`,
-              productId: String(currentPayload.id),
-              productTitle: currentPayload.title,
-              sourceStoreId: storeRecord.id,
-              targetStoreId: masterStore.id,
-            });
-          }
         }
       }
     }

@@ -10,17 +10,25 @@ export async function setInventoryQuantity(
 ) {
   const client = await getAdminClient(shopDomain);
   
+  const formattedInventoryItemId = inventoryItemId.startsWith('gid://')
+    ? inventoryItemId
+    : `gid://shopify/InventoryItem/${inventoryItemId.replace(/\D/g, '') || inventoryItemId}`;
+
+  const formattedLocationId = locationId.startsWith('gid://')
+    ? locationId
+    : `gid://shopify/Location/${locationId.replace(/\D/g, '') || locationId}`;
+
   try {
-    const response = await client.request(INVENTORY_SET_MUTATION, {
+    const response: any = await client.request(INVENTORY_SET_MUTATION, {
       variables: {
         input: {
           name: "on_hand",
           reason: "correction",
           quantities: [
             {
-              inventoryItemId: inventoryItemId,
-              locationId: locationId,
-              quantity: quantity,
+              inventoryItemId: formattedInventoryItemId,
+              locationId: formattedLocationId,
+              quantity: Math.max(0, quantity),
               changeFromQuantity: null
             }
           ]
@@ -29,12 +37,13 @@ export async function setInventoryQuantity(
       }
     });
 
-    const userErrors = response.data?.inventorySetQuantities?.userErrors;
+    const resData = response?.data || response;
+    const userErrors = resData?.inventorySetQuantities?.userErrors;
     if (userErrors && userErrors.length > 0) {
-      throw new Error(`Failed to set inventory: ${userErrors.map((e: any) => e.message).join(', ')}`);
+      throw new Error(`Failed to set inventory on ${shopDomain}: ${userErrors.map((e: any) => `${e.field || 'inventory'}: ${e.message}`).join(', ')}`);
     }
 
-    return response.data?.inventorySetQuantities?.inventoryAdjustmentGroup;
+    return resData?.inventorySetQuantities?.inventoryAdjustmentGroup;
   } catch (error) {
     console.error(`Error setting inventory for ${shopDomain}:`, error);
     throw error;

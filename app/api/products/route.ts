@@ -146,16 +146,16 @@ export async function GET(req: NextRequest) {
           groupedProducts[title] = [];
         }
         
-        // Group by SKU if available, title, or shopify product ID so variants of the same product merge
+        // Group by shopifyProductId, SKU if available, or title so variants of the same product merge
         const existingItem = groupedProducts[title].find((i: any) => 
+          (i.shopifyProductId && p.shopifyProductId && i.shopifyProductId === p.shopifyProductId) ||
           (item.sku !== 'N/A' && i.sku === item.sku) || 
-          (item.sku === 'N/A' && i.shopifyProductId === p.shopifyProductId) ||
           (i.title && item.title && i.title.trim() === item.title.trim())
         );
         
         if (existingItem) {
-          // Aggregate inventory quantity
-          existingItem.inventoryQuantity += item.inventoryQuantity;
+          // Accumulate variant inventory quantity clamped to non-negative
+          existingItem.inventoryQuantity += Math.max(0, item.inventoryQuantity);
           
           // Re-evaluate stock level and status
           existingItem.stockLevel =
@@ -168,6 +168,16 @@ export async function GET(req: NextRequest) {
               : 'Healthy';
           existingItem.status = existingItem.inventoryQuantity > 0 ? 'Active' : 'Inactive';
         } else {
+          item.inventoryQuantity = Math.max(0, item.inventoryQuantity);
+          item.stockLevel =
+            item.inventoryQuantity === 0
+              ? 'Out of Stock'
+              : item.inventoryQuantity <= 5
+              ? 'Critical'
+              : item.inventoryQuantity <= store.lowStockThreshold
+              ? 'Low'
+              : 'Healthy';
+          item.status = item.inventoryQuantity > 0 ? 'Active' : 'Inactive';
           groupedProducts[title].push(item);
         }
       });

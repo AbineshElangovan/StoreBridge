@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { authenticate, handleApiError } from "@/lib/shopify/authenticate";
 import { prisma } from "@/lib/db/prisma";
 import { getAdminClient } from "@/lib/shopify/admin";
+import { setInventoryQuantity } from "@/lib/shopify/inventory";
+import { fetchDefaultLocation } from "@/services/shopify/api-helpers";
 import { createNotification } from "@/services/notification-service";
 import { calculateAdjustedPrice } from "@/services/shopify/pricing";
 
@@ -50,7 +52,7 @@ export async function GET(
       { sku: { equals: spaceId, mode: 'insensitive' } }
     ];
 
-    // 1. Find target product by id, shopifyProductId, or SKU in current store
+    // 1. Find target product in current store
     let targetProduct = await prisma.productCache.findFirst({
       where: {
         storeId: store.id,
@@ -112,7 +114,7 @@ export async function GET(
 
     const { shopifyProductId, sku: productSku } = targetProduct;
 
-    // 2. Fetch all variants belonging to this shopifyProductId in the store
+    // Fetch all variants belonging to this shopifyProductId in the store
     const variantsInDb = await prisma.productCache.findMany({
       where: {
         storeId: targetProduct.storeId,
@@ -121,9 +123,7 @@ export async function GET(
       orderBy: { createdAt: 'asc' }
     });
 
-    // 3. Authorized store availability scoping
-    // Master & Connected stores -> show Master + connected sub-stores in network
-    // Standalone stores (e.g. Namakkal) -> show ONLY that standalone store
+    // Authorized store availability scoping
     let networkMasterId: string | null = null;
 
     if (store.isMaster) {
@@ -165,7 +165,6 @@ export async function GET(
       orderBy: { label: 'asc' }
     });
 
-    // Fetch stock level for this product/SKU across each authorized store
     const allStoreProducts = await prisma.productCache.findMany({
       where: {
         storeId: { in: authorizedStoreIds },
@@ -199,7 +198,6 @@ export async function GET(
         healthStatus = 'Low';
       }
 
-      // Store gets MASTER badge ONLY if it is the master store in a connected network
       const isMasterDisplay = Boolean(isNetworkConnected && networkMasterId && s.id === networkMasterId);
 
       return {
@@ -211,7 +209,6 @@ export async function GET(
       };
     });
 
-    // 4. Calculate Sales Performance metrics from ActivityLog & SyncLog
     const skuList = variantsInDb.map(v => v.sku).filter(Boolean) as string[];
 
     const thirtyDaysAgo = new Date();
@@ -245,7 +242,6 @@ export async function GET(
       }
     });
 
-    // Fallback: Check SyncLogs if ActivityLogs sold count is zero
     if (unitsSold === 0) {
       const syncLogs = await prisma.syncLog.findMany({
         where: {
@@ -270,7 +266,6 @@ export async function GET(
 
     const avgDailySales = Number((unitsSold / 30).toFixed(1));
 
-    // Determine overall product stock level health
     const totalCurrentStock = variantsInDb.reduce((sum, v) => sum + v.inventoryQuantity, 0);
     let overallHealth: 'Healthy' | 'Low' | 'Critical' | 'Out of Stock' = 'Healthy';
     const storeThreshold = targetProduct.store.lowStockThreshold || 15;
@@ -282,13 +277,11 @@ export async function GET(
       overallHealth = 'Low';
     }
 
-    // Determine parent product title
     let mainProductTitle = targetProduct.title || 'Product';
     if (mainProductTitle.includes(' - ')) {
       mainProductTitle = mainProductTitle.split(' - ')[0].trim();
     }
 
-    // Extract collection title
     const collectionNames = targetProduct.collections.map(cp => cp.collection.title);
     const collectionName = collectionNames.length > 0 ? collectionNames.join(', ') : (targetProduct.tags ? targetProduct.tags.split(',')[0] : 'General');
 
@@ -300,7 +293,7 @@ export async function GET(
         title: mainProductTitle,
         sku: targetProduct.sku || 'N/A',
         collection: collectionName,
-        vendor: 'StoreBridge', // Default vendor
+        vendor: 'StoreBridge',
         basePrice: targetProduct.basePrice || targetProduct.price || 0,
         imageUrl: targetProduct.imageUrl || null,
         status: totalCurrentStock > 0 ? 'Active' : 'Draft',
@@ -322,9 +315,9 @@ export async function GET(
             shopifyVariantId: v.shopifyVariantId,
             variantName,
             sku: v.sku || 'N/A',
-            price: v.price || 0,
-            quantity: v.inventoryQuantity || 0,
-            status: v.inventoryQuantity > 0 ? 'Active' : 'Out of Stock'
+            price: Math.max(0, v.price || 0),
+            quantity: Math.max(0, v.inventoryQuantity || 0),
+            status: (v.inventoryQuantity || 0) > 0 ? 'Active' : 'Out of Stock'
           };
         }),
         performance: {
@@ -348,181 +341,260 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { store } = await authenticate(req);
+    const { store: authStore } = await authenticate(req);
     const body = await req.json();
-    const { variantId, price, quantity } = body;
+    const { variantId, price, quantity, syncToConnected } = body;
 
     if (!variantId) {
       return NextResponse.json({ success: false, error: "variantId is required" }, { status: 400 });
     }
 
-    const variantRecord = await prisma.productCache.findFirst({
+    // 1. Locate local variant record & include its owning Store record
+    let variantRecord = await prisma.productCache.findFirst({
       where: {
         id: variantId,
-        storeId: store.id
-      }
+        storeId: authStore.id
+      },
+      include: { store: true }
     });
+
+    // Fallback: If not found in authStore, search globally across DB to get the true owning store
+    if (!variantRecord) {
+      variantRecord = await prisma.productCache.findFirst({
+        where: { id: variantId },
+        include: { store: true }
+      });
+    }
 
     if (!variantRecord) {
       return NextResponse.json({ success: false, error: "Variant not found" }, { status: 404 });
     }
 
+    // The authoritative store owning this product variant
+    const productStore = variantRecord.store;
+
+
+    const isPriceChanged = typeof price === 'number' && Number(price) !== Number(variantRecord.price);
+    const isQuantityChanged = typeof quantity === 'number' && Number(quantity) !== Number(variantRecord.inventoryQuantity);
+
+    if (!isPriceChanged && !isQuantityChanged) {
+      return NextResponse.json({ success: true, variant: variantRecord });
+    }
+
+    // Prepare Shopify GIDs
+    const formattedProdGid = variantRecord.shopifyProductId.startsWith('gid://')
+      ? variantRecord.shopifyProductId
+      : `gid://shopify/Product/${variantRecord.shopifyProductId}`;
+      
+    const numericVarId = variantRecord.shopifyVariantId
+      .replace(/^gid:\/\/shopify\/ProductVariant\//i, '')
+      .replace(/\D/g, '');
+    const formattedVarGid = `gid://shopify/ProductVariant/${numericVarId || variantRecord.shopifyVariantId}`;
+
+    // IMPORTANT: Get GraphQL Admin Client for the SPECIFIC productStore (Master, Connected, or Standalone)
+    const client = await getAdminClient(productStore.shopDomain);
+
+    // 2. SHOPIFY MUTATION FIRST FOR THE PRODUCT'S STORE
+    // A. Price Update
+    if (isPriceChanged && price >= 0) {
+      const priceRes: any = await client.request(`
+        mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+            productVariants { id price }
+            userErrors { field message }
+          }
+        }
+      `, {
+        variables: {
+          productId: formattedProdGid,
+          variants: [{ id: formattedVarGid, price: price.toString() }]
+        }
+      });
+
+      const userErrors = priceRes?.data?.productVariantsBulkUpdate?.userErrors || priceRes?.productVariantsBulkUpdate?.userErrors || [];
+      if (userErrors.length > 0) {
+        const errorMsg = userErrors.map((e: any) => `${e.field || 'price'}: ${e.message}`).join(', ');
+        console.error(`[Product Details API] Shopify price update rejected for ${productStore.shopDomain}: ${errorMsg}`);
+        return NextResponse.json({
+          success: false,
+          error: `Shopify price update rejected on ${productStore.label || productStore.shopDomain}: ${errorMsg}`
+        }, { status: 400 });
+      }
+    }
+
+    // B. Inventory Update
+    if (isQuantityChanged && quantity >= 0) {
+      let inventoryItemId: string | null = null;
+      const variantMap = await prisma.variantMap.findFirst({
+        where: { storeId: productStore.id, shopifyVariantId: variantRecord.shopifyVariantId }
+      });
+
+      if (variantMap?.inventoryItemId) {
+        inventoryItemId = variantMap.inventoryItemId;
+      } else {
+        const vRes: any = await client.request(`
+          query getVariantInventoryItem($id: ID!) {
+            productVariant(id: $id) {
+              inventoryItem { id }
+            }
+          }
+        `, { variables: { id: formattedVarGid } });
+        inventoryItemId = vRes?.data?.productVariant?.inventoryItem?.id || vRes?.productVariant?.inventoryItem?.id || null;
+      }
+
+      if (!inventoryItemId) {
+        return NextResponse.json({
+          success: false,
+          error: `Inventory Item ID not found on Shopify for variant ${variantRecord.sku || formattedVarGid}`
+        }, { status: 400 });
+      }
+
+      const locationId = await fetchDefaultLocation(productStore.shopDomain);
+      if (!locationId) {
+        return NextResponse.json({
+          success: false,
+          error: `Could not resolve Shopify location for store ${productStore.shopDomain}`
+        }, { status: 400 });
+      }
+
+      try {
+        await setInventoryQuantity(productStore.shopDomain, inventoryItemId, locationId, quantity);
+      } catch (invErr: any) {
+        console.error(`[Product Details API] Shopify inventory update rejected for ${productStore.shopDomain}:`, invErr.message);
+        return NextResponse.json({
+          success: false,
+          error: `Shopify inventory update rejected on ${productStore.label || productStore.shopDomain}: ${invErr.message}`
+        }, { status: 400 });
+      }
+    }
+
+    // 3. UPDATE LOCAL DB FOR PRODUCT STORE ONLY AFTER SHOPIFY CONFIRMS SUCCESS
     const updateData: any = {};
-    if (typeof price === 'number' && price >= 0) {
+    if (isPriceChanged && price >= 0) {
       updateData.price = price;
       updateData.basePrice = price;
     }
-    if (typeof quantity === 'number' && quantity >= 0) {
+    if (isQuantityChanged && quantity >= 0) {
       updateData.inventoryQuantity = quantity;
     }
 
-    // 1. Update in DB
     const updatedVariant = await prisma.productCache.update({
       where: { id: variantRecord.id },
       data: updateData
     });
 
-    // 2. Push update to Shopify Admin via GraphQL client
+    // 4. ACTIVITY & NOTIFICATION FOR PRODUCT STORE
+    const storeLabel = productStore.label || productStore.shopDomain;
     try {
-      const client = await getAdminClient(store.shopDomain);
-      
-      // Update Price if updated
-      if (typeof price === 'number') {
-        const numericVariantId = variantRecord.shopifyVariantId.replace('gid://shopify/ProductVariant/', '');
-        const gid = `gid://shopify/ProductVariant/${numericVariantId}`;
+      await prisma.activityLog.create({
+        data: {
+          storeId: productStore.id,
+          productId: variantRecord.shopifyProductId,
+          productTitle: updatedVariant.title || 'Product Variant',
+          sku: updatedVariant.sku || 'N/A',
+          eventType: 'UPDATE',
+          quantity: isQuantityChanged ? quantity : (updatedVariant.inventoryQuantity || 0),
+          amount: isPriceChanged ? price : (updatedVariant.price || 0),
+          description: isPriceChanged ? `Price updated to ₹${price}` : `Stock updated to ${quantity}`
+        }
+      });
 
-        await client.request(`
-          mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-            productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-              userErrors { field message }
-            }
-          }
-        `, {
-          variables: {
-            productId: variantRecord.shopifyProductId.startsWith('gid://') ? variantRecord.shopifyProductId : `gid://shopify/Product/${variantRecord.shopifyProductId}`,
-            variants: [{ id: gid, price: price.toString() }]
-          }
+      if (isPriceChanged) {
+        await createNotification({
+          recipientStoreId: productStore.id,
+          type: 'PRICE_UPDATE',
+          title: 'Price Updated',
+          message: `Price for "${updatedVariant.title || updatedVariant.sku}" updated to ₹${price} in ${storeLabel}`,
+          sourceStoreId: productStore.id
         });
       }
 
-      // Update Inventory Quantity in Shopify if updated
-      if (typeof quantity === 'number') {
-        const initResponse = await client.request(`
-          query {
-            locations(first: 1) {
-              edges { node { id } }
-            }
-          }
-        `);
-        const initData = initResponse.data || initResponse;
-        const locationId = initData.locations?.edges[0]?.node?.id;
+      if (isQuantityChanged) {
+        await createNotification({
+          recipientStoreId: productStore.id,
+          type: 'SYNC_UPDATE',
+          title: 'Inventory Adjusted',
+          message: `Stock for "${updatedVariant.title || updatedVariant.sku}" updated to ${quantity} in ${storeLabel}`,
+          sourceStoreId: productStore.id
+        });
+      }
 
-        if (locationId) {
-          const numericVariantId = variantRecord.shopifyVariantId.replace('gid://shopify/ProductVariant/', '');
-          const variantRes = await client.request(`
-            query getVariantInventoryItem($id: ID!) {
-              productVariant(id: $id) {
-                inventoryItem { id }
-              }
-            }
-          `, { variables: { id: `gid://shopify/ProductVariant/${numericVariantId}` } });
+      // INFORMATIONAL NOTIFICATION TO MASTER STORE IF CONNECTED STORE WAS UPDATED
+      if (!productStore.isMaster) {
+        const masterStore = await prisma.store.findFirst({
+          where: { isMaster: true, isActive: true }
+        });
+        if (masterStore && masterStore.id !== productStore.id) {
+          const detailMsg = isPriceChanged
+            ? `${storeLabel} updated ${updatedVariant.title || updatedVariant.sku} price to ₹${price}`
+            : `${storeLabel} updated ${updatedVariant.title || updatedVariant.sku} stock to ${quantity}`;
 
-          const variantData = variantRes.data || variantRes;
-          const inventoryItemId = variantData.productVariant?.inventoryItem?.id;
+          await createNotification({
+            recipientStoreId: masterStore.id,
+            type: 'CONNECTED_STORE_UPDATE',
+            title: 'Connected Store Update',
+            message: detailMsg,
+            productId: variantRecord.shopifyProductId,
+            productTitle: updatedVariant.title || 'Product Variant',
+            sourceStoreId: productStore.id,
+            targetStoreId: masterStore.id
+          });
+        }
+      }
+    } catch (logErr: any) {
+      console.error("[Product Details API] ActivityLog/Notification warning:", logErr.message);
+    }
 
-          if (inventoryItemId) {
-            await client.request(`
-              mutation inventorySetQuantities($input: InventorySetQuantitiesInput!) {
-                inventorySetQuantities(input: $input) {
-                  userErrors { field message }
-                }
-              }
-            `, {
-              variables: {
-                input: {
-                  reason: "correction",
-                  name: "available",
-                  referenceDocumentUri: "logistics:stockbridge:manual-update",
-                  quantities: [{
-                    inventoryItemId,
-                    locationId,
-                    quantity: Math.max(0, quantity)
-                  }]
+    // 5. STORE ROLE REPLICATION & SYNC REQUEST NOTIFICATIONS
+    // Whenever Master Store updates a product/variant, send a Sync Request Notification to all connected stores
+    const targetStoreResults: Array<{ storeId: string; shopDomain: string; success: boolean; error?: string }> = [];
+
+    if (productStore.isMaster) {
+      const connections = await (prisma as any).storeConnection.findMany({
+        where: { sourceStoreId: productStore.id }
+      });
+      const targetStoreIds = connections.map((c: any) => c.targetStoreId);
+
+      if (targetStoreIds.length > 0) {
+        const targetStores = await prisma.store.findMany({
+          where: { id: { in: targetStoreIds }, isActive: true }
+        });
+
+        const productCollections = await prisma.collectionProduct.findMany({
+          where: { productCacheId: variantRecord.id },
+          include: { collection: true }
+        });
+        const collectionTitles = productCollections.map(pc => pc.collection.title);
+
+        for (const targetStore of targetStores) {
+          try {
+            // Create Sync Request Notification for Connected Store Inbox
+            await createNotification({
+              recipientStoreId: targetStore.id,
+              type: 'SYNC_UPDATE',
+              title: 'Sync Request: Product Update',
+              message: `Master store updated "${updatedVariant.title || updatedVariant.sku}" (Price: ₹${isPriceChanged ? price : updatedVariant.price}, Stock: ${isQuantityChanged ? quantity : updatedVariant.inventoryQuantity}). Sync this update to your store?`,
+              sourceStoreId: productStore.id,
+              targetStoreId: targetStore.id,
+              productId: variantRecord.shopifyProductId,
+              productTitle: updatedVariant.title || 'Product Variant',
+              metadata: {
+                syncPending: true,
+                syncStatus: 'PENDING',
+                syncAction: 'UPDATE',
+                payload: {
+                  productId: variantRecord.shopifyProductId,
+                  variantId: variantRecord.shopifyVariantId || variantRecord.id,
+                  sku: updatedVariant.sku,
+                  price: isPriceChanged ? price : updatedVariant.price,
+                  quantity: isQuantityChanged ? quantity : updatedVariant.inventoryQuantity,
+                  title: updatedVariant.title
                 }
               }
             });
-          }
-        }
-      }
-    } catch (shopifyErr: any) {
-      console.error("[Product Details API] Shopify Push Warning:", shopifyErr.message);
-    }
 
-    // 3. Activity Logging & Notification for current store
-    const storeLabel = store.label || store.shopDomain;
-    const isPriceChanged = typeof price === 'number' && Number(price) !== Number(variantRecord.price);
-    const isQuantityChanged = typeof quantity === 'number' && Number(quantity) !== Number(variantRecord.inventoryQuantity);
-
-    if (isPriceChanged || isQuantityChanged) {
-      try {
-        await prisma.activityLog.create({
-          data: {
-            storeId: store.id,
-            productTitle: updatedVariant.title || 'Product Variant',
-            sku: updatedVariant.sku || 'N/A',
-            eventType: 'UPDATE',
-            quantity: isQuantityChanged ? quantity! : (updatedVariant.inventoryQuantity || 0),
-            amount: isPriceChanged ? price! : (updatedVariant.price || 0),
-            description: isPriceChanged ? `Price updated to ₹${price}` : `Stock updated to ${quantity}`
-          }
-        });
-
-        if (isPriceChanged) {
-          await createNotification({
-            recipientStoreId: store.id,
-            type: 'PRICE_UPDATE',
-            title: 'Price Updated',
-            message: `Price for "${updatedVariant.title || updatedVariant.sku}" updated to ₹${price} in ${storeLabel}`,
-            sourceStoreId: store.id
-          });
-        }
-
-        if (isQuantityChanged) {
-          await createNotification({
-            recipientStoreId: store.id,
-            type: 'SYNC_UPDATE',
-            title: 'Inventory Adjusted',
-            message: `Stock for "${updatedVariant.title || updatedVariant.sku}" updated to ${quantity} in ${storeLabel}`,
-            sourceStoreId: store.id
-          });
-        }
-      } catch (logErr: any) {
-        console.error("[Product Details API] ActivityLog/Notification Warning:", logErr.message);
-      }
-    }
-
-    // 4. Auto-propagate Price Adjustments & Inventory to Connected Target Stores if Master Store
-    if (store.isMaster && updatedVariant.sku) {
-      try {
-        const connections = await (prisma as any).storeConnection.findMany({
-          where: { sourceStoreId: store.id }
-        });
-        const targetStoreIds = connections.map((c: any) => c.targetStoreId);
-
-        if (targetStoreIds.length > 0) {
-          const targetStores = await prisma.store.findMany({
-            where: { id: { in: targetStoreIds }, isActive: true }
-          });
-
-          // Fetch product collection titles for collection-level price adjustment rules
-          const productCollections = await prisma.collectionProduct.findMany({
-            where: { productCacheId: variantRecord.id },
-            include: { collection: true }
-          });
-          const collectionTitles = productCollections.map(pc => pc.collection.title);
-
-          for (const targetStore of targetStores) {
-            try {
+            // If syncToConnected === true, also apply direct replication immediately
+            if (syncToConnected === true && updatedVariant.sku) {
               const targetVariant = await prisma.productCache.findFirst({
                 where: {
                   storeId: targetStore.id,
@@ -530,25 +602,33 @@ export async function PATCH(
                 }
               });
 
-              if (!targetVariant) continue;
+              if (!targetVariant) {
+                targetStoreResults.push({
+                  storeId: targetStore.id,
+                  shopDomain: targetStore.shopDomain,
+                  success: false,
+                  error: `Variant SKU ${updatedVariant.sku} not found in connected store`
+                });
+                continue;
+              }
 
               const targetClient = await getAdminClient(targetStore.shopDomain);
               const targetUpdateData: any = {};
 
-              // Handle Price Adjustment for target store
-              if (isPriceChanged && price! >= 0) {
-                const adjustedPriceStr = await calculateAdjustedPrice(price!, targetStore, collectionTitles);
-                const adjustedPriceNum = parseFloat(adjustedPriceStr);
-                targetUpdateData.price = adjustedPriceNum;
+              // Replicate Price to Target Store Shopify FIRST (Exact Master price, no adjustment calculations)
+              if (isPriceChanged && price >= 0) {
+                const exactPriceStr = price.toFixed(2);
+                targetUpdateData.price = price;
                 targetUpdateData.basePrice = price;
 
-                // Push price update to Shopify target store
                 if (targetVariant.shopifyVariantId) {
-                  const numericId = targetVariant.shopifyVariantId.replace('gid://shopify/ProductVariant/', '');
-                  const gid = `gid://shopify/ProductVariant/${numericId}`;
-                  const prodGid = targetVariant.shopifyProductId.startsWith('gid://') ? targetVariant.shopifyProductId : `gid://shopify/Product/${targetVariant.shopifyProductId}`;
+                  const targetNumericId = targetVariant.shopifyVariantId.replace(/^gid:\/\/shopify\/ProductVariant\//i, '').replace(/\D/g, '');
+                  const targetVarGid = `gid://shopify/ProductVariant/${targetNumericId || targetVariant.shopifyVariantId}`;
+                  const targetProdGid = targetVariant.shopifyProductId.startsWith('gid://')
+                    ? targetVariant.shopifyProductId
+                    : `gid://shopify/Product/${targetVariant.shopifyProductId}`;
 
-                  await targetClient.request(`
+                  const targetPriceRes: any = await targetClient.request(`
                     mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
                       productVariantsBulkUpdate(productId: $productId, variants: $variants) {
                         userErrors { field message }
@@ -556,95 +636,90 @@ export async function PATCH(
                     }
                   `, {
                     variables: {
-                      productId: prodGid,
-                      variants: [{ id: gid, price: adjustedPriceStr }]
+                      productId: targetProdGid,
+                      variants: [{ id: targetVarGid, price: exactPriceStr }]
                     }
                   });
-                }
 
-                await createNotification({
-                  recipientStoreId: targetStore.id,
-                  type: 'PRICE_UPDATE',
-                  title: 'Price Adjustment Applied',
-                  message: `Price for "${targetVariant.title || updatedVariant.title || targetVariant.sku}" adjusted to ₹${adjustedPriceStr} in ${targetStore.label || targetStore.shopDomain}`,
-                  productTitle: targetVariant.title || updatedVariant.title || 'Product Variant',
-                  productId: targetVariant.shopifyProductId,
-                  sourceStoreId: store.id,
-                  targetStoreId: targetStore.id
-                });
+                  const targetPriceErrors = targetPriceRes?.data?.productVariantsBulkUpdate?.userErrors || targetPriceRes?.productVariantsBulkUpdate?.userErrors || [];
+                  if (targetPriceErrors.length > 0) {
+                    throw new Error(`Shopify price update error: ${targetPriceErrors.map((e: any) => e.message).join(', ')}`);
+                  }
+                }
               }
 
-              // Handle Inventory Adjustment for target store
-              if (isQuantityChanged && quantity! >= 0) {
+              // Replicate Inventory to Target Store Shopify FIRST
+              if (isQuantityChanged && quantity >= 0) {
                 targetUpdateData.inventoryQuantity = quantity;
 
                 if (targetVariant.shopifyVariantId) {
-                  const locRes = await targetClient.request(`
-                    query { locations(first: 1) { edges { node { id } } } }
-                  `);
-                  const locData = locRes.data || locRes;
-                  const locationId = locData.locations?.edges[0]?.node?.id;
+                  let targetInventoryItemId: string | null = null;
+                  const targetMap = await prisma.variantMap.findFirst({
+                    where: { storeId: targetStore.id, shopifyVariantId: targetVariant.shopifyVariantId }
+                  });
 
-                  if (locationId) {
-                    const numericId = targetVariant.shopifyVariantId.replace('gid://shopify/ProductVariant/', '');
-                    const vRes = await targetClient.request(`
+                  if (targetMap?.inventoryItemId) {
+                    targetInventoryItemId = targetMap.inventoryItemId;
+                  } else {
+                    const targetNumericId = targetVariant.shopifyVariantId.replace(/^gid:\/\/shopify\/ProductVariant\//i, '').replace(/\D/g, '');
+                    const vRes: any = await targetClient.request(`
                       query getVariantInventoryItem($id: ID!) { productVariant(id: $id) { inventoryItem { id } } }
-                    `, { variables: { id: `gid://shopify/ProductVariant/${numericId}` } });
+                    `, { variables: { id: `gid://shopify/ProductVariant/${targetNumericId || targetVariant.shopifyVariantId}` } });
 
-                    const vData = vRes.data || vRes;
-                    const inventoryItemId = vData.productVariant?.inventoryItem?.id;
+                    targetInventoryItemId = vRes?.data?.productVariant?.inventoryItem?.id || vRes?.productVariant?.inventoryItem?.id || null;
+                  }
 
-                    if (inventoryItemId) {
-                      await targetClient.request(`
-                        mutation inventorySetQuantities($input: InventorySetQuantitiesInput!) {
-                          inventorySetQuantities(input: $input) { userErrors { field message } }
-                        }
-                      `, {
-                        variables: {
-                          input: {
-                            reason: "correction",
-                            name: "available",
-                            referenceDocumentUri: "logistics:storebridge:manual-update",
-                            quantities: [{ inventoryItemId, locationId, quantity: Math.max(0, quantity!) }]
-                          }
-                        }
-                      });
+                  if (targetInventoryItemId) {
+                    const targetLocationId = await fetchDefaultLocation(targetStore.shopDomain);
+                    if (targetLocationId) {
+                      await setInventoryQuantity(targetStore.shopDomain, targetInventoryItemId, targetLocationId, quantity);
                     }
                   }
                 }
-
-                await createNotification({
-                  recipientStoreId: targetStore.id,
-                  type: 'SYNC_UPDATE',
-                  title: 'Inventory Synchronized',
-                  message: `Stock for "${targetVariant.title || updatedVariant.title || targetVariant.sku}" updated to ${quantity} in ${targetStore.label || targetStore.shopDomain}`,
-                  productTitle: targetVariant.title || updatedVariant.title || 'Product Variant',
-                  productId: targetVariant.shopifyProductId,
-                  sourceStoreId: store.id,
-                  targetStoreId: targetStore.id
-                });
               }
 
-              // Save updated target variant in DB
+              // ONLY AFTER TARGET SHOPIFY SUCCEEDS -> UPDATE TARGET DB
               if (Object.keys(targetUpdateData).length > 0) {
                 await prisma.productCache.update({
                   where: { id: targetVariant.id },
                   data: targetUpdateData
                 });
               }
-            } catch (targetErr: any) {
-              console.error(`[Product Details API] Error updating target store ${targetStore.shopDomain}:`, targetErr.message);
+
+              targetStoreResults.push({
+                storeId: targetStore.id,
+                shopDomain: targetStore.shopDomain,
+                success: true
+              });
             }
+
+          } catch (targetErr: any) {
+            console.error(`[Product Details API] Error replicating to target store ${targetStore.shopDomain}:`, targetErr.message);
+            targetStoreResults.push({
+              storeId: targetStore.id,
+              shopDomain: targetStore.shopDomain,
+              success: false,
+              error: targetErr.message
+            });
           }
         }
-      } catch (masterSyncErr: any) {
-        console.error("[Product Details API] Master sync propagation error:", masterSyncErr.message);
       }
+    }
+
+    const failedTargets = targetStoreResults.filter(r => !r.success);
+    if (failedTargets.length > 0) {
+      return NextResponse.json({
+        success: false,
+        master: { success: true },
+        connectedStores: targetStoreResults,
+        error: `Master updated successfully, but ${failedTargets.length} connected store(s) failed: ${failedTargets.map(f => `${f.shopDomain} (${f.error})`).join('; ')}`
+      }, { status: 207 });
     }
 
     return NextResponse.json({
       success: true,
-      variant: updatedVariant
+      variant: updatedVariant,
+      connectedStores: targetStoreResults
     });
 
   } catch (err: any) {
@@ -658,10 +733,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { store } = await authenticate(req);
+    const { store: authStore } = await authenticate(req);
     const { id: rawIdParam } = await params;
     const searchParams = req.nextUrl.searchParams;
     const variantIdParam = searchParams.get('variantId');
+    const syncToConnectedParam = searchParams.get('syncToConnected');
+    const syncToConnected = syncToConnectedParam !== null ? syncToConnectedParam === 'true' : undefined;
 
     const rawId = Array.isArray(rawIdParam) ? (rawIdParam as string[]).join('/') : (rawIdParam as string || '');
     const decodedId = decodeURIComponent(rawId).trim();
@@ -671,55 +748,69 @@ export async function DELETE(
       .split('/')
       .pop() || decodedId;
 
-    const hyphenatedId = decodedId.replace(/\s+/g, '-');
-    const lowerDecoded = decodedId.toLowerCase();
-
-    // IF VARIANT ID IS PROVIDED: Delete only that specific variant
+    // ------------------------------------------------------------------------
+    // VARIANT-LEVEL DELETION
+    // ------------------------------------------------------------------------
     if (variantIdParam) {
-      const variantRecord = await prisma.productCache.findFirst({
+      let variantRecord = await prisma.productCache.findFirst({
         where: {
           id: variantIdParam,
-          storeId: store.id
-        }
+          storeId: authStore.id
+        },
+        include: { store: true }
       });
+
+      if (!variantRecord) {
+        variantRecord = await prisma.productCache.findFirst({
+          where: { id: variantIdParam },
+          include: { store: true }
+        });
+      }
 
       if (!variantRecord) {
         return NextResponse.json({ success: false, error: "Variant not found" }, { status: 404 });
       }
 
+      const productStore = variantRecord.store;
+
       const { shopifyProductId, shopifyVariantId, sku: variantSku, title: rawVariantTitle, imageUrl } = variantRecord;
       const cleanVariantTitle = rawVariantTitle || 'Variant';
 
-      // 1. Delete variant from Shopify via GraphQL Admin Client
-      try {
-        const client = await getAdminClient(store.shopDomain);
-        const formattedProdGid = shopifyProductId.startsWith('gid://') 
-          ? shopifyProductId 
-          : `gid://shopify/Product/${shopifyProductId}`;
-        
-        const numericVarId = shopifyVariantId.replace(/^gid:\/\/shopify\/ProductVariant\//i, '');
-        const formattedVarGid = `gid://shopify/ProductVariant/${numericVarId}`;
+      const formattedProdGid = shopifyProductId.startsWith('gid://')
+        ? shopifyProductId
+        : `gid://shopify/Product/${shopifyProductId}`;
 
-        const deleteVariantMutation = `
-          mutation productVariantsBulkDelete($productId: ID!, $variantsIds: [ID!]!) {
-            productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
-              userErrors { field message }
-            }
-          }
-        `;
+      const numericVarId = shopifyVariantId.replace(/^gid:\/\/shopify\/ProductVariant\//i, '').replace(/\D/g, '');
+      const formattedVarGid = `gid://shopify/ProductVariant/${numericVarId || shopifyVariantId}`;
 
-        await client.request(deleteVariantMutation, {
-          variables: {
-            productId: formattedProdGid,
-            variantsIds: [formattedVarGid]
+      // 1. SHOPIFY VARIANT DELETE FIRST ON PRODUCT'S STORE
+      const client = await getAdminClient(productStore.shopDomain);
+      const deleteVariantMutation = `
+        mutation productVariantsBulkDelete($productId: ID!, $variantsIds: [ID!]!) {
+          productVariantsBulkDelete(productId: $productId, variantsIds: $variantsIds) {
+            userErrors { field message }
           }
-        });
-        console.log(`[Product Details API] Successfully deleted variant ${formattedVarGid} from Shopify (${store.shopDomain})`);
-      } catch (shopifyErr: any) {
-        console.warn("[Product Details API] Shopify Variant Delete warning:", shopifyErr.message);
+        }
+      `;
+
+      const delRes: any = await client.request(deleteVariantMutation, {
+        variables: {
+          productId: formattedProdGid,
+          variantsIds: [formattedVarGid]
+        }
+      });
+
+      const delErrors = delRes?.data?.productVariantsBulkDelete?.userErrors || delRes?.productVariantsBulkDelete?.userErrors || [];
+      if (delErrors.length > 0) {
+        const errorMsg = delErrors.map((e: any) => `${e.field || 'variant'}: ${e.message}`).join(', ');
+        console.error(`[Product Details API] Shopify variant delete rejected for ${productStore.shopDomain}: ${errorMsg}`);
+        return NextResponse.json({
+          success: false,
+          error: `Shopify variant delete rejected on ${productStore.label || productStore.shopDomain}: ${errorMsg}`
+        }, { status: 400 });
       }
 
-      // 2. Delete matching local product cache, variant map, and collection mapping records for variant
+      // 2. DELETE LOCAL DB RECORDS ONLY AFTER SHOPIFY CONFIRMS SUCCESS
       await prisma.collectionProduct.deleteMany({
         where: { productCacheId: variantRecord.id }
       });
@@ -730,17 +821,76 @@ export async function DELETE(
 
       await prisma.variantMap.deleteMany({
         where: {
-          storeId: store.id,
+          storeId: productStore.id,
           shopifyVariantId: shopifyVariantId
         }
       });
 
-      // 3. Record Activity Log (DELETE Event for Variant)
-      const storeLabel = store.label || store.shopDomain;
+      // 3. STORE ROLE REPLICATION FOR VARIANT DELETE
+      if (productStore.isMaster && syncToConnected === true && variantSku) {
+        const connections = await (prisma as any).storeConnection.findMany({
+          where: { sourceStoreId: productStore.id }
+        });
+        const targetStoreIds = connections.map((c: any) => c.targetStoreId);
+
+        if (targetStoreIds.length > 0) {
+          const targetStores = await prisma.store.findMany({
+            where: { id: { in: targetStoreIds }, isActive: true }
+          });
+
+          for (const targetStore of targetStores) {
+            try {
+              const targetVariant = await prisma.productCache.findFirst({
+                where: {
+                  storeId: targetStore.id,
+                  sku: variantSku
+                }
+              });
+
+              if (!targetVariant) continue;
+
+              const targetClient = await getAdminClient(targetStore.shopDomain);
+              const targetProdGid = targetVariant.shopifyProductId.startsWith('gid://')
+                ? targetVariant.shopifyProductId
+                : `gid://shopify/Product/${targetVariant.shopifyProductId}`;
+              const targetNumericVarId = targetVariant.shopifyVariantId.replace(/^gid:\/\/shopify\/ProductVariant\//i, '').replace(/\D/g, '');
+              const targetVarGid = `gid://shopify/ProductVariant/${targetNumericVarId || targetVariant.shopifyVariantId}`;
+
+              const tDelRes: any = await targetClient.request(deleteVariantMutation, {
+                variables: {
+                  productId: targetProdGid,
+                  variantsIds: [targetVarGid]
+                }
+              });
+
+              const tDelErrors = tDelRes?.data?.productVariantsBulkDelete?.userErrors || tDelRes?.productVariantsBulkDelete?.userErrors || [];
+              if (tDelErrors.length === 0) {
+                await prisma.collectionProduct.deleteMany({
+                  where: { productCacheId: targetVariant.id }
+                });
+                await prisma.productCache.delete({
+                  where: { id: targetVariant.id }
+                });
+                await prisma.variantMap.deleteMany({
+                  where: {
+                    storeId: targetStore.id,
+                    shopifyVariantId: targetVariant.shopifyVariantId
+                  }
+                });
+              }
+            } catch (tErr: any) {
+              console.error(`[Product Details API] Error replicating variant delete to ${targetStore.shopDomain}:`, tErr.message);
+            }
+          }
+        }
+      }
+
+      // 4. LOG ACTIVITY & SEND NOTIFICATION
+      const storeLabel = productStore.label || productStore.shopDomain;
       try {
         await prisma.activityLog.create({
           data: {
-            storeId: store.id,
+            storeId: productStore.id,
             productId: shopifyProductId,
             productTitle: cleanVariantTitle,
             sku: variantSku || null,
@@ -751,16 +901,33 @@ export async function DELETE(
           }
         });
 
-        // 4. Send persistent Store Notification
         await createNotification({
-          recipientStoreId: store.id,
+          recipientStoreId: productStore.id,
           type: "PRODUCT_UPDATED",
           title: "Variant Deleted",
           message: `Variant "${cleanVariantTitle}" was deleted from ${storeLabel}`,
           productId: shopifyProductId,
           productTitle: cleanVariantTitle,
-          sourceStoreId: store.id
+          sourceStoreId: productStore.id
         });
+
+        if (!productStore.isMaster) {
+          const masterStore = await prisma.store.findFirst({
+            where: { isMaster: true, isActive: true }
+          });
+          if (masterStore && masterStore.id !== productStore.id) {
+            await createNotification({
+              recipientStoreId: masterStore.id,
+              type: "CONNECTED_STORE_UPDATE",
+              title: "Connected Store Variant Deleted",
+              message: `${storeLabel} deleted variant "${cleanVariantTitle}"`,
+              productId: shopifyProductId,
+              productTitle: cleanVariantTitle,
+              sourceStoreId: productStore.id,
+              targetStoreId: masterStore.id
+            });
+          }
+        }
       } catch (logErr: any) {
         console.error("[Product Details API] ActivityLog/Notification delete variant error:", logErr.message);
       }
@@ -771,59 +938,86 @@ export async function DELETE(
       });
     }
 
-    // PRODUCT-LEVEL DELETION (When no variantId searchParam is provided)
-    // 1. Find target product in database
-    const targetProduct = await prisma.productCache.findFirst({
+    // ------------------------------------------------------------------------
+    // PRODUCT-LEVEL DELETION
+    // ------------------------------------------------------------------------
+    const lowerDecoded = decodedId.toLowerCase();
+    
+    let targetProduct = await prisma.productCache.findFirst({
       where: {
-        storeId: store.id,
+        storeId: authStore.id,
         OR: [
           { id: decodedId },
           { id: lowerDecoded },
           { id: cleanNumericId },
-          { id: hyphenatedId },
           { shopifyProductId: decodedId },
           { shopifyProductId: cleanNumericId },
           { shopifyProductId: `gid://shopify/Product/${cleanNumericId}` },
           { shopifyProductId: { endsWith: cleanNumericId } }
         ]
-      }
+      },
+      include: { store: true }
     });
+
+    if (!targetProduct) {
+      targetProduct = await prisma.productCache.findFirst({
+        where: {
+          OR: [
+            { id: decodedId },
+            { id: lowerDecoded },
+            { id: cleanNumericId },
+            { shopifyProductId: decodedId },
+            { shopifyProductId: cleanNumericId },
+            { shopifyProductId: `gid://shopify/Product/${cleanNumericId}` },
+            { shopifyProductId: { endsWith: cleanNumericId } }
+          ]
+        },
+        include: { store: true }
+      });
+    }
 
     if (!targetProduct) {
       return NextResponse.json({ success: false, error: "Product not found" }, { status: 404 });
     }
 
+    const productStore = targetProduct.store;
+
     const { shopifyProductId, title: rawProductTitle, sku: productSku, imageUrl } = targetProduct;
     const cleanTitle = rawProductTitle.split(' - ')[0].trim();
 
-    // 2. Delete product from Shopify via GraphQL Admin Client
-    try {
-      const client = await getAdminClient(store.shopDomain);
-      const formattedGid = shopifyProductId.startsWith('gid://') 
-        ? shopifyProductId 
-        : `gid://shopify/Product/${shopifyProductId}`;
+    // 1. SHOPIFY PRODUCT DELETE FIRST ON PRODUCT'S STORE
+    const client = await getAdminClient(productStore.shopDomain);
+    const formattedGid = shopifyProductId.startsWith('gid://')
+      ? shopifyProductId
+      : `gid://shopify/Product/${shopifyProductId}`;
 
-      const deleteMutation = `
-        mutation productDelete($input: ProductDeleteInput!) {
-          productDelete(input: $input) {
-            deletedProductId
-            userErrors { field message }
-          }
+    const deleteMutation = `
+      mutation productDelete($input: ProductDeleteInput!) {
+        productDelete(input: $input) {
+          deletedProductId
+          userErrors { field message }
         }
-      `;
+      }
+    `;
 
-      await client.request(deleteMutation, {
-        variables: { input: { id: formattedGid } }
-      });
-      console.log(`[Product Details API] Successfully deleted product ${formattedGid} from Shopify (${store.shopDomain})`);
-    } catch (shopifyErr: any) {
-      console.warn("[Product Details API] Shopify Product Delete warning:", shopifyErr.message);
+    const delRes: any = await client.request(deleteMutation, {
+      variables: { input: { id: formattedGid } }
+    });
+
+    const delErrors = delRes?.data?.productDelete?.userErrors || delRes?.productDelete?.userErrors || [];
+    if (delErrors.length > 0) {
+      const errorMsg = delErrors.map((e: any) => `${e.field || 'product'}: ${e.message}`).join(', ');
+      console.error(`[Product Details API] Shopify product delete rejected for ${productStore.shopDomain}: ${errorMsg}`);
+      return NextResponse.json({
+        success: false,
+        error: `Shopify product delete rejected on ${productStore.label || productStore.shopDomain}: ${errorMsg}`
+      }, { status: 400 });
     }
 
-    // 3. Delete matching local product cache, variant map, and collection mapping records
+    // 2. DELETE LOCAL DB RECORDS ONLY AFTER SHOPIFY CONFIRMS SUCCESS
     const matchingCaches = await prisma.productCache.findMany({
       where: {
-        storeId: store.id,
+        storeId: productStore.id,
         shopifyProductId: shopifyProductId
       },
       select: { id: true }
@@ -842,18 +1036,108 @@ export async function DELETE(
 
       await prisma.variantMap.deleteMany({
         where: {
-          storeId: store.id,
+          storeId: productStore.id,
           shopifyProductId: shopifyProductId
         }
       });
     }
 
-    // 4. Record Activity Log (DELETE Event)
-    const storeLabel = store.label || store.shopDomain;
+    // 3. STORE ROLE REPLICATION & SYNC REQUEST NOTIFICATIONS FOR PRODUCT DELETE
+    const targetStoreResults: Array<{ storeId: string; shopDomain: string; success: boolean; error?: string }> = [];
+
+    if (productStore.isMaster) {
+      const connections = await (prisma as any).storeConnection.findMany({
+        where: { sourceStoreId: productStore.id }
+      });
+      const targetStoreIds = connections.map((c: any) => c.targetStoreId);
+
+      if (targetStoreIds.length > 0) {
+        const targetStores = await prisma.store.findMany({
+          where: { id: { in: targetStoreIds }, isActive: true }
+        });
+
+        for (const targetStore of targetStores) {
+          try {
+            await createNotification({
+              recipientStoreId: targetStore.id,
+              type: 'SYNC_UPDATE',
+              title: 'Sync Request: Product Deleted',
+              message: `Master store deleted product "${cleanTitle}". Delete this product from your store as well?`,
+              sourceStoreId: productStore.id,
+              targetStoreId: targetStore.id,
+              productId: shopifyProductId,
+              productTitle: cleanTitle,
+              metadata: {
+                syncPending: true,
+                syncStatus: 'PENDING',
+                syncAction: 'DELETE',
+                payload: {
+                  productId: shopifyProductId,
+                  sku: productSku,
+                  productTitle: cleanTitle
+                }
+              }
+            });
+
+            if (syncToConnected === true && productSku) {
+              const targetProd = await prisma.productCache.findFirst({
+                where: {
+                  storeId: targetStore.id,
+                  OR: [
+                    { shopifyProductId: shopifyProductId },
+                    { sku: productSku }
+                  ]
+                }
+              });
+
+              if (!targetProd) continue;
+
+              const targetClient = await getAdminClient(targetStore.shopDomain);
+              const targetProdGid = targetProd.shopifyProductId.startsWith('gid://')
+                ? targetProd.shopifyProductId
+                : `gid://shopify/Product/${targetProd.shopifyProductId}`;
+
+              const tDelRes: any = await targetClient.request(deleteMutation, {
+                variables: { input: { id: targetProdGid } }
+              });
+
+              const tDelErrors = tDelRes?.data?.productDelete?.userErrors || tDelRes?.productDelete?.userErrors || [];
+              if (tDelErrors.length === 0) {
+                const tCaches = await prisma.productCache.findMany({
+                  where: { storeId: targetStore.id, shopifyProductId: targetProd.shopifyProductId },
+                  select: { id: true }
+                });
+                const tCacheIds = tCaches.map(c => c.id);
+                if (tCacheIds.length > 0) {
+                  await prisma.collectionProduct.deleteMany({
+                    where: { productCacheId: { in: tCacheIds } }
+                  });
+                  await prisma.productCache.deleteMany({
+                    where: { id: { in: tCacheIds } }
+                  });
+                  await prisma.variantMap.deleteMany({
+                    where: { storeId: targetStore.id, shopifyProductId: targetProd.shopifyProductId }
+                  });
+                }
+                targetStoreResults.push({ storeId: targetStore.id, shopDomain: targetStore.shopDomain, success: true });
+              } else {
+                targetStoreResults.push({ storeId: targetStore.id, shopDomain: targetStore.shopDomain, success: false, error: tDelErrors.map((e: any) => e.message).join(', ') });
+              }
+            }
+          } catch (tErr: any) {
+            console.error(`[Product Details API] Error replicating product delete to ${targetStore.shopDomain}:`, tErr.message);
+            targetStoreResults.push({ storeId: targetStore.id, shopDomain: targetStore.shopDomain, success: false, error: tErr.message });
+          }
+        }
+      }
+    }
+
+    // 4. LOG ACTIVITY & SEND NOTIFICATION
+    const storeLabel = productStore.label || productStore.shopDomain;
     try {
       await prisma.activityLog.create({
         data: {
-          storeId: store.id,
+          storeId: productStore.id,
           productId: shopifyProductId,
           productTitle: cleanTitle,
           sku: productSku || null,
@@ -864,18 +1148,45 @@ export async function DELETE(
         }
       });
 
-      // 5. Send persistent Store Notification
       await createNotification({
-        recipientStoreId: store.id,
+        recipientStoreId: productStore.id,
         type: "PRODUCT_UPDATED",
         title: "Product Deleted",
         message: `Product "${cleanTitle}" was deleted from ${storeLabel}`,
         productId: shopifyProductId,
         productTitle: cleanTitle,
-        sourceStoreId: store.id
+        sourceStoreId: productStore.id
       });
+
+      if (!productStore.isMaster) {
+        const masterStore = await prisma.store.findFirst({
+          where: { isMaster: true, isActive: true }
+        });
+        if (masterStore && masterStore.id !== productStore.id) {
+          await createNotification({
+            recipientStoreId: masterStore.id,
+            type: "CONNECTED_STORE_UPDATE",
+            title: "Connected Store Product Deleted",
+            message: `${storeLabel} deleted product "${cleanTitle}"`,
+            productId: shopifyProductId,
+            productTitle: cleanTitle,
+            sourceStoreId: productStore.id,
+            targetStoreId: masterStore.id
+          });
+        }
+      }
     } catch (logErr: any) {
       console.error("[Product Details API] ActivityLog/Notification delete error:", logErr.message);
+    }
+
+    const failedTargets = targetStoreResults.filter(r => !r.success);
+    if (failedTargets.length > 0) {
+      return NextResponse.json({
+        success: false,
+        master: { success: true },
+        connectedStores: targetStoreResults,
+        error: `Master deleted successfully, but ${failedTargets.length} connected store(s) failed: ${failedTargets.map(f => `${f.shopDomain} (${f.error})`).join('; ')}`
+      }, { status: 207 });
     }
 
     return NextResponse.json({
@@ -888,4 +1199,3 @@ export async function DELETE(
     return handleApiError(err);
   }
 }
-

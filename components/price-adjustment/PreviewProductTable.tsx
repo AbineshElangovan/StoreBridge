@@ -24,13 +24,13 @@ export function PreviewProductTable({ rows, isSaving }: PreviewProductTableProps
   }
 
   const columns: ColumnConfig[] = [
-    { title: "Image", key: "imageUrl", type: "image", width: "60px", align: "center" },
-    { title: "Product Name", key: "productTitle", type: "bold" },
-    { title: "SKU", key: "sku_node", type: "react_node" },
-    { title: "Collection Name", key: "collection_node", type: "react_node" },
-    { title: "Old Price", key: "old_price_node", type: "react_node", align: "right" },
-    { title: "Percent Applied", key: "percent_node", type: "react_node", align: "center" },
-    { title: "New Price", key: "new_price_node", type: "react_node", align: "right" },
+    { title: "IMAGE", key: "imageUrl", type: "image", width: "65px", align: "center" },
+    { title: "PRODUCT NAME", key: "productTitle", type: "bold", width: "240px", align: "left" },
+    { title: "SKU", key: "sku_node", type: "react_node", width: "160px", align: "center" },
+    { title: "COLLECTION NAME", key: "collection_node", type: "react_node", width: "170px", align: "center" },
+    { title: "OLD PRICE", key: "old_price_node", type: "react_node", align: "right", width: "110px" },
+    { title: "PERCENT CHANGE", key: "percent_node", type: "react_node", align: "center", width: "135px" },
+    { title: "NEW PRICE", key: "new_price_node", type: "react_node", align: "right", width: "120px" },
   ];
 
   const formatPrice = (val: number) =>
@@ -44,28 +44,25 @@ export function PreviewProductTable({ rows, isSaving }: PreviewProductTableProps
       ...row,
       imageUrl: row.imageUrl || "",
       sku_node: row.sku ? (
-        <span className="px-2.5 py-1 font-mono text-2xs font-bold bg-gray-100 text-gray-800 border border-gray-200 rounded-md">
+        <span className="px-2.5 py-1 font-mono text-xs font-bold bg-gray-100 text-gray-800 border border-gray-200 rounded-md whitespace-nowrap inline-block tracking-wide shadow-2xs">
           {row.sku}
         </span>
       ) : (
         <span className="text-gray-400 italic text-2xs">N/A</span>
       ),
       collection_node: (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-2xs font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-md">
-          <svg className="w-3.5 h-3.5 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-          </svg>
+        <span className="inline-flex items-center px-2.5 py-1 text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-md whitespace-nowrap">
           {toTitleCase(row.collectionName)}
         </span>
       ),
       old_price_node: (
-        <span className="font-bold text-gray-600 text-xs">
+        <span className="font-bold text-gray-600 text-xs whitespace-nowrap">
           {formatPrice(row.currentPrice)}
         </span>
       ),
       percent_node: (
         <span
-          className={`px-2.5 py-1 text-2xs font-extrabold rounded-md inline-block ${
+          className={`px-2.5 py-1 text-2xs font-extrabold rounded-md inline-block whitespace-nowrap ${
             isIncreased
               ? "bg-green-100 text-green-800 border border-green-200"
               : isDecreased
@@ -77,12 +74,12 @@ export function PreviewProductTable({ rows, isSaving }: PreviewProductTableProps
         </span>
       ),
       new_price_node: isSaving ? (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-teal-800 bg-teal-50 border border-teal-200 rounded-md">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-teal-800 bg-teal-50 border border-teal-200 rounded-md whitespace-nowrap">
           <div className="w-3.5 h-3.5 border-2 border-teal-600 border-t-transparent rounded-full animate-spin shrink-0" />
           Updating...
         </span>
       ) : typeof row.adjustedPrice === 'number' ? (
-        <div className="flex flex-col items-end gap-0.5">
+        <div className="flex flex-col items-end gap-0.5 whitespace-nowrap">
           <span className="font-extrabold text-xs sm:text-sm text-teal-900">
             {formatPrice(row.adjustedPrice)}
           </span>
@@ -93,7 +90,7 @@ export function PreviewProductTable({ rows, isSaving }: PreviewProductTableProps
           )}
         </div>
       ) : (
-        <span className="inline-flex items-center px-2.5 py-1 text-2xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-md">
+        <span className="inline-flex items-center px-2.5 py-1 text-2xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-md whitespace-nowrap">
           Pending Save
         </span>
       ),
@@ -101,7 +98,7 @@ export function PreviewProductTable({ rows, isSaving }: PreviewProductTableProps
   });
 
   return (
-    <div className="w-full overflow-hidden border border-gray-200 rounded-xl bg-white shadow-2xs">
+    <div className="w-full overflow-x-auto border border-gray-200 rounded-xl bg-white shadow-2xs">
       <Table
         headerColor="#0db69d"
         columns={columns}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticate, handleApiError } from "@/lib/shopify/authenticate";
 import { prisma } from "@/lib/db/prisma";
+import { getAdminClient } from "@/lib/shopify/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -87,11 +88,77 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const products = Array.from(productMap.values());
+    const cachedProducts = Array.from(productMap.values());
+
+    // Verify against live Shopify products to filter out deleted or archived items
+    let finalProducts = cachedProducts;
+    try {
+      const client = await getAdminClient(store.shopDomain);
+      const shopifyRes: any = await client.request(`
+        query getActiveProducts {
+          products(first: 250) {
+            edges {
+              node {
+                id
+                title
+                status
+              }
+            }
+          }
+        }
+      `);
+
+      const rawProductsData = shopifyRes?.data?.products || shopifyRes?.body?.data?.products || shopifyRes?.products;
+      const rawNodes = rawProductsData?.edges
+        ? rawProductsData.edges.map((e: any) => e.node)
+        : (rawProductsData?.nodes || []);
+
+      if (rawNodes.length > 0) {
+        const activeNodes = rawNodes.filter(
+          (n: any) => n.status !== "ARCHIVED" && n.status !== "DELETED"
+        );
+
+        const liveGids = new Set(activeNodes.map((n: any) => n.id));
+        const liveNumericIds = new Set(
+          activeNodes.map((n: any) => n.id.replace(/^gid:\/\/shopify\/Product\//i, ""))
+        );
+
+        finalProducts = cachedProducts.filter((p) => {
+          const rawGid = p.shopifyProductId.startsWith("gid://")
+            ? p.shopifyProductId
+            : `gid://shopify/Product/${p.shopifyProductId}`;
+          const cleanId = p.shopifyProductId.replace(/^gid:\/\/shopify\/Product\//i, "");
+
+          return liveGids.has(rawGid) || liveNumericIds.has(cleanId) || liveGids.has(p.shopifyProductId);
+        });
+
+        // Clean up orphaned cache items for deleted products in the background
+        const deletedProductIds = cachedProducts
+          .filter((p) => !finalProducts.some((fp) => fp.id === p.id))
+          .map((p) => p.shopifyProductId);
+
+        if (deletedProductIds.length > 0) {
+          console.log("[SKU API] Cleaning up deleted products from DB cache:", deletedProductIds);
+          prisma.productCache
+            .deleteMany({
+              where: { storeId: store.id, shopifyProductId: { in: deletedProductIds } },
+            })
+            .catch((err) => console.error("Error purging deleted productCache:", err));
+
+          prisma.variantMap
+            .deleteMany({
+              where: { storeId: store.id, shopifyProductId: { in: deletedProductIds } },
+            })
+            .catch((err) => console.error("Error purging deleted variantMap:", err));
+        }
+      }
+    } catch (shopifyErr: any) {
+      console.warn("[SKU API] Live Shopify product check skipped/failed, using cached active products:", shopifyErr.message);
+    }
 
     return NextResponse.json({
       success: true,
-      products,
+      products: finalProducts,
     });
   } catch (err: any) {
     console.error("[SKU API] GET Products Error:", err.message);
