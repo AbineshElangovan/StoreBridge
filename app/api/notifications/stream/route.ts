@@ -4,12 +4,28 @@ import { prisma } from '@/lib/db/prisma';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const shop = req.nextUrl.searchParams.get('shop');
+  let shop = req.nextUrl.searchParams.get('shop') || req.headers.get('x-shopify-shop-domain');
+  if (!shop && req.headers.get('referer')) {
+    try {
+      const refererUrl = new URL(req.headers.get('referer')!);
+      shop = refererUrl.searchParams.get('shop');
+    } catch (e) {}
+  }
 
   let currentStore: any = null;
   if (shop) {
-    currentStore = await prisma.store.findUnique({
-      where: { shopDomain: shop },
+    const clean = shop.trim().toLowerCase();
+    const prefix = clean.split('.')[0].replace(/^https?:\/\//, '');
+    currentStore = await prisma.store.findFirst({
+      where: {
+        isActive: true,
+        OR: [
+          { shopDomain: clean },
+          { shopDomain: { contains: prefix, mode: 'insensitive' } },
+          { label: { contains: prefix, mode: 'insensitive' } },
+          { id: clean },
+        ],
+      },
     });
   }
 
@@ -31,9 +47,6 @@ export async function GET(req: NextRequest) {
         ],
       },
     });
-
-    const isConnectedSubStore = !isMaster && connections.some((c) => c.targetStoreId === currentStore.id);
-    const isStandalone = !isMaster && !isConnectedSubStore;
 
     if (isMaster) {
       targetStoreIds = Array.from(
@@ -68,9 +81,16 @@ export async function GET(req: NextRequest) {
                   OR: [
                     { recipientStoreId: { in: targetStoreIds } },
                     { sourceStoreId: { in: targetStoreIds } },
+                    { targetStoreId: { in: targetStoreIds } },
                   ],
                 }
-              : { recipientStoreId: currentStore.id }),
+              : {
+                  OR: [
+                    { recipientStoreId: currentStore.id },
+                    { sourceStoreId: currentStore.id },
+                    { targetStoreId: currentStore.id },
+                  ],
+                }),
           };
 
           const newNotifications = await prisma.notification.findMany({

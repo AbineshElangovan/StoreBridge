@@ -16,16 +16,6 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '15', 10);
     const storeIdFilter = searchParams.get('storeId') || undefined;
 
-    // Clean up any duplicate notification records in database
-    const { prisma } = await import('@/lib/db/prisma');
-    await prisma.$executeRawUnsafe(`
-      DELETE FROM "notifications" a USING "notifications" b
-      WHERE a.id > b.id
-        AND a."recipientStoreId" = b."recipientStoreId"
-        AND a."type" = b."type"
-        AND a."title" = b."title"
-        AND a."productTitle" IS NOT DISTINCT FROM b."productTitle";
-    `).catch(() => { });
 
     let result = await getNotifications(store.id, {
       type,

@@ -64,7 +64,9 @@ export function ColorPickerModal({
         <div className="p-4 sm:p-5 border-b border-gray-100 flex items-center justify-between bg-teal-50/50">
           <div>
             <h2 className="text-base sm:text-lg font-extrabold text-gray-900 flex items-center gap-2">
-              <span className="text-xl">🎨</span>
+              <svg className="w-5 h-5 text-[#0db69d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+              </svg>
               <span>Color & Pattern Selector</span>
             </h2>
             <p className="text-xs text-gray-500 mt-0.5 font-medium">
@@ -74,9 +76,9 @@ export function ColorPickerModal({
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-xl font-bold p-1 rounded-md cursor-pointer"
+            className="text-gray-400 hover:text-gray-600 p-1 rounded-md cursor-pointer"
           >
-            ✕
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
 

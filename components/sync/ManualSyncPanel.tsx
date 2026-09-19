@@ -77,7 +77,7 @@ export function ManualSyncPanel() {
       const data = text ? JSON.parse(text) : {};
       if (res.ok && data.success) {
         if (data.isAlreadySynced) {
-          setResult({ type: 'warning', message: data.message || '⚠️ Selected stores are already fully in sync! No changes were needed.' });
+          setResult({ type: 'warning', message: data.message || 'Selected stores are already fully in sync! No changes were needed.' });
         } else {
           setResult({ type: 'success', message: data.message || 'Synchronization completed successfully!' });
         }

@@ -97,32 +97,31 @@ export async function createNotification(params: CreateNotificationParams) {
       return null;
     }
 
-    // 4. Anti-Spam De-duplication for ALL notification types (10 minute window)
+    // 4. Anti-Spam De-duplication for ALL notification types (1 minute window for exact message, 10 min for product)
     const cleanProductId = productId ? productId.replace(/^gid:\/\/shopify\/(Product|Variant)\//, '').trim() : null;
 
-    if (cleanProductId || productTitle) {
-      const recentDuplicate = await prisma.notification.findFirst({
-        where: {
-          recipientStoreId,
-          type,
-          title,
-          OR: [
-            ...(cleanProductId ? [
-              { productId: cleanProductId },
-              { productId: `gid://shopify/Product/${cleanProductId}` }
-            ] : []),
-            ...(productTitle ? [{ productTitle }] : [])
-          ],
-          createdAt: {
-            gte: new Date(Date.now() - 10 * 60 * 1000), // 10 minutes
-          },
+    const recentDuplicate = await prisma.notification.findFirst({
+      where: {
+        recipientStoreId,
+        type,
+        title,
+        OR: [
+          { message },
+          ...(cleanProductId ? [
+            { productId: cleanProductId },
+            { productId: `gid://shopify/Product/${cleanProductId}` }
+          ] : []),
+          ...(productTitle ? [{ productTitle }] : [])
+        ],
+        createdAt: {
+          gte: new Date(Date.now() - 2 * 60 * 1000), // 2 minutes anti-spam window
         },
-      });
+      },
+    });
 
-      if (recentDuplicate) {
-        console.log(`[NotificationService] Duplicate notification (${type} - ${title}) already exists for store ${recipientStoreId}. Skipping.`);
-        return recentDuplicate;
-      }
+    if (recentDuplicate) {
+      console.log(`[NotificationService] Duplicate notification (${type} - ${title}) already exists for store ${recipientStoreId}. Skipping.`);
+      return recentDuplicate;
     }
 
     // 5. Create notification record
@@ -245,11 +244,23 @@ export async function getNotifications(recipientStoreId: string, options: Notifi
       const activeFilterId = targetStoreIds.includes(storeIdFilter) ? storeIdFilter : recipientStoreId;
       andConditions.push({ recipientStoreId: activeFilterId });
     } else {
-      andConditions.push({ recipientStoreId: { in: targetStoreIds } });
+      andConditions.push({
+        OR: [
+          { recipientStoreId: { in: targetStoreIds } },
+          { sourceStoreId: { in: targetStoreIds } },
+          { targetStoreId: { in: targetStoreIds } },
+        ]
+      });
     }
   } else {
-    // For Sub-Store and Standalone stores: strictly only their own inbox
-    andConditions.push({ recipientStoreId });
+    // For Sub-Store and Standalone stores: strictly only their inbox/operations
+    andConditions.push({
+      OR: [
+        { recipientStoreId },
+        { targetStoreId: recipientStoreId },
+        { sourceStoreId: recipientStoreId },
+      ]
+    });
   }
 
   if (type && type !== 'ALL') {
@@ -280,6 +291,24 @@ export async function getNotifications(recipientStoreId: string, options: Notifi
 
   const whereClause: any = andConditions.length > 0 ? { AND: andConditions } : {};
 
+  const storeUnreadWhere: any = isMaster
+    ? {
+        OR: [
+          { recipientStoreId: { in: targetStoreIds } },
+          { sourceStoreId: { in: targetStoreIds } },
+          { targetStoreId: { in: targetStoreIds } },
+        ],
+        isRead: false,
+      }
+    : {
+        OR: [
+          { recipientStoreId },
+          { targetStoreId: recipientStoreId },
+          { sourceStoreId: recipientStoreId },
+        ],
+        isRead: false,
+      };
+
   const [rawNotifications, total, unreadCount] = await Promise.all([
     prisma.notification.findMany({
       where: whereClause,
@@ -294,10 +323,7 @@ export async function getNotifications(recipientStoreId: string, options: Notifi
     }),
     prisma.notification.count({ where: whereClause }),
     prisma.notification.count({
-      where: {
-        recipientStoreId: isMaster ? { in: targetStoreIds } : recipientStoreId,
-        isRead: false,
-      },
+      where: storeUnreadWhere,
     }),
   ]);
 
@@ -334,11 +360,24 @@ export async function getNotifications(recipientStoreId: string, options: Notifi
     })
   );
 
+  // Deduplicate identical notifications before returning to UI
+  const uniqueNotifications: typeof enrichedNotifications = [];
+  const seenKeys = new Set<string>();
+
+  for (const notif of enrichedNotifications) {
+    const timeBucket = Math.floor(new Date(notif.createdAt).getTime() / (60 * 1000));
+    const key = `${notif.recipientStoreId}_${notif.type}_${notif.title}_${notif.message}_${timeBucket}`;
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      uniqueNotifications.push(notif);
+    }
+  }
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return {
-    notifications: enrichedNotifications,
-    total,
+    notifications: uniqueNotifications,
+    total: uniqueNotifications.length,
     page: pageNum,
     limit: pageSize,
     totalPages,
@@ -401,9 +440,14 @@ export async function markAsRead(recipientStoreId: string, notificationId: strin
  */
 export async function markAllAsRead(recipientStoreId: string) {
   try {
+    const targetIds = await getTargetStoreIds(recipientStoreId);
     return await prisma.notification.updateMany({
       where: {
-        recipientStoreId: recipientStoreId,
+        OR: [
+          { recipientStoreId: { in: targetIds } },
+          { targetStoreId: { in: targetIds } },
+          { sourceStoreId: { in: targetIds } },
+        ],
         isRead: false,
       },
       data: {
@@ -437,9 +481,14 @@ export async function deleteNotification(recipientStoreId: string, notificationI
  */
 export async function deleteAllNotifications(recipientStoreId: string) {
   try {
+    const targetIds = await getTargetStoreIds(recipientStoreId);
     return await prisma.notification.deleteMany({
       where: {
-        recipientStoreId: recipientStoreId,
+        OR: [
+          { recipientStoreId: { in: targetIds } },
+          { targetStoreId: { in: targetIds } },
+          { sourceStoreId: { in: targetIds } },
+        ],
       },
     });
   } catch (error) {

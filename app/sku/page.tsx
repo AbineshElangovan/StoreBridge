@@ -110,7 +110,7 @@ export default function SkuSettingsPage() {
   }${skuSequence ? skuSequence.toString().padStart(4, "0") : "0001"}`;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto mb-16 space-y-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden space-y-6">
       {/* Header Banner */}
       <div className="border-b border-gray-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

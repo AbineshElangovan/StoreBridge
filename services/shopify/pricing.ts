@@ -11,11 +11,13 @@ import {
   ADD_PRODUCT_TO_COLLECTION_MUTATION, GET_PUBLICATIONS_QUERY, PUBLISH_MUTATION
 } from './graphql';
 import { syncProductCollectionsByTags } from './collection-sync';
+import { normalizeTagOrCollection } from '@/lib/utils/categoryNormalization';
 
 export async function calculateAdjustedPrice(
   sourceBasePrice: number, 
   targetStore: any,
-  productCollections: string[] = []
+  productCollections: string[] = [],
+  preloadedRules?: any[]
 ): Promise<string> {
   // 1. Calculate Base Price (Directly use source base price)
   let basePrice = sourceBasePrice;
@@ -23,24 +25,30 @@ export async function calculateAdjustedPrice(
   // 2. Apply Target Adjustment
   let adjusted = basePrice;
   
-  const targetRules = await prisma.collectionPriceAdjustment.findMany({
+  const allEnabledRules = preloadedRules || await prisma.collectionPriceAdjustment.findMany({
     where: {
       storeId: targetStore?.id,
       enabled: true,
-      collection: { title: { in: productCollections } }
     },
     include: { collection: true }
+  });
+
+  const normalizedInputCollections = productCollections.map(c => c.trim().toLowerCase());
+
+  const targetRules = allEnabledRules.filter(rule => {
+    const colTitle = rule.collection?.title?.trim().toLowerCase();
+    return colTitle ? normalizedInputCollections.includes(colTitle) : false;
   });
 
   if (targetRules.length > 0) {
     if (targetRules.length > 1) {
       // Sort to prioritize the highest adjustment value
       targetRules.sort((a, b) => b.adjustmentValue - a.adjustmentValue);
-      console.warn(`[Pricing] Target store ${targetStore?.shopDomain} has multiple conflicting collection rules for product. Picking the highest: ${targetRules[0].collection.title}`);
+      console.warn(`[Pricing] Target store ${targetStore?.shopDomain} has multiple conflicting collection rules for product. Picking the highest: ${targetRules[0].collection?.title}`);
     }
     
     const rule = targetRules[0];
-    console.log(`[Pricing] Applying Collection Rule for ${rule.collection.title}: ${rule.adjustmentType} ${rule.adjustmentValue}`);
+    console.log(`[Pricing] Applying Collection Rule for ${rule.collection?.title}: ${rule.adjustmentType} ${rule.adjustmentValue}`);
     if (rule.adjustmentType === 'PERCENTAGE') {
       adjusted = basePrice * (1 + rule.adjustmentValue / 100);
     } else if (rule.adjustmentType === 'FIXED') {
@@ -113,143 +121,305 @@ export async function applyPriceAdjustmentToStore(storeId: string) {
 
   console.log(`[PriceAdjustment] Target store: ${targetStore.shopDomain}, Source store: ${sourceStore.shopDomain}`);
 
-  // Get all variant maps for this target store
-  const variantMaps = await prisma.variantMap.findMany({
+  // Pre-fetch all enabled collection adjustment rules for targetStore
+  const allEnabledRules = await prisma.collectionPriceAdjustment.findMany({
+    where: {
+      storeId: targetStore.id,
+      enabled: true,
+    },
+    include: { collection: true }
+  });
+
+  // Fetch ALL cached products for this target store
+  const targetCaches = await prisma.productCache.findMany({
     where: { storeId }
   });
 
-  console.log(`[PriceAdjustment] Found ${variantMaps.length} mapped variants to process.`);
+  console.log(`[PriceAdjustment] Found ${targetCaches.length} products in local cache to process for store ${storeId}.`);
 
-  const client = await getAdminClient(targetStore.shopDomain);
-
-  // Group variant maps by shopifyProductId to perform batch updates per product
-  const mapsByProduct: { [productId: string]: typeof variantMaps } = {};
-  variantMaps.forEach(map => {
-    if (map.shopifyProductId) {
-      if (!mapsByProduct[map.shopifyProductId]) {
-        mapsByProduct[map.shopifyProductId] = [];
+  // Group caches by shopifyProductId to perform batch updates per product in Shopify
+  const cachesByProduct: { [productId: string]: typeof targetCaches } = {};
+  targetCaches.forEach(cache => {
+    if (cache.shopifyProductId) {
+      if (!cachesByProduct[cache.shopifyProductId]) {
+        cachesByProduct[cache.shopifyProductId] = [];
       }
-      mapsByProduct[map.shopifyProductId].push(map);
+      cachesByProduct[cache.shopifyProductId].push(cache);
     }
   });
 
-  for (const [productId, maps] of Object.entries(mapsByProduct)) {
+  const productUpdatesToProcess: {
+    productId: string;
+    variantsUpdateInput: any[];
+    cacheUpdates: { id: string; price: number; basePrice: number }[];
+  }[] = [];
+
+  let totalUpdatedCount = 0;
+
+  const updatedCollectionStatsMap = new Map<string, { title: string; type: string; val: number; count: number }>();
+
+  for (const [productId, caches] of Object.entries(cachesByProduct)) {
     const variantsUpdateInput: any[] = [];
-    const cacheUpdates: { variantId: string; price: number; basePrice: number }[] = [];
+    const cacheUpdates: { id: string; price: number; basePrice: number }[] = [];
 
-    for (const map of maps) {
-      if (!map.sku) continue;
-      if (!map.shopifyVariantId) continue;
+    for (const cache of caches) {
+      if (!cache.shopifyVariantId) continue;
 
-      // Find the corresponding cached product in the source store
-      const sourceCache = await prisma.productCache.findFirst({
-        where: {
-          storeId: sourceStore.id,
-          sku: map.sku
+      // Locate corresponding source cache if target is connected store
+      let sourceCache: any = cache;
+      if (sourceStore.id !== targetStore.id && cache.sku) {
+        const found = await prisma.productCache.findFirst({
+          where: {
+            storeId: sourceStore.id,
+            sku: cache.sku
+          }
+        });
+        if (found) {
+          sourceCache = found;
         }
-      });
-
-      if (!sourceCache) {
-        console.log(`[PriceAdjustment] SKU ${map.sku} not found in source store cache. Skipping.`);
-        continue;
       }
 
-      // Get collections for this product cache
-      const productCollections = await prisma.collectionProduct.findMany({
-        where: { productCacheId: sourceCache.id },
+      // Get collections for this product using robust multi-source resolution matching Product Page API
+      let rawCategories: string[] = [];
+
+      // 1. Direct collection links
+      const pcs = await prisma.collectionProduct.findMany({
+        where: {
+          OR: [
+            { productCacheId: cache.id },
+            { productCacheId: sourceCache.id },
+          ]
+        },
         include: { collection: true }
       });
-      const collectionTitles = productCollections.map(pc => pc.collection.title);
+      pcs.forEach(pc => {
+        if (pc.collection?.title) rawCategories.push(pc.collection.title);
+      });
 
-      // IMPORTANT: Use sourceCache.basePrice to calculate the new price!
-      // If basePrice is 0 (old data), fallback to price.
+      // 2. Cross-store SKU collection links
+      const targetSku = cache.sku || sourceCache.sku;
+      if (targetSku) {
+        const crossStoreCols = await prisma.collectionProduct.findMany({
+          where: {
+            productCache: { sku: targetSku }
+          },
+          include: { collection: true }
+        });
+        crossStoreCols.forEach(c => {
+          if (c.collection?.title) rawCategories.push(c.collection.title);
+        });
+      }
+
+      // 3. Tags
+      if (cache.tags) rawCategories.push(...cache.tags.split(','));
+      if (sourceCache.tags) rawCategories.push(...sourceCache.tags.split(','));
+
+      // 4. Apply dynamic category/tag normalization
+      let collectionTitles: string[] = [];
+      for (const rawCat of rawCategories) {
+        if (!rawCat) continue;
+        const finalCat = normalizeTagOrCollection(rawCat);
+        if (finalCat && !collectionTitles.includes(finalCat)) {
+          collectionTitles.push(finalCat);
+        }
+      }
+
+      // Track matching collection rules for detailed notification/activity reporting
+      const normalizedInputCollections = collectionTitles.map(c => c.trim().toLowerCase());
+      const matchingRules = allEnabledRules.filter(rule => {
+        const colTitle = rule.collection?.title?.trim().toLowerCase();
+        return colTitle ? normalizedInputCollections.includes(colTitle) : false;
+      });
+
+      if (matchingRules.length > 0) {
+        matchingRules.sort((a, b) => Math.abs(b.adjustmentValue) - Math.abs(a.adjustmentValue));
+        const appliedRule = matchingRules[0];
+        if (appliedRule && appliedRule.adjustmentValue !== 0) {
+          const colTitle = appliedRule.collection?.title || collectionTitles[0] || 'General';
+
+          if (!updatedCollectionStatsMap.has(colTitle)) {
+            updatedCollectionStatsMap.set(colTitle, {
+              title: colTitle,
+              type: appliedRule.adjustmentType,
+              val: appliedRule.adjustmentValue,
+              count: 0
+            });
+          }
+          updatedCollectionStatsMap.get(colTitle)!.count++;
+        }
+      }
+
+      // IMPORTANT: Use basePrice to calculate the new price!
       const safeBasePrice = sourceCache.basePrice > 0 ? sourceCache.basePrice : sourceCache.price;
-      const newPriceStr = await calculateAdjustedPrice(safeBasePrice, targetStore, collectionTitles);
+      const newPriceStr = await calculateAdjustedPrice(safeBasePrice, targetStore, collectionTitles, allEnabledRules);
       const newPrice = parseFloat(newPriceStr);
-      
-      // If the new price is different from the base price, we push the base price to compareAtPrice
-      // If they are the same (0% adjustment), we clear the compareAtPrice by passing null.
+
       const isAdjusted = newPrice !== safeBasePrice;
       const compareAtPriceStr = isAdjusted ? safeBasePrice.toFixed(2) : null;
 
       variantsUpdateInput.push({
-        id: map.shopifyVariantId,
+        id: cache.shopifyVariantId,
         price: newPriceStr,
         compareAtPrice: compareAtPriceStr
       });
 
       cacheUpdates.push({
-        variantId: map.shopifyVariantId,
+        id: cache.id,
         price: newPrice,
         basePrice: safeBasePrice
       });
     }
 
-    if (variantsUpdateInput.length === 0) continue;
-
-    console.log(`[PriceAdjustment] Saving Expected Prices to local DB for product ${productId}...`);
-
-    try {
-      // Update local productCache database records BEFORE calling Shopify to prevent webhook race conditions.
-      // ProductCache.price acts as the Expected StoreBridge Price.
-      for (const update of cacheUpdates) {
-        await prisma.productCache.updateMany({
-          where: {
-            storeId,
-            shopifyVariantId: update.variantId
-          },
-          data: {
-            price: update.price,
-            basePrice: update.basePrice
-          }
-        });
-      }
-
-      console.log(`[PriceAdjustment] Sending price updates to Shopify for product ${productId}...`);
-
-      // Use Shopify's productVariantsBulkUpdate mutation to update variant prices
-      const response: any = await client.request(`
-        mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-            productVariants {
-              id
-              price
-              compareAtPrice
-            }
-            userErrors {
-              field
-              message
-            }
-          }
-        }
-      `, {
-        variables: {
-          productId,
-          variants: variantsUpdateInput
-        }
+    if (cacheUpdates.length > 0) {
+      productUpdatesToProcess.push({
+        productId,
+        variantsUpdateInput,
+        cacheUpdates
       });
-
-      const userErrors = response?.data?.productVariantsBulkUpdate?.userErrors || [];
-      if (userErrors.length > 0) {
-        console.error(`[PriceAdjustment] Shopify returned errors for product ${productId}:`, userErrors.map((e: any) => e.message).join(', '));
-      }
-
-      console.log(`[PriceAdjustment] Successfully updated prices for product ${productId} on Shopify and local cache.`);
-    } catch (err: any) {
-      console.error(`[PriceAdjustment] Failed to update variants for product ${productId}:`, err.message);
     }
   }
 
-  // Trigger PRICE_UPDATE notification for target store
-  const storeLabel = targetStore.label || targetStore.shopDomain;
-  await createNotification({
-    recipientStoreId: storeId,
-    type: 'PRICE_UPDATE',
-    title: 'Price Adjustment Updated',
-    message: `Price adjustments applied successfully for ${storeLabel}`,
-    sourceStoreId: sourceStore?.id,
-    targetStoreId: storeId,
-  });
+  // STEP 1: IMMEDIATELY UPDATE ALL LOCAL DATABASE RECORDS FOR ALL PRODUCTS IN A FAST PASS
+  console.log(`[PriceAdjustment] Updating DB records for ${productUpdatesToProcess.length} products...`);
+  const now = new Date();
+  for (const item of productUpdatesToProcess) {
+    for (const update of item.cacheUpdates) {
+      await prisma.productCache.update({
+        where: { id: update.id },
+        data: {
+          price: update.price,
+          basePrice: update.basePrice,
+          updatedAt: now
+        }
+      });
+      totalUpdatedCount++;
+    }
+  }
+  console.log(`[PriceAdjustment] Local DB successfully updated for ${totalUpdatedCount} product variants.`);
+
+  // STEP 2: ASYNCHRONOUSLY PUSH PRICE UPDATES TO SHOPIFY API IN BACKGROUND
+  (async () => {
+    try {
+      const client = await getAdminClient(targetStore.shopDomain);
+      for (const item of productUpdatesToProcess) {
+        try {
+          const response: any = await client.request(`
+            mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+              productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+                productVariants {
+                  id
+                  price
+                  compareAtPrice
+                }
+                userErrors {
+                  field
+                  message
+                }
+              }
+            }
+          `, {
+            variables: {
+              productId: item.productId,
+              variants: item.variantsUpdateInput
+            }
+          });
+
+          const userErrors = response?.data?.productVariantsBulkUpdate?.userErrors || [];
+          if (userErrors.length > 0) {
+            console.error(`[PriceAdjustment] Shopify returned errors for product ${item.productId}:`, userErrors.map((e: any) => e.message).join(', '));
+          }
+        } catch (err: any) {
+          console.error(`[PriceAdjustment] Failed to update variants for product ${item.productId} on Shopify:`, err.message);
+        }
+      }
+      console.log(`[PriceAdjustment] Finished pushing price adjustments to Shopify for store ${storeId}`);
+    } catch (err: any) {
+      console.error(`[PriceAdjustment] Shopify bulk update task error:`, err.message);
+    }
+  })();
+
+  // Send ActivityLog entry and Notification per price adjustment save operation
+  const nonZeroRules = allEnabledRules.filter(r => r.adjustmentValue !== 0);
+  if (totalUpdatedCount > 0 || nonZeroRules.length > 0) {
+    const storeLabel = targetStore.label || targetStore.shopDomain;
+    let activeEntries = Array.from(updatedCollectionStatsMap.values()).filter(e => e.count > 0 && e.val !== 0);
+
+    // Fallback: If activeEntries is empty, calculate dynamic count per collection directly from database
+    if (activeEntries.length === 0 && nonZeroRules.length > 0) {
+      for (const rule of nonZeroRules) {
+        if (!rule.collection?.title) continue;
+        const colTitle = rule.collection.title;
+        const normCol = normalizeTagOrCollection(colTitle);
+        const count = await prisma.productCache.count({
+          where: {
+            storeId: targetStore.id,
+            OR: [
+              { collections: { some: { collection: { title: { equals: colTitle, mode: 'insensitive' } } } } },
+              { tags: { contains: normCol, mode: 'insensitive' } },
+            ]
+          }
+        });
+        activeEntries.push({
+          title: normCol || colTitle,
+          type: rule.adjustmentType,
+          val: rule.adjustmentValue,
+          count: count
+        });
+      }
+    }
+
+    let summaryText = '';
+    let collectionsField = '';
+
+    if (activeEntries.length > 0) {
+      const formattedItems = activeEntries.map(e => {
+        const sign = e.val >= 0 ? '+' : '';
+        const unit = e.type === 'PERCENTAGE' ? '%' : '';
+        const pCount = e.count > 0 ? ` [${e.count} product${e.count > 1 ? 's' : ''}]` : '';
+        return `${e.title} (${sign}${e.val}${unit})${pCount}`;
+      });
+
+      collectionsField = activeEntries.map(e => e.title).join(', ');
+
+      if (activeEntries.length === 1) {
+        summaryText = formattedItems[0];
+      } else if (activeEntries.length <= 3) {
+        summaryText = formattedItems.join(', ');
+      } else {
+        summaryText = `${formattedItems.slice(0, 3).join(', ')} and ${activeEntries.length - 3} other collection${activeEntries.length - 3 > 1 ? 's' : ''}`;
+      }
+    } else {
+      summaryText = 'Collections';
+      collectionsField = 'Price Adjustment';
+    }
+
+    const totalAffectedCount = activeEntries.reduce((sum, e) => sum + e.count, 0);
+    const totalSuffix = activeEntries.length > 1 && totalAffectedCount > 0 
+      ? ` (${totalAffectedCount} products updated total)` 
+      : '';
+      
+    const logDescription = `Price adjustment applied for ${summaryText} in ${storeLabel}${totalSuffix}`;
+
+    await prisma.activityLog.create({
+      data: {
+        storeId: targetStore.id,
+        productTitle: `Price Adjustment (${collectionsField})`,
+        eventType: 'UPDATE',
+        description: logDescription,
+        collection: collectionsField,
+      }
+    });
+
+    // Create exactly 1 notification for the target store
+    await createNotification({
+      recipientStoreId: targetStore.id,
+      type: 'PRICE_UPDATE',
+      title: 'Price Adjustment Updated',
+      message: `Price adjustment applied for ${summaryText} in ${storeLabel}${totalSuffix}`,
+      sourceStoreId: sourceStore?.id,
+      targetStoreId: targetStore.id,
+    });
+  }
 
   console.log(`[PriceAdjustment] Bulk price adjustment completed for store ${storeId}`);
 }
@@ -257,4 +427,4 @@ export async function applyPriceAdjustmentToStore(storeId: string) {
 
 /**
  * Synchronizes custom collections for a specific product across stores.
- */
+ */

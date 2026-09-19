@@ -103,7 +103,7 @@ export function SkuGeneratorContainer() {
       const data = await res.json();
       if (data.success) {
         setToast({
-          message: `✅ Successfully created ${data.summary.createdCount} new variants and synchronized with Shopify!`,
+          message: `Successfully created ${data.summary.createdCount} new variants and synchronized with Shopify!`,
           type: "success",
         });
 

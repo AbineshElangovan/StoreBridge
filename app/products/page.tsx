@@ -112,7 +112,7 @@ export default function ProductsPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full overflow-x-hidden">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden">
       <div className="flex flex-col gap-8 min-w-0 w-full">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 lg:gap-8">
           <div>
@@ -120,13 +120,13 @@ export default function ProductsPage() {
               Products & Collections
             </h1>
             <p style={{ marginTop: 4, color: '#6b7280', fontSize: '0.875rem' }}>
-              Products and collections for your connected store. 
+              Products and collections for your connected store.
             </p>
             <div style={{ marginTop: 8, padding: '8px 12px', backgroundColor: '#eff6ff', borderLeft: '4px solid #3b82f6', borderRadius: '4px', fontSize: '0.875rem', color: '#1e3a8a' }}>
               <strong>Note:</strong> Collections are managed in Shopify Admin. This page is read-only and automatically syncs changes from Shopify.
             </div>
           </div>
-          
+
           <div className="flex flex-wrap lg:flex-nowrap items-center gap-4">
             {/* Overall Search Bar */}
             <div className="relative w-full md:w-80 shadow-sm rounded-lg">
@@ -147,60 +147,60 @@ export default function ProductsPage() {
         </div>
 
         <div className="flex flex-col gap-8 min-w-0 w-full">
-            <DashboardCards stats={{ ...stats, lastUpdated: 'Just now' }} lowStockThreshold={data?.lowStockThreshold ?? 15} />
-            {searchQuery.trim() !== '' ? (
-              <div className="w-full overflow-hidden rounded-xl border border-gray-100 shadow-sm">
-                <div className="overflow-x-auto w-full max-w-full">
-                  <Table
-                    key="search-results"
-                    title="Search Results"
-                    headerColor="#6366f1"
-                    columns={columns}
-                    items={filterProducts(allProducts).map(item => ({
-                      ...item,
-                      title_node: (
-                        <Link 
-                          href={getProductUrl(item)}
-                          className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
-                        >
-                          {item.title}
-                        </Link>
-                      ),
-                      updatedDate: <LocalizedDate date={item.updatedDate || item.updatedAt} format="datetime" />
-                    }))}
-                    searchable={false}
-                    filterable
-                    itemsPerPage={50}
-                    filterKey="stockLevel"
-                    filterOptions={[
-                      { label: 'All Stock Levels', value: 'ALL' },
-                      { label: 'Healthy', value: 'Healthy' },
-                      { label: 'Low', value: 'Low' },
-                      { label: 'Critical', value: 'Critical' },
-                      { label: 'Out of Stock', value: 'Out of Stock' },
-                    ]}
-                    emptyState={
-                      <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
-                        No products found matching your search.
-                      </div>
-                    }
-                  />
-                </div>
+          <DashboardCards stats={{ ...stats, lastUpdated: 'Just now' }} lowStockThreshold={data?.lowStockThreshold ?? 15} />
+          {searchQuery.trim() !== '' ? (
+            <div className="w-full overflow-hidden rounded-xl border border-gray-100 shadow-sm">
+              <div className="overflow-x-auto w-full max-w-full">
+                <Table
+                  key="search-results"
+                  title="Search Results"
+                  headerColor="#6366f1"
+                  columns={columns}
+                  items={filterProducts(allProducts).map(item => ({
+                    ...item,
+                    title_node: (
+                      <Link
+                        href={getProductUrl(item)}
+                        className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
+                      >
+                        {item.title}
+                      </Link>
+                    ),
+                    updatedDate: <LocalizedDate date={item.updatedDate || item.updatedAt} format="datetime" />
+                  }))}
+                  searchable={false}
+                  filterable
+                  itemsPerPage={50}
+                  filterKey="stockLevel"
+                  filterOptions={[
+                    { label: 'All Stock Levels', value: 'ALL' },
+                    { label: 'Healthy', value: 'Healthy' },
+                    { label: 'Low', value: 'Low' },
+                    { label: 'Critical', value: 'Critical' },
+                    { label: 'Out of Stock', value: 'Out of Stock' },
+                  ]}
+                  emptyState={
+                    <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
+                      No products found matching your search.
+                    </div>
+                  }
+                />
               </div>
-            ) : loading ? (
-              <div className="w-full h-64 flex flex-col items-center justify-center bg-white rounded-xl border border-gray-100 shadow-sm gap-4">
-                <div className="w-11 h-11 rounded-full border-4 border-gray-200 border-t-indigo-600 animate-spin" />
-                <p className="text-sm text-gray-400 font-medium">Loading products...</p>
-              </div>
-            ) : Object.keys(groupedProducts).length > 0 ? (() => {
-              const colors = ['#6366f1', '#0f766e', '#7c3aed', '#db2777', '#ea580c', '#0891b2'];
-              return Object.entries(groupedProducts)
-                .sort((a, b) => {
-                  if (a[0] === 'Uncategorized') return 1;
-                  if (b[0] === 'Uncategorized') return -1;
-                  return a[0].localeCompare(b[0]);
-                })
-                .map(([collectionName, items], index) => {
+            </div>
+          ) : loading ? (
+            <div className="w-full h-64 flex flex-col items-center justify-center bg-white rounded-xl border border-gray-100 shadow-sm gap-4">
+              <div className="w-11 h-11 rounded-full border-4 border-gray-200 border-t-indigo-600 animate-spin" />
+              <p className="text-sm text-gray-400 font-medium">Loading products...</p>
+            </div>
+          ) : Object.keys(groupedProducts).length > 0 ? (() => {
+            const colors = ['#6366f1', '#0f766e', '#7c3aed', '#db2777', '#ea580c', '#0891b2'];
+            return Object.entries(groupedProducts)
+              .sort((a, b) => {
+                if (a[0] === 'Uncategorized') return 1;
+                if (b[0] === 'Uncategorized') return -1;
+                return a[0].localeCompare(b[0]);
+              })
+              .map(([collectionName, items], index) => {
                 const filteredItems = filterProducts(items as any[]);
                 return (
                   <div key={collectionName} className="w-full overflow-hidden rounded-xl border border-gray-100 shadow-sm mb-6">
@@ -212,7 +212,7 @@ export default function ProductsPage() {
                         items={filteredItems.map(item => ({
                           ...item,
                           title_node: (
-                            <Link 
+                            <Link
                               href={getProductUrl(item)}
                               className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
                             >
@@ -242,12 +242,12 @@ export default function ProductsPage() {
                   </div>
                 );
               });
-            })() : (
-              <div style={{ backgroundColor: '#fff', padding: '60px', borderRadius: 12, border: '1px solid #e5e7eb', textAlign: 'center', color: '#6b7280' }}>
-                No products or collections synced for this store yet.
-              </div>
-            )}
-          </div>
+          })() : (
+            <div style={{ backgroundColor: '#fff', padding: '60px', borderRadius: 12, border: '1px solid #e5e7eb', textAlign: 'center', color: '#6b7280' }}>
+              No products or collections synced for this store yet.
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

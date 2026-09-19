@@ -129,9 +129,8 @@ export async function PUT(
       }
     });
 
-    // Trigger price application for the specific store that was updated in the background
-    // This allows the UI to return instantly without waiting for Shopify to finish syncing.
-    applyPriceAdjustmentToStore(storeId).catch((err: any) => {
+    // Apply price adjustment: update local DB synchronously first so Product Page gets immediate response
+    await applyPriceAdjustmentToStore(storeId).catch((err: any) => {
       console.error(`[CollectionAdjustments:PUT] Failed to apply price adjustments for store ${storeId}:`, err.message);
     });
 

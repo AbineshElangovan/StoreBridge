@@ -73,7 +73,7 @@ export default function SyncPage() {
   };
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto mb-16 bg-gray-50 min-h-screen w-full">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden">
       <div className="mb-6 pb-2">
         <h1 className="text-2xl font-bold text-gray-900">Store Synchronization</h1>
         <p className="text-gray-600 mt-1">Manage and monitor product replication between your stores.</p>

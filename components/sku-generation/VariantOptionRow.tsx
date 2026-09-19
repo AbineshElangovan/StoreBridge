@@ -109,7 +109,9 @@ export function VariantOptionRow({
           <div>
             <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
               {isColorOption ? (
-                <span className="text-base">🎨</span>
+                <svg className="w-4 h-4 text-[#0db69d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                </svg>
               ) : (
                 <svg className="w-3.5 h-3.5 text-[#0db69d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h10M7 12h10m-7 5h7" />
@@ -165,7 +167,9 @@ export function VariantOptionRow({
       <div className="flex items-center justify-between border-b border-gray-100 pb-3">
         <div className="flex items-center gap-2 flex-1 max-w-sm">
           {isColorOption ? (
-            <span className="text-lg">🎨</span>
+            <svg className="w-4 h-4 text-[#0db69d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+            </svg>
           ) : (
             <svg className="w-4 h-4 text-[#0db69d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h10M7 12h10m-7 5h7" />
@@ -189,7 +193,9 @@ export function VariantOptionRow({
               disabled={disabled}
               className="px-3.5 py-1.5 text-xs font-extrabold text-white bg-[#0db69d] hover:bg-[#0a9984] rounded-lg transition-all shadow-2xs cursor-pointer flex items-center gap-1.5"
             >
-              <span>🎨</span>
+              <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+              </svg>
               <span>Open Color Swatches</span>
             </button>
           )}
@@ -310,7 +316,9 @@ export function VariantOptionRow({
           <div className="flex items-center justify-between">
             <span className="text-xs font-extrabold text-[#0f766e] flex items-center gap-1.5">
               {isColorOption ? (
-                <span>🎨</span>
+                <svg className="w-3.5 h-3.5 text-[#0db69d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                </svg>
               ) : (
                 <svg className="w-3.5 h-3.5 text-[#0db69d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -349,7 +357,9 @@ export function VariantOptionRow({
                 >
                   {isColorOption && <ColorSwatchIcon colorName={val} size="sm" />}
                   <span>
-                    {isSelected ? "✓ " : "+ "}
+                    {isSelected ? (
+                      <svg className="w-3 h-3 text-white inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+                    ) : "+ "}
                     {val}
                   </span>
                 </button>

@@ -30,25 +30,25 @@ export default function DashboardPage() {
         } else {
           try {
             const errorData = await res.json();
-            
+
             if (res.status === 401 && errorData.message === "Store not installed or inactive") {
               console.warn("[Dashboard] Store is missing from database. Redirecting to OAuth to reinstall...");
               const urlParams = new URLSearchParams(window.location.search);
               const shop = urlParams.get('shop');
               const host = urlParams.get('host');
               if (shop) {
-                 const authUrl = new URL('/api/auth', window.location.origin);
-                 authUrl.searchParams.set('shop', shop);
-                 if (host) authUrl.searchParams.set('host', host);
-                 window.location.href = authUrl.toString();
-                 return;
+                const authUrl = new URL('/api/auth', window.location.origin);
+                authUrl.searchParams.set('shop', shop);
+                if (host) authUrl.searchParams.set('host', host);
+                window.location.href = authUrl.toString();
+                return;
               }
             } else if (res.status === 401) {
               console.warn("[Dashboard] Session token expired or invalid (401). App bridge should handle refreshing the token.");
             } else {
               console.error(`[Dashboard] API returned an error: ${res.status} ${res.statusText}`, errorData);
             }
-          } catch(e) {
+          } catch (e) {
             console.error(`[Dashboard] API returned an error: ${res.status} ${res.statusText}`);
           }
         }
@@ -105,7 +105,7 @@ export default function DashboardPage() {
     id: p.id,
     imageUrls: p.imageUrls || (p.imageUrl ? [p.imageUrl] : []),
     title_node: (
-      <Link 
+      <Link
         href={getProductUrl(p)}
         className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
       >
@@ -134,7 +134,7 @@ export default function DashboardPage() {
     id: p.id,
     imageUrls: p.imageUrls || (p.imageUrl ? [p.imageUrl] : []),
     title_node: (
-      <Link 
+      <Link
         href={getProductUrl(p)}
         className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
       >
@@ -162,7 +162,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full overflow-x-hidden">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden">
       <div className="flex flex-col gap-8 min-w-0 w-full">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -179,7 +179,7 @@ export default function DashboardPage() {
 
         {/* Only show charts if multi-store */}
         {!isStandalone && (
-          <DashboardCharts chartData={{ 
+          <DashboardCharts chartData={{
             combinedData: !data?.stores ? [] : data.stores.map((s: any) => ({
               name: s.label || s.shopDomain,
               'Total Products': s.productCount,

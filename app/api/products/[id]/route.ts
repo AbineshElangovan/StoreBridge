@@ -370,6 +370,7 @@ export async function PATCH(
     const updateData: any = {};
     if (typeof price === 'number' && price >= 0) {
       updateData.price = price;
+      updateData.basePrice = price;
     }
     if (typeof quantity === 'number' && quantity >= 0) {
       updateData.inventoryQuantity = quantity;

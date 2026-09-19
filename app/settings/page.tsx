@@ -12,6 +12,8 @@ import { StoreRoleBadge } from '@/components/ui/StoreRoleBadge';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 import { ConfirmToast } from '@/components/ui/ConfirmToast';
 import { StorePerformanceRules, StorePerformanceSetting } from '@/components/settings/StorePerformanceRules';
+import { Icon } from '@shopify/polaris';
+import { CheckIcon } from '@shopify/polaris-icons';
 
 
 export default function SettingsPage() {
@@ -112,14 +114,14 @@ export default function SettingsPage() {
       const data = await res.json();
       if (res.ok && data.success) {
         if (data.stores) setPerformanceStores(data.stores);
-        setToastMessage({ message: '✅ Store Performance Rules saved.', type: 'success' });
+        setToastMessage({ message: 'Store Performance Rules saved.', type: 'success' });
         return true;
       } else {
-        setToastMessage({ message: `❌ Save failed: ${data.error}`, type: 'error' });
+        setToastMessage({ message: `Save failed: ${data.error}`, type: 'error' });
         return false;
       }
     } catch (err: any) {
-      setToastMessage({ message: '❌ Save failed.', type: 'error' });
+      setToastMessage({ message: 'Save failed.', type: 'error' });
       return false;
     }
   };
@@ -145,12 +147,12 @@ export default function SettingsPage() {
       const data = await res.json();
       if (res.ok && data.success) {
         if (data.stores) setPerformanceStores(data.stores);
-        setToastMessage({ message: '✅ Inventory Planning Rules saved.', type: 'success' });
+        setToastMessage({ message: 'Inventory Planning Rules saved.', type: 'success' });
       } else {
-        setToastMessage({ message: `❌ Save failed: ${data.error}`, type: 'error' });
+        setToastMessage({ message: `Save failed: ${data.error}`, type: 'error' });
       }
     } catch (err: any) {
-      setToastMessage({ message: '❌ Save failed.', type: 'error' });
+      setToastMessage({ message: 'Save failed.', type: 'error' });
     }
   };
 
@@ -198,6 +200,8 @@ export default function SettingsPage() {
   };
 
   const promptMakeStandalone = (storeId: string) => {
+    const targetStore = stores.find((s) => s.id === storeId);
+    if (targetStore?.isMaster) return;
     setConfirmState({
       open: true,
       storeId,
@@ -217,22 +221,22 @@ export default function SettingsPage() {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        setToastMessage({ message: '✅ Master changed.', type: 'success' });
+        setToastMessage({ message: 'Master store changed successfully.', type: 'success' });
         setTimeout(() => {
-          setToastMessage(prev => prev?.message === '✅ Master changed.' ? null : prev);
+          setToastMessage(prev => prev?.message === 'Master store changed successfully.' ? null : prev);
         }, 3000);
         await loadData();
         router.refresh();
       } else {
-        setToastMessage({ message: `❌ Failed: ${data.error}`, type: 'error' });
+        setToastMessage({ message: `Failed: ${data.error}`, type: 'error' });
         setTimeout(() => {
-          setToastMessage(prev => prev?.message === `❌ Failed: ${data.error}` ? null : prev);
+          setToastMessage(prev => prev?.message === `Failed: ${data.error}` ? null : prev);
         }, 3000);
       }
     } catch (err: any) {
-      setToastMessage({ message: '❌ Failed to change Master.', type: 'error' });
+      setToastMessage({ message: 'Failed to change Master store.', type: 'error' });
       setTimeout(() => {
-        setToastMessage(prev => prev?.message === '❌ Failed to change Master.' ? null : prev);
+        setToastMessage(prev => prev?.message === 'Failed to change Master store.' ? null : prev);
       }, 3000);
     } finally {
       setMasterSaving(false);
@@ -248,15 +252,15 @@ export default function SettingsPage() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setToastMessage({ message: '✅ Store is now standalone.', type: 'success' });
+        setToastMessage({ message: 'Store is now standalone.', type: 'success' });
         setTimeout(() => setToastMessage(null), 3000);
         await loadData();
         router.refresh();
       } else {
-        setToastMessage({ message: `❌ Failed: ${data.error}`, type: 'error' });
+        setToastMessage({ message: `Failed: ${data.error}`, type: 'error' });
       }
     } catch (err: any) {
-      setToastMessage({ message: '❌ Failed to make store standalone.', type: 'error' });
+      setToastMessage({ message: 'Failed to make store standalone.', type: 'error' });
     } finally {
       setStandaloneSaving(false);
     }
@@ -310,7 +314,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden">
       <div className="flex flex-col gap-6 sm:gap-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -347,11 +351,10 @@ export default function SettingsPage() {
                     stores.map((s) => (
                       <div
                         key={s.id}
-                        className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border gap-4 transition-all ${
-                          s.isMaster
+                        className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border gap-4 transition-all ${s.isMaster
                             ? 'border-indigo-500 bg-indigo-50/70 shadow-2xs'
                             : 'border-gray-200 bg-white hover:border-gray-300'
-                        }`}
+                          }`}
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -380,8 +383,9 @@ export default function SettingsPage() {
                             </button>
                           )}
                           <button
-                            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold rounded-lg transition-colors shadow-2xs disabled:opacity-50 cursor-pointer flex-1 sm:flex-none text-center"
-                            disabled={standaloneSaving}
+                            className={`px-3.5 py-2 text-white text-xs sm:text-sm font-semibold rounded-lg transition-colors shadow-2xs flex-1 sm:flex-none text-center ${s.isMaster ? 'bg-gray-400 cursor-not-allowed opacity-60' : 'bg-blue-600 hover:bg-blue-700 cursor-pointer disabled:opacity-50'}`}
+                            disabled={standaloneSaving || s.isMaster}
+                            title={s.isMaster ? "Master store cannot be set as standalone directly." : undefined}
                             onClick={() => promptMakeStandalone(s.id)}
                           >
                             Make Standalone
@@ -390,6 +394,12 @@ export default function SettingsPage() {
                       </div>
                     ))
                   )}
+                  <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-start gap-2">
+                    <span className="font-semibold shrink-0">Note:</span>
+                    <span>
+                      Master store cannot be changed to Standalone directly. To disconnect this store, please set another connected store as Master first.
+                    </span>
+                  </div>
                 </div>
               </ThemedSection>
             </div>
@@ -447,7 +457,10 @@ export default function SettingsPage() {
                     </button>
                     {saveSuccess && (
                       <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 shrink-0">
-                        ✓ Saved!
+                        <div style={{ width: 14, height: 14 }}>
+                          <Icon source={CheckIcon} tone="success" />
+                        </div>
+                        Saved!
                       </span>
                     )}
                   </div>
@@ -457,142 +470,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Connected Stores Table & Mobile Card View */}
-        {stores.length > 0 && (
-          <div className={`w-full ${isStandalone ? 'max-w-4xl' : ''}`}>
-            <ThemedSection
-              title="Connected Stores Network"
-              description="Overview of all registered stores, active status, and master designation."
-              bgColor="#f8fafc"
-              borderColor="#e2e8f0"
-              stripeColor="#64748b"
-              titleColor="#334155"
-              descColor="#64748b"
-            >
-              {/* Desktop Table View */}
-              <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-2xs mt-3">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200 text-gray-700 font-bold uppercase tracking-wider">
-                      <th className="py-3 px-4">Store Name</th>
-                      <th className="py-3 px-4">Shop Domain</th>
-                      <th className="py-3 px-4">Role</th>
-                      <th className="py-3 px-4">Status</th>
-                      <th className="py-3 px-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {stores.map((s) => (
-                      <tr key={s.id} className="hover:bg-gray-50/80 transition-colors">
-                        <td className="py-3 px-4 font-semibold text-gray-900">
-                          {s.label || s.shopDomain}
-                        </td>
-                        <td className="py-3 px-4 text-gray-600 font-mono">
-                          {s.shopDomain}
-                        </td>
-                        <td className="py-3 px-4">
-                          {s.isMaster ? (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
-                              MASTER STORE
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-700 border border-gray-200">
-                              CONNECTED STORE
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            s.isActive !== false ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
-                          }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${s.isActive !== false ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
-                            {s.isActive !== false ? 'ONLINE' : 'OFFLINE'}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {!s.isMaster && (
-                              <button
-                                className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold rounded-md transition-colors cursor-pointer"
-                                disabled={masterSaving}
-                                onClick={() => promptSetMaster(s.id, masterLabels[s.id] || (s.label || s.shopDomain).replace('.myshopify.com', ''), false)}
-                              >
-                                Set Master
-                              </button>
-                            )}
-                            <button
-                              className="px-2.5 py-1 bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 text-xs font-semibold rounded-md transition-colors cursor-pointer"
-                              disabled={standaloneSaving}
-                              onClick={() => promptMakeStandalone(s.id)}
-                            >
-                              Standalone
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
 
-              {/* Mobile Card List View (< 768px) */}
-              <div className="grid grid-cols-1 gap-3 md:hidden mt-3">
-                {stores.map((s) => (
-                  <div key={s.id} className="p-4 bg-white border border-gray-200 rounded-xl shadow-2xs flex flex-col gap-3">
-                    <div className="flex items-center justify-between gap-2 border-b border-gray-100 pb-2">
-                      <span className="font-bold text-sm text-gray-900 truncate">
-                        {s.label || s.shopDomain}
-                      </span>
-                      {s.isMaster ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
-                          MASTER
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-700 border border-gray-200 shrink-0">
-                          STORE
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex flex-col gap-1 text-xs text-gray-600">
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-400 font-medium">Domain:</span>
-                        <span className="font-mono font-medium truncate max-w-[200px] text-gray-800">{s.shopDomain}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-400 font-medium">Status:</span>
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          s.isActive !== false ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
-                        }`}>
-                          {s.isActive !== false ? 'ONLINE' : 'OFFLINE'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-                      {!s.isMaster && (
-                        <button
-                          className="flex-1 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold rounded-lg transition-colors text-center"
-                          disabled={masterSaving}
-                          onClick={() => promptSetMaster(s.id, masterLabels[s.id] || (s.label || s.shopDomain).replace('.myshopify.com', ''), false)}
-                        >
-                          Set Master
-                        </button>
-                      )}
-                      <button
-                        className="flex-1 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 text-xs font-semibold rounded-lg transition-colors text-center"
-                        disabled={standaloneSaving}
-                        onClick={() => promptMakeStandalone(s.id)}
-                      >
-                        Standalone
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </ThemedSection>
-          </div>
-        )}
 
         {/* Store Performance Rules Section */}
         <div className={`w-full ${isStandalone ? 'max-w-4xl' : ''}`}>
@@ -620,11 +498,11 @@ export default function SettingsPage() {
                 <span className="text-xs text-gray-500 mt-0.5">Then permanently deleted.</span>
               </div>
               <label className="relative inline-flex items-center cursor-pointer shrink-0 self-end sm:self-auto">
-                <input 
-                  type="checkbox" 
-                  className="sr-only peer" 
-                  checked={dataRetentionEnabled} 
-                  onChange={(e) => setDataRetentionEnabled(e.target.checked)} 
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={dataRetentionEnabled}
+                  onChange={(e) => setDataRetentionEnabled(e.target.checked)}
                 />
                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
               </label>
@@ -632,15 +510,15 @@ export default function SettingsPage() {
           </ThemedSection>
         </div>
       </div>
-      
+
       <ConfirmToast
         open={!!confirmState?.open}
         message={
           confirmState?.type === 'STANDALONE'
             ? 'Make this store standalone?'
             : confirmState?.isAlreadyMaster
-            ? 'Update Master Store Label?'
-            : 'Change Master Store?'
+              ? 'Update Master Store Label?'
+              : 'Change Master Store?'
         }
         subMessage={
           confirmState?.type === 'STANDALONE'

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authenticate, handleApiError } from "@/lib/shopify/authenticate";
 import { prisma } from "@/lib/db/prisma";
 import { syncStoreProducts } from "@/services/shopify";
+import { normalizeTagOrCollection } from "@/lib/utils/categoryNormalization";
 
 export const dynamic = 'force-dynamic';
 
@@ -116,28 +117,6 @@ export async function GET(req: NextRequest) {
 
       let rawCategories: string[] = [];
       
-      const TAG_MAP: Record<string, string> = {
-        'inner': 'INNERS',
-        'inners': 'INNERS',
-        'pant': 'PANTS',
-        'pants': 'PANTS',
-        'shirt': 'SHIRTS',
-        'shirts': 'SHIRTS',
-        'tshirt': 'T-SHIRTS',
-        'tshirts': 'T-SHIRTS',
-        't-shirt': 'T-SHIRTS',
-        't-shirts': 'T-SHIRTS',
-        'accessory': 'MENS ACCESSORIES',
-        'accessories': 'MENS ACCESSORIES',
-        'mens accessories': 'MENS ACCESSORIES',
-        'shoe': 'SHOES',
-        'shoes': 'SHOES',
-        'sock': 'SOCKS',
-        'socks': 'SOCKS',
-        'trouser': 'TROUSERS',
-        'trousers': 'TROUSERS',
-      };
-      
       if (p.collections && p.collections.length > 0) {
         rawCategories = rawCategories.concat(p.collections.map(cp => cp.collection.title));
       }
@@ -150,15 +129,12 @@ export async function GET(req: NextRequest) {
       }
       
       let categoryTitles: string[] = [];
-      const existingUpperCategories: string[] = [];
       
       for (let rawCat of rawCategories) {
-        const lowerCat = rawCat.toLowerCase();
-        let finalCat = TAG_MAP[lowerCat] ? TAG_MAP[lowerCat] : rawCat.toUpperCase();
-        
-        if (!existingUpperCategories.includes(finalCat)) {
+        if (!rawCat) continue;
+        const finalCat = normalizeTagOrCollection(rawCat);
+        if (finalCat && !categoryTitles.includes(finalCat)) {
           categoryTitles.push(finalCat);
-          existingUpperCategories.push(finalCat);
         }
       }
 

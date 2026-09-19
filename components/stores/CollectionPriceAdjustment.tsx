@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button, BlockStack, InlineStack } from '@shopify/polaris';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import { Checkbox, Input, Select } from '@/components/forms';
 import { Loading } from '@/components/common';
+import { PriceAdjustmentPreview } from '@/components/price-adjustment/PriceAdjustmentPreview';
 
 export default function CollectionPriceAdjustment({ storeId, storeName }: { storeId: string, storeName: string }) {
   const [collections, setCollections] = useState<any[]>([]);
@@ -16,10 +17,14 @@ export default function CollectionPriceAdjustment({ storeId, storeName }: { stor
 
   const [showDropdown, setShowDropdown] = useState(false);
 
+  // Guard ref to prevent duplicate fetching in dev mode / StrictMode
+  const fetchedStoreIdRef = useRef<string | null>(null);
+
   // State maps keyed by collectionId
   const [enabledMap, setEnabledMap] = useState<{ [id: string]: boolean }>({});
   const [typeMap, setTypeMap] = useState<{ [id: string]: string }>({});
   const [valueMap, setValueMap] = useState<{ [id: string]: string }>({});
+  const [savedValueMap, setSavedValueMap] = useState<{ [id: string]: string }>({});
 
   const loadCollections = async () => {
     setLoading(true);
@@ -42,6 +47,7 @@ export default function CollectionPriceAdjustment({ storeId, storeName }: { stor
         setEnabledMap(newEnabled);
         setTypeMap(newType);
         setValueMap(newValue);
+        setSavedValueMap({ ...newValue });
       }
     } catch (err) {
       console.error("Failed to load collections", err);
@@ -85,16 +91,27 @@ export default function CollectionPriceAdjustment({ storeId, storeName }: { stor
       });
 
       if (res.ok) {
-        setMessage({ text: '✓ Collection adjustments saved successfully.', type: 'success' });
+        setSavedValueMap({ ...valueMap });
+        setMessage({ text: 'Collection adjustments saved successfully.', type: 'success' });
         setTimeout(() => setMessage(null), 3000);
+
+        // Real-time polling for 3.5 seconds while background worker updates ProductCache DB & Shopify
+        const pollInterval = setInterval(() => {
+          setSavedValueMap(prev => ({ ...prev }));
+        }, 1000);
+
+        setTimeout(() => {
+          clearInterval(pollInterval);
+          setSaving(false);
+        }, 3500);
       } else {
-        setMessage({ text: '✕ Failed to save adjustments.', type: 'error' });
+        setMessage({ text: 'Failed to save adjustments.', type: 'error' });
         setTimeout(() => setMessage(null), 3000);
+        setSaving(false);
       }
     } catch (err) {
-      setMessage({ text: '✕ Failed to save adjustments.', type: 'error' });
+      setMessage({ text: 'Failed to save adjustments.', type: 'error' });
       setTimeout(() => setMessage(null), 3000);
-    } finally {
       setSaving(false);
     }
   };
@@ -270,13 +287,22 @@ export default function CollectionPriceAdjustment({ storeId, storeName }: { stor
               <button
                 type="button"
                 disabled={saving}
-                className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-semibold rounded-lg hover:bg-[var(--color-primary-dark)] transition-colors shadow-sm disabled:opacity-50"
+                className="px-4 py-2 bg-[var(--color-primary)] text-white text-sm font-semibold rounded-lg hover:bg-[var(--color-primary-dark)] transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
                 onClick={handleSave}
               >
                 {saving ? 'Saving...' : 'Save Collection'}
               </button>
             </div>
           </div>
+
+          {/* Price Adjustment Real-time Preview Table */}
+          <PriceAdjustmentPreview
+            storeId={storeId}
+            enabledMap={enabledMap}
+            valueMap={valueMap}
+            savedValueMap={savedValueMap}
+            isSaving={saving}
+          />
         </>
       )}
     </div>

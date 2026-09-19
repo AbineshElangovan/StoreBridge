@@ -233,7 +233,7 @@ export default function ActivityPage() {
   }, [debouncedQueryValue, collectionFilter, storeFilter, dateFilter]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full overflow-x-hidden">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden">
       <div className="flex flex-col gap-8 min-w-0 w-full">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 lg:gap-8">
           <div>

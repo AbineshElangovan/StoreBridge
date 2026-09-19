@@ -136,6 +136,8 @@ export default function NotificationsPage() {
     fetchPreferences();
   }, []);
 
+  const activeShopDomain = currentStore?.shopDomain;
+
   // Load Notifications
   const loadNotifications = useCallback(async () => {
     setLoading(true);
@@ -143,6 +145,7 @@ export default function NotificationsPage() {
       const params = new URLSearchParams();
       params.append('page', page.toString());
       params.append('limit', '15');
+      if (activeShopDomain) params.append('shop', activeShopDomain);
       if (typeFilter && typeFilter !== 'ALL') params.append('type', typeFilter);
       if (statusFilter && statusFilter !== 'all') params.append('status', statusFilter);
       if (storeFilter && storeFilter !== 'ALL') params.append('storeId', storeFilter);
@@ -153,8 +156,12 @@ export default function NotificationsPage() {
         const data = await res.json();
         setNotifications(data.notifications || []);
         setTotalCount(data.total || 0);
-        setUnreadCount(data.unreadCount || 0);
+        const unread = data.unreadCount || 0;
+        setUnreadCount(unread);
         setTotalPages(data.totalPages || 1);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: unread }));
+        }
       } else {
         setNotifications([]);
       }
@@ -164,10 +171,16 @@ export default function NotificationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, typeFilter, statusFilter, storeFilter, debouncedSearch]);
+  }, [page, typeFilter, statusFilter, storeFilter, debouncedSearch, activeShopDomain]);
 
   useEffect(() => {
     loadNotifications();
+
+    const handleUpdate = () => loadNotifications();
+    window.addEventListener('notification-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('notification-updated', handleUpdate);
+    };
   }, [loadNotifications]);
 
   // Dispatch custom window event so Bell icon synchronizes dynamically

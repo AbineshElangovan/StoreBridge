@@ -4,8 +4,18 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Icon } from '@shopify/polaris';
-import { CheckIcon, RefreshIcon } from '@shopify/polaris-icons';
+import { 
+  CheckIcon, 
+  RefreshIcon, 
+  AlertTriangleIcon, 
+  StoreIcon, 
+  ProductIcon, 
+  CashDollarIcon, 
+  AlertCircleIcon, 
+  NotificationIcon 
+} from '@shopify/polaris-icons';
 import { shopifyFetch } from '@/lib/shopify/Client';
+import { useStoreContext } from '@/components/providers/StoreProvider';
 
 interface NotificationItem {
   id: string;
@@ -33,9 +43,9 @@ function getRelativeTime(dateString: string): string {
 
   if (seconds < 60) return 'Just now';
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} min ago`;
+  if (minutes < 60) return `${minutes} m ago`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hr ago`;
+  if (hours < 24) return `${hours} h ago`;
   const days = Math.floor(hours / 24);
   return `${days} d ago`;
 }
@@ -43,26 +53,47 @@ function getRelativeTime(dateString: string): string {
 function getTypeStyle(type: string) {
   switch (type) {
     case 'OUT_OF_STOCK':
-      return { icon: '🚫', label: 'Out of Stock', bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700' };
-    case 'LOW_STOCK':
     case 'STOCKOUT_RISK':
-      return { icon: '🔴', label: 'Low Stock', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' };
+    case 'LOW_STOCK':
+      return { 
+        icon: <Icon source={AlertTriangleIcon} tone="warning" />,
+        label: 'Stock Alert', bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700' 
+      };
     case 'CONNECTED_STORE_UPDATE':
-      return { icon: '🏬', label: 'Store Update', bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700' };
+      return { 
+        icon: <Icon source={StoreIcon} tone="subdued" />,
+        label: 'Store Update', bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700' 
+      };
     case 'INVENTORY_UPDATE':
-      return { icon: '📦', label: 'Inventory', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' };
+      return { 
+        icon: <Icon source={ProductIcon} tone="subdued" />,
+        label: 'Inventory', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' 
+      };
     case 'PRICE_UPDATE':
-      return { icon: '💰', label: 'Price Update', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' };
+      return { 
+        icon: <Icon source={CashDollarIcon} tone="success" />,
+        label: 'Price Update', bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' 
+      };
     case 'SYNC_UPDATE':
-      return { icon: '🔄', label: 'Sync Completed', bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700' };
+      return { 
+        icon: <Icon source={RefreshIcon} tone="info" />,
+        label: 'Sync Completed', bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700' 
+      };
     case 'SYNC_FAILURE':
-      return { icon: '⚠️', label: 'Sync Failure', bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700' };
+      return { 
+        icon: <Icon source={AlertCircleIcon} tone="critical" />,
+        label: 'Sync Failure', bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-700' 
+      };
     default:
-      return { icon: '🔔', label: 'Product Update', bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700' };
+      return { 
+        icon: <Icon source={NotificationIcon} tone="subdued" />,
+        label: 'Product Update', bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700' 
+      };
   }
 }
 
 export function NotificationBell() {
+  const { currentStore } = useStoreContext();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -73,6 +104,8 @@ export function NotificationBell() {
   const searchParams = useSearchParams();
   const shop = searchParams.get('shop');
   const host = searchParams.get('host');
+
+  const activeShopDomain = currentStore?.shopDomain || shop;
 
   const createHref = (basePath: string) => {
     const queryParams = new URLSearchParams();
@@ -86,7 +119,7 @@ export function NotificationBell() {
     setLoading(true);
     try {
       const typeParam = filter !== 'ALL' ? `&type=${filter}` : '';
-      const shopParam = shop ? `&shop=${encodeURIComponent(shop)}` : '';
+      const shopParam = activeShopDomain ? `&shop=${encodeURIComponent(activeShopDomain)}` : '';
       const res = await shopifyFetch(`/api/notifications?limit=8${typeParam}${shopParam}`);
       if (res.ok) {
         const json = await res.json();
@@ -101,6 +134,9 @@ export function NotificationBell() {
       } else {
         setNotifications([]);
         setUnreadCount(0);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: 0 }));
+        }
       }
     } catch (err) {
       console.error('[NotificationBell] Error fetching notifications:', err);
@@ -120,25 +156,13 @@ export function NotificationBell() {
     // Real-Time Server-Sent Events (SSE) Stream
     let eventSource: EventSource | null = null;
     try {
-      const shopParam = shop ? `?shop=${encodeURIComponent(shop)}` : '';
+      const shopParam = activeShopDomain ? `?shop=${encodeURIComponent(activeShopDomain)}` : '';
       eventSource = new EventSource(`/api/notifications/stream${shopParam}`);
 
       eventSource.addEventListener('new-notification', (e: any) => {
         try {
-          const newNotif = JSON.parse(e.data);
-          setNotifications((prev) => {
-            if (prev.some((n) => n.id === newNotif.id)) return prev;
-            return [newNotif, ...prev];
-          });
-          setUnreadCount((prev) => {
-            const nextCount = prev + 1;
-            setTimeout(() => {
-              if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: nextCount }));
-              }
-            }, 0);
-            return nextCount;
-          });
+          // Refetch live notification status on new events to keep UI synchronized
+          fetchNotifications(activeFilter);
         } catch (err) {
           console.error('[Notification SSE] Parse error:', err);
         }
@@ -153,7 +177,7 @@ export function NotificationBell() {
         eventSource.close();
       }
     };
-  }, [activeFilter, shop]);
+  }, [activeFilter, activeShopDomain, currentStore?.id]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -271,7 +295,10 @@ export function NotificationBell() {
                   onClick={handleMarkAllRead}
                   className="text-xs text-teal-600 hover:text-teal-800 font-semibold transition-colors flex items-center gap-1"
                 >
-                  ✓ Read all
+                  <div style={{ width: 12, height: 12 }}>
+                    <Icon source={CheckIcon} />
+                  </div>
+                  <span>Read all</span>
                 </button>
               )}
             </div>

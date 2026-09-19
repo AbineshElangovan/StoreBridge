@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         isAlreadySynced: true,
-        message: "⚠️ Selected stores are already fully in sync! No changes were needed."
+        message: "Selected stores are already fully in sync! No changes were needed."
       });
     }
 

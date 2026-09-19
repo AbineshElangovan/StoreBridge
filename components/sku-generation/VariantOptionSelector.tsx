@@ -1,5 +1,7 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
+import { Icon } from "@shopify/polaris";
+import { CheckIcon } from "@shopify/polaris-icons";
 import { VariantOptionInput } from "@/services/sku/variant-combinations";
 import { VariantOptionRow } from "./VariantOptionRow";
 import { AttributeLibraryModal } from "./AttributeLibraryModal";
@@ -202,7 +204,12 @@ export function VariantOptionSelector({ options, setOptions, disabled }: Variant
                           <span className="font-extrabold">{family.name}</span>
                         </div>
                         {isAdded ? (
-                          <span className="text-xs font-bold text-[#0db69d]">Added ✓</span>
+                          <span className="text-xs font-bold text-[#0db69d] flex items-center gap-1">
+                            <div style={{ width: 14, height: 14 }}>
+                              <Icon source={CheckIcon} tone="success" />
+                            </div>
+                            Added
+                          </span>
                         ) : (
                           <span className="text-2xs text-gray-400 font-mono">
                             {family.suggestedValues.length} values

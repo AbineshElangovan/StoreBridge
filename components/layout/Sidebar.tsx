@@ -51,10 +51,12 @@ export function Sidebar() {
     }
   };
 
+  const activeShopDomain = currentStore?.shopDomain || shop;
+
   React.useEffect(() => {
     const fetchUnread = async () => {
       try {
-        const shopParam = shop ? `&shop=${encodeURIComponent(shop)}` : '';
+        const shopParam = activeShopDomain ? `&shop=${encodeURIComponent(activeShopDomain)}` : '';
         const res = await shopifyFetch(`/api/notifications?limit=1${shopParam}`);
         if (res.ok) {
           const json = await res.json();
@@ -79,7 +81,7 @@ export function Sidebar() {
       window.removeEventListener('notification-count-changed', handleCountChange);
       window.removeEventListener('notification-updated', fetchUnread);
     };
-  }, [shop]);
+  }, [activeShopDomain, currentStore?.id]);
 
   const createHref = (basePath: string) => {
     const queryParams = new URLSearchParams();

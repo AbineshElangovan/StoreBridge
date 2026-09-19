@@ -1,5 +1,7 @@
 "use client";
 import React from "react";
+import { Icon } from "@shopify/polaris";
+import { DiscountIcon } from "@shopify/polaris-icons";
 import { CATEGORY_PRESETS, CategoryPreset } from "@/lib/constants/variant-library";
 
 interface CategoryPresetPickerProps {
@@ -12,7 +14,10 @@ export function CategoryPresetPicker({ onSelectCategory, disabled }: CategoryPre
     <div className="mb-6 p-4 bg-teal-50/70 border border-teal-100 rounded-xl shadow-2xs">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-xs sm:text-sm font-bold text-[#115e59] uppercase tracking-wider flex items-center gap-1.5">
-          <span>🏷️</span> Category-Aware Presets
+          <div style={{ width: 16, height: 16 }}>
+            <Icon source={DiscountIcon} tone="subdued" />
+          </div>
+          Category-Aware Presets
         </h3>
         <span className="text-2xs sm:text-xs text-[#0f766e]">Select to quick-load option templates</span>
       </div>
