@@ -51,7 +51,10 @@ export function PreviewProductTable({ rows, isSaving }: PreviewProductTableProps
         <span className="text-gray-400 italic text-2xs">N/A</span>
       ),
       collection_node: (
-        <span className="inline-flex items-center px-2.5 py-1 text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-md whitespace-nowrap">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-md whitespace-nowrap">
+          <svg className="w-3.5 h-3.5 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
           {toTitleCase(row.collectionName)}
         </span>
       ),

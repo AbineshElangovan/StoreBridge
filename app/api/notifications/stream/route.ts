@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
     try {
       const refererUrl = new URL(req.headers.get('referer')!);
       shop = refererUrl.searchParams.get('shop');
-    } catch (e) {}
+    } catch (e) { }
   }
 
   let currentStore: any = null;
@@ -35,10 +35,10 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  const isMasterStore = currentStore?.isMaster || false;
   let targetStoreIds: string[] = currentStore ? [currentStore.id] : [];
 
   if (currentStore) {
-    const isMaster = currentStore.isMaster;
     const connections = await prisma.storeConnection.findMany({
       where: {
         OR: [
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    if (isMaster) {
+    if (isMasterStore) {
       targetStoreIds = Array.from(
         new Set([
           currentStore.id,
@@ -75,7 +75,21 @@ export async function GET(req: NextRequest) {
         try {
           const notificationWhere: any = {
             createdAt: { gt: lastCreatedAt },
-            recipientStoreId: currentStore.id,
+            ...(isMasterStore
+              ? {
+                  OR: [
+                    { recipientStoreId: { in: targetStoreIds } },
+                    { sourceStoreId: { in: targetStoreIds } },
+                    { targetStoreId: { in: targetStoreIds } },
+                  ],
+                }
+              : {
+                  OR: [
+                    { recipientStoreId: currentStore.id },
+                    { sourceStoreId: currentStore.id },
+                    { targetStoreId: currentStore.id },
+                  ],
+                }),
           };
 
           const newNotifications = await prisma.notification.findMany({

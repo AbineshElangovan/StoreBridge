@@ -373,7 +373,6 @@ export async function PATCH(
     // The authoritative store owning this product variant
     const productStore = variantRecord.store;
 
-
     const isPriceChanged = typeof price === 'number' && Number(price) !== Number(variantRecord.price);
     const isQuantityChanged = typeof quantity === 'number' && Number(quantity) !== Number(variantRecord.inventoryQuantity);
 
