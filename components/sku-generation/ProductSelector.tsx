@@ -55,22 +55,13 @@ export function ProductSelector({ selectedProductId, onSelectProduct, disabled }
     return titleMatch || skuMatch || allSkusMatch || shopifyIdMatch;
   });
 
-  // Automatically select the top matching product when filtering
-  useEffect(() => {
-    if (searchTerm.trim() !== "") {
-      if (filteredProducts.length > 0) {
-        const isCurrentInFiltered = filteredProducts.some(
-          (p) => p.shopifyProductId === selectedProductId || p.id === selectedProductId
-        );
-        if (!isCurrentInFiltered) {
-          onSelectProduct(filteredProducts[0]);
-        }
-      }
-    }
-  }, [searchTerm, products]);
+  const currentSelected = products.find(
+    (p) => p.shopifyProductId === selectedProductId || p.id === selectedProductId
+  );
 
-  const currentSelected = products.find((p) => p.shopifyProductId === selectedProductId || p.id === selectedProductId);
-  const isSelectedInFilter = !searchTerm.trim() || (currentSelected && filteredProducts.some((p) => p.shopifyProductId === currentSelected.shopifyProductId));
+  const handleClearSearch = () => {
+    setSearchTerm("");
+  };
 
   return (
     <div className="p-4 bg-white border border-gray-200 rounded-2xl shadow-2xs space-y-3">
@@ -81,13 +72,13 @@ export function ProductSelector({ selectedProductId, onSelectProduct, disabled }
           </svg>
           <span>Select Product</span>
         </label>
-        {loading && <span className="text-2xs text-teal-600 font-bold">Loading products...</span>}
+        {loading && <span className="text-2xs text-teal-600 font-bold animate-pulse">Loading products...</span>}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <select
-            value={isSelectedInFilter ? (currentSelected?.shopifyProductId || "") : ""}
+            value={currentSelected?.shopifyProductId || ""}
             onChange={(e) => {
               const selected = products.find((p) => p.shopifyProductId === e.target.value);
               onSelectProduct(selected || null);
@@ -112,46 +103,73 @@ export function ProductSelector({ selectedProductId, onSelectProduct, disabled }
           </select>
         </div>
 
-        <div>
+        <div className="relative">
           <input
             type="text"
             placeholder="Filter product by title or SKU..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             disabled={disabled || loading}
-            className="w-full px-3.5 py-2 text-xs sm:text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0db69d] focus:border-[#0db69d] shadow-2xs"
+            className="w-full pl-3.5 pr-9 py-2 text-xs sm:text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0db69d] focus:border-[#0db69d] shadow-2xs"
           />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={handleClearSearch}
+              className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600 font-bold text-xs cursor-pointer"
+              title="Clear search filter"
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
 
-      {currentSelected && isSelectedInFilter && (
+      {currentSelected && (
         <div className="p-3 bg-teal-50/50 rounded-xl border border-teal-100 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             {currentSelected.imageUrl ? (
-              <img src={currentSelected.imageUrl} alt={currentSelected.title} className="w-9 h-9 object-cover rounded-lg border border-gray-200" />
-            ) : (
-              <div className="w-9 h-9 bg-teal-100 text-[#0f766e] font-bold text-2xs rounded-lg flex items-center justify-center">
-                PROD
-              </div>
-            )}
+              <img
+                src={currentSelected.imageUrl}
+                alt={currentSelected.title}
+                className="w-10 h-10 object-cover rounded-lg border border-gray-200 shrink-0 bg-white"
+                onError={(e) => {
+                  // Fallback if image URL fails to load
+                  (e.target as HTMLElement).style.display = "none";
+                  (e.target as HTMLElement).nextElementSibling?.classList.remove("hidden");
+                }}
+              />
+            ) : null}
+            <div className={`w-10 h-10 bg-teal-100 text-[#0f766e] font-bold text-2xs rounded-lg flex items-center justify-center shrink-0 ${currentSelected.imageUrl ? "hidden" : ""}`}>
+              PROD
+            </div>
             <div>
               <h4 className="text-xs font-extrabold text-gray-900">{currentSelected.title}</h4>
               <p className="text-xs font-semibold text-gray-600">Price: ₹{currentSelected.price}</p>
             </div>
           </div>
 
-          <span className="px-2.5 py-1 text-2xs font-bold bg-teal-100 text-[#0f766e] rounded-md">
+          <span className="px-2.5 py-1 text-2xs font-bold bg-teal-100 text-[#0f766e] rounded-md shrink-0">
             Active Product
           </span>
         </div>
       )}
 
       {searchTerm.trim() !== "" && filteredProducts.length === 0 && (
-        <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-xs font-semibold flex items-center gap-2">
-          <svg className="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <span>No products found matching "<strong>{searchTerm}</strong>". Try searching with a different product title or SKU.</span>
+        <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-xs font-semibold flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span>No products found matching "<strong>{searchTerm}</strong>".</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleClearSearch}
+            className="text-xs font-bold text-amber-800 underline cursor-pointer hover:text-amber-950 shrink-0"
+          >
+            Clear Filter
+          </button>
         </div>
       )}
     </div>

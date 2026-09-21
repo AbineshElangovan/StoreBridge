@@ -75,21 +75,7 @@ export async function GET(req: NextRequest) {
         try {
           const notificationWhere: any = {
             createdAt: { gt: lastCreatedAt },
-            ...(isMasterStore
-              ? {
-                  OR: [
-                    { recipientStoreId: { in: targetStoreIds } },
-                    { sourceStoreId: { in: targetStoreIds } },
-                    { targetStoreId: { in: targetStoreIds } },
-                  ],
-                }
-              : {
-                  OR: [
-                    { recipientStoreId: currentStore.id },
-                    { sourceStoreId: currentStore.id },
-                    { targetStoreId: currentStore.id },
-                  ],
-                }),
+            recipientStoreId: currentStore.id,
           };
 
           const newNotifications = await prisma.notification.findMany({

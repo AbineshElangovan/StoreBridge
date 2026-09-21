@@ -90,7 +90,7 @@ export async function GET(req: NextRequest) {
 
     const cachedProducts = Array.from(productMap.values());
 
-    // Verify against live Shopify products to filter out deleted or archived items
+    // Verify against live Shopify products to filter out deleted/archived items and populate missing images
     let finalProducts = cachedProducts;
     try {
       const client = await getAdminClient(store.shopDomain);
@@ -102,6 +102,9 @@ export async function GET(req: NextRequest) {
                 id
                 title
                 status
+                featuredImage {
+                  url
+                }
               }
             }
           }
@@ -123,7 +126,19 @@ export async function GET(req: NextRequest) {
           activeNodes.map((n: any) => n.id.replace(/^gid:\/\/shopify\/Product\//i, ""))
         );
 
-        finalProducts = cachedProducts.filter((p) => {
+        // Map live featured images to product map
+        for (const node of activeNodes) {
+          const rawGid = node.id;
+          const cleanId = rawGid.replace(/^gid:\/\/shopify\/Product\//i, "");
+          const liveImg = node.featuredImage?.url || null;
+
+          const existing = productMap.get(rawGid) || productMap.get(cleanId);
+          if (existing && liveImg && !existing.imageUrl) {
+            existing.imageUrl = liveImg;
+          }
+        }
+
+        finalProducts = Array.from(productMap.values()).filter((p) => {
           const rawGid = p.shopifyProductId.startsWith("gid://")
             ? p.shopifyProductId
             : `gid://shopify/Product/${p.shopifyProductId}`;

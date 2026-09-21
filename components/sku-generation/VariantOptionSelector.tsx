@@ -5,7 +5,8 @@ import { CheckIcon } from "@shopify/polaris-icons";
 import { VariantOptionInput } from "@/services/sku/variant-combinations";
 import { VariantOptionRow } from "./VariantOptionRow";
 import { AttributeLibraryModal } from "./AttributeLibraryModal";
-import { MASTER_ATTRIBUTE_FAMILIES, AttributeFamily } from "@/lib/constants/variant-library";
+import { CategoryPresetPicker } from "./CategoryPresetPicker";
+import { MASTER_ATTRIBUTE_FAMILIES, AttributeFamily, CategoryPreset } from "@/lib/constants/variant-library";
 
 interface VariantOptionSelectorProps {
   options: VariantOptionInput[];
@@ -34,6 +35,23 @@ export function VariantOptionSelector({ options, setOptions, disabled }: Variant
       f.name.toLowerCase().includes(menuSearchTerm.toLowerCase()) ||
       f.suggestedValues.some((v) => v.toLowerCase().includes(menuSearchTerm.toLowerCase()))
   );
+
+  const handleSelectCategoryPreset = (preset: CategoryPreset) => {
+    const newOptions: VariantOptionInput[] = preset.suggestedOptionNames.map((name) => {
+      const matchedFamily = MASTER_ATTRIBUTE_FAMILIES.find(
+        (f) =>
+          f.name.toLowerCase() === name.toLowerCase() ||
+          f.id.toLowerCase() === name.toLowerCase() ||
+          name.toLowerCase().includes(f.name.toLowerCase()) ||
+          f.name.toLowerCase().includes(name.toLowerCase())
+      );
+      return {
+        name,
+        values: matchedFamily ? matchedFamily.suggestedValues.slice(0, 3) : [],
+      };
+    });
+    setOptions(newOptions);
+  };
 
   const handleSelectAttribute = (family: AttributeFamily) => {
     const existingIndex = options.findIndex(
@@ -114,6 +132,12 @@ export function VariantOptionSelector({ options, setOptions, disabled }: Variant
 
   return (
     <div className="space-y-4">
+      {/* Category-Aware Presets Quick Picker */}
+      <CategoryPresetPicker
+        onSelectCategory={handleSelectCategoryPreset}
+        disabled={disabled}
+      />
+
       {/* Main Options Card Container */}
       <div className="bg-white border border-gray-200 rounded-2xl shadow-2xs p-4 sm:p-6 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
@@ -248,7 +272,7 @@ export function VariantOptionSelector({ options, setOptions, disabled }: Variant
         {options.length === 0 ? (
           <div className="p-8 text-center bg-gray-50 border border-dashed border-gray-300 rounded-xl space-y-3">
             <p className="text-xs sm:text-sm text-gray-600 font-bold">No variants configured for this product.</p>
-            <p className="text-2xs text-gray-400">Click &quot;+ Add Variant&quot; above to select Color, Size, Age, Shoe Size, Material or Custom Options.</p>
+            <p className="text-2xs text-gray-400">Click &quot;+ Add Variant&quot; above or select a Category-Aware Preset to quick-load option templates.</p>
             <button
               type="button"
               onClick={() => setShowAddMenu(true)}

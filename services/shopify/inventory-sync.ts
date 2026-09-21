@@ -86,7 +86,7 @@ export async function processInventoryUpdate(
       return;
     }
 
-    let trueTotalInventory = availableQuantity;
+    let trueTotalInventory = Math.max(0, availableQuantity);
     const sourceCachedProduct = await prisma.productCache.findFirst({
       where: {
         storeId: sourceStore.id,
@@ -101,7 +101,7 @@ export async function processInventoryUpdate(
 
     console.log(`[${new Date().toISOString()}] [SyncService:Webhook] SKU: ${sku} | Shop: ${shopDomain}`);
     console.log(`[${new Date().toISOString()}] [SyncService:Webhook] [Cached Quantity]: ${previousQuantity}`);
-    console.log(`[${new Date().toISOString()}] [SyncService:Webhook] [True Total Quantity]: ${trueTotalInventory}`);
+    console.log(`[${new Date().toISOString()}] [SyncService:Webhook] [True Total Quantity]: ${trueTotalInventory} (raw: ${availableQuantity})`);
     console.log(`[${new Date().toISOString()}] [SyncService:Webhook] [Calculated Delta]: ${delta}`);
 
     if (delta !== 0) {
@@ -202,7 +202,9 @@ export async function processInventoryUpdate(
       const targetPrevQuantity = targetCachedProduct ? targetCachedProduct.inventoryQuantity : 0;
 
       let targetLocationQuantity = 0;
+      let targetLocationFound = false;
       let targetTotalQuantity = 0;
+      let targetTotalFound = false;
       let effectiveLocationId = target.locationId;
       try {
         if (!effectiveLocationId) {
@@ -245,8 +247,10 @@ export async function processInventoryUpdate(
             const q = edge.node.quantities[0]?.quantity;
             if (typeof q === 'number') {
               targetTotalQuantity += q;
+              targetTotalFound = true;
               if (edge.node.location.id === effectiveLocationId) {
                 targetLocationQuantity = q;
+                targetLocationFound = true;
               }
             }
           }
@@ -255,14 +259,16 @@ export async function processInventoryUpdate(
         console.log(`[${new Date().toISOString()}] [SyncService] Failed to fetch target location quantity: ${err.message}`);
       }
 
-      // In a Hub-and-Spoke model, the Master Store is the absolute source of truth.
-      // We should NOT use delta-based syncing, because if a store misses a webhook or gets manually edited, they drift permanently.
-      // Instead, we force the Target Store to exactly match the Master Store's absolute inventory quantity.
-      const targetNewQuantity = trueTotalInventory;
-      const targetNewTotalQuantity = trueTotalInventory;
+      // Apply delta-based synchronization (relative adjustment):
+      // When master adds +5 (e.g. 10 -> 15), connected store increases by +5 (e.g. 0 -> 5, or 1000 -> 1005).
+      // When master or connected store sells/decreases by -3, stock reduces by -3, clamped to >= 0.
+      const currentTargetStock = targetLocationFound ? targetLocationQuantity : targetPrevQuantity;
+      const targetNewQuantity = Math.max(0, currentTargetStock + delta);
+      const currentTargetTotal = targetTotalFound ? targetTotalQuantity : (targetCachedProduct?.inventoryQuantity ?? currentTargetStock);
+      const targetNewTotalQuantity = Math.max(0, currentTargetTotal + delta);
 
-      console.log(`[${new Date().toISOString()}] [SyncService:Sync] [Target Store Before Update]: ${targetLocationQuantity} (Store: ${target.store.shopDomain})`);
-      console.log(`[${new Date().toISOString()}] [SyncService:Sync] [Target Store After Update]: ${targetNewQuantity} (Store: ${target.store.shopDomain})`);
+      console.log(`[${new Date().toISOString()}] [SyncService:Sync] [Target Store Before Update]: ${currentTargetStock} (Total: ${currentTargetTotal}, Store: ${target.store.shopDomain})`);
+      console.log(`[${new Date().toISOString()}] [SyncService:Sync] [Target Store After Update]: ${targetNewQuantity} (Total: ${targetNewTotalQuantity}, Delta: ${delta}, Store: ${target.store.shopDomain})`);
 
       try {
         if (!effectiveLocationId) {

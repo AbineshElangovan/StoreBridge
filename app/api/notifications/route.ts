@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticate } from '@/lib/shopify/authenticate';
-import { getNotifications, markAllAsRead, deleteAllNotifications } from '@/services/notification-service';
+import { getNotifications, markAllAsRead, deleteAllNotifications, deleteNotification } from '@/services/notification-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,7 +15,6 @@ export async function GET(req: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '15', 10);
     const storeIdFilter = searchParams.get('storeId') || undefined;
-
 
     let result = await getNotifications(store.id, {
       type,
@@ -54,6 +53,15 @@ export async function PUT(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const { store } = await authenticate(req);
+    const id = req.nextUrl.searchParams.get('id');
+
+    if (id) {
+      // Delete single notification
+      await deleteNotification(store.id, id);
+      return NextResponse.json({ success: true, message: 'Notification deleted successfully' });
+    }
+
+    // Delete all notifications
     await deleteAllNotifications(store.id);
     return NextResponse.json({ success: true, message: 'All notifications deleted successfully' });
   } catch (err: any) {

@@ -2,11 +2,10 @@
 
 let appBridgeTimedOut = false;
 
-export async function shopifyFetch(input: RequestInfo, init: RequestInit = {}) {
-
-  const maxRetries = 5; // Reduced from 20 to prevent long 2s load delays
+export async function shopifyFetch(input: RequestInfo, init: RequestInit = {}): Promise<Response> {
+  const maxRetries = 20;
   let retries = 0;
-  let delay = 100;
+  let delay = 300;
 
   const hasHost = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("host");
 
@@ -19,6 +18,7 @@ export async function shopifyFetch(input: RequestInfo, init: RequestInit = {}) {
   ) {
     await new Promise((resolve) => setTimeout(resolve, delay));
     retries++;
+    delay = Math.min(delay * 1.5, 1000); // exponential backoff, cap at 1s
   }
   
   if (retries >= maxRetries) {
@@ -48,7 +48,6 @@ export async function shopifyFetch(input: RequestInfo, init: RequestInit = {}) {
     token = "dev_fallback_token";
   }
 
-
   let requestInput = input;
   let activeShopDomain = "";
   if (typeof window !== "undefined" && window.location) {
@@ -70,9 +69,6 @@ export async function shopifyFetch(input: RequestInfo, init: RequestInit = {}) {
     }
   }
 
-  console.log("[Frontend: shopifyFetch] URL:", requestInput);
-  console.log("[Frontend: shopifyFetch] Token starts with:", token?.substring(0, 15));
-
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
@@ -83,8 +79,16 @@ export async function shopifyFetch(input: RequestInfo, init: RequestInit = {}) {
     headers["x-shopify-shop-domain"] = activeShopDomain;
   }
 
-  return fetch(requestInput, {
-    ...init,
-    headers,
-  });
+  try {
+    return await fetch(requestInput, {
+      ...init,
+      headers,
+    });
+  } catch (err: any) {
+    console.warn("[shopifyFetch] Network request failed:", err?.message || err);
+    return new Response(
+      JSON.stringify({ success: false, error: "Network error: Unable to connect to server." }),
+      { status: 503, headers: { "Content-Type": "application/json" } }
+    );
+  }
 }

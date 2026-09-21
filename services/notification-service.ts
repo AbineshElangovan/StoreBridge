@@ -251,24 +251,12 @@ export async function getNotifications(recipientStoreId: string, options: Notifi
         ]
       });
     } else {
-      andConditions.push({
-        OR: [
-          { recipientStoreId: { in: targetStoreIds } },
-          { sourceStoreId: { in: targetStoreIds } },
-          { targetStoreId: { in: targetStoreIds } },
-        ]
-      });
+      // Default view: strictly recipientStoreId for current store
+      andConditions.push({ recipientStoreId });
     }
   } else {
+    // For Connected Sub-Store and Standalone stores: strictly only their recipientStoreId inbox
     andConditions.push({ recipientStoreId });
-    // For Sub-Store and Standalone stores: strictly only their inbox/operations
-    andConditions.push({
-      OR: [
-        { recipientStoreId },
-        { targetStoreId: recipientStoreId },
-        { sourceStoreId: recipientStoreId },
-      ]
-    });
   }
 
   if (type && type !== 'ALL') {
@@ -299,23 +287,11 @@ export async function getNotifications(recipientStoreId: string, options: Notifi
 
   const whereClause: any = andConditions.length > 0 ? { AND: andConditions } : {};
 
-  const storeUnreadWhere: any = isMaster
-    ? {
-        OR: [
-          { recipientStoreId: { in: targetStoreIds } },
-          { sourceStoreId: { in: targetStoreIds } },
-          { targetStoreId: { in: targetStoreIds } },
-        ],
-        isRead: false,
-      }
-    : {
-        OR: [
-          { recipientStoreId },
-          { targetStoreId: recipientStoreId },
-          { sourceStoreId: recipientStoreId },
-        ],
-        isRead: false,
-      };
+  // Unread count is strictly per recipient store so badges don't bleed across stores
+  const storeUnreadWhere: any = {
+    recipientStoreId,
+    isRead: false,
+  };
 
   const [rawNotifications, total, unreadCount] = await Promise.all([
     prisma.notification.findMany({
@@ -449,14 +425,9 @@ export async function markAsRead(recipientStoreId: string, notificationId: strin
  */
 export async function markAllAsRead(recipientStoreId: string) {
   try {
-    const targetIds = await getTargetStoreIds(recipientStoreId);
     return await prisma.notification.updateMany({
       where: {
-        OR: [
-          { recipientStoreId: { in: targetIds } },
-          { targetStoreId: { in: targetIds } },
-          { sourceStoreId: { in: targetIds } },
-        ],
+        recipientStoreId,
         isRead: false,
       },
       data: {
@@ -491,14 +462,9 @@ export async function deleteNotification(recipientStoreId: string, notificationI
  */
 export async function deleteAllNotifications(recipientStoreId: string) {
   try {
-    const targetIds = await getTargetStoreIds(recipientStoreId);
     return await prisma.notification.deleteMany({
       where: {
-        OR: [
-          { recipientStoreId: { in: targetIds } },
-          { targetStoreId: { in: targetIds } },
-          { sourceStoreId: { in: targetIds } },
-        ],
+        recipientStoreId,
       },
     });
   } catch (error) {

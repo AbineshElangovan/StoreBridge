@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import { ConfirmToast } from '@/components/ui/ConfirmToast';
 import { useStoreContext } from '@/components/providers/StoreProvider';
+import { useToast } from '@/components/providers/ToastContext';
 
 export interface ProductVariantItem {
   id: string;
@@ -23,6 +24,7 @@ interface ProductVariantsProps {
 
 export function ProductVariants({ productId, variants: initialVariants, onVariantUpdated }: ProductVariantsProps) {
   const { isMaster } = useStoreContext();
+  const { showSuccess, showError } = useToast();
   const [variantList, setVariantList] = useState<ProductVariantItem[]>(initialVariants);
   const [isSavingAll, setIsSavingAll] = useState<boolean>(false);
   const [modifiedIds, setModifiedIds] = useState<Set<string>>(new Set());
@@ -122,14 +124,19 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
       const json = await res.json().catch(() => ({ success: false, error: 'Invalid server response' }));
       if (res.ok && json.success) {
         setVariantList(prev => prev.filter(v => v.id !== deletingVariant.id));
+        showSuccess(`Variant "${deletingVariant.variantName}" deleted successfully`);
         setDeletingVariant(null);
         if (onVariantUpdated) onVariantUpdated();
       } else {
-        setDeleteError(json.error || `Failed to delete variant (HTTP ${res.status})`);
+        const errMsg = json.error || `Failed to delete variant (HTTP ${res.status})`;
+        setDeleteError(errMsg);
+        showError(errMsg);
       }
     } catch (err: any) {
       console.error('Failed to delete variant:', err);
-      setDeleteError(err.message || 'Network error deleting variant');
+      const errMsg = err.message || 'Network error deleting variant';
+      setDeleteError(errMsg);
+      showError(errMsg);
     } finally {
       setIsDeleting(false);
     }

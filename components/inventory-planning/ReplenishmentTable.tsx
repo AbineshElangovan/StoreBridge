@@ -22,7 +22,7 @@ export function ReplenishmentTable({
     { title: 'PRODUCT', key: 'product_node', type: 'react_node', width: '32%', align: 'left' },
     { title: 'SKU', key: 'sku_node', type: 'react_node', width: '22%', align: 'left' },
     { title: 'CURRENT STOCK', key: 'stock_formatted', type: 'bold', width: '9%', align: 'center' },
-    { title: 'LEAD TIME', key: 'lead_time_formatted', type: 'text', width: '9%', align: 'center' },
+    { title: 'HORIZON', key: 'lead_time_formatted', type: 'text', width: '9%', align: 'center' },
     { title: 'REQUIRED STOCK', key: 'required_stock_formatted', type: 'bold', width: '9%', align: 'center' },
     { title: 'ORDER QTY', key: 'recommended_qty_node', type: 'react_node', width: '10%', align: 'center' },
     { title: 'ACTION', key: 'action_node', type: 'react_node', width: '9%', align: 'center' },

@@ -871,6 +871,9 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
     throw new Error(`Invalid payload for ${shop}`);
   }
 
+  // Guard against negative numbers from Shopify Admin adjustments or oversell states
+  const safeAvailable = Math.max(0, available);
+
   const storeRecord = await prisma.store.findUnique({
     where: { shopDomain: shop },
   });
@@ -879,9 +882,10 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
 
   // 1. RICH SYNC LOCK CHECK (ECHO PREVENTION)
   const { hasRichSyncLock, releaseRichSyncLock } = require('@/services/shopify/locks');
-  if (hasRichSyncLock(shop, String(inventory_item_id), available)) {
-    console.log(`[WebhookWorker:Ignored] WebhookId: ${webhookId} | Reason: sync_echo for ${shop} (Item: ${inventory_item_id}, Stock: ${available})`);
+  if (hasRichSyncLock(shop, String(inventory_item_id), available) || hasRichSyncLock(shop, String(inventory_item_id), safeAvailable)) {
+    console.log(`[WebhookWorker:Ignored] WebhookId: ${webhookId} | Reason: sync_echo for ${shop} (Item: ${inventory_item_id}, Stock: ${safeAvailable})`);
     releaseRichSyncLock(shop, String(inventory_item_id), available);
+    releaseRichSyncLock(shop, String(inventory_item_id), safeAvailable);
 
     // Update local cache quietly
     const inventoryGid = `gid://shopify/InventoryItem/${inventory_item_id}`;
@@ -891,7 +895,7 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
     if (vMap?.shopifyVariantId) {
       await prisma.productCache.updateMany({
         where: { storeId: storeRecord.id, shopifyVariantId: vMap.shopifyVariantId },
-        data: { inventoryQuantity: available }
+        data: { inventoryQuantity: safeAvailable }
       });
     }
     return;
@@ -955,19 +959,19 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
       shop,
       inventory_item_id.toString(),
       location_id.toString(),
-      available,
+      safeAvailable,
       webhookId
     );
   } else if (cache) {
     await prisma.productCache.updateMany({
       where: { id: cache.id },
-      data: { inventoryQuantity: available }
+      data: { inventoryQuantity: safeAvailable }
     });
   }
 
   if (storeRecord && cache) {
-    const prevQty = previousQuantity !== null ? previousQuantity : available;
-    const diff = available - prevQty;
+    const prevQty = previousQuantity !== null ? previousQuantity : safeAvailable;
+    const diff = safeAvailable - prevQty;
     const prodId = cache.shopifyProductId?.split('/').pop() || '';
     const prodTitle = cache.title || 'Product';
     const prodSku = cache.sku || variantMap?.sku || null;
@@ -976,8 +980,8 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
       const isSale = diff < 0;
       const eventType = isSale ? "SOLD" : "UPDATE";
       const description = isSale
-        ? `${Math.abs(diff)} item(s) sold (New stock: ${available})`
-        : `Inventory manually adjusted by +${diff} (New stock: ${available})`;
+        ? `${Math.abs(diff)} item(s) sold (New stock: ${safeAvailable})`
+        : `Inventory manually adjusted by +${diff} (New stock: ${safeAvailable})`;
 
       // Create ActivityLog ONLY for originating store (with deduplication & imageUrl)
       const imgUrl = cache?.imageUrl || null;
@@ -1010,7 +1014,7 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
           recipientStoreId: storeRecord.id,
           type: 'INVENTORY_UPDATE',
           title: 'Product Sold',
-          message: `${prodTitle} - ${Math.abs(diff)} item(s) sold (New stock: ${available})`,
+          message: `${prodTitle} - ${Math.abs(diff)} item(s) sold (New stock: ${safeAvailable})`,
           productId: prodId,
           productTitle: prodTitle,
           sourceStoreId: storeRecord.id,
@@ -1026,7 +1030,7 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
               recipientStoreId: masterStore.id,
               type: 'CONNECTED_STORE_UPDATE',
               title: 'Connected Store Product Sold',
-              message: `${storeRecord.label || storeRecord.shopDomain}: ${prodTitle} - ${Math.abs(diff)} item(s) sold (New stock: ${available})`,
+              message: `${storeRecord.label || storeRecord.shopDomain}: ${prodTitle} - ${Math.abs(diff)} item(s) sold (New stock: ${safeAvailable})`,
               productId: prodId,
               productTitle: prodTitle,
               sourceStoreId: storeRecord.id,
@@ -1039,7 +1043,7 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
           recipientStoreId: storeRecord.id,
           type: 'INVENTORY_UPDATE',
           title: 'Inventory Adjusted',
-          message: `${prodTitle} - Stock adjusted by +${diff} (New stock: ${available})`,
+          message: `${prodTitle} - Stock adjusted by +${diff} (New stock: ${safeAvailable})`,
           productId: prodId,
           productTitle: prodTitle,
           sourceStoreId: storeRecord.id,
@@ -1050,7 +1054,7 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
 
     // STATE TRANSITION ALERTS
     // OUT_OF_STOCK: Trigger whenever stock reaches 0 (anti-spam guarded by NotificationService)
-    if (available === 0) {
+    if (safeAvailable === 0) {
       await createNotification({
         recipientStoreId: storeRecord.id,
         type: 'OUT_OF_STOCK',
@@ -1080,12 +1084,12 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
       }
     }
     // LOW_STOCK: Trigger whenever stock is <= lowStockThreshold and > 0
-    else if (available > 0 && available <= storeRecord.lowStockThreshold) {
+    else if (safeAvailable > 0 && safeAvailable <= storeRecord.lowStockThreshold) {
       await createNotification({
         recipientStoreId: storeRecord.id,
         type: 'LOW_STOCK',
         title: 'Low Stock Alert',
-        message: `${prodTitle} has ${available} unit${available === 1 ? '' : 's'} remaining (Threshold: ${storeRecord.lowStockThreshold})`,
+        message: `${prodTitle} has ${safeAvailable} unit${safeAvailable === 1 ? '' : 's'} remaining (Threshold: ${storeRecord.lowStockThreshold})`,
         productId: prodId,
         productTitle: prodTitle,
         sourceStoreId: storeRecord.id,

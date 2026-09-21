@@ -27,6 +27,7 @@ import {
 } from '@/components/notifications';
 
 import { useStoreContext } from '@/components/providers/StoreProvider';
+import { useToast } from '@/components/providers/ToastContext';
 
 interface StoreOption {
   label: string;
@@ -35,6 +36,7 @@ interface StoreOption {
 
 export default function NotificationsPage() {
   const { currentStore, isMaster, isStandalone } = useStoreContext();
+  const { showSuccess, showError } = useToast();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -54,10 +56,8 @@ export default function NotificationsPage() {
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
-
-  // Toast
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [toastError, setToastError] = useState(false);
+  const [deletingNotification, setDeletingNotification] = useState<NotificationItem | null>(null);
+  const [isDeletingSingle, setIsDeletingSingle] = useState(false);
 
   // Preferences State
   const [preferences, setPreferences] = useState({
@@ -220,8 +220,7 @@ export default function NotificationsPage() {
       });
 
       if (res.ok) {
-        setToastMessage('All notifications marked as read');
-        setToastError(false);
+        showSuccess('All notifications marked as read');
       }
     } catch (err) {
       console.error('[NotificationsPage] Error marking all as read:', err);
@@ -229,22 +228,38 @@ export default function NotificationsPage() {
     }
   };
 
-  // Delete single notification
-  const handleDeleteNotification = async (id: string) => {
+  // Request confirmation to delete single notification
+  const handleDeleteNotification = (id: string) => {
+    const item = notifications.find((n) => n.id === id);
+    if (item) {
+      setDeletingNotification(item);
+    }
+  };
+
+  // Perform confirmed deletion of single notification
+  const handleConfirmDeleteSingle = async () => {
+    if (!deletingNotification) return;
+    const id = deletingNotification.id;
+    setIsDeletingSingle(true);
     try {
       setNotifications((prev) => prev.filter((n) => n.id !== id));
       setTotalCount((c) => Math.max(0, c - 1));
       const res = await shopifyFetch(`/api/notifications?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
-        setToastMessage('Notification deleted');
-        setToastError(false);
+        showSuccess('Notification deleted');
         notifyBellUpdate();
+        setDeletingNotification(null);
       } else {
+        const errJson = await res.json().catch(() => ({}));
+        showError(errJson.error || 'Failed to delete notification');
         loadNotifications();
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('[NotificationsPage] Error deleting notification:', err);
+      showError(err?.message || 'Network error deleting notification');
       loadNotifications();
+    } finally {
+      setIsDeletingSingle(false);
     }
   };
 
@@ -257,19 +272,18 @@ export default function NotificationsPage() {
         setNotifications([]);
         setTotalCount(0);
         setUnreadCount(0);
-        setToastMessage('All notifications deleted successfully');
-        setToastError(false);
+        showSuccess('All notifications deleted successfully');
         notifyBellUpdate();
       } else {
         const data = await res.json();
-        setToastMessage(data.error || 'Failed to delete notifications');
-        setToastError(true);
+        showError(data.error || 'Failed to delete notifications');
       }
-    } catch (err: any) {
-      setToastMessage(err.message || 'Error deleting notifications');
-      setToastError(true);
+    } catch (err) {
+      console.error('[NotificationsPage] Error deleting all:', err);
+      showError('Network error deleting all notifications');
     } finally {
       setIsDeletingAll(false);
+      setShowDeleteAllConfirm(false);
     }
   };
 
@@ -285,20 +299,17 @@ export default function NotificationsPage() {
 
       if (res.ok) {
         setPrefsSuccess(true);
-        setToastMessage('Preferences saved successfully');
-        setToastError(false);
+        showSuccess('Preferences saved successfully');
         setTimeout(() => {
           setIsPreferencesOpen(false);
           setPrefsSuccess(false);
         }, 1200);
       } else {
         const errorData = await res.json();
-        setToastMessage(errorData.error || 'Failed to save preferences');
-        setToastError(true);
+        showError(errorData.error || 'Failed to save preferences');
       }
     } catch (err: any) {
-      setToastMessage(err.message || 'Error saving preferences');
-      setToastError(true);
+      showError(err.message || 'Error saving preferences');
     } finally {
       setSavingPrefs(false);
     }
@@ -355,6 +366,18 @@ export default function NotificationsPage() {
           await handleDeleteAll();
         }}
         onCancel={() => setShowDeleteAllConfirm(false)}
+      />
+
+      <ConfirmToast
+        open={Boolean(deletingNotification)}
+        message="Delete this notification?"
+        subMessage={deletingNotification?.title || "This alert will be permanently removed."}
+        confirmLabel="Yes, Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={isDeletingSingle}
+        onConfirm={handleConfirmDeleteSingle}
+        onCancel={() => setDeletingNotification(null)}
       />
 
       <Layout>
@@ -438,15 +461,6 @@ export default function NotificationsPage() {
         saving={savingPrefs}
         saveSuccess={prefsSuccess}
       />
-
-      {/* Toast Feedback */}
-      {toastMessage && (
-        <Toast
-          content={toastMessage}
-          error={toastError}
-          onDismiss={() => setToastMessage(null)}
-        />
-      )}
     </Page>
   );
 }

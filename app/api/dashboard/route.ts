@@ -88,29 +88,57 @@ export async function GET(req: NextRequest) {
     const failedSyncs = totalSyncs - successSyncs;
     const syncStats = { totalSyncs, successSyncs, failedSyncs };
 
-    // Deduplicate low stock products by product title so variant duplicates don't show up twice
-    const lowStockMap = new Map();
-    currentStoreProducts
-      .filter((p: any) => p.inventoryQuantity <= store.lowStockThreshold)
-      .forEach((p: any) => {
-        const key = p.title?.trim() || p.sku?.trim();
-        if (!lowStockMap.has(key)) {
-          lowStockMap.set(key, p);
+    // Build image fallback maps across visible products
+    const skuFallbackImages = new Map<string, string>();
+    const titleFallbackImages = new Map<string, string>();
+    productCaches.forEach((p: any) => {
+      if (p.imageUrl) {
+        if (p.sku && !skuFallbackImages.has(p.sku)) {
+          skuFallbackImages.set(p.sku, p.imageUrl);
         }
-      });
-    const lowStockProducts = Array.from(lowStockMap.values())
+        const t = p.title?.trim().toLowerCase();
+        if (t && !titleFallbackImages.has(t)) {
+          titleFallbackImages.set(t, p.imageUrl);
+        }
+        const baseTitle = t?.split(' - ')[0]?.trim();
+        if (baseTitle && !titleFallbackImages.has(baseTitle)) {
+          titleFallbackImages.set(baseTitle, p.imageUrl);
+        }
+      }
+    });
+
+    const enrichProduct = (p: any) => {
+      let img = p.imageUrl;
+      if (!img && p.sku && skuFallbackImages.has(p.sku)) {
+        img = skuFallbackImages.get(p.sku);
+      }
+      if (!img) {
+        const t = p.title?.trim().toLowerCase();
+        if (t && titleFallbackImages.has(t)) {
+          img = titleFallbackImages.get(t);
+        } else {
+          const baseTitle = t?.split(' - ')[0]?.trim();
+          if (baseTitle && titleFallbackImages.has(baseTitle)) {
+            img = titleFallbackImages.get(baseTitle);
+          }
+        }
+      }
+      return {
+        ...p,
+        imageUrl: img || null,
+        inventoryQuantity: Math.max(0, p.inventoryQuantity)
+      };
+    };
+
+    // Include each and every variant individually
+    const lowStockProducts = currentStoreProducts
+      .filter((p: any) => p.inventoryQuantity <= store.lowStockThreshold)
+      .map((p: any) => enrichProduct(p))
       .sort((a: any, b: any) => a.inventoryQuantity - b.inventoryQuantity)
       .slice(0, 50);
 
-    // Deduplicate recently added products by title
-    const recentlyAddedMap = new Map();
-    currentStoreProducts.forEach((p: any) => {
-      const key = p.title?.trim() || p.sku?.trim();
-      if (!recentlyAddedMap.has(key)) {
-        recentlyAddedMap.set(key, p);
-      }
-    });
-    const recentlyAddedProducts = Array.from(recentlyAddedMap.values())
+    const recentlyAddedProducts = currentStoreProducts
+      .map((p: any) => enrichProduct(p))
       .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 50);
 

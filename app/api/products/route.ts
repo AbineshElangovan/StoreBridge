@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    // Cross-store collection fallback logic
+    // Cross-store collection and image fallback logic
     const currentSkus = products.map(p => p.sku).filter(Boolean) as string[];
     
     const connections = await (prisma as any).storeConnection.findMany({
@@ -54,18 +54,35 @@ export async function GET(req: NextRequest) {
     const crossStoreProducts = await prisma.productCache.findMany({
       where: { 
         storeId: { in: authorizedStoreIds },
-        sku: { in: currentSkus },
         OR: [
+          { sku: { in: currentSkus } },
           { collections: { some: {} } },
-          { tags: { not: null } }
+          { tags: { not: null } },
+          { imageUrl: { not: null } }
         ]
       },
       include: { collections: { include: { collection: true } } }
     });
 
     const skuCategories: { [sku: string]: string[] } = {};
+    const skuFallbackImages: { [sku: string]: string } = {};
+    const titleFallbackImages: { [title: string]: string } = {};
     
     crossStoreProducts.forEach(p => {
+      if (p.imageUrl) {
+        if (p.sku && !skuFallbackImages[p.sku]) {
+          skuFallbackImages[p.sku] = p.imageUrl;
+        }
+        const t = p.title?.trim().toLowerCase();
+        if (t && !titleFallbackImages[t]) {
+          titleFallbackImages[t] = p.imageUrl;
+        }
+        const baseTitle = t?.split(' - ')[0]?.trim();
+        if (baseTitle && !titleFallbackImages[baseTitle]) {
+          titleFallbackImages[baseTitle] = p.imageUrl;
+        }
+      }
+
       if (p.sku) {
         if (!skuCategories[p.sku]) skuCategories[p.sku] = [];
         
@@ -91,19 +108,30 @@ export async function GET(req: NextRequest) {
       }
     });
 
+    const resolveProductImage = (p: any): string[] => {
+      if (p.sku && skuImages[p.sku]?.length > 0) return skuImages[p.sku];
+      if (p.imageUrl) return [p.imageUrl];
+      if (p.sku && skuFallbackImages[p.sku]) return [skuFallbackImages[p.sku]];
+      const t = p.title?.trim().toLowerCase();
+      if (t && titleFallbackImages[t]) return [titleFallbackImages[t]];
+      const baseTitle = t?.split(' - ')[0]?.trim();
+      if (baseTitle && titleFallbackImages[baseTitle]) return [titleFallbackImages[baseTitle]];
+      return [];
+    };
+
     products.forEach((p) => {
       const item = {
         id: p.id,
         shopifyProductId: p.shopifyProductId,
-        imageUrls: (p.sku && skuImages[p.sku]?.length > 0) ? skuImages[p.sku] : (p.imageUrl ? [p.imageUrl] : []),
+        imageUrls: resolveProductImage(p),
         title: p.title,
         sku: p.sku || 'N/A',
         store: p.store.label || p.store.shopDomain,
         price: p.price,
         priceText: (p.price).toFixed(2),
-        inventoryQuantity: p.inventoryQuantity,
+        inventoryQuantity: Math.max(0, p.inventoryQuantity),
         stockLevel:
-          p.inventoryQuantity === 0
+          p.inventoryQuantity <= 0
             ? 'Out of Stock'
             : p.inventoryQuantity <= 5
             ? 'Critical'
@@ -140,46 +168,17 @@ export async function GET(req: NextRequest) {
 
       // Deduplicate category titles to prevent pushing the same item multiple times
       categoryTitles = Array.from(new Set(categoryTitles));
+      if (categoryTitles.length === 0) {
+        categoryTitles = ['Uncategorized'];
+      }
 
       categoryTitles.forEach((title) => {
         if (!groupedProducts[title]) {
           groupedProducts[title] = [];
         }
         
-        // Group by shopifyProductId, SKU if available, or title so variants of the same product merge
-        const existingItem = groupedProducts[title].find((i: any) => 
-          (i.shopifyProductId && p.shopifyProductId && i.shopifyProductId === p.shopifyProductId) ||
-          (item.sku !== 'N/A' && i.sku === item.sku) || 
-          (i.title && item.title && i.title.trim() === item.title.trim())
-        );
-        
-        if (existingItem) {
-          // Accumulate variant inventory quantity clamped to non-negative
-          existingItem.inventoryQuantity += Math.max(0, item.inventoryQuantity);
-          
-          // Re-evaluate stock level and status
-          existingItem.stockLevel =
-            existingItem.inventoryQuantity === 0
-              ? 'Out of Stock'
-              : existingItem.inventoryQuantity <= 5
-              ? 'Critical'
-              : existingItem.inventoryQuantity <= store.lowStockThreshold
-              ? 'Low'
-              : 'Healthy';
-          existingItem.status = existingItem.inventoryQuantity > 0 ? 'Active' : 'Inactive';
-        } else {
-          item.inventoryQuantity = Math.max(0, item.inventoryQuantity);
-          item.stockLevel =
-            item.inventoryQuantity === 0
-              ? 'Out of Stock'
-              : item.inventoryQuantity <= 5
-              ? 'Critical'
-              : item.inventoryQuantity <= store.lowStockThreshold
-              ? 'Low'
-              : 'Healthy';
-          item.status = item.inventoryQuantity > 0 ? 'Active' : 'Inactive';
-          groupedProducts[title].push(item);
-        }
+        // Show each and every variant individually without collapsing or summing quantities
+        groupedProducts[title].push(item);
       });
     });
 

@@ -282,6 +282,36 @@ export async function GET(
       mainProductTitle = mainProductTitle.split(' - ')[0].trim();
     }
 
+    // Resolve fallback image for target product from variants or cross-store caches
+    let resolvedProductImage = targetProduct.imageUrl;
+    if (!resolvedProductImage) {
+      const variantWithImage = variantsInDb.find(v => v.imageUrl);
+      if (variantWithImage?.imageUrl) {
+        resolvedProductImage = variantWithImage.imageUrl;
+      }
+    }
+    if (!resolvedProductImage) {
+      const crossStoreWithImage = allStoreProducts.find(p => p.imageUrl);
+      if (crossStoreWithImage?.imageUrl) {
+        resolvedProductImage = crossStoreWithImage.imageUrl;
+      }
+    }
+    if (!resolvedProductImage) {
+      const anyImage = await prisma.productCache.findFirst({
+        where: {
+          OR: [
+            ...(targetProduct.sku ? [{ sku: targetProduct.sku }] : []),
+            { title: { contains: mainProductTitle, mode: 'insensitive' } }
+          ],
+          imageUrl: { not: null }
+        },
+        select: { imageUrl: true }
+      });
+      if (anyImage?.imageUrl) {
+        resolvedProductImage = anyImage.imageUrl;
+      }
+    }
+
     const collectionNames = targetProduct.collections.map(cp => cp.collection.title);
     const collectionName = collectionNames.length > 0 ? collectionNames.join(', ') : (targetProduct.tags ? targetProduct.tags.split(',')[0] : 'General');
 
@@ -295,7 +325,7 @@ export async function GET(
         collection: collectionName,
         vendor: 'StoreBridge',
         basePrice: targetProduct.basePrice || targetProduct.price || 0,
-        imageUrl: targetProduct.imageUrl || null,
+        imageUrl: resolvedProductImage || null,
         status: totalCurrentStock > 0 ? 'Active' : 'Draft',
         currentStock: totalCurrentStock,
         healthStatus: overallHealth,
@@ -647,9 +677,12 @@ export async function PATCH(
                 }
               }
 
-              // Replicate Inventory to Target Store Shopify FIRST
+              // Replicate Inventory to Target Store Shopify FIRST (Delta-based relative sync)
               if (isQuantityChanged && quantity >= 0) {
-                targetUpdateData.inventoryQuantity = quantity;
+                const quantityDelta = quantity - Number(variantRecord.inventoryQuantity || 0);
+                const targetCurrentQty = Number(targetVariant.inventoryQuantity || 0);
+                const targetNewQty = Math.max(0, targetCurrentQty + quantityDelta);
+                targetUpdateData.inventoryQuantity = targetNewQty;
 
                 if (targetVariant.shopifyVariantId) {
                   let targetInventoryItemId: string | null = null;
@@ -671,7 +704,7 @@ export async function PATCH(
                   if (targetInventoryItemId) {
                     const targetLocationId = await fetchDefaultLocation(targetStore.shopDomain);
                     if (targetLocationId) {
-                      await setInventoryQuantity(targetStore.shopDomain, targetInventoryItemId, targetLocationId, quantity);
+                      await setInventoryQuantity(targetStore.shopDomain, targetInventoryItemId, targetLocationId, targetNewQty);
                     }
                   }
                 }

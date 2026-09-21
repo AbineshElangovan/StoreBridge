@@ -142,11 +142,13 @@ export async function GET(req: NextRequest) {
       select: {
         id: true,
         storeId: true,
+        shopifyProductId: true,
         title: true,
         sku: true,
         imageUrl: true,
         inventoryQuantity: true,
         price: true,
+        createdAt: true,
         store: {
           select: {
             id: true,
@@ -156,6 +158,51 @@ export async function GET(req: NextRequest) {
         }
       }
     });
+
+    // Build cross-variant and cross-store fallback image maps
+    // First from rawProducts, then supplemented from any authorized product caches if needed
+    const skuToImageMap = new Map<string, string>();
+    const titleToImageMap = new Map<string, string>();
+    const shopifyPidToImageMap = new Map<string, string>();
+
+    rawProducts.forEach((p: any) => {
+      if (p.imageUrl) {
+        if (p.sku && !skuToImageMap.has(p.sku)) skuToImageMap.set(p.sku, p.imageUrl);
+        const t = p.title?.trim().toLowerCase();
+        if (t && !titleToImageMap.has(t)) titleToImageMap.set(t, p.imageUrl);
+        // Also base title without variant suffix if applicable (e.g., "Baggy Denim pant - Blue / Medium" -> "baggy denim pant")
+        const baseTitle = t?.split(' - ')[0]?.trim();
+        if (baseTitle && !titleToImageMap.has(baseTitle)) titleToImageMap.set(baseTitle, p.imageUrl);
+        if (p.shopifyProductId && !shopifyPidToImageMap.has(p.shopifyProductId)) {
+          shopifyPidToImageMap.set(p.shopifyProductId, p.imageUrl);
+        }
+      }
+    });
+
+    // If any products are still missing images, check authorized store caches for any variant with an image
+    const missingImageSkus = rawProducts.filter((p: any) => !p.imageUrl && p.sku).map((p: any) => p.sku);
+    if (missingImageSkus.length > 0) {
+      const extraCachesWithImg = await prisma.productCache.findMany({
+        where: {
+          storeId: { in: targetStoreIds },
+          sku: { in: missingImageSkus },
+          imageUrl: { not: null }
+        },
+        select: { sku: true, title: true, imageUrl: true, shopifyProductId: true }
+      });
+      extraCachesWithImg.forEach((ec: any) => {
+        if (ec.imageUrl) {
+          if (ec.sku && !skuToImageMap.has(ec.sku)) skuToImageMap.set(ec.sku, ec.imageUrl);
+          const t = ec.title?.trim().toLowerCase();
+          if (t && !titleToImageMap.has(t)) titleToImageMap.set(t, ec.imageUrl);
+          const baseTitle = t?.split(' - ')[0]?.trim();
+          if (baseTitle && !titleToImageMap.has(baseTitle)) titleToImageMap.set(baseTitle, ec.imageUrl);
+          if (ec.shopifyProductId && !shopifyPidToImageMap.has(ec.shopifyProductId)) {
+            shopifyPidToImageMap.set(ec.shopifyProductId, ec.imageUrl);
+          }
+        }
+      });
+    }
 
     // Aggregation & Metric Calculations
     const aggregatedMap = new Map<string, any>();
@@ -219,6 +266,16 @@ export async function GET(req: NextRequest) {
         risk = 'LOW';
       }
 
+      // Best resolved image URL
+      const tLower = p.title?.trim().toLowerCase();
+      const baseTitle = tLower?.split(' - ')[0]?.trim();
+      const resolvedImageUrl = p.imageUrl ||
+        (p.sku ? skuToImageMap.get(p.sku) : null) ||
+        (p.shopifyProductId ? shopifyPidToImageMap.get(p.shopifyProductId) : null) ||
+        (tLower ? titleToImageMap.get(tLower) : null) ||
+        (baseTitle ? titleToImageMap.get(baseTitle) : null) ||
+        null;
+
       const mapKey = isAllStores ? titleKey : `${storeId}:${titleKey}`;
 
       if (!aggregatedMap.has(mapKey)) {
@@ -226,12 +283,17 @@ export async function GET(req: NextRequest) {
         const skus = new Set<string>();
         if (p.sku && p.sku !== 'N/A') skus.add(p.sku);
 
+        const createdAtDate = p.createdAt ? new Date(p.createdAt) : new Date();
+        const daysSinceCreated = Math.max(0, Math.floor((Date.now() - createdAtDate.getTime()) / (1000 * 60 * 60 * 24)));
+
         storeBreakdownMap.set(storeId, {
           storeId,
           storeName,
           currentStock,
           avgDailySales,
           expectedStockoutDays,
+          daysSinceCreated,
+          createdAt: createdAtDate.toISOString(),
           recommendedReplenishment,
           risk,
           skus
@@ -241,14 +303,17 @@ export async function GET(req: NextRequest) {
           id: p.id,
           title: p.title,
           sku: p.sku || 'N/A',
-          imageUrl: p.imageUrl,
+          imageUrl: resolvedImageUrl,
           price: p.price || 0,
           currentStock,
           unitsSoldInHistory,
           avgDailySales,
           forecastDemand,
           expectedStockoutDays,
+          createdAt: createdAtDate,
+          daysSinceCreated,
           leadTimeDays,
+          replenishDays,
           safetyDays,
           requiredStock,
           recommendedReplenishment,
@@ -263,6 +328,16 @@ export async function GET(req: NextRequest) {
         existing.avgDailySales += avgDailySales;
         existing.forecastDemand += forecastDemand;
         existing.storeLabels.add(storeName);
+
+        if (p.createdAt && new Date(p.createdAt) < existing.createdAt) {
+          existing.createdAt = new Date(p.createdAt);
+          existing.daysSinceCreated = Math.max(0, Math.floor((Date.now() - existing.createdAt.getTime()) / (1000 * 60 * 60 * 24)));
+        }
+
+        // Retain / upgrade image if existing had none
+        if (!existing.imageUrl && resolvedImageUrl) {
+          existing.imageUrl = resolvedImageUrl;
+        }
 
         if (existing.storeBreakdownMap.has(storeId)) {
           const sb = existing.storeBreakdownMap.get(storeId);
@@ -330,14 +405,37 @@ export async function GET(req: NextRequest) {
       }
     });
 
+    const formatStockoutDays = (days: number | null): string => {
+      if (days === null) return 'No demand';
+      if (days === 0) return '0 days';
+      if (days === 1) return '1 day';
+      if (days > 365) return '> 1 year';
+      if (days > 90) return '> 90 days';
+      return `${days} days`;
+    };
+
+    const getStockoutDate = (days: number | null): string | null => {
+      if (days === null) return null;
+      const target = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+      return target.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+
     const allProcessedProducts = Array.from(aggregatedMap.values()).map((p) => ({
       ...p,
       avgDailySalesFormatted: p.avgDailySales.toFixed(1),
+      stockoutDaysFormatted: formatStockoutDays(p.expectedStockoutDays),
+      stockoutDate: getStockoutDate(p.expectedStockoutDays),
+      daysSinceCreated: p.daysSinceCreated ?? 0,
+      createdDateFormatted: p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null,
       storeLabel: isAllStores && p.storeLabels.size > 1
         ? 'Multi-Store'
         : Array.from(p.storeLabels)[0] || 'Store',
       storesBreakdown: Array.from(p.storeBreakdownMap.values()).map((sb: any) => ({
         ...sb,
+        stockoutDaysFormatted: formatStockoutDays(sb.expectedStockoutDays),
+        stockoutDate: getStockoutDate(sb.expectedStockoutDays),
+        daysSinceCreated: sb.daysSinceCreated ?? 0,
+        createdDateFormatted: sb.createdAt ? new Date(sb.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null,
         skus: Array.from(sb.skus || [])
       }))
     }));

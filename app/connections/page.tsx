@@ -19,6 +19,8 @@ import { DeleteIcon, AlertTriangleIcon } from '@shopify/polaris-icons';
 import { TableCard } from '@/components/ui/TableCard';
 import { ThemedSection } from '@/components/ui/ThemedSection';
 import { StoreRoleBadge } from '@/components/ui/StoreRoleBadge';
+import { ConfirmToast } from '@/components/ui/ConfirmToast';
+import { useToast } from '@/components/providers/ToastContext';
 
 
 export default function ConnectionsPage() {
@@ -53,6 +55,11 @@ export default function ConnectionsPage() {
 
   // Manual Store Generation State
   const [generatingStore, setGeneratingStore] = useState(false);
+
+  // Store Connection Removal State
+  const [removingConnection, setRemovingConnection] = useState<{ id: string; name: string } | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
+  const { showSuccess, showError } = useToast();
 
   const [toastMessage, setToastMessage] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -169,21 +176,25 @@ export default function ConnectionsPage() {
     }
   };
 
-  const handleRemoveStore = async (targetStoreId: string) => {
-    if (!confirm('Are you sure you want to remove this connection?')) return;
+  const handleConfirmRemoveStore = async () => {
+    if (!removingConnection) return;
+    setIsRemoving(true);
     try {
-      const res = await shopifyFetch(`/api/connections?targetStoreId=${targetStoreId}`, {
+      const res = await shopifyFetch(`/api/connections?targetStoreId=${removingConnection.id}`, {
         method: 'DELETE'
       });
       const data = await res.json();
       if (data.success) {
-        setToastMessage({ message: 'Store connection removed successfully.', type: 'success' });
+        showSuccess(`Store connection "${removingConnection.name}" removed successfully.`);
+        setRemovingConnection(null);
         fetchData();
       } else {
-        setToastMessage({ message: 'Failed to remove: ' + data.error, type: 'error' });
+        showError('Failed to remove: ' + data.error);
       }
     } catch (err: any) {
-      setToastMessage({ message: 'Error: ' + err.message, type: 'error' });
+      showError('Error: ' + err.message);
+    } finally {
+      setIsRemoving(false);
     }
   };
 
@@ -256,7 +267,10 @@ export default function ConnectionsPage() {
       action: (
         <div className="flex items-center gap-2">
           <button
-            onClick={() => handleRemoveStore(conn.targetStoreId)}
+            onClick={() => setRemovingConnection({
+              id: conn.targetStoreId,
+              name: conn.targetStore.label || conn.targetStore.shopDomain
+            })}
             className="flex items-center gap-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1.5 rounded transition-colors cursor-pointer bg-transparent border-none font-medium text-xs"
             title="Remove Connection"
           >
@@ -459,7 +473,10 @@ export default function ConnectionsPage() {
                   status: conn.targetStore.isActive ? 'Healthy' : 'Stale',
                   action: (
                     <button 
-                      onClick={() => handleRemoveStore(conn.targetStoreId)} 
+                      onClick={() => setRemovingConnection({
+                        id: conn.targetStoreId,
+                        name: conn.targetStore.label || conn.targetStore.shopDomain.split('.')[0]
+                      })} 
                       className="text-red-600 hover:text-red-700 font-semibold px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1.5 text-xs w-fit"
                       title="Remove Connection"
                     >
@@ -503,6 +520,19 @@ export default function ConnectionsPage() {
           <button onClick={() => setToastMessage(null)} className="ml-2 opacity-80 hover:opacity-100">✕</button>
         </div>
       )}
+
+      {/* Confirmation Modal for Store Connection Removal */}
+      <ConfirmToast
+        open={Boolean(removingConnection)}
+        message={`Remove connection to "${removingConnection?.name}"?`}
+        subMessage="This store will no longer receive synchronized catalog and inventory updates from Master."
+        confirmLabel="Yes, Remove"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={isRemoving}
+        onConfirm={handleConfirmRemoveStore}
+        onCancel={() => setRemovingConnection(null)}
+      />
     </div>
   );
 }

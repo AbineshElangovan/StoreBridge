@@ -97,6 +97,49 @@ export default async function DashboardPage() {
     { title: 'Last Synced', key: 'lastSynced' },
   ];
 
+  // ── Build cross-store and cross-variant image fallback maps ──
+  const allImagesRaw = await prisma.productCache.findMany({
+    where: {
+      storeId: { in: visibleStoreIds },
+      imageUrl: { not: null }
+    },
+    select: { sku: true, title: true, imageUrl: true, shopifyProductId: true }
+  });
+
+  const skuToImageMap = new Map<string, string>();
+  const titleToImageMap = new Map<string, string>();
+  const shopifyPidToImageMap = new Map<string, string>();
+
+  allImagesRaw.forEach((item) => {
+    if (item.imageUrl) {
+      if (item.sku && !skuToImageMap.has(item.sku)) {
+        skuToImageMap.set(item.sku, item.imageUrl);
+      }
+      const t = item.title?.trim().toLowerCase();
+      if (t && !titleToImageMap.has(t)) {
+        titleToImageMap.set(t, item.imageUrl);
+      }
+      const baseTitle = t?.split(' - ')[0]?.trim();
+      if (baseTitle && !titleToImageMap.has(baseTitle)) {
+        titleToImageMap.set(baseTitle, item.imageUrl);
+      }
+      if (item.shopifyProductId && !shopifyPidToImageMap.has(item.shopifyProductId)) {
+        shopifyPidToImageMap.set(item.shopifyProductId, item.imageUrl);
+      }
+    }
+  });
+
+  const resolveImageUrl = (p: { sku?: string | null; title?: string | null; imageUrl?: string | null; shopifyProductId?: string | null }) => {
+    if (p.imageUrl) return p.imageUrl;
+    if (p.sku && skuToImageMap.has(p.sku)) return skuToImageMap.get(p.sku)!;
+    const t = p.title?.trim().toLowerCase();
+    if (t && titleToImageMap.has(t)) return titleToImageMap.get(t)!;
+    const baseTitle = t?.split(' - ')[0]?.trim();
+    if (baseTitle && titleToImageMap.has(baseTitle)) return titleToImageMap.get(baseTitle)!;
+    if (p.shopifyProductId && shopifyPidToImageMap.has(p.shopifyProductId)) return shopifyPidToImageMap.get(p.shopifyProductId)!;
+    return null;
+  };
+
   // ── Low Stock Products Table ──
   const lowStockRaw = await prisma.productCache.findMany({
     where: { 
@@ -109,7 +152,7 @@ export default async function DashboardPage() {
 
   const lowStockProducts = lowStockRaw.map((p) => ({
     id: p.id,
-    imageUrl: p.imageUrl,
+    imageUrl: resolveImageUrl(p),
     title_node: (
       <Link 
         href={getProductUrl(p)}
@@ -145,7 +188,7 @@ export default async function DashboardPage() {
 
   const recentlyAddedProducts = recentlyAddedRaw.map((p) => ({
     id: p.id,
-    imageUrl: p.imageUrl,
+    imageUrl: resolveImageUrl(p),
     title_node: (
       <Link 
         href={getProductUrl(p)}

@@ -7,12 +7,13 @@ import ShopifyProvider from '@/components/providers/AppBridgeProvider';
 import { Suspense } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { ResponsiveLayout } from '@/components/layout/ResponsiveLayout';
-import Script from 'next/script';
 import { prisma } from '@/lib/db/prisma';
 import { TimezoneProvider } from '@/components/providers/TimezoneContext';
 import { LiveRefresher } from '@/components/providers/LiveRefresher';
 import { StoreProvider } from '@/components/providers/StoreProvider';
 import { NavbarTitleProvider } from '@/components/providers/NavbarTitleContext';
+
+import { ToastProvider } from '@/components/providers/ToastContext';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,22 +43,26 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         <meta name="shopify-api-key" content={process.env.NEXT_PUBLIC_SHOPIFY_API_KEY} />
-        <Script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" strategy="beforeInteractive" />
+        {/* App Bridge MUST load synchronously — no async/defer. Do NOT use Next.js <Script> here. */}
+        {/* eslint-disable-next-line @next/next/no-sync-scripts */}
+        <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
       </head>
       <body className={inter.className}>
         <ShopifyProvider>
           <StoreProvider>
             <NavbarTitleProvider>
-              <ResponsiveLayout sidebar={
-                <Suspense key="sidebar-suspense" fallback={<div className="w-[260px] bg-white border-r h-full animate-pulse" />}>
-                  <Sidebar />
-                </Suspense>
-              }>
-                <TimezoneProvider>
-                  <LiveRefresher key="live-refresher" />
-                  {children}
-                </TimezoneProvider>
-              </ResponsiveLayout>
+              <ToastProvider>
+                <ResponsiveLayout sidebar={
+                  <Suspense key="sidebar-suspense" fallback={<div className="w-[260px] bg-white border-r h-full animate-pulse" />}>
+                    <Sidebar />
+                  </Suspense>
+                }>
+                  <TimezoneProvider>
+                    <LiveRefresher key="live-refresher" />
+                    {children}
+                  </TimezoneProvider>
+                </ResponsiveLayout>
+              </ToastProvider>
             </NavbarTitleProvider>
           </StoreProvider>
         </ShopifyProvider>

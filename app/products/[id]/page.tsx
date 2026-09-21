@@ -14,9 +14,11 @@ import { useNavbarTitle } from '@/components/providers/NavbarTitleContext';
 import { getCleanProductName } from '@/lib/utils/formatProductTitle';
 import { ConfirmToast } from '@/components/ui/ConfirmToast';
 import { useStoreContext } from '@/components/providers/StoreProvider';
+import { useToast } from '@/components/providers/ToastContext';
 
 export default function ProductDetailsPage() {
   const { isMaster } = useStoreContext();
+  const { showSuccess, showError } = useToast();
   const params = useParams();
   const router = useRouter();
   const { setCustomTitle } = useNavbarTitle();
@@ -99,13 +101,18 @@ export default function ProductDetailsPage() {
       const json = await res.json();
       if (res.ok && json.success) {
         setShowDeleteModal(false);
+        showSuccess(`Product "${productData?.title || 'Product'}" deleted successfully`);
         router.push('/products');
       } else {
-        setDeleteError(json.error || 'Failed to delete product');
+        const errMsg = json.error || 'Failed to delete product';
+        setDeleteError(errMsg);
+        showError(errMsg);
       }
     } catch (err: any) {
       console.error('[Product Details Page] Delete error:', err);
-      setDeleteError(err.message || 'Network error deleting product');
+      const errMsg = err.message || 'Network error deleting product';
+      setDeleteError(errMsg);
+      showError(errMsg);
     } finally {
       setIsDeleting(false);
     }
