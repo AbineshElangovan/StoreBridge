@@ -18,8 +18,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const { isStandalone, loading: contextLoading } = useStoreContext();
   const router = useRouter();
+  const hasLoadedRef = React.useRef(false);
 
   useEffect(() => {
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
 
     async function loadDashboardData() {
       try {
@@ -59,23 +62,7 @@ export default function DashboardPage() {
       }
     }
 
-    // Initial load
     loadDashboardData();
-
-    const handleFocus = () => loadDashboardData();
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        loadDashboardData();
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('visibilitychange', handleVisibility);
-    };
   }, []);
 
   if (loading || contextLoading) {
@@ -146,8 +133,8 @@ export default function DashboardPage() {
     sku: p.sku || 'N/A',
     inventoryQuantity: p.inventoryQuantity,
     status: 'Active',
-    addedDate: <LocalizedDate date={p.updatedAt} format="date" />,
-    addedTime: <LocalizedDate date={p.updatedAt} format="time" />,
+    addedDate: <LocalizedDate date={p.createdAt} format="date" />,
+    addedTime: <LocalizedDate date={p.createdAt} format="time" />,
   }));
 
   const recentlyAddedColumns: ColumnConfig[] = [

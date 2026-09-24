@@ -71,6 +71,13 @@ export async function authenticate(req: NextRequest) {
         label: { contains: requestedShop, mode: 'insensitive' }
       }
     });
+
+    // If a specific shop was requested by the browser/App Bridge but it is inactive or not found,
+    // DO NOT silently fall back to another store (like Namakkal or Chennai)!
+    // Reject with a clear message so the frontend redirects to /api/auth to install/activate it.
+    if (!store) {
+      throw new AuthError("Store not installed or inactive");
+    }
   }
 
   if (!store) {
@@ -82,7 +89,7 @@ export async function authenticate(req: NextRequest) {
     return { shop: store.shopDomain, store };
   }
 
-  throw new AuthError("Unauthorized access. Store not found.");
+  throw new AuthError("Store not installed or inactive");
 }
 
 export function handleApiError(error: any) {

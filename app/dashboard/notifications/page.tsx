@@ -293,8 +293,8 @@ export default function NotificationsPage() {
     setPrefsSuccess(false);
     try {
       const res = await shopifyFetch('/api/settings', {
-        method: 'POST',
-        body: JSON.stringify({ settings: preferences }),
+        method: 'PUT',
+        body: JSON.stringify(preferences),
       });
 
       if (res.ok) {

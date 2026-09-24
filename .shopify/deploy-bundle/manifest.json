@@ -13,7 +13,7 @@
         "optional_scopes": [],
         "use_legacy_install_flow": false,
         "redirect_url_allowlist": [
-          "https://pagan-finale-thigh.ngrok-free.dev/api/auth/callback"
+          "https://dz50mdfc-3000.inc1.devtunnels.ms/api/auth/callback"
         ]
       }
     },
@@ -34,7 +34,7 @@
       "assets": "app_home",
       "target": "",
       "config": {
-        "app_url": "https://pagan-finale-thigh.ngrok-free.dev",
+        "app_url": "https://dz50mdfc-3000.inc1.devtunnels.ms",
         "embedded": true
       }
     },
@@ -57,7 +57,7 @@
       "config": {
         "topic": "app/uninstalled",
         "api_version": "2026-10",
-        "uri": "https://pagan-finale-thigh.ngrok-free.dev/api/webhooks/app-uninstalled"
+        "uri": "https://dz50mdfc-3000.inc1.devtunnels.ms/api/webhooks/app-uninstalled"
       }
     },
     {
@@ -69,7 +69,7 @@
       "config": {
         "topic": "inventory_levels/update",
         "api_version": "2026-10",
-        "uri": "https://pagan-finale-thigh.ngrok-free.dev/api/webhooks/inventory-levels-update"
+        "uri": "https://dz50mdfc-3000.inc1.devtunnels.ms/api/webhooks/inventory-levels-update"
       }
     },
     {
@@ -81,7 +81,7 @@
       "config": {
         "topic": "products/create",
         "api_version": "2026-10",
-        "uri": "https://pagan-finale-thigh.ngrok-free.dev/api/webhooks/products-create"
+        "uri": "https://dz50mdfc-3000.inc1.devtunnels.ms/api/webhooks/products-create"
       }
     },
     {
@@ -93,7 +93,7 @@
       "config": {
         "topic": "products/delete",
         "api_version": "2026-10",
-        "uri": "https://pagan-finale-thigh.ngrok-free.dev/api/webhooks/products-delete"
+        "uri": "https://dz50mdfc-3000.inc1.devtunnels.ms/api/webhooks/products-delete"
       }
     },
     {
@@ -105,7 +105,7 @@
       "config": {
         "topic": "products/update",
         "api_version": "2026-10",
-        "uri": "https://pagan-finale-thigh.ngrok-free.dev/api/webhooks/products-update"
+        "uri": "https://dz50mdfc-3000.inc1.devtunnels.ms/api/webhooks/products-update"
       }
     }
   ]

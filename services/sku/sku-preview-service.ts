@@ -109,10 +109,11 @@ export async function generateSkuPreview(
     existingVariants
   );
 
-  // 5. Generate candidate SKUs
+  // 5. Generate candidate SKUs using base product title
+  const baseProductTitle = (product.title ? product.title.split(" - ")[0].trim() : "Product") || "Product";
   const candidateSkus = await generateSkusForCombinations(
     storeId,
-    product.title,
+    baseProductTitle,
     combinations,
     product.collections[0]?.collectionId
   );
@@ -164,7 +165,7 @@ export async function generateSkuPreview(
     product: {
       id: product.id,
       shopifyProductId: product.shopifyProductId,
-      title: product.title,
+      title: baseProductTitle,
     },
     optionNames: options.map((o) => o.name).filter(Boolean),
     totalCombinations: items.length,

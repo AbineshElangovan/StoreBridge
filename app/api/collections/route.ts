@@ -8,7 +8,19 @@ import { handleApiError } from "@/lib/shopify/authenticate";
 
 export async function GET(req: NextRequest) {
   try {
+    let whereClause = {};
+    try {
+      const { authenticate } = await import("@/lib/shopify/authenticate");
+      const { store } = await authenticate(req);
+      if (store) {
+        whereClause = { storeId: store.id };
+      }
+    } catch (authErr) {
+      // Fallback if accessed without auth header
+    }
+
     const collections = await prisma.collection.findMany({
+      where: whereClause,
       orderBy: { title: 'asc' }
     });
     return NextResponse.json(collections);

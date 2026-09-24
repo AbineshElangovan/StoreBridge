@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   try {
     const { store } = await authenticate(req);
 
-    // Fetch all cached product/variant items for the store
+    // Fetch all cached product/variant items for the store with collections
     const cacheItems = await prisma.productCache.findMany({
       where: { storeId: store.id },
       select: {
@@ -17,8 +17,19 @@ export async function GET(req: NextRequest) {
         shopifyProductId: true,
         title: true,
         sku: true,
+        tags: true,
         imageUrl: true,
         price: true,
+        collections: {
+          select: {
+            collection: {
+              select: {
+                id: true,
+                title: true,
+              }
+            }
+          }
+        }
       },
       orderBy: { title: "asc" },
     });
@@ -36,7 +47,10 @@ export async function GET(req: NextRequest) {
       sku: string | null;
       imageUrl: string | null;
       price: number;
+      variantCount: number;
       allSkus: string[];
+      tags: string[];
+      collections: { id: string; title: string }[];
     }>();
 
     for (const item of cacheItems) {
@@ -52,9 +66,24 @@ export async function GET(req: NextRequest) {
           sku: item.sku || null,
           imageUrl: item.imageUrl || null,
           price: item.price || 0,
+          variantCount: 0,
           allSkus: [],
+          tags: item.tags ? item.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+          collections: [],
         };
         productMap.set(item.shopifyProductId, existing);
+      }
+
+      // Count this variant item
+      existing.variantCount += 1;
+
+      // Add collections
+      if (item.collections && item.collections.length > 0) {
+        for (const cp of item.collections) {
+          if (cp.collection && !existing.collections.some(c => c.id === cp.collection.id)) {
+            existing.collections.push({ id: cp.collection.id, title: cp.collection.title });
+          }
+        }
       }
 
       if (item.sku && item.sku.trim() !== "" && item.sku !== "N/A") {
@@ -72,12 +101,12 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Merge any extra SKUs from VariantMap
+    // Merge any extra SKUs and count from VariantMap
     for (const vm of variantMaps) {
-      if (vm.sku && vm.sku.trim() !== "" && vm.sku !== "N/A") {
-        const cleanSku = vm.sku.trim();
-        const existing = productMap.get(vm.shopifyProductId);
-        if (existing) {
+      const existing = productMap.get(vm.shopifyProductId);
+      if (existing) {
+        if (vm.sku && vm.sku.trim() !== "" && vm.sku !== "N/A") {
+          const cleanSku = vm.sku.trim();
           if (!existing.allSkus.includes(cleanSku)) {
             existing.allSkus.push(cleanSku);
           }
@@ -86,6 +115,11 @@ export async function GET(req: NextRequest) {
           }
         }
       }
+    }
+
+    // Ensure variantCount is at least the number of unique SKUs or 1
+    for (const p of productMap.values()) {
+      p.variantCount = Math.max(p.variantCount, p.allSkus.length, 1);
     }
 
     const cachedProducts = Array.from(productMap.values());

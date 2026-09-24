@@ -47,7 +47,7 @@ export default function SettingsPage() {
 
   const loadData = React.useCallback(async () => {
     try {
-      const storesRes = await shopifyFetch(`/api/stores?active=false&t=${Date.now()}`, { cache: 'no-store' });
+      const storesRes = await shopifyFetch(`/api/stores?active=false`, { cache: 'no-store' });
       if (storesRes.ok) {
         const storesJson = await storesRes.json();
         setDebugOutput(JSON.stringify(storesJson));
@@ -72,7 +72,7 @@ export default function SettingsPage() {
         setDebugOutput(`API ERROR ${storesRes.status}: ${errText}`);
       }
 
-      const settingsRes = await shopifyFetch(`/api/settings?t=${Date.now()}`, { cache: 'no-store' });
+      const settingsRes = await shopifyFetch(`/api/settings`, { cache: 'no-store' });
       if (settingsRes.ok) {
         const settingsJson = await settingsRes.json();
         const s = settingsJson.settings || {};
@@ -156,24 +156,13 @@ export default function SettingsPage() {
     }
   };
 
+  const hasLoadedRef = React.useRef(false);
+
   useEffect(() => {
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
     loadData();
-
-    const handleFocus = () => loadData();
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        loadData();
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('visibilitychange', handleVisibility);
-    };
-  }, []);
+  }, [loadData]);
 
   // Automatically hide any toast message after 3 seconds
   useEffect(() => {

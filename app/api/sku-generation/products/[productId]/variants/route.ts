@@ -108,12 +108,16 @@ export async function GET(
       values: Array.from(valuesSet),
     }));
 
+    const cleanProductTitle = (targetProduct.title || "").includes(" - ")
+      ? targetProduct.title.split(" - ")[0].trim()
+      : targetProduct.title;
+
     return NextResponse.json({
       success: true,
       product: {
         id: targetProduct.id,
         shopifyProductId: targetProduct.shopifyProductId,
-        title: targetProduct.title,
+        title: cleanProductTitle || targetProduct.title,
         sku: targetProduct.sku,
         imageUrl: targetProduct.imageUrl,
         price: targetProduct.price,
@@ -123,6 +127,7 @@ export async function GET(
         shopifyVariantId: v.shopifyVariantId,
         title: v.title,
         sku: v.sku,
+        imageUrl: v.imageUrl,
         price: v.price,
         inventoryQuantity: v.inventoryQuantity,
       })),

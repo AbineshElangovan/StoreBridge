@@ -1,53 +1,23 @@
 "use client";
 
-let appBridgeTimedOut = false;
+// Reusable in-flight request cache for safe/idempotent GET requests
+const inFlightRequests = new Map<string, Promise<Response>>();
+
+function buildRequestKey(input: RequestInfo, init: RequestInit, activeShopDomain: string): string {
+  let urlStr = typeof input === "string" ? input : input instanceof Request ? input.url : String(input);
+  try {
+    // Strip ephemeral cache-busting timestamp `t=...` so identical simultaneous calls share the in-flight promise
+    if (urlStr.includes('t=')) {
+      urlStr = urlStr.replace(/([?&])t=\d+(&|$)/, '$1').replace(/[?&]$/, '');
+    }
+  } catch (e) {}
+  return `${urlStr}::shop=${activeShopDomain}`;
+}
 
 export async function shopifyFetch(input: RequestInfo, init: RequestInit = {}): Promise<Response> {
-  const maxRetries = 20;
-  let retries = 0;
-  let delay = 300;
+  const method = (init.method || "GET").toUpperCase();
 
-  const hasHost = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("host");
-
-  while (
-    !appBridgeTimedOut &&
-    hasHost &&
-    typeof window !== "undefined" &&
-    !((window as any).shopify && typeof (window as any).shopify.idToken === "function") &&
-    retries < maxRetries
-  ) {
-    await new Promise((resolve) => setTimeout(resolve, delay));
-    retries++;
-    delay = Math.min(delay * 1.5, 1000); // exponential backoff, cap at 1s
-  }
-  
-  if (retries >= maxRetries) {
-    appBridgeTimedOut = true;
-  }
-
-  const shopifyV4 = typeof window !== "undefined" ? (window as any).shopify : null;
-
-  let token: string;
-
-  if (shopifyV4 && typeof shopifyV4.idToken === "function") {
-    try {
-      token = await shopifyV4.idToken();
-    } catch (err: any) {
-      if (process.env.NODE_ENV === "development" && err?.message?.includes("host did not respond")) {
-        console.warn("[shopifyFetch] idToken unavailable (host did not respond). Falling back to dev_fallback_token.");
-        token = "dev_fallback_token";
-      } else {
-        console.warn("[shopifyFetch] App Bridge idToken failed:", err.message);
-        token = "dev_fallback_token";
-      }
-    }
-  } else if (process.env.NODE_ENV === "development") {
-    console.warn("[shopifyFetch] App Bridge not initialized in dev mode. Falling back to dev_fallback_token.");
-    token = "dev_fallback_token";
-  } else {
-    token = "dev_fallback_token";
-  }
-
+  // Active shop domain resolution (preserves existing fallback behavior)
   let requestInput = input;
   let activeShopDomain = "";
   if (typeof window !== "undefined" && window.location) {
@@ -69,26 +39,67 @@ export async function shopifyFetch(input: RequestInfo, init: RequestInit = {}): 
     }
   }
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-    ...(init.headers as Record<string, string> || {}),
-  };
+  // Deduplicate safe GET requests only. Never deduplicate mutations (POST, PUT, PATCH, DELETE).
+  const isSafeGet = method === "GET";
+  const requestKey = isSafeGet ? buildRequestKey(requestInput, init, activeShopDomain) : null;
 
-  if (activeShopDomain) {
-    headers["x-shopify-shop-domain"] = activeShopDomain;
+  if (isSafeGet && requestKey && inFlightRequests.has(requestKey)) {
+    // Clone response so multiple callers can read their own body stream
+    const ongoingPromise = inFlightRequests.get(requestKey)!;
+    return ongoingPromise.then((res) => res.clone());
   }
 
-  try {
-    return await fetch(requestInput, {
-      ...init,
-      headers,
+  const executionPromise = (async () => {
+    // Non-blocking token retrieval: check App Bridge idToken immediately without multi-second delays
+    let token = "dev_fallback_token";
+    const shopifyV4 = typeof window !== "undefined" ? (window as any).shopify : null;
+
+    if (shopifyV4 && typeof shopifyV4.idToken === "function") {
+      try {
+        const idToken = await shopifyV4.idToken();
+        if (idToken) {
+          token = idToken;
+        }
+      } catch (err: any) {
+        // Fallback silently and immediately to existing dev/header fallback
+        if (process.env.NODE_ENV === "development") {
+          console.warn("[shopifyFetch] App Bridge idToken unavailable, using fallback:", err?.message || err);
+        }
+      }
+    }
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(init.headers as Record<string, string> || {}),
+    };
+
+    if (activeShopDomain) {
+      headers["x-shopify-shop-domain"] = activeShopDomain;
+    }
+
+    try {
+      return await fetch(requestInput, {
+        ...init,
+        headers,
+      });
+    } catch (err: any) {
+      console.warn("[shopifyFetch] Network request failed:", err?.message || err);
+      return new Response(
+        JSON.stringify({ success: false, error: "Network error: Unable to connect to server." }),
+        { status: 503, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  })();
+
+  if (isSafeGet && requestKey) {
+    inFlightRequests.set(requestKey, executionPromise);
+    // Always clear the in-flight lock after settling (success or failure)
+    executionPromise.finally(() => {
+      inFlightRequests.delete(requestKey);
     });
-  } catch (err: any) {
-    console.warn("[shopifyFetch] Network request failed:", err?.message || err);
-    return new Response(
-      JSON.stringify({ success: false, error: "Network error: Unable to connect to server." }),
-      { status: 503, headers: { "Content-Type": "application/json" } }
-    );
   }
+
+  const response = await executionPromise;
+  return isSafeGet ? response.clone() : response;
 }

@@ -1,0 +1,6 @@
+name = "StoreBridge"
+roles = ["frontend", "backend"]
+
+[commands]
+dev = "next dev --webpack"
+build = "next build"

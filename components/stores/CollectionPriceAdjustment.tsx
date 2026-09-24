@@ -29,7 +29,7 @@ export default function CollectionPriceAdjustment({ storeId, storeName }: { stor
   const loadCollections = async () => {
     setLoading(true);
     try {
-      const res = await shopifyFetch(`/api/stores/${storeId}/collection-adjustments?t=${Date.now()}`, { cache: 'no-store' });
+      const res = await shopifyFetch(`/api/stores/${storeId}/collection-adjustments`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setCollections(data);
@@ -57,7 +57,8 @@ export default function CollectionPriceAdjustment({ storeId, storeName }: { stor
   };
 
   useEffect(() => {
-    if (storeId) {
+    if (storeId && fetchedStoreIdRef.current !== storeId) {
+      fetchedStoreIdRef.current = storeId;
       loadCollections();
     }
   }, [storeId]);

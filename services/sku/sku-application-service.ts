@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db/prisma";
 import { getAdminClient } from "@/lib/shopify/admin";
 import { createNotification } from "@/services/notification-service";
 import { calculateAdjustedPrice } from "@/services/shopify/pricing";
+import { publishProductToAllChannels } from "@/services/shopify/api-helpers";
 import { generateSkuPreview } from "./sku-preview-service";
 import { VariantOptionInput } from "./variant-combinations";
 
@@ -85,6 +86,28 @@ export async function applySkuGeneration(
     throw new Error("Target product not found in database.");
   }
 
+  // Resolve genuine base product title so it is never lost or overwritten
+  let baseProductTitle = "";
+  if (product.title && product.title.includes(" - ")) {
+    baseProductTitle = product.title.split(" - ")[0].trim();
+  } else if (product.title && !product.title.includes(" / ")) {
+    baseProductTitle = product.title.trim();
+  } else {
+    // Sibling lookup if title was previously corrupted to bare variant like "US 10 / Gray"
+    const sibling = await prisma.productCache.findFirst({
+      where: {
+        shopifyProductId: product.shopifyProductId,
+        title: { contains: " - " },
+      },
+      select: { title: true },
+    });
+    if (sibling?.title) {
+      baseProductTitle = sibling.title.split(" - ")[0].trim();
+    } else {
+      baseProductTitle = (product.title || "Product").trim();
+    }
+  }
+
   const newItems = preview.items.filter((item) => item.status === "New");
   const existingItemsToUpdate = preview.items.filter(
     (item) => item.status === "Existing" && (!item.existingSku || item.existingSku === "N/A")
@@ -112,78 +135,42 @@ export async function applySkuGeneration(
   let shopifySyncStatus: "SUCCESS" | "PARTIAL_FAILED" | "FAILED" | "NOT_REQUIRED" = "SUCCESS";
   let shopifyMessage = "";
 
-  // 2. Perform DB creation and missing SKU updates inside Prisma transaction
-  try {
-    await prisma.$transaction(async (tx) => {
-      // Create new variants
-      for (const item of newItems) {
-        const dummyVariantGid = `gid://shopify/ProductVariant/generated-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
-        const price = customPrice !== undefined ? customPrice : product.price || 0;
-        const qty = customQuantity !== undefined ? customQuantity : product.inventoryQuantity || 0;
+  // 2. Query existing collections for this product in current store to preserve category/collections
+  const existingCollectionProducts = await prisma.collectionProduct.findMany({
+    where: {
+      productCache: {
+        storeId: store.id,
+        shopifyProductId: product.shopifyProductId,
+      },
+    },
+    select: { collectionId: true },
+    distinct: ["collectionId"],
+  });
+  const collectionIdsToPreserve = existingCollectionProducts.map((cp) => cp.collectionId);
 
-        await tx.productCache.create({
-          data: {
-            storeId: store.id,
-            shopifyProductId: product.shopifyProductId,
-            shopifyVariantId: dummyVariantGid,
-            sku: item.generatedSku,
-            title: item.title,
-            tags: product.tags,
-            imageUrl: product.imageUrl,
-            price,
-            basePrice: price,
-            inventoryQuantity: qty,
-            optionsJson: item.options as any,
-          },
-        });
-        createdCount++;
-      }
+  // 3. Sync newly generated/updated variants to Shopify Admin API first
+  // productSet atomically replaces all variants on Shopify with the provided variantInputs
+  const optionInputs = options.map((opt) => ({
+    name: opt.name,
+    values: opt.values.map((v) => ({ name: v })),
+  }));
 
-      // Update existing variants that were missing SKUs
-      for (const item of existingItemsToUpdate) {
-        if (item.existingVariantId) {
-          await tx.productCache.update({
-            where: { id: item.existingVariantId },
-            data: { sku: item.generatedSku },
-          });
-          updatedCount++;
-        }
-      }
+  const variantInputs = preview.items.map((item) => ({
+    optionValues: Object.entries(item.options).map(([name, value]) => ({
+      optionName: name,
+      name: value,
+    })),
+    sku: item.generatedSku,
+    price: (customPrice !== undefined ? customPrice : item.price || product.price || 0).toString(),
+  }));
 
-      // Update store SKU sequence counter
-      const totalChanges = createdCount + updatedCount;
-      if (totalChanges > 0) {
-        await tx.storeSetting.updateMany({
-          where: { storeId: store.id },
-          data: { skuSequence: { increment: totalChanges } },
-        });
-      }
-    });
-  } catch (dbErr: any) {
-    console.error("[SKU Application Service] DB Transaction Error:", dbErr.message);
-    throw new Error(`Failed to save variants to database: ${dbErr.message}`);
-  }
+  const shopifyVariantMap = new Map<string, string>(); // sku/title -> shopifyVariantGid
 
-  // 3. Sync newly generated variants to Shopify Admin API for current store
   try {
     const client = await getAdminClient(store.shopDomain);
     const prodGid = product.shopifyProductId.startsWith("gid://")
       ? product.shopifyProductId
       : `gid://shopify/Product/${product.shopifyProductId}`;
-
-    const optionInputs = options.map((opt) => ({
-      name: opt.name,
-      values: opt.values.map((v) => ({ name: v })),
-    }));
-
-    const variantInputs = preview.items.map((item) => ({
-      optionValues: Object.entries(item.options).map(([name, value]) => ({
-        optionName: name,
-        name: value,
-      })),
-      sku: item.generatedSku,
-      price: (customPrice !== undefined ? customPrice : item.price || product.price || 0).toString(),
-    }));
 
     const response: any = await client.request(
       `
@@ -191,6 +178,7 @@ export async function applySkuGeneration(
         productSet(input: $input) {
           product {
             id
+            title
             variants(first: 100) {
               edges {
                 node {
@@ -216,20 +204,149 @@ export async function applySkuGeneration(
       }
     );
 
+    const returnedTitle = response?.data?.productSet?.product?.title || response?.productSet?.product?.title;
+    if (returnedTitle && typeof returnedTitle === "string" && returnedTitle.trim()) {
+      baseProductTitle = returnedTitle.trim();
+    }
+
     const errors = response?.data?.productSet?.userErrors || response?.productSet?.userErrors || [];
     if (errors.length > 0) {
       shopifySyncStatus = "PARTIAL_FAILED";
       shopifyMessage = `Shopify Notice: ${errors.map((e: any) => e.message).join("; ")}`;
     } else {
-      shopifyMessage = `Successfully synchronized ${createdCount + updatedCount} variants with Shopify.`;
+      shopifyMessage = `Successfully updated and synchronized variants with Shopify.`;
+      const edges = response?.data?.productSet?.product?.variants?.edges || [];
+      for (const edge of edges) {
+        const node = edge.node;
+        if (node?.sku) {
+          shopifyVariantMap.set(node.sku.toLowerCase(), node.id);
+        }
+        if (node?.title) {
+          shopifyVariantMap.set(node.title.toLowerCase(), node.id);
+        }
+      }
+
+      // Automatically publish to Online Store and all channels
+      await publishProductToAllChannels(store.shopDomain, prodGid);
     }
   } catch (shopifyErr: any) {
     console.error("[SKU Application Service] Shopify API Warning:", shopifyErr.message);
     shopifySyncStatus = "PARTIAL_FAILED";
-    shopifyMessage = `Local DB updated (${createdCount} created, ${updatedCount} updated). Shopify sync notice: ${shopifyErr.message}`;
+    shopifyMessage = `Local DB updated. Shopify sync notice: ${shopifyErr.message}`;
   }
 
-  // 4. Record Activity Log & Notification for the active store
+  // 4. In Prisma Transaction: REPLACE old variants with new variants & preserve collections
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Find all old variant cache entries for this product in current store
+      const oldVariants = await tx.productCache.findMany({
+        where: {
+          storeId: store.id,
+          shopifyProductId: product.shopifyProductId,
+        },
+        select: { id: true, shopifyVariantId: true, sku: true },
+      });
+
+      const oldVariantIds = oldVariants.map((v) => v.id);
+
+      // Clean up collectionProduct associations for old variants
+      if (oldVariantIds.length > 0) {
+        await tx.collectionProduct.deleteMany({
+          where: { productCacheId: { in: oldVariantIds } },
+        });
+
+        // Clean up variantMaps for old variants
+        await tx.variantMap.deleteMany({
+          where: {
+            storeId: store.id,
+            shopifyProductId: product.shopifyProductId,
+          },
+        });
+
+        // Remove all old variant cache records
+        await tx.productCache.deleteMany({
+          where: { id: { in: oldVariantIds } },
+        });
+      }
+
+      // Create all replacement variants with new SKUs, options, and preserve collections
+      for (const item of preview.items) {
+        const shopifyGid =
+          (item.generatedSku && shopifyVariantMap.get(item.generatedSku.toLowerCase())) ||
+          shopifyVariantMap.get(item.title.toLowerCase()) ||
+          `gid://shopify/ProductVariant/generated-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+
+        const price = customPrice !== undefined ? customPrice : item.price || product.price || 0;
+        const qty = customQuantity !== undefined ? customQuantity : item.inventoryQuantity || product.inventoryQuantity || 0;
+
+        // Preserve product title and append variant options at the backside:
+        // Format: "<Product Title> - <Option1> / <Option2>" (e.g. "Premium Running Shoes - US 10 / Gray")
+        const variantSuffix = item.title && item.title !== "Default Title" ? item.title.trim() : "";
+        let fullVariantTitle = baseProductTitle;
+        if (variantSuffix) {
+          if (variantSuffix.toLowerCase().startsWith(baseProductTitle.toLowerCase() + " - ")) {
+            fullVariantTitle = variantSuffix;
+          } else {
+            fullVariantTitle = `${baseProductTitle} - ${variantSuffix}`;
+          }
+        }
+
+        const newRecord = await tx.productCache.create({
+          data: {
+            storeId: store.id,
+            shopifyProductId: product.shopifyProductId,
+            shopifyVariantId: shopifyGid,
+            sku: item.generatedSku,
+            title: fullVariantTitle,
+            tags: product.tags,
+            imageUrl: product.imageUrl,
+            price,
+            basePrice: price,
+            inventoryQuantity: qty,
+            optionsJson: item.options as any,
+          },
+        });
+
+        // Attach each replacement variant to original collection(s) (e.g. Shoes)
+        // so it NEVER becomes "Uncategorized"
+        for (const collId of collectionIdsToPreserve) {
+          await tx.collectionProduct.create({
+            data: {
+              collectionId: collId,
+              productCacheId: newRecord.id,
+            },
+          });
+        }
+
+        // Add variantMap mapping for inventory sync
+        if (item.generatedSku) {
+          await tx.variantMap.create({
+            data: {
+              sku: item.generatedSku,
+              storeId: store.id,
+              shopifyProductId: product.shopifyProductId,
+              shopifyVariantId: shopifyGid,
+            },
+          });
+        }
+
+        createdCount++;
+      }
+
+      // Update store SKU sequence counter
+      if (createdCount > 0) {
+        await tx.storeSetting.updateMany({
+          where: { storeId: store.id },
+          data: { skuSequence: { increment: createdCount } },
+        });
+      }
+    });
+  } catch (dbErr: any) {
+    console.error("[SKU Application Service] DB Transaction Error:", dbErr.message);
+    throw new Error(`Failed to save replacement variants to database: ${dbErr.message}`);
+  }
+
+  // 5. Record Activity Log & Notification for the active store
   const storeLabel = store.label || store.shopDomain;
   try {
     await prisma.activityLog.create({
@@ -237,11 +354,11 @@ export async function applySkuGeneration(
         storeId: store.id,
         productId: product.id,
         productTitle: product.title,
-        sku: newItems[0]?.generatedSku || existingItemsToUpdate[0]?.generatedSku || null,
+        sku: preview.items[0]?.generatedSku || null,
         imageUrl: product.imageUrl,
-        eventType: createdCount > 0 ? "CREATE" : "UPDATE",
-        quantity: createdCount + updatedCount,
-        description: `Generated & applied ${createdCount + updatedCount} variant SKUs for "${product.title}" in ${storeLabel}`,
+        eventType: "UPDATE",
+        quantity: createdCount,
+        description: `Replaced and updated ${createdCount} variant SKUs for "${product.title}" in ${storeLabel}`,
       },
     });
 
@@ -249,17 +366,17 @@ export async function applySkuGeneration(
       recipientStoreId: store.id,
       type: "PRODUCT_UPDATED",
       title: "SKUs Applied Successfully",
-      message: `Generated and applied ${createdCount + updatedCount} variant SKUs for "${product.title}" in ${storeLabel}`,
+      message: `Replaced and updated ${createdCount} variant SKUs for "${baseProductTitle}" in ${storeLabel}`,
       productId: product.shopifyProductId,
-      productTitle: product.title,
+      productTitle: baseProductTitle,
       sourceStoreId: store.id,
     });
   } catch (logErr: any) {
     console.error("[SKU Application Service] Log Warning:", logErr.message);
   }
 
-  // 5. MASTER STORE SCOPING: Auto-propagate generated variants & SKUs to Connected Target Stores
-  // If store is Master, propagate to all connected target stores!
+  // 6. MASTER STORE SCOPING: Auto-propagate replaced variants & SKUs to Connected Target Stores
+  // If store is Master, replace variants in all connected target stores!
   // If store is Standalone, affects ONLY local store (no propagation).
   if (store.isMaster) {
     try {
@@ -297,48 +414,29 @@ export async function applySkuGeneration(
 
             if (!targetProduct) continue;
 
-            let targetCreatedCount = 0;
-            for (const item of newItems) {
-              const adjustedPriceStr = await calculateAdjustedPrice(
-                item.price || product.price || 0,
-                targetStore,
-                collectionTitles
-              );
-              const adjustedPriceNum = parseFloat(adjustedPriceStr);
-
-              const dummyVariantGid = `gid://shopify/ProductVariant/generated-conn-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
-
-              await prisma.productCache.create({
-                data: {
+            // Query target store collections for this product to preserve category
+            const targetColls = await prisma.collectionProduct.findMany({
+              where: {
+                productCache: {
                   storeId: targetStore.id,
                   shopifyProductId: targetProduct.shopifyProductId,
-                  shopifyVariantId: dummyVariantGid,
-                  sku: item.generatedSku,
-                  title: item.title,
-                  tags: targetProduct.tags,
-                  imageUrl: targetProduct.imageUrl || product.imageUrl,
-                  price: adjustedPriceNum,
-                  basePrice: item.price || product.price || 0,
-                  inventoryQuantity: item.inventoryQuantity || 0,
-                  optionsJson: item.options as any,
                 },
-              });
-              targetCreatedCount++;
-            }
+              },
+              select: { collectionId: true },
+              distinct: ["collectionId"],
+            });
+            const targetCollIds = targetColls.map((c) => c.collectionId);
 
             // Sync to target store's Shopify API if active
+            const targetShopifyVariantMap = new Map<string, string>();
+            let targetShopifyTitle: string | null = null;
             try {
               const targetClient = await getAdminClient(targetStore.shopDomain);
               const targetProdGid = targetProduct.shopifyProductId.startsWith("gid://")
                 ? targetProduct.shopifyProductId
                 : `gid://shopify/Product/${targetProduct.shopifyProductId}`;
 
-              const optionInputs = options.map((opt) => ({
-                name: opt.name,
-                values: opt.values.map((v) => ({ name: v })),
-              }));
-
-              const variantInputs = preview.items.map((item) => ({
+              const tVariantInputs = preview.items.map((item) => ({
                 optionValues: Object.entries(item.options).map(([name, value]) => ({
                   optionName: name,
                   name: value,
@@ -347,11 +445,23 @@ export async function applySkuGeneration(
                 price: (item.price || product.price || 0).toString(),
               }));
 
-              await targetClient.request(
+              const tResponse: any = await targetClient.request(
                 `
                 mutation productSet($input: ProductSetInput!) {
                   productSet(input: $input) {
-                    product { id }
+                    product {
+                      id
+                      title
+                      variants(first: 100) {
+                        edges {
+                          node {
+                            id
+                            sku
+                            title
+                          }
+                        }
+                      }
+                    }
                     userErrors { field message }
                   }
                 }
@@ -361,14 +471,131 @@ export async function applySkuGeneration(
                     input: {
                       id: targetProdGid,
                       productOptions: optionInputs,
-                      variants: variantInputs,
+                      variants: tVariantInputs,
                     },
                   },
                 }
               );
+
+              targetShopifyTitle = tResponse?.data?.productSet?.product?.title || tResponse?.productSet?.product?.title || null;
+
+              const tEdges = tResponse?.data?.productSet?.product?.variants?.edges || [];
+              for (const edge of tEdges) {
+                const node = edge.node;
+                if (node?.sku) targetShopifyVariantMap.set(node.sku.toLowerCase(), node.id);
+                if (node?.title) targetShopifyVariantMap.set(node.title.toLowerCase(), node.id);
+              }
+
+              // Automatically publish target product to Online Store and all channels
+              await publishProductToAllChannels(targetStore.shopDomain, targetProdGid);
             } catch (tShopifyErr: any) {
               console.warn(`[SKU Application Service] Target store Shopify notice (${targetStoreLabel}):`, tShopifyErr.message);
             }
+
+            // Replace variants in target store ProductCache
+            let targetCreatedCount = 0;
+            await prisma.$transaction(async (tx) => {
+              // Delete old target variants
+              const oldTargetVariants = await tx.productCache.findMany({
+                where: {
+                  storeId: targetStore.id,
+                  shopifyProductId: targetProduct.shopifyProductId,
+                },
+                select: { id: true },
+              });
+              const oldTargetIds = oldTargetVariants.map((v) => v.id);
+
+              if (oldTargetIds.length > 0) {
+                await tx.collectionProduct.deleteMany({
+                  where: { productCacheId: { in: oldTargetIds } },
+                });
+                await tx.variantMap.deleteMany({
+                  where: {
+                    storeId: targetStore.id,
+                    shopifyProductId: targetProduct.shopifyProductId,
+                  },
+                });
+                await tx.productCache.deleteMany({
+                  where: { id: { in: oldTargetIds } },
+                });
+              }
+
+              let targetBaseTitle = "";
+              if (targetShopifyTitle && typeof targetShopifyTitle === "string" && targetShopifyTitle.trim()) {
+                targetBaseTitle = targetShopifyTitle.trim();
+              } else if (targetProduct.title && targetProduct.title.includes(" - ")) {
+                targetBaseTitle = targetProduct.title.split(" - ")[0].trim();
+              } else if (targetProduct.title && !targetProduct.title.includes(" / ")) {
+                targetBaseTitle = targetProduct.title.trim();
+              } else {
+                targetBaseTitle = baseProductTitle;
+              }
+
+              // Create new replacement variants in target store
+              for (const item of preview.items) {
+                const adjustedPriceStr = await calculateAdjustedPrice(
+                  item.price || product.price || 0,
+                  targetStore,
+                  collectionTitles
+                );
+                const adjustedPriceNum = parseFloat(adjustedPriceStr);
+
+                const tVariantGid =
+                  (item.generatedSku && targetShopifyVariantMap.get(item.generatedSku.toLowerCase())) ||
+                  targetShopifyVariantMap.get(item.title.toLowerCase()) ||
+                  `gid://shopify/ProductVariant/generated-conn-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+
+                const variantSuffix = item.title && item.title !== "Default Title" ? item.title.trim() : "";
+                let targetFullTitle = targetBaseTitle;
+                if (variantSuffix) {
+                  if (variantSuffix.toLowerCase().startsWith(targetBaseTitle.toLowerCase() + " - ")) {
+                    targetFullTitle = variantSuffix;
+                  } else {
+                    targetFullTitle = `${targetBaseTitle} - ${variantSuffix}`;
+                  }
+                }
+
+                const newTRecord = await tx.productCache.create({
+                  data: {
+                    storeId: targetStore.id,
+                    shopifyProductId: targetProduct.shopifyProductId,
+                    shopifyVariantId: tVariantGid,
+                    sku: item.generatedSku,
+                    title: targetFullTitle,
+                    tags: targetProduct.tags,
+                    imageUrl: targetProduct.imageUrl || product.imageUrl,
+                    price: adjustedPriceNum,
+                    basePrice: item.price || product.price || 0,
+                    inventoryQuantity: item.inventoryQuantity || 0,
+                    optionsJson: item.options as any,
+                  },
+                });
+
+                // Attach to target store collections
+                for (const collId of targetCollIds) {
+                  await tx.collectionProduct.create({
+                    data: {
+                      collectionId: collId,
+                      productCacheId: newTRecord.id,
+                    },
+                  });
+                }
+
+                // Add variantMap for target store
+                if (item.generatedSku) {
+                  await tx.variantMap.create({
+                    data: {
+                      sku: item.generatedSku,
+                      storeId: targetStore.id,
+                      shopifyProductId: targetProduct.shopifyProductId,
+                      shopifyVariantId: tVariantGid,
+                    },
+                  });
+                }
+
+                targetCreatedCount++;
+              }
+            });
 
             // Log Activity & Notification for target store
             await prisma.activityLog.create({
@@ -376,11 +603,11 @@ export async function applySkuGeneration(
                 storeId: targetStore.id,
                 productId: targetProduct.id,
                 productTitle: targetProduct.title,
-                sku: newItems[0]?.generatedSku || null,
+                sku: preview.items[0]?.generatedSku || null,
                 imageUrl: targetProduct.imageUrl || product.imageUrl,
-                eventType: "CREATE",
+                eventType: "UPDATE",
                 quantity: targetCreatedCount,
-                description: `Synced ${targetCreatedCount} new variant SKUs from Master Store (${storeLabel}) for "${targetProduct.title}"`,
+                description: `Synced & replaced ${targetCreatedCount} variant SKUs from Master Store (${storeLabel}) for "${targetProduct.title}"`,
               },
             });
 
@@ -388,7 +615,7 @@ export async function applySkuGeneration(
               recipientStoreId: targetStore.id,
               type: "CONNECTED_STORE_UPDATE",
               title: "Master Store SKUs Synchronized",
-              message: `Synchronized ${targetCreatedCount} new variant SKUs from Master Store (${storeLabel}) for "${targetProduct.title}"`,
+              message: `Synchronized & replaced ${targetCreatedCount} variant SKUs from Master Store (${storeLabel}) for "${targetProduct.title}"`,
               productId: targetProduct.shopifyProductId,
               productTitle: targetProduct.title,
               sourceStoreId: store.id,

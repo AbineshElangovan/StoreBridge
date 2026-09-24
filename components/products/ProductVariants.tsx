@@ -118,7 +118,11 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
     setIsDeleting(true);
     setDeleteError(null);
     try {
-      const res = await shopifyFetch(`/api/products/${encodeURIComponent(productId)}?variantId=${encodeURIComponent(deletingVariant.id)}`, {
+      let url = `/api/products/${encodeURIComponent(productId)}?variantId=${encodeURIComponent(deletingVariant.id)}`;
+      if (isMaster) {
+        url += `&syncToConnected=true`;
+      }
+      const res = await shopifyFetch(url, {
         method: 'DELETE',
       });
       const json = await res.json().catch(() => ({ success: false, error: 'Invalid server response' }));
@@ -271,7 +275,13 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
       <ConfirmToast
         open={Boolean(deletingVariant)}
         message={`Delete variant "${deletingVariant?.variantName}"?`}
-        subMessage={deleteError ? `Error: ${deleteError}` : `SKU: ${deletingVariant?.sku || 'N/A'}. Removes this variant from Shopify & StoreBridge.`}
+        subMessage={
+          deleteError
+            ? `Error: ${deleteError}`
+            : isMaster
+            ? `SKU: ${deletingVariant?.sku || 'N/A'}. This will permanently remove this variant from Master and all connected stores.`
+            : `SKU: ${deletingVariant?.sku || 'N/A'}. This will permanently remove this variant from this store.`
+        }
         confirmLabel="Yes, Delete"
         cancelLabel="No"
         variant="danger"

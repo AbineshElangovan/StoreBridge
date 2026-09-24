@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     });
 
     console.log(`Processing app uninstalled for shop ${shop}`);
-    
+
     // Find the store being uninstalled
     const store = await prisma.store.findUnique({
       where: { shopDomain: shop }
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       const invalidatedId = `${store.uniqueStoreId}-uninstalled-${Date.now()}`;
       await prisma.store.update({
         where: { id: store.id },
-        data: { 
+        data: {
           isActive: false,
           uniqueStoreId: invalidatedId,
           authStatus: AuthStatus.UNINSTALLED

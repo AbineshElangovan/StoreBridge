@@ -52,11 +52,25 @@ export async function GET(req: NextRequest) {
     }
 
     const currentStoreProducts: any[] = [];
+    // Deduplicate by normalized Title + Variant Title to guarantee zero duplicate rows in UI
+    const seenTitles = new Map<string, any>();
     for (const p of rawCurrentStoreProducts) {
       const siblings = productsByParent.get(p.shopifyProductId);
-      if (siblings.length > 1 && !p.title.includes(' - ')) {
+      if (siblings && siblings.length > 1 && !p.title.includes(' - ')) {
         continue;
       }
+      const normTitle = p.title.trim().toLowerCase();
+      // If duplicate title exists in this store, keep only the latest updated one
+      if (!seenTitles.has(normTitle)) {
+        seenTitles.set(normTitle, p);
+      } else {
+        const existing = seenTitles.get(normTitle);
+        if (new Date(p.updatedAt).getTime() > new Date(existing.updatedAt).getTime()) {
+          seenTitles.set(normTitle, p);
+        }
+      }
+    }
+    for (const p of seenTitles.values()) {
       currentStoreProducts.push(p);
     }
 

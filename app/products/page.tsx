@@ -31,7 +31,12 @@ export default function ProductsPage() {
     return Array.from(flatMap.values());
   }, [groupedProducts]);
 
+  const hasLoadedRef = React.useRef(false);
+
   useEffect(() => {
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+
     async function loadProducts() {
       try {
         console.log("Loading products data...");
@@ -47,21 +52,6 @@ export default function ProductsPage() {
       }
     }
     loadProducts();
-
-    const handleFocus = () => loadProducts();
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        loadProducts();
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('visibilitychange', handleVisibility);
-    };
   }, []);
 
   if (loading) {

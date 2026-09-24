@@ -25,7 +25,7 @@ export default function PriceAdjustmentPage() {
     try {
       const searchParams = new URLSearchParams(window.location.search);
       const shopParam = searchParams.get('shop') || '';
-      const storesRes = await shopifyFetch(`/api/stores?active=false&shop=${shopParam}&t=${Date.now()}`, { cache: 'no-store' });
+      const storesRes = await shopifyFetch(`/api/stores?active=false&shop=${shopParam}`, { cache: 'no-store' });
       if (storesRes.ok) {
         const storesJson = await storesRes.json();
         const loadedStores = storesJson.stores || [];
@@ -49,23 +49,12 @@ export default function PriceAdjustmentPage() {
     }
   }, []);
 
+  const hasLoadedRef = React.useRef(false);
+
   useEffect(() => {
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
     loadData();
-
-    const handleFocus = () => loadData();
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        loadData();
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('visibilitychange', handleVisibility);
-    };
   }, [loadData]);
 
   // Filter stores based on role & dropdown selection

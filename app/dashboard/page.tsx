@@ -202,8 +202,8 @@ export default async function DashboardPage() {
     sku: p.sku || 'N/A',
     inventoryQuantity: p.inventoryQuantity,
     status: 'Active',
-    addedDate: <LocalizedDate date={p.updatedAt} format="date" />,
-    addedTime: <LocalizedDate date={p.updatedAt} format="time" />,
+    addedDate: <LocalizedDate date={p.createdAt} format="date" />,
+    addedTime: <LocalizedDate date={p.createdAt} format="time" />,
   }));
 
   const recentlyAddedColumns: ColumnConfig[] = [

@@ -8,6 +8,7 @@ import { VariantOptionSelector } from "./VariantOptionSelector";
 import { SkuPreviewTable } from "./SkuPreviewTable";
 import { SkuValidationBanner } from "./SkuValidationBanner";
 import { SkuGenerationActions } from "./SkuGenerationActions";
+import { ExistingVariantsManager, ExistingVariantItem } from "./ExistingVariantsManager";
 import { useStoreContext } from "@/components/providers/StoreProvider";
 
 export function SkuGeneratorContainer() {
@@ -15,6 +16,8 @@ export function SkuGeneratorContainer() {
   const hasWriteAccess = canManageSku;
 
   const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(null);
+  const [existingVariants, setExistingVariants] = useState<ExistingVariantItem[]>([]);
+  const [selectedVariantIds, setSelectedVariantIds] = useState<Set<string>>(new Set());
   const [options, setOptions] = useState<VariantOptionInput[]>([]);
   const [previewData, setPreviewData] = useState<SkuPreviewResponse | null>(null);
 
@@ -40,6 +43,20 @@ export function SkuGeneratorContainer() {
       const res = await shopifyFetch(`/api/sku-generation/products/${encodeURIComponent(shopifyProductId)}/variants`);
       const data = await res.json();
       if (data.success) {
+        const loadedVariants: ExistingVariantItem[] = (data.variants || []).map((v: any) => ({
+          id: v.id,
+          shopifyVariantId: v.shopifyVariantId,
+          title: v.title,
+          sku: v.sku,
+          imageUrl: v.imageUrl || data.product?.imageUrl || null,
+          price: v.price,
+          inventoryQuantity: v.inventoryQuantity,
+        }));
+
+        setExistingVariants(loadedVariants);
+        // By default, select all variants
+        setSelectedVariantIds(new Set(loadedVariants.map((v) => v.id)));
+
         // Start clean with empty options unless product already has genuine custom options
         if (data.detectedOptions && data.detectedOptions.length > 0 && data.detectedOptions.some((o: any) => o.name !== "Title" && o.values.length > 0)) {
           setOptions(data.detectedOptions);
@@ -50,7 +67,29 @@ export function SkuGeneratorContainer() {
       }
     } catch (err) {
       console.error("Failed to fetch product variants:", err);
+      setExistingVariants([]);
+      setSelectedVariantIds(new Set());
       setOptions([]);
+    }
+  };
+
+  const handleToggleVariant = (variantId: string) => {
+    setSelectedVariantIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(variantId)) {
+        next.delete(variantId);
+      } else {
+        next.add(variantId);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedVariantIds.size === existingVariants.length) {
+      setSelectedVariantIds(new Set());
+    } else {
+      setSelectedVariantIds(new Set(existingVariants.map((v) => v.id)));
     }
   };
 
@@ -103,7 +142,7 @@ export function SkuGeneratorContainer() {
       const data = await res.json();
       if (data.success) {
         setToast({
-          message: `Successfully created ${data.summary.createdCount} new variants and synchronized with Shopify!`,
+          message: `Successfully updated and synchronized ${data.summary.createdCount} variants with Shopify!`,
           type: "success",
         });
 
@@ -142,12 +181,30 @@ export function SkuGeneratorContainer() {
         </div>
       )}
 
-      {/* Product Selector */}
-      <ProductSelector
-        selectedProductId={selectedProduct?.shopifyProductId || ""}
-        onSelectProduct={(p) => setSelectedProduct(p)}
-        disabled={!hasWriteAccess || isGenerating || isApplying}
-      />
+      {/* Unified Product & Variants Card */}
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-2xs overflow-hidden divide-y divide-gray-100">
+        <ProductSelector
+          selectedProductId={selectedProduct?.shopifyProductId || ""}
+          onSelectProduct={(p) => setSelectedProduct(p)}
+          disabled={!hasWriteAccess || isGenerating || isApplying}
+          borderless
+        />
+
+        {selectedProduct && existingVariants.length > 0 && (
+          <ExistingVariantsManager
+            productId={selectedProduct.shopifyProductId}
+            productTitle={selectedProduct.title}
+            productImage={selectedProduct.imageUrl}
+            variants={existingVariants}
+            selectedVariantIds={selectedVariantIds}
+            onToggleVariant={handleToggleVariant}
+            onToggleSelectAll={handleToggleSelectAll}
+            onVariantUpdated={() => loadProductVariantsAndOptions(selectedProduct.shopifyProductId)}
+            disabled={!hasWriteAccess || isGenerating || isApplying}
+            borderless
+          />
+        )}
+      </div>
 
       {/* Option Builder */}
       <VariantOptionSelector options={options} setOptions={setOptions} disabled={!hasWriteAccess || isGenerating || isApplying} />

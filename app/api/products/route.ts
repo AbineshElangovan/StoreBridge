@@ -119,12 +119,42 @@ export async function GET(req: NextRequest) {
       return [];
     };
 
-    products.forEach((p) => {
+    // Deduplicate by normalized Title + Variant Title to guarantee zero duplicate rows in UI
+    const dedupedProducts: typeof products = [];
+    const seenTitles = new Map<string, any>();
+    for (const p of products) {
+      const normKey = (p.sku || p.shopifyVariantId || '') + '|||' + p.title.trim().toLowerCase();
+      if (!seenTitles.has(normKey)) {
+        seenTitles.set(normKey, p);
+      } else {
+        const existing = seenTitles.get(normKey);
+        if (new Date(p.updatedAt).getTime() > new Date(existing.updatedAt).getTime()) {
+          seenTitles.set(normKey, p);
+        }
+      }
+    }
+    for (const p of seenTitles.values()) {
+      dedupedProducts.push(p);
+    }
+
+    dedupedProducts.forEach((p) => {
+      let displayTitle = p.title;
+      // If product title was stored as a bare variant string without product name, resolve full title
+      if (!displayTitle.includes(" - ")) {
+        const matchingWithBase = crossStoreProducts.find(
+          cp => (cp.shopifyProductId === p.shopifyProductId || (cp.sku && cp.sku === p.sku)) && cp.title && cp.title.includes(" - ")
+        );
+        if (matchingWithBase) {
+          const base = matchingWithBase.title.split(" - ")[0].trim();
+          displayTitle = `${base} - ${p.title}`;
+        }
+      }
+
       const item = {
         id: p.id,
         shopifyProductId: p.shopifyProductId,
         imageUrls: resolveProductImage(p),
-        title: p.title,
+        title: displayTitle,
         sku: p.sku || 'N/A',
         store: p.store.label || p.store.shopDomain,
         price: p.price,

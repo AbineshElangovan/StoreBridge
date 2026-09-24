@@ -58,7 +58,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   </Suspense>
                 }>
                   <TimezoneProvider>
-                    <LiveRefresher key="live-refresher" />
                     {children}
                   </TimezoneProvider>
                 </ResponsiveLayout>

@@ -84,7 +84,7 @@ export default function ProductDetailsPage() {
     fetchProductDetails();
   }, [productId]);
 
-  const handleDeleteProduct = async (syncToConnected: boolean = false) => {
+  const handleDeleteProduct = async (syncToConnected: boolean = true) => {
     if (!productId) return;
     setIsDeleting(true);
     setDeleteError(null);
@@ -217,7 +217,13 @@ export default function ProductDetailsPage() {
       <ConfirmToast
         open={showDeleteModal}
         message={`Delete product "${productData?.title}"?`}
-        subMessage={deleteError ? `Error: ${deleteError}` : "This will permanently remove the product from Shopify and StoreBridge."}
+        subMessage={
+          deleteError
+            ? `Error: ${deleteError}`
+            : isMaster
+            ? "This will permanently remove the product from Master and all connected stores in Shopify and StoreBridge."
+            : "This will permanently remove the product from this store in Shopify and StoreBridge."
+        }
         confirmLabel="Yes, Delete"
         cancelLabel="No"
         variant="danger"
