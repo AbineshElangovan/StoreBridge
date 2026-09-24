@@ -292,8 +292,8 @@ export default function ConnectionsPage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">Store connections</h1>
-          <p className="text-slate-500 text-xs sm:text-sm mt-1">One master, unlimited connected stores</p>
+          <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Store Connections</h1>
+          <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">One master, unlimited connected stores</p>
         </div>
       </div>
 

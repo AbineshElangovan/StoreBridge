@@ -116,4 +116,35 @@
   .ys-sidebar-scroll::-webkit-scrollbar-thumb:hover {
     background-color: var(--color-primary-dark); 
   }
+
+  /* Standardized Page Title (Big) and Subtitle (Little bit smaller than heading) */
+  .page-title, h1.page-title {
+    font-size: 2rem !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    line-height: 1.2 !important;
+    letter-spacing: -0.025em !important;
+    margin: 0 !important;
+  }
+  @media (min-width: 640px) {
+    .page-title, h1.page-title {
+      font-size: 2.25rem !important;
+    }
+  }
+
+  .page-subtitle, p.page-subtitle, h3.page-subtitle {
+    font-size: 1.125rem !important;
+    font-weight: 500 !important;
+    color: #64748b !important;
+    line-height: 1.5 !important;
+    margin-top: 0.375rem !important;
+    margin-bottom: 0 !important;
+  }
+  @media (min-width: 640px) {
+    .page-subtitle, p.page-subtitle, h3.page-subtitle {
+      font-size: 1.25rem !important;
+    }
+  }
 }
+
+

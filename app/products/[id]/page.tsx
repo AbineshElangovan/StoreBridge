@@ -165,8 +165,8 @@ export default function ProductDetailsPage() {
       {/* Top Page Heading & Subheading */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-gray-200 mb-6 gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Product Details</h1>
-          <p className="text-[13px] text-gray-500 mt-0.5">
+          <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Product Details</h1>
+          <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
             Real-time inventory status, variant pricing, performance analytics, and store synchronization.
           </p>
         </div>

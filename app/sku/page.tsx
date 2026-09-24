@@ -114,12 +114,11 @@ export default function SkuSettingsPage() {
       {/* Header Banner */}
       <div className="border-b border-gray-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 m-0">
+          <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">
             SKU Management & Variant Generator
           </h1>
-          <p className="mt-1 text-xs sm:text-sm text-gray-500 m-0">
-            Generate variant-based SKUs dynamically (Age 0M–18Y+, Footwear, Clothes, Accessories) and configure global prefixes.
-          </p>
+          <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
+          Build dynamic SKUs by variant with flexible global prefix settings.          </p>
         </div>
       </div>
 

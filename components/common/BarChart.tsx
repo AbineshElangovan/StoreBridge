@@ -75,7 +75,11 @@ export function BarChart({
               />
               <Legend iconType="circle" iconSize={8} wrapperStyle={{ paddingTop: 16, fontSize: 13 }} />
               {bars.map((bar) => (
-                <Bar key={bar.key} dataKey={bar.key} name={bar.name} fill={bar.color} radius={[5, 5, 0, 0]} maxBarSize={56} />
+                <Bar key={bar.key} dataKey={bar.key} name={bar.name} fill={bar.color} radius={[5, 5, 0, 0]} maxBarSize={56}>
+                  {bars.length === 1 && data.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color || bar.color} />
+                  ))}
+                </Bar>
               ))}
             </RechartsBarChart>
           </ResponsiveContainer>
@@ -195,48 +199,53 @@ export interface PieChartProps {
   title: string;
   subtitle?: string;
   data: { name: string; value: number; color: string }[];
-
   unit?: string;
-
   innerRadius?: number | string;
-
   outerRadius?: number | string;
+  height?: number;
 }
 
 const RADIAN = Math.PI / 180;
 
 function renderCustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) {
-  if (percent < 0.05) return null;
-  
-  if (percent > 0.99) {
-    return (
-      <text x={cx} y={cy} fill="#111827" textAnchor="middle" dominantBaseline="central" fontSize={16} fontWeight={700}>
-        100%
-      </text>
-    );
-  }
+  if (percent < 0.04) return null;
 
   const innerR = typeof innerRadius === 'number' ? innerRadius : parseFloat(innerRadius as string) || 0;
   const outerR = typeof outerRadius === 'number' ? outerRadius : parseFloat(outerRadius as string) || 0;
-  const radius = innerR + (outerR - innerR) * 0.55;
+  // For solid pie charts (innerR === 0), place text nicely inside the slice
+  const radius = innerR === 0 ? outerR * 0.62 : innerR + (outerR - innerR) * 0.55;
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
+  const pctStr = `${(percent * 100).toFixed(1)}%`;
+
   return (
-    <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={12} fontWeight={700}>
-      {`${(percent * 100).toFixed(0)}%`}
+    <text
+      x={x}
+      y={y}
+      fill="#0f172a"
+      textAnchor="middle"
+      dominantBaseline="central"
+      fontSize={13}
+      fontWeight={800}
+      style={{
+        textShadow: '0 0 4px #ffffff, 0 0 2px #ffffff',
+        pointerEvents: 'none'
+      }}
+    >
+      {pctStr}
     </text>
   );
 }
 
-export function PieChart({ title, subtitle, data, unit = '', innerRadius = '60%', outerRadius = '80%' }: PieChartProps) {
+export function PieChart({ title, subtitle, data, unit = '', innerRadius = 0, outerRadius = '85%', height = 240 }: PieChartProps) {
   const total = data.reduce((s, d) => s + d.value, 0);
   const hasData = data.length > 0 && total > 0;
 
   return (
-    <ChartCard title={title} description={subtitle}>
+    <ChartCard title={title} description={subtitle} height="auto">
       {!hasData ? <NoData message="No data to display" /> : (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-          <div style={{ width: '100%', height: 220 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, width: '100%' }}>
+          <div style={{ width: '100%', height }}>
             <ResponsiveContainer width="100%" height="100%">
               <RechartsPieChart>
                 <Pie
@@ -263,21 +272,40 @@ export function PieChart({ title, subtitle, data, unit = '', innerRadius = '60%'
             </ResponsiveContainer>
           </div>
 
-          {/* Legend */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', maxWidth: 280 }}>
-            {data.map((entry) => {
+          {/* Legend showing all stores */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', marginTop: 4 }}>
+            {data.map((entry, idx) => {
               const pct = total > 0 ? ((entry.value / total) * 100).toFixed(1) : '0';
+              const isLast = idx === data.length - 1;
               return (
-                <div key={entry.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <div 
+                  key={entry.name} 
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between', 
+                    gap: 8,
+                    paddingBottom: isLast ? 0 : 8,
+                    borderBottom: isLast ? 'none' : '1px solid #f3f4f6'
+                  }}
+                >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
                     <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: entry.color, flexShrink: 0 }} />
-                    <span style={{ fontSize: 13, color: '#374151', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={entry.name}>
+                    <span style={{ fontSize: 13, color: '#374151', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={entry.name}>
                       {entry.name}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 13, color: '#6b7280' }}>{unit}{entry.value.toLocaleString('en-IN')}</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: entry.color, backgroundColor: `${entry.color}1a`, borderRadius: 20, padding: '1px 7px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                    <span style={{ fontSize: 13, color: '#6b7280', fontWeight: 500 }}>{unit}{entry.value.toLocaleString('en-IN')}</span>
+                    <span style={{ 
+                      fontSize: 11, 
+                      fontWeight: 700, 
+                      color: '#1e293b', 
+                      backgroundColor: `${entry.color}35`, 
+                      border: `1px solid ${entry.color}70`,
+                      borderRadius: 20, 
+                      padding: '2px 8px' 
+                    }}>
                       {pct}%
                     </span>
                   </div>

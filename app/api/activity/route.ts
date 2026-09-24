@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticate, handleApiError } from "@/lib/shopify/authenticate";
 import { prisma } from "@/lib/db/prisma";
+import { cleanupExpiredActivityLogs } from "@/lib/services/activityRetention";
 
 export const dynamic = 'force-dynamic';
 
@@ -81,23 +82,10 @@ export async function GET(req: NextRequest) {
       whereClause.createdAt = { gte: startDate };
     }
 
-    // Auto-delete logs older than 90 days if enabled for the master store
-    try {
-      const masterSettings = await (prisma.storeSetting as any).findUnique({ where: { storeId: masterStoreId } });
-      if (!masterSettings || masterSettings.dataRetentionEnabled) {
-        const ninetyDaysAgo = new Date();
-        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-        
-        await prisma.activityLog.deleteMany({
-          where: {
-            storeId: { in: allowedStoreIds },
-            createdAt: { lt: ninetyDaysAgo }
-          }
-        });
-      }
-    } catch (cleanupErr) {
-      console.error("[Activity API] Error cleaning up old logs:", cleanupErr);
-    }
+    // Auto-delete logs older than 90 days for all stores with data retention enabled
+    cleanupExpiredActivityLogs().catch((err) => {
+      console.error("[Activity API] Error cleaning up old logs:", err);
+    });
 
     const [activities, totalActivities] = await Promise.all([
       prisma.activityLog.findMany({

@@ -16,22 +16,38 @@ export interface DashboardChartsProps {
   };
 }
 
-const STORE_COLORS = ['#0db69d', '#0b8d7b', '#dffaf6', '#14b8a6', '#0d9488'];
+const STORE_COLORS = [
+  '#38bdf8', // Light Sky Blue
+  '#a78bfa', // Light Lavender
+  '#fb923c', // Light Peach / Coral
+  '#34d399', // Light Mint
+  '#f472b6', // Light Rose
+  '#fbbf24', // Light Amber
+  '#818cf8', // Light Periwinkle
+  '#2dd4bf', // Light Aqua
+];
 
 export function DashboardCharts({ chartData }: DashboardChartsProps) {
   const { combinedData, currentStoreData } = chartData;
 
-  // Build pie data for store sales % using ONLY current store data
-  const salesPieData = currentStoreData.map((s, i) => ({
-    name: s.name,
-    value: s['Total Sales Value'],
+  // Use combinedData to show relative share of each store across the network
+  const storesForShare = combinedData && combinedData.length > 0 ? combinedData : currentStoreData;
+
+  const storesForShareWithColors = storesForShare.map((s, i) => ({
+    ...s,
     color: STORE_COLORS[i % STORE_COLORS.length],
   }));
 
-  const productsPieData = currentStoreData.map((s, i) => ({
+  const salesPieData = storesForShareWithColors.map((s) => ({
+    name: s.name,
+    value: s['Total Sales Value'],
+    color: s.color,
+  }));
+
+  const productsPieData = storesForShareWithColors.map((s) => ({
     name: s.name,
     value: s['Total Products'],
-    color: STORE_COLORS[i % STORE_COLORS.length],
+    color: s.color,
   }));
 
   return (
@@ -44,8 +60,8 @@ export function DashboardCharts({ chartData }: DashboardChartsProps) {
         data={combinedData}
         xKey="name"
         bars={[
-          { key: 'Total Products',  color: '#0b8d7b', name: 'Total Products'  },
-          { key: 'Total Inventory', color: '#0db69d', name: 'Total Inventory' },
+          { key: 'Total Products',  color: '#38bdf8', name: 'Total Products'  },
+          { key: 'Total Inventory', color: '#a78bfa', name: 'Total Inventory' },
         ]}
       />
 
@@ -53,26 +69,27 @@ export function DashboardCharts({ chartData }: DashboardChartsProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
         <div className="col-span-1 md:col-span-2">
           <BarChart
-            title="Sales Value — Current Store"
-            subtitle="Estimated revenue for this store (500 per unit)"
-            data={currentStoreData}
+            title="Sales Value — Store Comparison"
+            subtitle="Estimated revenue across connected stores"
+            data={storesForShareWithColors}
             xKey="name"
             bars={[
-              { key: 'Total Sales Value', color: '#0db69d', name: 'Sales Value' },
+              { key: 'Total Sales Value', color: '#38bdf8', name: 'Sales Value' },
             ]}
           />
         </div>
         <div className="col-span-1 md:col-span-1">
           <PieChart
             title="Sales Share %"
-            subtitle="Current store sales"
+            subtitle="Store sales distribution across network"
             data={salesPieData}
+            unit="₹"
           />
         </div>
         <div className="col-span-1 md:col-span-1">
           <PieChart
             title="Products Share %"
-            subtitle="Current store products"
+            subtitle="Product catalog distribution across stores"
             data={productsPieData}
           />
         </div>

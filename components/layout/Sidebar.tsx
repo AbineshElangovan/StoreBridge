@@ -36,10 +36,21 @@ export function Sidebar() {
   const shop = searchParams.get('shop');
   const host = searchParams.get('host');
   
-  const { activeStores, currentStore, isStandalone, canManageNetwork, loading } = useStoreContext();
+  const { 
+    activeStores, 
+    currentStore, 
+    sessionStore, 
+    sessionShopDomain, 
+    isMasterSession, 
+    canSwitchStores, 
+    isStandalone, 
+    canManageNetwork, 
+    loading 
+  } = useStoreContext();
   const [unreadCount, setUnreadCount] = React.useState<number>(0);
 
   const handleStoreSwitch = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    if (!canSwitchStores) return;
     const selectedShop = e.target.value;
     if (selectedShop) {
       try {
@@ -47,6 +58,13 @@ export function Sidebar() {
       } catch (err) {}
       const url = new URL(window.location.href);
       url.searchParams.set('shop', selectedShop);
+      const masterDomain = sessionShopDomain || sessionStore?.shopDomain;
+      if (masterDomain && isMasterSession) {
+        url.searchParams.set('master_shop', masterDomain);
+        try {
+          localStorage.setItem('storebridge_master_shop', masterDomain);
+        } catch (err) {}
+      }
       window.location.href = url.toString();
     }
   };
@@ -179,14 +197,14 @@ export function Sidebar() {
 
           return (
             <div className={`px-3 py-2.5 rounded-xl border shadow-2xs flex flex-col relative transition-colors ${boxStyle}`}>
-              {activeStores.length > 1 ? (
+              {canSwitchStores ? (
                 <select
                   value={currentStore?.shopDomain || ''}
                   onChange={handleStoreSwitch}
                   className="bg-transparent text-sm font-bold border-none outline-none focus:ring-0 cursor-pointer w-full pr-1 truncate"
                 >
                   {activeStores.map((s) => {
-                    const tag = s.isMaster ? '(Master)' : (isStandalone ? '(Standalone)' : '(Connected)');
+                    const tag = s.isMaster ? '(Master)' : (s.isStandalone ? '(Standalone)' : '(Connected)');
                     return (
                       <option key={s.id} value={s.shopDomain} className="bg-white text-gray-900 font-semibold py-1">
                         {s.label || s.shopDomain} {tag}

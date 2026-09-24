@@ -153,10 +153,10 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-8 min-w-0 w-full">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827', margin: 0 }}>
+            <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">
               Inventory Dashboard
             </h1>
-            <p style={{ marginTop: 4, color: '#6b7280', fontSize: '0.875rem' }}>
+            <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
               Live overview of your connected Shopify store.
             </p>
           </div>

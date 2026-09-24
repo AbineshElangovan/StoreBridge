@@ -308,10 +308,10 @@ export default function SettingsPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 m-0">
+            <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">
               Settings
             </h1>
-            <p className="mt-1 text-xs sm:text-sm text-gray-500 m-0">
+            <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
               Manage store connections, threshold alerts, and synchronization rules.
             </p>
           </div>

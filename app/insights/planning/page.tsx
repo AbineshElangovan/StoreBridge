@@ -135,10 +135,10 @@ export default function InventoryPlanningPage() {
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">
+        <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">
           Inventory Planning
         </h1>
-        <p className="text-sm font-medium text-gray-500 mt-1">
+        <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
           What is likely to happen next, and what you should prepare for.
         </p>
       </div>

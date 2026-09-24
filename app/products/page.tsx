@@ -106,15 +106,12 @@ export default function ProductsPage() {
       <div className="flex flex-col gap-8 min-w-0 w-full">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 lg:gap-8">
           <div>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827', margin: 0 }}>
+            <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">
               Products & Collections
             </h1>
-            <p style={{ marginTop: 4, color: '#6b7280', fontSize: '0.875rem' }}>
-              Products and collections for your connected store.
+            <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
+              Manage your stores products and collections effortlessly.
             </p>
-            <div style={{ marginTop: 8, padding: '8px 12px', backgroundColor: '#eff6ff', borderLeft: '4px solid #3b82f6', borderRadius: '4px', fontSize: '0.875rem', color: '#1e3a8a' }}>
-              <strong>Note:</strong> Collections are managed in Shopify Admin. This page is read-only and automatically syncs changes from Shopify.
-            </div>
           </div>
 
           <div className="flex flex-wrap lg:flex-nowrap items-center gap-4">

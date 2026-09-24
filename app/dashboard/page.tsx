@@ -223,8 +223,8 @@ export default async function DashboardPage() {
       {/* Top Bar matching new layout */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-gray-200 mb-8 gap-4 sm:gap-0">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
-            <p className="text-[13px] text-gray-500 mt-0.5">Everything syncing across {stores.length} stores, in real time</p>
+            <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Dashboard</h1>
+            <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">Everything syncing across {stores.length} stores, in real time</p>
           </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-full text-xs font-medium border border-green-100">

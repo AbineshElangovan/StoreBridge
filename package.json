@@ -4,8 +4,7 @@
   "private": true,
   "scripts": {
     "predev": "powershell -ExecutionPolicy Bypass -File ./scripts/clean-ports.ps1",
-    "dev": "concurrently -k -n tunnel,shopify -c cyan,magenta \"npm run tunnel\" \"npm run shopify:dev\"",
-    "dev:direct": "concurrently -k -n tunnel,next -c cyan,magenta \"npm run tunnel\" \"npm run next:dev\"",
+    "dev": "concurrently -k -n tunnel,storebridge -c cyan,green \"npm run tunnel\" \"npm run next:dev\"",
     "tunnel": "devtunnel host interesting-mountain-116tjtx.inc1",
     "shopify:dev": "shopify app dev --tunnel-url https://dz50mdfc-3000.inc1.devtunnels.ms:3000 --no-update",
     "next:dev": "next dev --webpack -p 3000",

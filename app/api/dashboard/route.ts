@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { authenticate, handleApiError } from '@/lib/shopify/authenticate';
+import { cleanupExpiredActivityLogs } from '@/lib/services/activityRetention';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
     const { store } = await authenticate(req);
+
+    // Non-blocking auto-purge of activity logs older than 90 days
+    cleanupExpiredActivityLogs().catch(() => {});
     
     // 1. Fetch authorized connections for THIS store only
     const connections = await (prisma as any).storeConnection.findMany({

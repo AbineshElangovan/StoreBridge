@@ -10,34 +10,24 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   console.log('[Stores API] GET called');
   try {
-    const { store } = await authenticate(req);
+    const { store, sessionStore, isMasterSession } = await authenticate(req);
     const { searchParams } = req.nextUrl;
     const activeOnly = searchParams.get('active') !== 'false';
 
-    const connections = await (prisma as any).storeConnection.findMany({
-      where: { sourceStoreId: store.id }
-    });
-    
-    const masterConnections = await (prisma as any).storeConnection.findMany({
-      where: { targetStoreId: store.id }
-    });
-    
-    const masterStoreIds = masterConnections.map((c: any) => c.sourceStoreId);
+    let visibleStoreIds: string[] = [];
 
-    // If we are a sub-store, fetch all other sub-stores connected to our master(s)
-    const siblingConnections = await (prisma as any).storeConnection.findMany({
-      where: { sourceStoreId: { in: masterStoreIds.length ? masterStoreIds : [] } }
-    });
-    
-    const connectedStoreIds = connections.map((c: any) => c.targetStoreId);
-    const siblingStoreIds = siblingConnections.map((c: any) => c.targetStoreId);
-    
-    const visibleStoreIds = [...new Set([
-      store.id, 
-      ...connectedStoreIds, 
-      ...masterStoreIds,
-      ...siblingStoreIds
-    ])];
+    if (isMasterSession && sessionStore?.isMaster) {
+      // Master store session: can see and switch to Master store AND all connected stores
+      const connections = await (prisma as any).storeConnection.findMany({
+        where: { sourceStoreId: sessionStore.id }
+      });
+      const connectedStoreIds = connections.map((c: any) => c.targetStoreId);
+      visibleStoreIds = [...new Set([sessionStore.id, ...connectedStoreIds])];
+    } else {
+      // Connected store / Standalone store:
+      // Strictly restricted to that store ONLY! Cannot see, switch to, or use other stores.
+      visibleStoreIds = [store.id];
+    }
 
     const whereClause: any = { id: { in: visibleStoreIds } };
     if (activeOnly) {
@@ -99,6 +89,9 @@ export async function GET(req: NextRequest) {
       total: enrichedStores.length,
       currentStoreId: store.id,
       currentShopDomain: store.shopDomain,
+      sessionStoreId: sessionStore?.id || store.id,
+      sessionShopDomain: sessionStore?.shopDomain || store.shopDomain,
+      isMasterSession: Boolean(isMasterSession),
       stores: enrichedStores,
     });
   } catch (error: any) {

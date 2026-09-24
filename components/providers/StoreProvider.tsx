@@ -21,6 +21,10 @@ export interface StoreInfo {
 interface StoreContextValue {
   activeStores: StoreInfo[];
   currentStore: StoreInfo | null;
+  sessionStore: StoreInfo | null;
+  sessionShopDomain: string | null;
+  isMasterSession: boolean;
+  canSwitchStores: boolean;
   storeCount: number;
   isStandalone: boolean;
   isMultiStore: boolean;
@@ -36,6 +40,10 @@ interface StoreContextValue {
 const StoreContext = createContext<StoreContextValue>({
   activeStores: [],
   currentStore: null,
+  sessionStore: null,
+  sessionShopDomain: null,
+  isMasterSession: false,
+  canSwitchStores: false,
   storeCount: 0,
   isStandalone: false,
   isMultiStore: false,
@@ -74,6 +82,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [activeStores, setActiveStores] = useState<StoreInfo[]>([]);
   const [serverCurrentStoreId, setServerCurrentStoreId] = useState<string | null>(null);
   const [serverCurrentShopDomain, setServerCurrentShopDomain] = useState<string | null>(null);
+  const [sessionShopDomain, setSessionShopDomain] = useState<string | null>(null);
+  const [isMasterSession, setIsMasterSession] = useState<boolean>(false);
+  const [sessionStore, setSessionStore] = useState<StoreInfo | null>(null);
   const [savedShopDomain, setSavedShopDomain] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
@@ -106,6 +117,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             setActiveStores(active);
             if (data.currentStoreId) setServerCurrentStoreId(data.currentStoreId);
             if (data.currentShopDomain) setServerCurrentShopDomain(data.currentShopDomain);
+            if (data.sessionShopDomain) setSessionShopDomain(data.sessionShopDomain);
+
+            const isMaster = Boolean(data.isMasterSession);
+            setIsMasterSession(isMaster);
+
+            if (!isMaster) {
+              // Connected store: clear any master shops from localStorage
+              try {
+                localStorage.removeItem('storebridge_master_shop');
+              } catch (e) {}
+            }
+
+            if (data.sessionStoreId) {
+              const foundSession = active.find((s: StoreInfo) => s.id === data.sessionStoreId);
+              if (foundSession) setSessionStore(foundSession);
+            }
           }
         }
       } catch (err) {
@@ -117,13 +144,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     loadStores();
   }, [currentShopDomain]);
 
-  const currentStore = 
-    (currentShopDomain ? activeStores.find(s => matchesStore(s, currentShopDomain)) : null) ||
-    (serverCurrentStoreId ? activeStores.find(s => s.id === serverCurrentStoreId) : null) ||
-    (serverCurrentShopDomain ? activeStores.find(s => s.shopDomain === serverCurrentShopDomain) : null) ||
-    (savedShopDomain ? activeStores.find(s => matchesStore(s, savedShopDomain)) : null) ||
-    (activeStores.length > 0 ? activeStores[0] : null);
-  
+  // For connected stores (!isMasterSession), currentStore is strictly activeStores[0] (itself)
+  // For master sessions, user can view any activeStore
+  const currentStore = !isMasterSession && activeStores.length > 0
+    ? activeStores[0]
+    : (
+        (currentShopDomain ? activeStores.find(s => matchesStore(s, currentShopDomain)) : null) ||
+        (serverCurrentStoreId ? activeStores.find(s => s.id === serverCurrentStoreId) : null) ||
+        (serverCurrentShopDomain ? activeStores.find(s => s.shopDomain === serverCurrentShopDomain) : null) ||
+        (savedShopDomain ? activeStores.find(s => matchesStore(s, savedShopDomain)) : null) ||
+        (activeStores.length > 0 ? activeStores[0] : null)
+      );
+
+  const canSwitchStores = isMasterSession && activeStores.length > 1;
   const storeCount = activeStores.length;
   
   const isMaster = currentStore?.isMaster || false;
@@ -137,13 +170,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const canManagePricing = isMaster || isStandalone;
   
   // Network operations remain strictly Master-only
-  const canManageNetwork = isMaster;
-  const canSyncToConnectedStores = isMaster;
+  const canManageNetwork = isMasterSession || isMaster;
+  const canSyncToConnectedStores = isMasterSession || isMaster;
 
   return (
     <StoreContext.Provider value={{
       activeStores,
       currentStore,
+      sessionStore,
+      sessionShopDomain,
+      isMasterSession,
+      canSwitchStores,
       storeCount,
       isStandalone,
       isMultiStore,
