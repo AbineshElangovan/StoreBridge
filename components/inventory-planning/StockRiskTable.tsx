@@ -60,7 +60,7 @@ export function StockRiskTable({
       </div>
     ),
     stockout_node: p.expectedStockoutDays !== null ? (
-      <span className={p.expectedStockoutDays <= 7 ? 'text-red-600 font-extrabold whitespace-nowrap' : 'text-gray-900 font-bold whitespace-nowrap'}>
+      <span className={p.risk === 'High Risk' ? 'text-red-600 font-extrabold whitespace-nowrap' : 'text-gray-900 font-bold whitespace-nowrap'}>
         {p.expectedStockoutDays} {p.expectedStockoutDays === 1 ? 'day' : 'days'}
       </span>
     ) : (

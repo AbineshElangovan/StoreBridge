@@ -100,7 +100,6 @@ export default async function DashboardPage() {
   // ── Build cross-store and cross-variant image fallback maps ──
   const allImagesRaw = await prisma.productCache.findMany({
     where: {
-      storeId: { in: visibleStoreIds },
       imageUrl: { not: null }
     },
     select: { sku: true, title: true, imageUrl: true, shopifyProductId: true }

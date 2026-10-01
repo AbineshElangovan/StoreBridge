@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { shopifyFetch } from '@/lib/shopify/Client';
+import { useStoreContext } from '@/components/providers/StoreProvider';
 import { PlanningFilters } from '@/components/inventory-planning/PlanningFilters';
 import { PlanningStats } from '@/components/inventory-planning/PlanningStats';
 import { PlanningTabs, PlanningTabId } from '@/components/inventory-planning/PlanningTabs';
@@ -14,6 +15,7 @@ import { PlanningPagination } from '@/components/inventory-planning/PlanningPagi
 export default function InventoryPlanningPage() {
   const searchParams = useSearchParams();
   const shop = searchParams.get('shop');
+  const { activeStores, isMasterSession, isMaster: isContextMaster, isMultiStore: isContextMultiStore } = useStoreContext();
 
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedStore, setSelectedStore] = useState<string>('all');
@@ -26,7 +28,7 @@ export default function InventoryPlanningPage() {
 
   const [stats, setStats] = useState({
     highRisk: 0,
-    mediumRisk: 0,
+    lowRisk: 0,
     outOfStock: 0,
     replenishmentNeeded: 0,
     productsMonitored: 0
@@ -39,6 +41,27 @@ export default function InventoryPlanningPage() {
     stores: [{ id: 'all', label: 'All stores' }],
     collections: ['All collections']
   });
+
+  // Populate multi-store options as soon as StoreContext loads
+  useEffect(() => {
+    if ((isMasterSession || isContextMaster || isContextMultiStore) && activeStores && activeStores.length > 1) {
+      setFilters(prev => {
+        if (prev.stores.length <= 1) {
+          return {
+            ...prev,
+            stores: [
+              { id: 'all', label: 'All stores' },
+              ...activeStores.map((s) => ({
+                id: s.id,
+                label: s.isMaster ? `${s.label || s.shopDomain} (Master)` : (s.label || s.shopDomain)
+              }))
+            ]
+          };
+        }
+        return prev;
+      });
+    }
+  }, [activeStores, isMasterSession, isContextMaster, isContextMultiStore]);
 
   const [data, setData] = useState<any[]>([]);
   const [pagination, setPagination] = useState({
@@ -68,18 +91,28 @@ export default function InventoryPlanningPage() {
         if (json.success) {
           setStats(json.stats || {
             highRisk: 0,
-            mediumRisk: 0,
+            lowRisk: 0,
             outOfStock: 0,
             replenishmentNeeded: 0,
             productsMonitored: 0
           });
 
           if (json.filters) {
-            setFilters(json.filters);
-            if (json.filters.stores && json.filters.stores.length > 0) {
-              const exists = json.filters.stores.some((s: any) => s.id === selectedStore);
-              if (!exists && selectedStore !== 'all') {
-                setSelectedStore(json.filters.stores[0].id);
+            setFilters(prev => ({
+              stores: (json.filters.stores && json.filters.stores.length > 1)
+                ? json.filters.stores
+                : (prev.stores.length > 1 ? prev.stores : (json.filters.stores || prev.stores)),
+              collections: json.filters.collections || prev.collections
+            }));
+
+            const availableStores = (json.filters.stores && json.filters.stores.length > 1)
+              ? json.filters.stores
+              : filters.stores;
+
+            if (availableStores && availableStores.length > 0 && selectedStore !== 'all') {
+              const exists = availableStores.some((s: any) => s.id === selectedStore);
+              if (!exists) {
+                setSelectedStore('all');
               }
             }
           }

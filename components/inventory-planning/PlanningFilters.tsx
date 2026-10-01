@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useStoreContext } from '@/components/providers/StoreProvider';
 
 interface PlanningFiltersProps {
   stores: { id: string; label: string }[];
@@ -34,21 +35,36 @@ export function PlanningFilters({
   selectedReplenishDays = '30',
   onReplenishDaysChange = () => {},
 }: PlanningFiltersProps) {
-  const isMultiStore = stores && stores.length > 1;
+  const { activeStores, isMasterSession, isMaster: isContextMaster, isMultiStore: isContextMultiStore } = useStoreContext();
+
+  const isUserMultiStore = (stores && stores.length > 1) || isMasterSession || isContextMaster || isContextMultiStore || (activeStores && activeStores.length > 1);
+
+  // Compute available stores: prefer passed-in stores if multiple, otherwise fallback to activeStores
+  const displayStores = (stores && stores.length > 1)
+    ? stores
+    : (activeStores && activeStores.length > 1)
+      ? [
+          { id: 'all', label: 'All stores' },
+          ...activeStores.map((s) => ({
+            id: s.id,
+            label: s.isMaster ? `${s.label || s.shopDomain} (Master)` : (s.label || s.shopDomain)
+          }))
+        ]
+      : stores;
 
   return (
     <div className="bg-white/80 backdrop-blur-md rounded-xl border border-[var(--border-color)] p-3 mb-6 shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 transition-colors">
       {/* Left Filter Dropdowns */}
       <div className="flex flex-wrap items-center gap-2.5 flex-1">
-        {/* Store Selector (Only show if multiple stores) */}
-        {isMultiStore && (
+        {/* Store Selector (Only show if multiple stores or in multi-store master context) */}
+        {isUserMultiStore && displayStores && displayStores.length > 1 && (
           <div className="relative w-full sm:w-auto">
             <select
               value={selectedStore}
               onChange={(e) => onStoreChange(e.target.value)}
               className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3 py-2 pr-8 text-xs font-semibold text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)] cursor-pointer shadow-2xs transition-colors"
             >
-              {stores.map((s) => (
+              {displayStores.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.label}
                 </option>

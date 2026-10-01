@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
@@ -15,6 +15,8 @@ import {
 import { Icon } from '@shopify/polaris';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 import { useNotifications } from '@/components/providers/NotificationContext';
+import { useTheme } from '@/components/providers/ThemeContext';
+import { StoreLogo } from '@/components/common';
 
 interface MenuItem {
   label: string;
@@ -34,6 +36,9 @@ export function Sidebar() {
   const searchParams = useSearchParams();
   const shop = searchParams.get('shop');
   const host = searchParams.get('host');
+  const { currentTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
   
   const { 
     activeStores, 
@@ -134,12 +139,12 @@ export function Sidebar() {
   ];
 
   return (
-    <div className="w-[260px] flex-shrink-0 border-r ys-theme-sidebar h-screen sticky top-0 flex flex-col z-20 transition-colors duration-300">
+    <div className="w-[260px] flex-shrink-0 border-r ys-theme-sidebar h-screen max-h-screen sticky top-0 flex flex-col z-20 transition-colors duration-300 overflow-hidden">
       
       {/* Innovative Brand Logo Header */}
       <Link
         href={createHref('/')}
-        className="px-5 py-5 flex items-center gap-3 border-b border-[var(--theme-border-accent)]/50 bg-white/40 hover:bg-white/60 transition-all cursor-pointer group"
+        className="px-5 py-5 flex items-center gap-3 border-b border-[var(--theme-border-accent)]/50 bg-white/40 hover:bg-white/60 transition-all cursor-pointer group shrink-0"
         title="Go to Dashboard"
       >
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-dark)] text-white flex items-center justify-center shadow-xs flex-shrink-0 relative overflow-hidden border border-white/30 group-hover:scale-105 transition-transform">
@@ -157,12 +162,14 @@ export function Sidebar() {
           <h2 className="text-[15px] font-black text-gray-900 leading-tight tracking-tight flex items-center gap-1.5 group-hover:text-[var(--color-primary)] transition-colors">
             StoreBridge
           </h2>
-          <p className="text-[11px] text-gray-500 leading-tight font-semibold mt-0.5">Multi-store sync</p>
+          {!isStandalone && (
+            <p className="text-[11px] text-gray-500 leading-tight font-semibold mt-0.5">Multi-store sync</p>
+          )}
         </div>
       </Link>
 
       {/* Store Role Indicator Card */}
-      <div className="px-4 py-4">
+      <div className="px-4 py-4 shrink-0">
         {(() => {
           const isMasterStore = currentStore?.isMaster;
           const isConnectedStore = !isMasterStore && !isStandalone;
@@ -174,28 +181,53 @@ export function Sidebar() {
           return (
             <div className="px-3.5 py-2.5 rounded-xl border border-[var(--theme-border-accent)] bg-white/85 shadow-2xs flex flex-col relative transition-all duration-200">
               {canSwitchStores ? (
-                <select
-                  value={currentStore?.shopDomain || ''}
-                  onChange={handleStoreSwitch}
-                  className="bg-transparent text-xs sm:text-sm font-bold border-none outline-none focus:ring-0 cursor-pointer w-full pr-1 truncate text-gray-900"
-                >
-                  {activeStores.map((s) => {
-                    const tag = s.isMaster ? '(Master)' : (s.isStandalone ? '(Standalone)' : '(Connected)');
-                    return (
-                      <option key={s.id} value={s.shopDomain} className="bg-white text-gray-900 font-semibold py-1">
-                        {s.label || s.shopDomain} {tag}
-                      </option>
-                    );
-                  })}
-                </select>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <StoreLogo 
+                    shopDomain={currentStore?.shopDomain} 
+                    label={currentStore?.label} 
+                    isMaster={currentStore?.isMaster} 
+                    isStandalone={isStandalone} 
+                    size="sm" 
+                  />
+                  <div className="min-w-0 flex-1">
+                    <select
+                      value={currentStore?.shopDomain || ''}
+                      onChange={handleStoreSwitch}
+                      className="bg-transparent text-xs sm:text-sm font-bold border-none outline-none focus:ring-0 cursor-pointer w-full pr-1 truncate text-gray-900"
+                    >
+                      {activeStores.map((s) => {
+                        const tag = s.isMaster ? '(Master)' : (s.isStandalone ? '(Standalone)' : '(Connected)');
+                        return (
+                          <option key={s.id} value={s.shopDomain} className="bg-white text-gray-900 font-semibold py-1">
+                            {s.label || s.shopDomain} {tag}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <span className="text-[10px] font-extrabold mt-0.5 tracking-wider uppercase text-[var(--color-primary)] block">
+                      {roleLabel}
+                    </span>
+                  </div>
+                </div>
               ) : (
-                <span className="text-xs sm:text-sm font-bold truncate text-gray-900">
-                  {loading ? 'Loading...' : (currentStore?.label || currentStore?.shopDomain || 'ESHAN Store')}
-                </span>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <StoreLogo 
+                    shopDomain={currentStore?.shopDomain} 
+                    label={currentStore?.label} 
+                    isMaster={currentStore?.isMaster} 
+                    isStandalone={isStandalone} 
+                    size="sm" 
+                  />
+                  <div className="min-w-0 flex-1">
+                    <span className="text-xs sm:text-sm font-bold truncate text-gray-900 block">
+                      {loading ? 'Loading...' : (currentStore?.label || currentStore?.shopDomain || 'ESHAN Store')}
+                    </span>
+                    <span className="text-[10px] font-extrabold mt-0.5 tracking-wider uppercase text-[var(--color-primary)] block">
+                      {roleLabel}
+                    </span>
+                  </div>
+                </div>
               )}
-              <span className="text-[10px] font-extrabold mt-0.5 tracking-wider uppercase text-[var(--color-primary)]">
-                {roleLabel}
-              </span>
             </div>
           );
         })()}
@@ -204,11 +236,14 @@ export function Sidebar() {
       {/* Nav Menu */}
       <div className="flex-1 overflow-y-auto px-4 pb-6 ys-sidebar-scroll">
         {menuSections.map((section, idx) => (
-          <div key={idx} className="mb-5">
-            <h3 className="px-3 mb-2 text-[10px] font-extrabold text-gray-400 tracking-wider uppercase">
+          <div key={idx} className="mb-6">
+            <h3 
+              className="px-3 mb-3 text-xs font-black tracking-wider uppercase transition-colors select-none"
+              style={{ color: mounted ? (currentTheme?.darkColor || 'var(--color-primary-dark, #022c22)') : 'var(--color-primary-dark, #022c22)' }}
+            >
               {section.title}
             </h3>
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {section.items.map((item) => {
                 if (!canManageNetwork && item.hideInSingleStore) return null;
                 

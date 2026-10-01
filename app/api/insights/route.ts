@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    const { store: currentStore } = await authenticate(req);
+    const { store: currentStore, sessionStore, isMasterSession } = await authenticate(req);
     const { searchParams } = new URL(req.url);
 
     const storeFilter = searchParams.get('store') || 'all';
@@ -19,17 +19,19 @@ export async function GET(req: NextRequest) {
     const dateThreshold = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000);
 
     // 1. Derive authorized stores server-side
+    const effectiveMaster = isMasterSession
+      ? (sessionStore?.isMaster ? sessionStore : (currentStore.isMaster ? currentStore : null))
+      : (currentStore.isMaster ? currentStore : null);
+    const isMaster = Boolean(effectiveMaster);
+
     const storeMap = new Map<string, any>();
-    storeMap.set(currentStore.id, currentStore);
-
-    const isMaster = !!currentStore.isMaster;
-
-    if (isMaster) {
+    if (effectiveMaster) {
+      storeMap.set(effectiveMaster.id, effectiveMaster);
       const connections = await (prisma as any).storeConnection.findMany({
         where: {
           OR: [
-            { sourceStoreId: currentStore.id },
-            { targetStoreId: currentStore.id }
+            { sourceStoreId: effectiveMaster.id },
+            { targetStoreId: effectiveMaster.id }
           ]
         },
         include: {
@@ -41,6 +43,11 @@ export async function GET(req: NextRequest) {
         if (c.sourceStore) storeMap.set(c.sourceStore.id, c.sourceStore);
         if (c.targetStore) storeMap.set(c.targetStore.id, c.targetStore);
       });
+      if (!storeMap.has(currentStore.id) && currentStore.isActive) {
+        storeMap.set(currentStore.id, currentStore);
+      }
+    } else {
+      storeMap.set(currentStore.id, currentStore);
     }
 
     const authorizedStoreIds = Array.from(storeMap.keys());
@@ -58,16 +65,25 @@ export async function GET(req: NextRequest) {
     }
 
     // Return store filter dropdown options based on store access
-    const storeFilterOptions = isMaster
+    const storeFilterOptions = (isMaster && storeMap.size > 1)
       ? [
           { id: 'all', label: 'All stores' },
           ...authorizedStoreIds.map(id => {
             const s = storeMap.get(id);
-            return { id: s?.id || id, label: s?.label || s?.shopDomain || id };
+            const baseLabel = s?.label || s?.shopDomain || id;
+            return {
+              id: s?.id || id,
+              label: s?.isMaster ? `${baseLabel} (Master)` : baseLabel
+            };
           })
         ]
       : [
-          { id: currentStore.id, label: currentStore.label || currentStore.shopDomain }
+          {
+            id: currentStore.id,
+            label: currentStore.isMaster
+              ? `${currentStore.label || currentStore.shopDomain} (Master)`
+              : (currentStore.label || currentStore.shopDomain)
+          }
         ];
 
     // 2. Fetch distinct collections for authorized stores

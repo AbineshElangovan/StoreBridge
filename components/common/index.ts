@@ -13,3 +13,4 @@ export * from './BarChart';
 export * from './PageLoader';
 export * from './StatCard';
 export * from './LocalizedDate';
+export * from './StoreLogo';

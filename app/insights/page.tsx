@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { shopifyFetch } from '@/lib/shopify/Client';
+import { useStoreContext } from '@/components/providers/StoreProvider';
 import { InsightFilters } from '@/components/insights/InsightFilters';
 import { InsightStats } from '@/components/insights/InsightStats';
 import { InsightTabs, InsightTabType } from '@/components/insights/InsightTabs';
@@ -11,6 +12,7 @@ import { InsightTable } from '@/components/insights/InsightTable';
 export default function InsightsPage() {
   const searchParams = useSearchParams();
   const shop = searchParams.get('shop');
+  const { activeStores, isMasterSession, isMaster: isContextMaster, isMultiStore: isContextMultiStore } = useStoreContext();
 
   const [selectedStore, setSelectedStore] = useState<string>('all');
   const [selectedRange, setSelectedRange] = useState<string>('30');
@@ -33,6 +35,27 @@ export default function InsightsPage() {
     stores: [{ id: 'all', label: 'All stores' }],
     collections: ['All collections']
   });
+
+  // Populate multi-store options as soon as StoreContext loads
+  useEffect(() => {
+    if ((isMasterSession || isContextMaster || isContextMultiStore) && activeStores && activeStores.length > 1) {
+      setFilters(prev => {
+        if (prev.stores.length <= 1) {
+          return {
+            ...prev,
+            stores: [
+              { id: 'all', label: 'All stores' },
+              ...activeStores.map((s) => ({
+                id: s.id,
+                label: s.isMaster ? `${s.label || s.shopDomain} (Master)` : (s.label || s.shopDomain)
+              }))
+            ]
+          };
+        }
+        return prev;
+      });
+    }
+  }, [activeStores, isMasterSession, isContextMaster, isContextMultiStore]);
 
   const [data, setData] = useState<any[]>([]);
   const [pagination, setPagination] = useState({
@@ -60,11 +83,21 @@ export default function InsightsPage() {
         if (json.success) {
           setStats(json.stats || { unitsSold: 0, revenue: 0, slowMoversCount: 0, deadStockCount: 0 });
           if (json.filters) {
-            setFilters(json.filters);
-            if (json.filters.stores && json.filters.stores.length > 0) {
-              const exists = json.filters.stores.some((s: any) => s.id === selectedStore);
+            setFilters(prev => ({
+              stores: (json.filters.stores && json.filters.stores.length > 1)
+                ? json.filters.stores
+                : (prev.stores.length > 1 ? prev.stores : (json.filters.stores || prev.stores)),
+              collections: json.filters.collections || prev.collections
+            }));
+
+            const availableStores = (json.filters.stores && json.filters.stores.length > 1)
+              ? json.filters.stores
+              : filters.stores;
+
+            if (availableStores && availableStores.length > 0 && selectedStore !== 'all') {
+              const exists = availableStores.some((s: any) => s.id === selectedStore);
               if (!exists) {
-                setSelectedStore(json.filters.stores[0].id);
+                setSelectedStore('all');
               }
             }
           }
