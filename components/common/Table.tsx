@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Badge, Text } from '@shopify/polaris';
 import { CustomSelect } from './CustomSelect';
+import { useTheme } from '@/components/providers/ThemeContext';
 
 export interface ColumnConfig {
   title: string;
@@ -44,7 +45,7 @@ export interface TableProps {
 function TableSpinner() {
   return (
     <div className="flex flex-col items-center justify-center p-[56px_20px] gap-4">
-      <div className="w-11 h-11 rounded-full border-4 border-gray-200 border-t-[#0db69d] animate-spin" />
+      <div className="w-11 h-11 rounded-full border-4 border-black/10 border-t-[var(--color-primary)] animate-spin" />
       <p className="m-0 text-[13px] text-gray-400 font-medium">Loading data…</p>
     </div>
   );
@@ -120,7 +121,7 @@ const ImageCell = ({ src }: { src: string | string[] }) => {
 
 export function Table({
   title,
-  headerColor = '#4f46e5',
+  headerColor,
   columns,
   items,
   emptyState,
@@ -144,6 +145,11 @@ export function Table({
   itemsPerPage = 10,
   onRowClick,
 }: TableProps) {
+  const { currentTheme } = useTheme();
+  const effectiveHeaderColor = (!headerColor || headerColor === '#4f46e5' || headerColor === '#0db69d')
+    ? (currentTheme?.primaryColor || '#0db69d')
+    : headerColor;
+
   const [localQuery, setLocalQuery] = useState('');
   const [localFilterValue, setLocalFilterValue] = useState('ALL');
   const [localPage, setLocalPage] = useState(1);
@@ -175,9 +181,9 @@ export function Table({
     }
   };
 
-  // Derive a soft background tint from headerColor (15% opacity)
-  const headerBg = `${headerColor}22`;
-  const headerText = headerColor;
+  // Derive a soft background tint from effectiveHeaderColor (12% opacity)
+  const headerBg = `${effectiveHeaderColor}1a`;
+  const headerText = effectiveHeaderColor;
 
   const filteredItems = useMemo(() => {
     if (serverSide) return items;
@@ -231,16 +237,16 @@ export function Table({
   };
 
   return (
-    <div className="w-full bg-white">
+    <div className="w-full bg-white/90 backdrop-blur-md rounded-xl border border-gray-200/80 shadow-2xs overflow-hidden">
 
       {/* ── Table Header / Toolbar ── */}
       {(title || searchable || filterable) && !loading && (
-        <div className="p-3 sm:p-4 px-4 sm:px-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="p-3 sm:p-4 px-4 sm:px-5 border-b border-gray-100 bg-white/40 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
           
           {/* Left Side: Title */}
           <div className="flex items-center gap-3">
             {title && (
-              <h3 className="text-base sm:text-lg font-bold uppercase tracking-wider m-0" style={{ color: headerColor }}>
+              <h3 className="text-base sm:text-lg font-bold uppercase tracking-wider m-0" style={{ color: effectiveHeaderColor }}>
                 {title}
               </h3>
             )}
@@ -292,7 +298,7 @@ export function Table({
                       width: col.width,
                       backgroundColor: headerBg,
                       color: headerText,
-                      borderBottom: `2px solid ${headerColor}44`,
+                      borderBottom: `2px solid ${effectiveHeaderColor}44`,
                       borderRight: i < columns.length - 1 ? '1px solid #f1f5f9' : 'none',
                       textAlign: col.align || 'center',
                     }}
@@ -325,12 +331,12 @@ export function Table({
                       }
                     }}
                     style={{
-                      backgroundColor: index % 2 === 0 ? '#fff' : '#f8f9ff',
+                      backgroundColor: index % 2 === 0 ? 'rgba(255,255,255,0.95)' : `${effectiveHeaderColor}0a`,
                       transition: 'background-color 0.15s',
                       cursor: onRowClick ? 'pointer' : 'default'
                     }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = `${headerColor}0f`; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = index % 2 === 0 ? '#fff' : '#f8f9ff'; }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = `${effectiveHeaderColor}18`; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = index % 2 === 0 ? 'rgba(255,255,255,0.95)' : `${effectiveHeaderColor}0a`; }}
                   >
                     {columns.map((col, ci) => (
                       <td
@@ -340,7 +346,7 @@ export function Table({
                           borderRight: ci < columns.length - 1 ? '1px solid #f8f9ff' : 'none',
                           textAlign: col.align || 'center',
                         }}
-                        className="p-[8px_8px] border-b border-slate-100 text-[13px] align-middle overflow-hidden text-ellipsis"
+                        className="p-[8px_8px] border-b border-slate-100/80 text-[13px] align-middle overflow-hidden text-ellipsis"
                       >
                         {renderCell(item, col)}
                       </td>

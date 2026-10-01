@@ -62,16 +62,44 @@ export async function GET(req: NextRequest) {
   }
 
   let lastCreatedAt = new Date();
+  let isClosed = false;
 
   const stream = new ReadableStream({
     start(controller) {
-      // 1. Initial connection message
-      controller.enqueue(
-        `event: connected\ndata: ${JSON.stringify({ message: "Notification SSE Connected", storeIds: targetStoreIds })}\n\n`
-      );
+      let pollInterval: NodeJS.Timeout | null = null;
+      let heartbeatInterval: NodeJS.Timeout | null = null;
+      let maxLifetimeTimeout: NodeJS.Timeout | null = null;
 
-      // 2. Poll Database for newly created notifications every 5 seconds on the server
-      const pollInterval = setInterval(async () => {
+      const cleanup = () => {
+        if (isClosed) return;
+        isClosed = true;
+        if (pollInterval) clearInterval(pollInterval);
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        if (maxLifetimeTimeout) clearTimeout(maxLifetimeTimeout);
+        try {
+          controller.close();
+        } catch (e) {
+          // Ignored
+        }
+      };
+
+      // 1. Initial connection message
+      try {
+        controller.enqueue(
+          `event: connected\ndata: ${JSON.stringify({ message: "Notification SSE Connected", storeIds: targetStoreIds })}\n\n`
+        );
+      } catch (err) {
+        cleanup();
+        return;
+      }
+
+      // 2. Poll Database for newly created notifications every 6 seconds
+      pollInterval = setInterval(async () => {
+        if (isClosed || req.signal.aborted || !currentStore) {
+          cleanup();
+          return;
+        }
+
         try {
           const notificationWhere: any = {
             createdAt: { gt: lastCreatedAt },
@@ -86,9 +114,10 @@ export async function GET(req: NextRequest) {
               },
             },
             orderBy: { createdAt: 'asc' },
+            take: 20
           });
 
-          if (newNotifications.length > 0) {
+          if (newNotifications.length > 0 && !isClosed) {
             lastCreatedAt = newNotifications[newNotifications.length - 1].createdAt;
 
             for (const notif of newNotifications) {
@@ -96,25 +125,34 @@ export async function GET(req: NextRequest) {
             }
           }
         } catch (error) {
-          console.error('[Notification SSE Stream Error]:', error);
+          cleanup();
         }
-      }, 5000);
+      }, 6000);
 
-      // 3. Heartbeat every 30 seconds to prevent connection timeouts
-      const heartbeatInterval = setInterval(() => {
+      // 3. Heartbeat every 25 seconds
+      heartbeatInterval = setInterval(() => {
+        if (isClosed || req.signal.aborted) {
+          cleanup();
+          return;
+        }
         try {
           controller.enqueue(`event: ping\ndata: {"message": "heartbeat"}\n\n`);
         } catch (e) {
-          // Ignored if stream is closed
+          cleanup();
         }
-      }, 30000);
+      }, 25000);
 
-      // 4. Cleanup when the client disconnects
-      req.signal.addEventListener('abort', () => {
-        clearInterval(pollInterval);
-        clearInterval(heartbeatInterval);
-        controller.close();
-      });
+      // 4. Recycle connection after 30 minutes safety cap so memory is freed
+      maxLifetimeTimeout = setTimeout(() => {
+        cleanup();
+      }, 1800000);
+
+      // 5. Cleanup when the client disconnects
+      req.signal.addEventListener('abort', cleanup);
+    },
+    cancel() {
+      // Called when the consumer cancels the stream
+      isClosed = true;
     },
   });
 

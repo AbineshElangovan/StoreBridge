@@ -1,7 +1,14 @@
 "use client";
 
+interface CachedResponseData {
+  status: number;
+  statusText: string;
+  headers: [string, string][];
+  body: ArrayBuffer;
+}
+
 // Reusable in-flight request cache for safe/idempotent GET requests
-const inFlightRequests = new Map<string, Promise<Response>>();
+const inFlightRequests = new Map<string, Promise<CachedResponseData>>();
 
 function buildRequestKey(input: RequestInfo, init: RequestInit, activeShopDomain: string): string {
   let urlStr = typeof input === "string" ? input : input instanceof Request ? input.url : String(input);
@@ -44,24 +51,28 @@ export async function shopifyFetch(input: RequestInfo, init: RequestInit = {}): 
   const requestKey = isSafeGet ? buildRequestKey(requestInput, init, activeShopDomain) : null;
 
   if (isSafeGet && requestKey && inFlightRequests.has(requestKey)) {
-    // Clone response so multiple callers can read their own body stream
-    const ongoingPromise = inFlightRequests.get(requestKey)!;
-    return ongoingPromise.then((res) => res.clone());
+    const cached = await inFlightRequests.get(requestKey)!;
+    return new Response(cached.body.slice(0), {
+      status: cached.status,
+      statusText: cached.statusText,
+      headers: new Headers(cached.headers),
+    });
   }
 
-  const executionPromise = (async () => {
-    // Non-blocking token retrieval: check App Bridge idToken immediately without multi-second delays
+  const executionPromise = (async (): Promise<CachedResponseData> => {
+    // Non-blocking token retrieval: check App Bridge idToken with 1500ms safety timeout
     let token = "dev_fallback_token";
     const shopifyV4 = typeof window !== "undefined" ? (window as any).shopify : null;
 
     if (shopifyV4 && typeof shopifyV4.idToken === "function") {
       try {
-        const idToken = await shopifyV4.idToken();
-        if (idToken) {
+        const tokenPromise = shopifyV4.idToken();
+        const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 1500));
+        const idToken = await Promise.race([tokenPromise, timeoutPromise]);
+        if (idToken && typeof idToken === "string") {
           token = idToken;
         }
       } catch (err: any) {
-        // Fallback silently and immediately to existing dev/header fallback
         if (process.env.NODE_ENV === "development") {
           console.warn("[shopifyFetch] App Bridge idToken unavailable, using fallback:", err?.message || err);
         }
@@ -79,27 +90,41 @@ export async function shopifyFetch(input: RequestInfo, init: RequestInit = {}): 
     }
 
     try {
-      return await fetch(requestInput, {
+      const res = await fetch(requestInput, {
         ...init,
         headers,
       });
+      const buffer = await res.arrayBuffer();
+      return {
+        status: res.status,
+        statusText: res.statusText,
+        headers: Array.from(res.headers.entries()),
+        body: buffer,
+      };
     } catch (err: any) {
       console.warn("[shopifyFetch] Network request failed:", err?.message || err);
-      return new Response(
-        JSON.stringify({ success: false, error: "Network error: Unable to connect to server." }),
-        { status: 503, headers: { "Content-Type": "application/json" } }
-      );
+      const errorJson = JSON.stringify({ success: false, error: "Network error: Unable to connect to server." });
+      const enc = new TextEncoder();
+      return {
+        status: 503,
+        statusText: "Service Unavailable",
+        headers: [["Content-Type", "application/json"]],
+        body: enc.encode(errorJson).buffer,
+      };
     }
   })();
 
   if (isSafeGet && requestKey) {
     inFlightRequests.set(requestKey, executionPromise);
-    // Always clear the in-flight lock after settling (success or failure)
     executionPromise.finally(() => {
       inFlightRequests.delete(requestKey);
     });
   }
 
-  const response = await executionPromise;
-  return isSafeGet ? response.clone() : response;
+  const result = await executionPromise;
+  return new Response(result.body.slice(0), {
+    status: result.status,
+    statusText: result.statusText,
+    headers: new Headers(result.headers),
+  });
 }

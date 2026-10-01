@@ -399,6 +399,7 @@ export async function applyPriceAdjustmentToStore(storeId: string) {
       : '';
       
     const logDescription = `Price adjustment applied for ${summaryText} in ${storeLabel}${totalSuffix}`;
+    const sampleImageCache = targetCaches.find(c => c.imageUrl) || null;
 
     await prisma.activityLog.create({
       data: {
@@ -407,6 +408,7 @@ export async function applyPriceAdjustmentToStore(storeId: string) {
         eventType: 'UPDATE',
         description: logDescription,
         collection: collectionsField,
+        imageUrl: sampleImageCache?.imageUrl || null,
       }
     });
 

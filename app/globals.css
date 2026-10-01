@@ -1,33 +1,50 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 @import '@shopify/polaris/build/esm/styles.css';
 @import 'tailwindcss';
 
-:root {
-  /* Brand */
-  --color-primary: #0db69d;
-  --color-primary-light: #dffaf6;
-  --color-primary-dark: #0b8d7b;
+/* ==========================================================================
+   4K Light Wallpaper Studio Themes (Deeper, Richer Saturated Tones)
+   ========================================================================== */
+
+:root, [data-theme="emerald_forest"], [data-theme="emerald"] {
+  /* 1. Nordic Emerald Studio (Default) */
+  --color-primary: #047857;
+  --color-primary-light: #d1fae5;
+  --color-primary-dark: #022c22;
+  --color-primary-hover: #065f46;
+
+  --theme-navbar-bg: rgba(209, 250, 229, 0.98);
+  --theme-navbar-border: #34d399;
+  --theme-sidebar-bg: rgba(209, 250, 229, 0.98);
+  --theme-sidebar-border: #34d399;
+  --theme-sidebar-active-bg: #a7f3d0;
+  --theme-sidebar-active-text: #022c22;
+  --theme-sidebar-hover-bg: #047857;
+  --theme-sidebar-hover-text: #ffffff;
+  --theme-card-bg: rgba(240, 253, 248, 0.95);
+  --theme-border-accent: #6ee7b7;
+  --theme-glow: rgba(4, 120, 87, 0.25);
 
   /* Status */
-  --color-success: #22c55e;
-  --color-warning: #f59e0b;
-  --color-danger: #ef4444;
-  --color-info: #3b82f6;
+  --color-success: #15803d;
+  --color-warning: #b45309;
+  --color-danger: #b91c1c;
+  --color-info: #0369a1;
 
   /* Backgrounds */
-  --bg-page: #f8fafc;
-  --bg-card: #ffffff;
-  --bg-hover: #f1f5f9;
+  --bg-page: #f0fdf4;
+  --bg-card: rgba(240, 253, 248, 0.95);
+  --bg-hover: #d1fae5;
 
   /* Text */
-  --text-primary: #111827;
-  --text-secondary: #6b7280;
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
 
   /* Border */
-  --border-color: #e5e7eb;
+  --border-color: #a7f3d0;
 
   /* Shadow */
-  --shadow-card: 0 4px 20px rgba(0,0,0,0.05);
+  --shadow-card: 0 4px 20px rgba(2, 44, 34, 0.08);
 
   /* Radius */
   --radius-sm: 8px;
@@ -35,53 +52,153 @@
   --radius-lg: 18px;
 }
 
+[data-theme="sky_azure"], [data-theme="sapphire"] {
+  /* 2. Sky Azure Studio */
+  --color-primary: #0284c7;
+  --color-primary-light: #e0f2fe;
+  --color-primary-dark: #082f49;
+  --color-primary-hover: #0369a1;
+
+  --theme-navbar-bg: rgba(186, 230, 253, 0.98);
+  --theme-navbar-border: #38bdf8;
+  --theme-sidebar-bg: rgba(186, 230, 253, 0.98);
+  --theme-sidebar-border: #38bdf8;
+  --theme-sidebar-active-bg: #bae6fd;
+  --theme-sidebar-active-text: #0c4a6e;
+  --theme-sidebar-hover-bg: #0284c7;
+  --theme-sidebar-hover-text: #ffffff;
+  --theme-card-bg: rgba(240, 249, 255, 0.95);
+  --theme-border-accent: #7dd3fc;
+  --theme-glow: rgba(2, 132, 199, 0.25);
+
+  --bg-page: #f0f9ff;
+  --bg-card: rgba(240, 249, 255, 0.95);
+  --bg-hover: #e0f2fe;
+  --border-color: #bae6fd;
+  --shadow-card: 0 4px 20px rgba(8, 47, 73, 0.08);
+}
+
+[data-theme="crimson_ruby"] {
+  /* 3. Crimson Ruby Studio */
+  --color-primary: #991b1b;
+  --color-primary-light: #fee2e2;
+  --color-primary-dark: #450a0a;
+  --color-primary-hover: #7f1d1d;
+
+  --theme-navbar-bg: rgba(254, 202, 202, 0.98);
+  --theme-navbar-border: #f87171;
+  --theme-sidebar-bg: rgba(254, 202, 202, 0.98);
+  --theme-sidebar-border: #f87171;
+  --theme-sidebar-active-bg: #fecaca;
+  --theme-sidebar-active-text: #450a0a;
+  --theme-sidebar-hover-bg: #991b1b;
+  --theme-sidebar-hover-text: #ffffff;
+  --theme-card-bg: rgba(255, 245, 245, 0.95);
+  --theme-border-accent: #fca5a5;
+  --theme-glow: rgba(153, 27, 27, 0.25);
+
+  --bg-page: #fff1f2;
+  --bg-card: rgba(255, 245, 245, 0.95);
+  --bg-hover: #fee2e2;
+  --border-color: #fecaca;
+  --shadow-card: 0 4px 20px rgba(69, 10, 10, 0.08);
+}
+
+[data-theme="lavender"], [data-theme="violet"] {
+  /* 4. Pastel Lavender Studio */
+  --color-primary: #6b21a8;
+  --color-primary-light: #f3e8ff;
+  --color-primary-dark: #3b0764;
+  --color-primary-hover: #581c87;
+
+  --theme-navbar-bg: rgba(233, 213, 255, 0.98);
+  --theme-navbar-border: #c084fc;
+  --theme-sidebar-bg: rgba(233, 213, 255, 0.98);
+  --theme-sidebar-border: #c084fc;
+  --theme-sidebar-active-bg: #e9d5ff;
+  --theme-sidebar-active-text: #581c87;
+  --theme-sidebar-hover-bg: #6b21a8;
+  --theme-sidebar-hover-text: #ffffff;
+  --theme-card-bg: rgba(250, 245, 255, 0.95);
+  --theme-border-accent: #d8b4fe;
+  --theme-glow: rgba(107, 33, 168, 0.25);
+
+  --bg-page: #faf5ff;
+  --bg-card: rgba(250, 245, 255, 0.95);
+  --bg-hover: #f3e8ff;
+  --border-color: #e9d5ff;
+  --shadow-card: 0 4px 20px rgba(59, 7, 100, 0.08);
+}
+
+[data-theme="sand"] {
+  /* 5. Yellow Obsidian Studio (Pure Yellow Background with Jet Black Elements) */
+  --color-primary: #000000;
+  --color-primary-light: #fef08a;
+  --color-primary-dark: #000000;
+  --color-primary-hover: #18181b;
+
+  --theme-navbar-bg: rgba(254, 240, 138, 0.96);
+  --theme-navbar-border: #eab308;
+  --theme-sidebar-bg: rgba(254, 240, 138, 0.96);
+  --theme-sidebar-border: #eab308;
+  --theme-sidebar-active-bg: #000000;
+  --theme-sidebar-active-text: #fde047;
+  --theme-sidebar-hover-bg: #000000;
+  --theme-sidebar-hover-text: #fef08a;
+  --theme-card-bg: rgba(255, 255, 255, 0.98);
+  --theme-border-accent: #eab308;
+  --theme-glow: rgba(0, 0, 0, 0.35);
+
+  --bg-page: #fef9c3;
+  --bg-card: rgba(255, 255, 255, 0.98);
+  --bg-hover: #fef08a;
+  --border-color: #facc15;
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
 @theme {
-  --color-primary-50: #f0fdfa;
-  --color-primary-100: #ccfbf1;
-  --color-primary-200: #99f6e4;
-  --color-primary-300: #5eead4;
-  --color-primary-400: #2dd4bf;
-  --color-primary-500: #14b8a6;
-  --color-primary-600: #0d9488;
-  --color-primary-700: #0f766e;
-  --color-primary-800: #115e59;
-  --color-primary-900: #134e4a;
+  --color-primary-50: var(--color-primary-light);
   --color-primary-DEFAULT: var(--color-primary);
+  --color-primary-dark: var(--color-primary-dark);
 }
 
 @layer base {
   body {
     font-family: 'Inter', system-ui, sans-serif;
-    background-color: var(--bg-page);
     color: var(--text-primary);
+    background-color: var(--bg-page);
+    min-height: 100vh;
   }
 }
 
 @layer components {
-  /* Existing Badges */
+  /* Badges */
   .ys-badge-synced  { @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800; }
   .ys-badge-failed  { @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800; }
   .ys-badge-skipped { @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600; }
   .ys-badge-pending { @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800; }
   
-  /* New UI Utility Classes */
+  /* UI Utility Classes */
   .ys-card { 
     background-color: var(--bg-card); 
     border-radius: var(--radius-md); 
     border: 1px solid var(--border-color); 
     box-shadow: var(--shadow-card); 
     overflow: hidden; 
+    backdrop-filter: blur(12px);
+    transition: border-color 0.3s ease, background-color 0.3s ease, box-shadow 0.3s ease;
   }
   .ys-btn-primary { 
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-white text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed; 
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-white text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xs; 
     background-color: var(--color-primary);
     border-radius: var(--radius-sm);
   }
   .ys-btn-primary:hover:not(:disabled) {
-    background-color: var(--color-primary-dark);
+    background-color: var(--color-primary-hover);
+    box-shadow: 0 4px 12px var(--theme-glow);
   }
   .ys-btn-secondary { 
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-colors shadow-sm;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium transition-colors shadow-2xs;
     background-color: var(--bg-card);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
@@ -102,22 +219,20 @@
   .ys-sidebar-link:hover { background-color: var(--bg-hover); }
   .ys-sidebar-link-active { @apply flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors; background-color: var(--color-primary-light); color: var(--color-primary-dark); }
   
-  /* Custom Mac/Polaris style scrollbar */
-  .ys-sidebar-scroll::-webkit-scrollbar {
-    width: 6px;
+  /* Utility for hiding scrollbar while maintaining scrollability */
+  .scrollbar-none,
+  .no-scrollbar {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
   }
-  .ys-sidebar-scroll::-webkit-scrollbar-track {
-    background: transparent; 
-  }
-  .ys-sidebar-scroll::-webkit-scrollbar-thumb {
-    background-color: var(--color-primary); 
-    border-radius: 20px;
-  }
-  .ys-sidebar-scroll::-webkit-scrollbar-thumb:hover {
-    background-color: var(--color-primary-dark); 
+  .scrollbar-none::-webkit-scrollbar,
+  .no-scrollbar::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
   }
 
-  /* Standardized Page Title (Big) and Subtitle (Little bit smaller than heading) */
+  /* Standardized Page Title and Subtitle */
   .page-title, h1.page-title {
     font-size: 2rem !important;
     font-weight: 800 !important;
@@ -147,4 +262,389 @@
   }
 }
 
+/* ==========================================================================
+   Universal Dynamic Theme Selectors
+   ========================================================================== */
+
+.ys-theme-navbar {
+  background-color: var(--theme-navbar-bg) !important;
+  border-color: var(--theme-navbar-border) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+.ys-theme-sidebar {
+  background-color: var(--theme-sidebar-bg) !important;
+  border-color: var(--theme-sidebar-border) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+/* Dynamic Cards across all pages */
+[data-theme] .bg-white {
+  background-color: var(--bg-card);
+  border-color: var(--border-color);
+}
+
+[data-theme] .bg-\[\#0db69d\],
+[data-theme] .bg-teal-600,
+[data-theme] .bg-teal-500,
+[data-theme] .peer-checked\:bg-teal-600:checked {
+  background-color: var(--color-primary) !important;
+}
+
+[data-theme] .text-\[\#0db69d\],
+[data-theme] .text-teal-600,
+[data-theme] .text-teal-500 {
+  color: var(--color-primary) !important;
+}
+
+[data-theme] .border-\[\#0db69d\],
+[data-theme] .border-teal-500,
+[data-theme] .border-teal-600 {
+  border-color: var(--color-primary) !important;
+}
+
+[data-theme] .hover\:bg-\[\#0db69d\]:hover,
+[data-theme] .hover\:bg-teal-600:hover {
+  background-color: var(--color-primary) !important;
+}
+
+[data-theme] .hover\:text-\[\#0db69d\]:hover {
+  color: var(--color-primary) !important;
+}
+
+[data-theme] .hover\:bg-\[\#0a9984\]:hover,
+[data-theme] .hover\:bg-\[\#0b9c86\]:hover,
+[data-theme] .hover\:bg-\[\#0b9c87\]:hover,
+[data-theme] .hover\:bg-\[\#087867\]:hover,
+[data-theme] .hover\:bg-teal-700:hover {
+  background-color: var(--color-primary-hover) !important;
+}
+
+[data-theme] .hover\:border-\[\#0db69d\]:hover {
+  border-color: var(--color-primary) !important;
+}
+
+[data-theme] .focus\:ring-\[\#0db69d\]:focus,
+[data-theme] .focus\:ring-\[\#0db69d\]\/20:focus,
+[data-theme] .focus\:ring-\[\#0db69d\]\/50:focus,
+[data-theme] .focus-within\:ring-\[\#0db69d\]:focus-within {
+  --tw-ring-color: var(--color-primary) !important;
+}
+
+[data-theme] .focus\:border-\[\#0db69d\]:focus {
+  border-color: var(--color-primary) !important;
+}
+
+[data-theme] .bg-\[\#e0f8f5\],
+[data-theme] .bg-teal-50,
+[data-theme] .bg-teal-50\/20,
+[data-theme] .bg-teal-50\/30,
+[data-theme] .bg-teal-50\/40,
+[data-theme] .bg-teal-50\/50,
+[data-theme] .bg-teal-50\/60,
+[data-theme] .bg-teal-50\/70,
+[data-theme] .bg-teal-50\/80,
+[data-theme] .bg-teal-100 {
+  background-color: var(--color-primary-light) !important;
+}
+
+[data-theme] .text-\[\#0b9c86\],
+[data-theme] .text-\[\#0b9c87\],
+[data-theme] .text-\[\#0a9984\],
+[data-theme] .text-\[\#0f766e\],
+[data-theme] .text-teal-700,
+[data-theme] .text-teal-800,
+[data-theme] .text-teal-900,
+[data-theme] .text-teal-950 {
+  color: var(--color-primary-dark) !important;
+}
+
+[data-theme] .border-teal-100,
+[data-theme] .border-teal-200,
+[data-theme] .border-teal-300,
+[data-theme] .border-\[\#0db69d\]\/10,
+[data-theme] .border-\[\#0db69d\]\/20,
+[data-theme] .border-\[\#0db69d\]\/30,
+[data-theme] .border-\[\#0db69d\]\/40 {
+  border-color: var(--theme-border-accent) !important;
+}
+
+[data-theme] .hover\:bg-teal-50:hover,
+[data-theme] .hover\:bg-teal-100:hover {
+  background-color: var(--color-primary-light) !important;
+}
+
+/* ==========================================================================
+   Universal Theme-Unified Loaders & Spinners
+   ========================================================================== */
+@keyframes sk-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes sk-ping {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+@keyframes sk-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.85); }
+}
+
+.ys-sk-spinner,
+.ys-sync-ring {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 4px solid rgba(0, 0, 0, 0.08);
+  border-top-color: var(--color-primary, #047857) !important;
+  animation: sk-spin 0.75s linear infinite;
+}
+
+.ys-sk-ping {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 2.5px solid var(--color-primary, #047857) !important;
+  animation: sk-ping 1.25s ease-out infinite;
+}
+
+.ys-sk-dot {
+  background-color: var(--color-primary, #047857) !important;
+}
+
+/* Dynamic Loader & Spinner Overrides for all inline classes */
+[data-theme] .border-t-\[\#0db69d\],
+[data-theme] .border-t-indigo-600,
+[data-theme] .border-t-teal-600 {
+  border-top-color: var(--color-primary) !important;
+}
+
+[data-theme] .border-teal-600,
+[data-theme] .border-\[\#0db69d\] {
+  border-color: var(--color-primary) !important;
+}
+
+[data-theme] .border-t-transparent {
+  border-top-color: transparent !important;
+}
+
+/* ==========================================================================
+   Universal Auto-Hide & Theme-Synchronized Scrollbars (ONLY visible while actively scrolling)
+   ========================================================================== */
+
+/* 1. Global standard scrollbar width and transparent idle colors */
+html,
+body,
+*,
+*::before,
+*::after {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+/* 2. Show Theme-Colored Scrollbar ONLY when actively scrolling */
+html[data-scrolling="true"],
+body[data-scrolling="true"],
+*[data-scrolling="true"],
+*.sb-scrolling {
+  scrollbar-color: var(--color-primary, #047857) transparent !important;
+}
+
+/* 3. Global WebKit / Blink Engine Scrollbar Styling */
+::-webkit-scrollbar,
+*::-webkit-scrollbar,
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+}
+
+::-webkit-scrollbar-track,
+*::-webkit-scrollbar-track,
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+::-webkit-scrollbar-corner,
+*::-webkit-scrollbar-corner,
+html::-webkit-scrollbar-corner,
+body::-webkit-scrollbar-corner {
+  background: transparent !important;
+}
+
+::-webkit-scrollbar-button,
+*::-webkit-scrollbar-button,
+html::-webkit-scrollbar-button,
+body::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+::-webkit-scrollbar-thumb,
+*::-webkit-scrollbar-thumb,
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 9999px !important;
+}
+
+/* ONLY when actively scrolling, thumb takes theme color */
+[data-scrolling="true"]::-webkit-scrollbar-thumb,
+*[data-scrolling="true"]::-webkit-scrollbar-thumb,
+.sb-scrolling::-webkit-scrollbar-thumb,
+*.sb-scrolling::-webkit-scrollbar-thumb,
+html[data-scrolling="true"]::-webkit-scrollbar-thumb,
+body[data-scrolling="true"]::-webkit-scrollbar-thumb {
+  background-color: var(--color-primary, #047857) !important;
+}
+
+/* ==========================================================================
+   Per-Theme Scrollbar & Loader Colors (Sky Azure, Emerald, Crimson, Lavender, Sand)
+   ========================================================================== */
+
+/* 1. Sky Azure Studio */
+[data-theme="sky_azure"] [data-scrolling="true"],
+[data-theme="sapphire"] [data-scrolling="true"],
+[data-theme="sky_azure"].sb-scrolling,
+[data-theme="sapphire"].sb-scrolling {
+  scrollbar-color: #0284c7 transparent !important;
+}
+[data-theme="sky_azure"] *[data-scrolling="true"]::-webkit-scrollbar-thumb,
+[data-theme="sapphire"] *[data-scrolling="true"]::-webkit-scrollbar-thumb,
+[data-theme="sky_azure"].sb-scrolling::-webkit-scrollbar-thumb,
+[data-theme="sapphire"].sb-scrolling::-webkit-scrollbar-thumb,
+html[data-theme="sky_azure"] [data-scrolling="true"]::-webkit-scrollbar-thumb,
+html[data-theme="sapphire"] [data-scrolling="true"]::-webkit-scrollbar-thumb {
+  background-color: #0284c7 !important;
+}
+[data-theme="sky_azure"] .ys-sk-spinner,
+[data-theme="sapphire"] .ys-sk-spinner,
+[data-theme="sky_azure"] .ys-sync-ring,
+[data-theme="sapphire"] .ys-sync-ring { border-top-color: #0284c7 !important; }
+[data-theme="sky_azure"] .ys-sk-ping,
+[data-theme="sapphire"] .ys-sk-ping { border-color: #0284c7 !important; }
+[data-theme="sky_azure"] .ys-sk-dot,
+[data-theme="sapphire"] .ys-sk-dot { background-color: #0284c7 !important; }
+
+/* 2. Nordic Emerald Studio */
+[data-theme="emerald_forest"] [data-scrolling="true"],
+[data-theme="emerald"] [data-scrolling="true"],
+[data-theme="emerald_forest"].sb-scrolling,
+[data-theme="emerald"].sb-scrolling {
+  scrollbar-color: #047857 transparent !important;
+}
+[data-theme="emerald_forest"] *[data-scrolling="true"]::-webkit-scrollbar-thumb,
+[data-theme="emerald"] *[data-scrolling="true"]::-webkit-scrollbar-thumb,
+[data-theme="emerald_forest"].sb-scrolling::-webkit-scrollbar-thumb,
+[data-theme="emerald"].sb-scrolling::-webkit-scrollbar-thumb,
+html[data-theme="emerald_forest"] [data-scrolling="true"]::-webkit-scrollbar-thumb,
+html[data-theme="emerald"] [data-scrolling="true"]::-webkit-scrollbar-thumb {
+  background-color: #047857 !important;
+}
+[data-theme="emerald_forest"] .ys-sk-spinner,
+[data-theme="emerald"] .ys-sk-spinner,
+[data-theme="emerald_forest"] .ys-sync-ring,
+[data-theme="emerald"] .ys-sync-ring { border-top-color: #047857 !important; }
+[data-theme="emerald_forest"] .ys-sk-ping,
+[data-theme="emerald"] .ys-sk-ping { border-color: #047857 !important; }
+[data-theme="emerald_forest"] .ys-sk-dot,
+[data-theme="emerald"] .ys-sk-dot { background-color: #047857 !important; }
+
+/* 3. Crimson Ruby Studio */
+[data-theme="crimson_ruby"] [data-scrolling="true"],
+[data-theme="crimson_ruby"].sb-scrolling {
+  scrollbar-color: #991b1b transparent !important;
+}
+[data-theme="crimson_ruby"] *[data-scrolling="true"]::-webkit-scrollbar-thumb,
+[data-theme="crimson_ruby"].sb-scrolling::-webkit-scrollbar-thumb,
+html[data-theme="crimson_ruby"] [data-scrolling="true"]::-webkit-scrollbar-thumb {
+  background-color: #991b1b !important;
+}
+[data-theme="crimson_ruby"] .ys-sk-spinner,
+[data-theme="crimson_ruby"] .ys-sync-ring { border-top-color: #991b1b !important; }
+[data-theme="crimson_ruby"] .ys-sk-ping { border-color: #991b1b !important; }
+[data-theme="crimson_ruby"] .ys-sk-dot { background-color: #991b1b !important; }
+
+/* 4. Pastel Lavender Studio */
+[data-theme="lavender"] [data-scrolling="true"],
+[data-theme="violet"] [data-scrolling="true"],
+[data-theme="lavender"].sb-scrolling,
+[data-theme="violet"].sb-scrolling {
+  scrollbar-color: #6b21a8 transparent !important;
+}
+[data-theme="lavender"] *[data-scrolling="true"]::-webkit-scrollbar-thumb,
+[data-theme="violet"] *[data-scrolling="true"]::-webkit-scrollbar-thumb,
+[data-theme="lavender"].sb-scrolling::-webkit-scrollbar-thumb,
+[data-theme="violet"].sb-scrolling::-webkit-scrollbar-thumb,
+html[data-theme="lavender"] [data-scrolling="true"]::-webkit-scrollbar-thumb,
+html[data-theme="violet"] [data-scrolling="true"]::-webkit-scrollbar-thumb {
+  background-color: #6b21a8 !important;
+}
+[data-theme="lavender"] .ys-sk-spinner,
+[data-theme="violet"] .ys-sk-spinner,
+[data-theme="lavender"] .ys-sync-ring,
+[data-theme="violet"] .ys-sync-ring { border-top-color: #6b21a8 !important; }
+[data-theme="lavender"] .ys-sk-ping,
+[data-theme="violet"] .ys-sk-ping { border-color: #6b21a8 !important; }
+[data-theme="lavender"] .ys-sk-dot,
+[data-theme="violet"] .ys-sk-dot { background-color: #6b21a8 !important; }
+
+/* 5. Yellow Obsidian Studio (Yellow & Black) */
+[data-theme="sand"] [data-scrolling="true"],
+[data-theme="sand"].sb-scrolling {
+  scrollbar-color: #000000 transparent !important;
+}
+[data-theme="sand"] *[data-scrolling="true"]::-webkit-scrollbar-thumb,
+[data-theme="sand"].sb-scrolling::-webkit-scrollbar-thumb,
+html[data-theme="sand"] [data-scrolling="true"]::-webkit-scrollbar-thumb {
+  background-color: #000000 !important;
+}
+[data-theme="sand"] .ys-sk-spinner,
+[data-theme="sand"] .ys-sync-ring { border-top-color: #000000 !important; }
+[data-theme="sand"] .ys-sk-ping { border-color: #000000 !important; }
+[data-theme="sand"] .ys-sk-dot { background-color: #000000 !important; }
+
+/* Settings Icon & Notification Preferences pure white styling */
+.notification-pref-btn,
+.notification-pref-btn svg,
+.notification-pref-btn path {
+  fill: #ffffff !important;
+  color: #ffffff !important;
+}
+
+/* ── Rich High-Contrast Dark Badges Across All Pages ── */
+.Polaris-Badge--toneSuccess,
+.Polaris-Badge--toneSuccess .Polaris-Text--root {
+  background-color: #047857 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  border-color: #065f46 !important;
+}
+
+.Polaris-Badge--toneCritical,
+.Polaris-Badge--toneCritical .Polaris-Text--root {
+  background-color: #be123c !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  border-color: #9f1239 !important;
+}
+
+.Polaris-Badge--toneWarning,
+.Polaris-Badge--toneWarning .Polaris-Text--root {
+  background-color: #d97706 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  border-color: #b45309 !important;
+}
+
+.Polaris-Badge--toneInfo,
+.Polaris-Badge,
+.Polaris-Badge .Polaris-Text--root {
+  background-color: #334155 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  border-color: #1e293b !important;
+}
 

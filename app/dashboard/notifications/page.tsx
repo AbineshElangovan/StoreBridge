@@ -14,6 +14,7 @@ import {
   Banner,
   Box,
   Button,
+  Icon,
 } from '@shopify/polaris';
 import { SettingsIcon, RefreshIcon } from '@shopify/polaris-icons';
 import { Pagination } from '@/components/common/Pagination';
@@ -173,10 +174,15 @@ export default function NotificationsPage() {
     }
   }, [page, typeFilter, statusFilter, storeFilter, debouncedSearch, activeShopDomain]);
 
+  const isLocalActionRef = React.useRef(false);
+
   useEffect(() => {
     loadNotifications();
 
-    const handleUpdate = () => loadNotifications();
+    const handleUpdate = () => {
+      if (isLocalActionRef.current) return;
+      loadNotifications();
+    };
     window.addEventListener('notification-updated', handleUpdate);
     return () => {
       window.removeEventListener('notification-updated', handleUpdate);
@@ -186,7 +192,11 @@ export default function NotificationsPage() {
   // Dispatch custom window event so Bell icon synchronizes dynamically
   const notifyBellUpdate = () => {
     if (typeof window !== 'undefined') {
+      isLocalActionRef.current = true;
       window.dispatchEvent(new CustomEvent('notification-updated'));
+      setTimeout(() => {
+        isLocalActionRef.current = false;
+      }, 100);
     }
   };
 
@@ -343,12 +353,12 @@ export default function NotificationsPage() {
           <button
             type="button"
             onClick={() => setIsPreferencesOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-[#0db69d] hover:bg-[#0b9c86] transition-colors cursor-pointer shadow-xs"
+            className="notification-pref-btn inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-[var(--color-primary,#0db69d)] hover:bg-[var(--color-primary-hover,#0b9c86)] transition-colors cursor-pointer shadow-xs"
           >
-            <div style={{ width: 14, height: 14 }}>
-              <SettingsIcon />
+            <div style={{ width: 14, height: 14 }} className="text-white fill-white [&_svg]:fill-white [&_path]:fill-white flex items-center justify-center shrink-0">
+              <Icon source={SettingsIcon} tone="inherit" />
             </div>
-            Notification Preferences
+            <span className="text-white">Notification Preferences</span>
           </button>
         </div>
       </div>

@@ -14,27 +14,7 @@ import {
   AlertCircleIcon, 
   NotificationIcon 
 } from '@shopify/polaris-icons';
-import { shopifyFetch } from '@/lib/shopify/Client';
-import { useStoreContext } from '@/components/providers/StoreProvider';
-
-interface NotificationItem {
-  id: string;
-  type: string;
-  title: string;
-  message: string;
-  productId?: string | null;
-  productTitle?: string | null;
-  imageUrl?: string | null;
-  sku?: string | null;
-  isRead: boolean;
-  createdAt: string;
-  recipientStore?: {
-    id: string;
-    label?: string | null;
-    shopDomain: string;
-    isMaster: boolean;
-  } | null;
-}
+import { useNotifications, NotificationItem } from '@/components/providers/NotificationContext';
 
 function getRelativeTime(dateString: string): string {
   const date = new Date(dateString);
@@ -93,19 +73,23 @@ function getTypeStyle(type: string) {
 }
 
 export function NotificationBell() {
-  const { currentStore } = useStoreContext();
+  const {
+    notifications,
+    unreadCount,
+    loading,
+    activeFilter,
+    setActiveFilter,
+    fetchNotifications,
+    markAsRead,
+    markAllAsRead,
+  } = useNotifications();
+
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [activeFilter, setActiveFilter] = useState('ALL');
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   const searchParams = useSearchParams();
   const shop = searchParams.get('shop');
   const host = searchParams.get('host');
-
-  const activeShopDomain = currentStore?.shopDomain || shop;
 
   const createHref = (basePath: string) => {
     const queryParams = new URLSearchParams();
@@ -114,70 +98,6 @@ export function NotificationBell() {
     const queryString = queryParams.toString();
     return queryString ? `${basePath}?${queryString}` : basePath;
   };
-
-  const fetchNotifications = async (filter = activeFilter) => {
-    setLoading(true);
-    try {
-      const typeParam = filter !== 'ALL' ? `&type=${filter}` : '';
-      const shopParam = activeShopDomain ? `&shop=${encodeURIComponent(activeShopDomain)}` : '';
-      const res = await shopifyFetch(`/api/notifications?limit=8${typeParam}${shopParam}`);
-      if (res.ok) {
-        const json = await res.json();
-        setNotifications(json.notifications || []);
-        const unread = json.unreadCount || 0;
-        setUnreadCount(unread);
-        if (typeof window !== 'undefined') {
-          setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: unread }));
-          }, 0);
-        }
-      } else {
-        setNotifications([]);
-        setUnreadCount(0);
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: 0 }));
-        }
-      }
-    } catch (err) {
-      console.error('[NotificationBell] Error fetching notifications:', err);
-      setNotifications([]);
-      setUnreadCount(0);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchNotifications(activeFilter);
-
-    const handleNotificationUpdate = () => fetchNotifications(activeFilter);
-    window.addEventListener('notification-updated', handleNotificationUpdate);
-
-    // Real-Time Server-Sent Events (SSE) Stream
-    let eventSource: EventSource | null = null;
-    try {
-      const shopParam = activeShopDomain ? `?shop=${encodeURIComponent(activeShopDomain)}` : '';
-      eventSource = new EventSource(`/api/notifications/stream${shopParam}`);
-
-      eventSource.addEventListener('new-notification', (e: any) => {
-        try {
-          // Refetch live notification status on new events to keep UI synchronized
-          fetchNotifications(activeFilter);
-        } catch (err) {
-          console.error('[Notification SSE] Parse error:', err);
-        }
-      });
-    } catch (err) {
-      console.error('[Notification SSE] Connection error:', err);
-    }
-
-    return () => {
-      window.removeEventListener('notification-updated', handleNotificationUpdate);
-      if (eventSource) {
-        eventSource.close();
-      }
-    };
-  }, [activeFilter, activeShopDomain, currentStore?.id]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -190,40 +110,13 @@ export function NotificationBell() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const notifyChange = () => {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('notification-updated'));
-    }
-  };
-
   const handleMarkAsRead = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    try {
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-      );
-      setUnreadCount((prev) => Math.max(0, prev - 1));
-      notifyChange();
-
-      await shopifyFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
-    } catch (err) {
-      console.error('[NotificationBell] Error marking read:', err);
-    }
+    await markAsRead(id);
   };
 
   const handleMarkAllRead = async () => {
-    try {
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-      setUnreadCount(0);
-      notifyChange();
-
-      await shopifyFetch('/api/notifications', {
-        method: 'PUT',
-        body: JSON.stringify({ action: 'markAllRead' }),
-      });
-    } catch (err) {
-      console.error('[NotificationBell] Error marking all read:', err);
-    }
+    await markAllAsRead();
   };
 
   const filterTabs = [
@@ -282,7 +175,7 @@ export function NotificationBell() {
                 onClick={() => fetchNotifications(activeFilter)}
                 title="Refresh notifications"
                 className={`p-1 text-gray-500 hover:text-gray-900 rounded hover:bg-gray-200/60 transition-colors ${
-                  loading ? 'animate-spin text-teal-600' : ''
+                  loading ? 'animate-spin text-[var(--color-primary)]' : ''
                 }`}
               >
                 <div style={{ width: 14, height: 14 }}>
@@ -293,7 +186,7 @@ export function NotificationBell() {
               {unreadCount > 0 && (
                 <button
                   onClick={handleMarkAllRead}
-                  className="text-xs text-teal-600 hover:text-teal-800 font-semibold transition-colors flex items-center gap-1"
+                  className="text-xs text-[var(--color-primary)] hover:opacity-80 font-semibold transition-colors flex items-center gap-1"
                 >
                   <div style={{ width: 12, height: 12 }}>
                     <Icon source={CheckIcon} />
@@ -305,7 +198,7 @@ export function NotificationBell() {
           </div>
 
           {/* Type Filter Pills */}
-          <div className="px-3 py-2 bg-white border-b border-gray-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          <div className="px-3 py-2 bg-white border-b border-gray-100 flex items-center gap-1.5 overflow-x-auto scrollbar-none">
             {filterTabs.map((tab) => {
               const active = activeFilter === tab.value;
               return (
@@ -317,7 +210,7 @@ export function NotificationBell() {
                   }}
                   className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all cursor-pointer whitespace-nowrap ${
                     active
-                      ? 'bg-teal-700 text-white shadow-2xs'
+                      ? 'bg-[var(--color-primary)] text-white shadow-2xs'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200/70 hover:text-gray-800'
                   }`}
                 >
@@ -331,7 +224,7 @@ export function NotificationBell() {
           <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
             {loading && notifications.length === 0 ? (
               <div className="px-4 py-8 text-center text-gray-500 text-xs flex items-center justify-center gap-2">
-                <span className="w-3 h-3 rounded-full border-2 border-teal-600 border-t-transparent animate-spin" />
+                <span className="w-3 h-3 rounded-full border-2 border-[var(--color-primary)] border-t-transparent animate-spin" />
                 Loading...
               </div>
             ) : notifications.length === 0 ? (

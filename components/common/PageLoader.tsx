@@ -29,19 +29,19 @@ export function PageLoader({
         @keyframes sk-spin { to { transform: rotate(360deg); } }
         .ys-sk-spinner {
           width: 52px; height: 52px;
-          border: 5px solid #e5e7eb;
-          border-top-color: #0db69d;
+          border: 5px solid rgba(0, 0, 0, 0.08);
+          border-top-color: var(--color-primary, #047857);
           border-radius: 50%;
           animation: sk-spin 0.75s linear infinite;
         }
         @keyframes sk-ping {
           0%   { transform: scale(1);   opacity: 0.6; }
-          100% { transform: scale(1.9); opacity: 0;   }
+          100% { transform: scale(1.8); opacity: 0;   }
         }
         .ys-sk-ping {
           position: absolute;
           width: 52px; height: 52px;
-          border: 3px solid #0db69d;
+          border: 3px solid var(--color-primary, #047857);
           border-radius: 50%;
           animation: sk-ping 1.2s ease-out infinite;
         }
@@ -75,10 +75,11 @@ export function PageLoader({
           {[0, 1, 2].map((i) => (
             <div
                key={i}
+               className="ys-sk-dot"
                style={{
                  width: 7, height: 7,
                  borderRadius: '50%',
-                 backgroundColor: '#0db69d',
+                 backgroundColor: 'var(--color-primary, #047857)',
                  animation: `sk-pulse 1.2s ease-in-out ${i * 0.2}s infinite`,
                }}
             />

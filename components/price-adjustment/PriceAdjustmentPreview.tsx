@@ -6,6 +6,8 @@ import { PriceAdjustmentPreviewResponse } from "@/services/price-adjustment/pric
 import { AffectedProductSummary } from "./AffectedProductSummary";
 import { PreviewProductTable } from "./PreviewProductTable";
 
+import { useTheme } from "@/components/providers/ThemeContext";
+
 interface PriceAdjustmentPreviewProps {
   storeId: string;
   enabledMap: { [collectionId: string]: boolean };
@@ -21,6 +23,7 @@ export function PriceAdjustmentPreview({
   savedValueMap,
   isSaving,
 }: PriceAdjustmentPreviewProps) {
+  const { currentTheme } = useTheme();
   const [previewData, setPreviewData] = useState<PriceAdjustmentPreviewResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,9 +109,21 @@ export function PriceAdjustmentPreview({
     }
   };
 
+  const primaryColor = currentTheme?.primaryColor || '#047857';
+  const accentColor = currentTheme?.accentColor || '#d1fae5';
+  const darkColor = currentTheme?.darkColor || '#022c22';
+  const borderColor = currentTheme?.navbarBorder || '#34d399';
+
   if (!hasActiveAdjustments && !isSaving) {
     return (
-      <div className="p-4 bg-gray-50 border border-dashed border-gray-200 rounded-xl text-center text-xs text-gray-500 font-medium mt-4">
+      <div
+        className="p-4 rounded-xl text-center text-xs font-semibold mt-4 border border-dashed transition-colors"
+        style={{
+          backgroundColor: `${accentColor}25`,
+          borderColor: `${borderColor}60`,
+          color: darkColor,
+        }}
+      >
         Select collections and enter price adjustment percentage (or use Bulk Apply) to preview affected products and price changes.
       </div>
     );
@@ -117,11 +132,24 @@ export function PriceAdjustmentPreview({
   const tableRows = previewData?.tableRows || [];
 
   return (
-    <div className="space-y-4 mt-4 pt-4 border-t border-gray-200">
+    <div className="space-y-4 mt-4 pt-4 border-t" style={{ borderTopColor: `${borderColor}50` }}>
       {loading && (
-        <div className="flex items-center justify-between px-3 py-1.5 bg-teal-50 text-teal-800 text-2xs font-bold rounded-lg border border-teal-100">
+        <div
+          className="flex items-center justify-between px-3.5 py-2 text-2xs font-bold rounded-lg border transition-colors shadow-2xs"
+          style={{
+            backgroundColor: `${accentColor}35`,
+            color: darkColor,
+            borderColor: `${borderColor}60`,
+          }}
+        >
           <span>Updating price adjustment preview...</span>
-          <div className="w-3.5 h-3.5 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
+          <div
+            className="w-3.5 h-3.5 border-2 rounded-full animate-spin shrink-0"
+            style={{
+              borderColor: primaryColor,
+              borderTopColor: 'transparent',
+            }}
+          />
         </div>
       )}
 

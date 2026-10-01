@@ -62,8 +62,8 @@ export function BarChart({
   return (
     <ChartCard title={title} description={subtitle}>
       {!hasData ? <NoData /> : (
-        <div style={{ width: '100%', height }}>
-          <ResponsiveContainer width="100%" height="100%">
+        <div style={{ width: '100%', height }} className="min-w-0 overflow-hidden">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={50}>
             <RechartsBarChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis dataKey={xKey} axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} />
@@ -75,7 +75,7 @@ export function BarChart({
               />
               <Legend iconType="circle" iconSize={8} wrapperStyle={{ paddingTop: 16, fontSize: 13 }} />
               {bars.map((bar) => (
-                <Bar key={bar.key} dataKey={bar.key} name={bar.name} fill={bar.color} radius={[5, 5, 0, 0]} maxBarSize={56}>
+                <Bar key={bar.key} dataKey={bar.key} name={bar.name} fill={bar.color} radius={[5, 5, 0, 0]} maxBarSize={56} isAnimationActive={false}>
                   {bars.length === 1 && data.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color || bar.color} />
                   ))}
@@ -108,8 +108,8 @@ export function LineChart({
   return (
     <ChartCard title={title} description={subtitle}>
       {!hasData ? <NoData /> : (
-        <div style={{ width: '100%', height }}>
-          <ResponsiveContainer width="100%" height="100%">
+        <div style={{ width: '100%', height }} className="min-w-0 overflow-hidden">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={50}>
             <RechartsLineChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis dataKey={xKey} axisLine={false} tickLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} />
@@ -128,6 +128,7 @@ export function LineChart({
                   strokeWidth={2.5}
                   dot={{ r: 4, fill: line.color, strokeWidth: 0 }}
                   activeDot={{ r: 6 }}
+                  isAnimationActive={false}
                 />
               ))}
             </RechartsLineChart>
@@ -157,8 +158,8 @@ export function AreaChart({
   return (
     <ChartCard title={title} description={subtitle}>
       {!hasData ? <NoData /> : (
-        <div style={{ width: '100%', height }}>
-          <ResponsiveContainer width="100%" height="100%">
+        <div style={{ width: '100%', height }} className="min-w-0 overflow-hidden">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={50}>
             <RechartsAreaChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
               <defs>
                 {areas.map((area) => (
@@ -186,6 +187,7 @@ export function AreaChart({
                   fill={`url(#grad-${area.key})`}
                   dot={{ r: 3, fill: area.color, strokeWidth: 0 }}
                   activeDot={{ r: 5 }}
+                  isAnimationActive={false}
                 />
               ))}
             </RechartsAreaChart>
@@ -208,14 +210,16 @@ export interface PieChartProps {
 const RADIAN = Math.PI / 180;
 
 function renderCustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) {
-  if (percent < 0.04) return null;
+  if (typeof percent !== 'number' || isNaN(percent) || percent < 0.05) return null;
+  if (typeof cx !== 'number' || typeof cy !== 'number' || typeof midAngle !== 'number' || isNaN(cx) || isNaN(cy) || isNaN(midAngle)) return null;
 
   const innerR = typeof innerRadius === 'number' ? innerRadius : parseFloat(innerRadius as string) || 0;
-  const outerR = typeof outerRadius === 'number' ? outerRadius : parseFloat(outerRadius as string) || 0;
-  // For solid pie charts (innerR === 0), place text nicely inside the slice
+  const outerR = typeof outerRadius === 'number' ? outerRadius : parseFloat(outerRadius as string) || 80;
   const radius = innerR === 0 ? outerR * 0.62 : innerR + (outerR - innerR) * 0.55;
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
+  if (isNaN(x) || isNaN(y)) return null;
+
   const pctStr = `${(percent * 100).toFixed(1)}%`;
 
   return (
@@ -225,7 +229,7 @@ function renderCustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent
       fill="#0f172a"
       textAnchor="middle"
       dominantBaseline="central"
-      fontSize={13}
+      fontSize={12}
       fontWeight={800}
       style={{
         textShadow: '0 0 4px #ffffff, 0 0 2px #ffffff',
@@ -237,16 +241,16 @@ function renderCustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent
   );
 }
 
-export function PieChart({ title, subtitle, data, unit = '', innerRadius = 0, outerRadius = '85%', height = 240 }: PieChartProps) {
-  const total = data.reduce((s, d) => s + d.value, 0);
-  const hasData = data.length > 0 && total > 0;
+export function PieChart({ title, subtitle, data, unit = '', innerRadius = 0, outerRadius = '80%', height = 240 }: PieChartProps) {
+  const total = Array.isArray(data) ? data.reduce((s, d) => s + (Number(d.value) || 0), 0) : 0;
+  const hasData = Array.isArray(data) && data.length > 0 && total > 0;
 
   return (
     <ChartCard title={title} description={subtitle} height="auto">
       {!hasData ? <NoData message="No data to display" /> : (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, width: '100%' }}>
-          <div style={{ width: '100%', height }}>
-            <ResponsiveContainer width="100%" height="100%">
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, width: '100%' }} className="min-w-0 overflow-hidden">
+          <div style={{ width: '100%', height }} className="min-w-0 overflow-hidden">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={50}>
               <RechartsPieChart>
                 <Pie
                   data={data}
@@ -255,6 +259,7 @@ export function PieChart({ title, subtitle, data, unit = '', innerRadius = 0, ou
                   innerRadius={innerRadius}
                   outerRadius={outerRadius}
                   dataKey="value"
+                  isAnimationActive={false}
                   labelLine={false}
                   label={renderCustomLabel}
                   strokeWidth={2}

@@ -12,7 +12,7 @@ export interface ChartCardProps {
 export function ChartCard({ title, description, headerAction, height, children }: ChartCardProps) {
   return (
     <Card title={title} description={description} headerAction={headerAction} padding="24px">
-      <div style={{ width: '100%', minHeight: height || '300px' }}>
+      <div className="w-full min-w-0 overflow-hidden" style={{ minHeight: height || '300px' }}>
         {children}
       </div>
     </Card>

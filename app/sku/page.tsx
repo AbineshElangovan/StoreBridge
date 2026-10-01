@@ -170,19 +170,19 @@ export default function SkuSettingsPage() {
 
       {/* TAB 2: Global SKU Rules */}
       {activeTab === "global_rules" && (
-        <div className="p-4 sm:p-6 bg-[#f0fdfa] border border-[#ccfbf1] rounded-xl sm:rounded-2xl shadow-2xs">
-          <div className="mb-5 border-l-4 sm:border-l-6 border-[#0a9984] pl-3 sm:pl-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="p-4 sm:p-6 bg-white border border-gray-200 rounded-xl sm:rounded-2xl shadow-2xs">
+          <div className="mb-5 border-l-4 sm:border-l-6 border-[var(--color-primary)] pl-3 sm:pl-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h2 className="text-lg sm:text-xl font-extrabold text-[#115e59] m-0">
+              <h2 className="text-lg sm:text-xl font-extrabold text-gray-900 m-0">
                 Global Sequence & Prefix Settings
               </h2>
-              <p className="mt-1 text-xs sm:text-sm text-[#0f766e] m-0">
+              <p className="mt-1 text-xs sm:text-sm text-gray-500 m-0">
                 Define the master product prefix and starting sequence for SKU creation.
               </p>
             </div>
 
             <div
-              className={`flex items-center gap-1.5 p-1 bg-white/50 backdrop-blur-sm rounded-lg border border-teal-100 shrink-0 self-start md:self-auto ${
+              className={`flex items-center gap-1.5 p-1 bg-gray-100 rounded-xl border border-gray-200 shrink-0 self-start md:self-auto ${
                 !hasWriteAccess ? "opacity-60 cursor-not-allowed" : ""
               }`}
             >
@@ -194,8 +194,8 @@ export default function SkuSettingsPage() {
                     setSelectedCollectionPrefix("");
                   }
                 }}
-                className={`px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-semibold rounded-md transition-colors ${
-                  skuMode === "default" ? "bg-[#0a9984] text-white shadow-xs" : "text-[#0f766e] hover:bg-teal-50"
+                className={`px-3.5 sm:px-4 py-1.5 text-xs sm:text-sm font-bold rounded-lg transition-all cursor-pointer ${
+                  skuMode === "default" ? "bg-[var(--color-primary)] text-white shadow-xs" : "text-gray-600 hover:bg-gray-200/70"
                 }`}
                 disabled={!hasWriteAccess}
               >
@@ -204,8 +204,8 @@ export default function SkuSettingsPage() {
               <button
                 type="button"
                 onClick={() => hasWriteAccess && setSkuMode("collection")}
-                className={`px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-semibold rounded-md transition-colors ${
-                  skuMode === "collection" ? "bg-[#0a9984] text-white shadow-xs" : "text-[#0f766e] hover:bg-teal-50"
+                className={`px-3.5 sm:px-4 py-1.5 text-xs sm:text-sm font-bold rounded-lg transition-all cursor-pointer ${
+                  skuMode === "collection" ? "bg-[var(--color-primary)] text-white shadow-xs" : "text-gray-600 hover:bg-gray-200/70"
                 }`}
                 disabled={!hasWriteAccess}
               >
@@ -214,7 +214,7 @@ export default function SkuSettingsPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl p-4 sm:p-6 border border-teal-100 shadow-2xs flex flex-col gap-4">
+          <div className="bg-gray-50/50 rounded-xl p-4 sm:p-6 border border-gray-200 shadow-2xs flex flex-col gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Input
@@ -239,7 +239,7 @@ export default function SkuSettingsPage() {
               </div>
             </div>
 
-            <div className="text-xs sm:text-sm text-gray-600 bg-gray-50 p-3 sm:p-4 rounded-lg border border-gray-100">
+            <div className="text-xs sm:text-sm text-gray-600 bg-white p-3 sm:p-4 rounded-lg border border-gray-200">
               <span className="font-semibold text-gray-800">Dynamic Insertion:</span> If a product belongs to a Collection or has Variants (e.g. Size/Color/Age), the system will automatically extract their short-form abbreviations and insert them into the generated SKU.
             </div>
 
@@ -253,14 +253,14 @@ export default function SkuSettingsPage() {
               </div>
             )}
 
-            <div className="mt-2 p-4 bg-teal-50 border-2 border-teal-200 rounded-xl shadow-2xs text-center">
-              <p className="text-gray-500 text-xs sm:text-sm mb-1.5">Generated Base SKU Example</p>
-              <span className="text-lg sm:text-xl font-bold text-[#0a9984] tracking-wider break-all">
+            <div className="mt-2 p-4 bg-[var(--color-primary-light)] border-2 border-[var(--theme-border-accent)] rounded-xl shadow-2xs text-center">
+              <p className="text-gray-600 text-xs sm:text-sm mb-1.5 font-semibold">Generated Base SKU Example</p>
+              <span className="text-lg sm:text-xl font-bold text-[var(--color-primary-dark)] tracking-wider break-all">
                 {generatedPreview}
               </span>
             </div>
 
-            <div className="mt-4 pt-4 border-t border-teal-100 flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-3">
+            <div className="mt-4 pt-4 border-t border-gray-200 flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-3">
               {toastMessage && (
                 <span
                   className={`text-xs sm:text-sm font-semibold text-center sm:text-left sm:mr-auto ${
@@ -271,7 +271,7 @@ export default function SkuSettingsPage() {
                 </span>
               )}
               <button
-                className="w-full sm:w-auto px-5 py-2.5 bg-[#0a9984] text-white text-sm font-semibold rounded-lg hover:bg-[#087d6c] transition-colors shadow-2xs disabled:opacity-50 text-center cursor-pointer"
+                className="w-full sm:w-auto px-5 py-2.5 bg-[var(--color-primary)] text-white text-sm font-bold rounded-xl hover:opacity-90 transition-all shadow-2xs text-center cursor-pointer"
                 onClick={handleSave}
                 disabled={saving || !hasWriteAccess}
               >

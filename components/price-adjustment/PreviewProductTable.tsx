@@ -1,6 +1,7 @@
 import React from "react";
 import { Table, ColumnConfig } from "@/components/common/Table";
 import { PreviewTableRow } from "@/services/price-adjustment/price-adjustment-preview-service";
+import { useTheme } from "@/components/providers/ThemeContext";
 
 /** Convert "MENS ACCESSORIES" → "Mens Accessories" */
 function toTitleCase(str: string): string {
@@ -15,6 +16,12 @@ interface PreviewProductTableProps {
 }
 
 export function PreviewProductTable({ rows, isSaving }: PreviewProductTableProps) {
+  const { currentTheme } = useTheme();
+  const primaryColor = currentTheme?.primaryColor || '#047857';
+  const accentColor = currentTheme?.accentColor || '#d1fae5';
+  const darkColor = currentTheme?.darkColor || '#022c22';
+  const borderColor = currentTheme?.navbarBorder || '#34d399';
+
   if (!rows || rows.length === 0) {
     return (
       <div className="p-6 bg-gray-50 border border-gray-200 rounded-xl text-center text-xs text-gray-500 font-medium">
@@ -51,8 +58,15 @@ export function PreviewProductTable({ rows, isSaving }: PreviewProductTableProps
         <span className="text-gray-400 italic text-2xs">N/A</span>
       ),
       collection_node: (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 rounded-md whitespace-nowrap">
-          <svg className="w-3.5 h-3.5 text-indigo-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <span
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold border rounded-md whitespace-nowrap shadow-2xs transition-colors"
+          style={{
+            backgroundColor: `${accentColor}35`,
+            borderColor: `${borderColor}70`,
+            color: darkColor,
+          }}
+        >
+          <svg className="w-3.5 h-3.5 shrink-0" style={{ color: primaryColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
           </svg>
           {toTitleCase(row.collectionName)}
@@ -77,13 +91,23 @@ export function PreviewProductTable({ rows, isSaving }: PreviewProductTableProps
         </span>
       ),
       new_price_node: isSaving ? (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-teal-800 bg-teal-50 border border-teal-200 rounded-md whitespace-nowrap">
-          <div className="w-3.5 h-3.5 border-2 border-teal-600 border-t-transparent rounded-full animate-spin shrink-0" />
+        <span
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold border rounded-md whitespace-nowrap shadow-2xs"
+          style={{
+            backgroundColor: `${accentColor}35`,
+            borderColor: `${borderColor}70`,
+            color: darkColor,
+          }}
+        >
+          <div
+            className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin shrink-0"
+            style={{ borderColor: primaryColor, borderTopColor: 'transparent' }}
+          />
           Updating...
         </span>
       ) : typeof row.adjustedPrice === 'number' ? (
         <div className="flex flex-col items-end gap-0.5 whitespace-nowrap">
-          <span className="font-extrabold text-xs sm:text-sm text-teal-900">
+          <span className="font-extrabold text-xs sm:text-sm" style={{ color: primaryColor }}>
             {formatPrice(row.adjustedPrice)}
           </span>
           {!row.isSaved && (
@@ -103,7 +127,7 @@ export function PreviewProductTable({ rows, isSaving }: PreviewProductTableProps
   return (
     <div className="w-full overflow-x-auto border border-gray-200 rounded-xl bg-white shadow-2xs">
       <Table
-        headerColor="#0db69d"
+        headerColor={primaryColor}
         columns={columns}
         items={items}
         searchable={false}

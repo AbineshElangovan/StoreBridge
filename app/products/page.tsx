@@ -176,7 +176,7 @@ export default function ProductsPage() {
             </div>
           ) : loading ? (
             <div className="w-full h-64 flex flex-col items-center justify-center bg-white rounded-xl border border-gray-100 shadow-sm gap-4">
-              <div className="w-11 h-11 rounded-full border-4 border-gray-200 border-t-indigo-600 animate-spin" />
+              <div className="w-11 h-11 rounded-full border-4 border-black/10 border-t-[var(--color-primary)] animate-spin" />
               <p className="text-sm text-gray-400 font-medium">Loading products...</p>
             </div>
           ) : Object.keys(groupedProducts).length > 0 ? (() => {

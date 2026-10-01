@@ -420,6 +420,26 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
     // Update local cache for Store
     await updateLocalProductCache(shop, payload, 'products/update');
 
+    // Check price changed vs product details changed
+    const oldPrice = productCaches[0]?.price;
+    const newPrice = payload.variants?.[0]?.price ? parseFloat(payload.variants[0].price) : null;
+    const isPriceChanged = oldPrice !== null && oldPrice !== undefined && newPrice !== null && oldPrice !== newPrice;
+
+    const oldInventory = productCaches[0]?.inventoryQuantity;
+    const newInventory = payload.variants?.[0]?.inventory_quantity;
+    const isInventoryChanged = oldInventory !== null && oldInventory !== undefined && newInventory !== null && newInventory !== undefined && oldInventory !== newInventory;
+
+    let activityDesc = "Product details updated in catalog";
+    if (isPriceChanged && isInventoryChanged) {
+      activityDesc = `Price updated: ₹${oldPrice} → ₹${newPrice}, Stock: ${oldInventory} → ${newInventory}`;
+    } else if (isPriceChanged) {
+      activityDesc = `Price updated: ₹${oldPrice} → ₹${newPrice}`;
+    } else if (isInventoryChanged) {
+      activityDesc = `Stock updated: ${oldInventory} → ${newInventory}`;
+    } else if (productCaches[0] && productCaches[0].title !== payload.title) {
+      activityDesc = `Title updated: ${payload.title}`;
+    }
+
     // Create ActivityLog ONLY when metadata actually changes
     const sku = payload.variants?.[0]?.sku || null;
     const imgUrl = payload.image?.src || payload.images?.[0]?.src || productCaches[0]?.imageUrl || null;
@@ -440,15 +460,10 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
           sku: sku,
           imageUrl: imgUrl,
           eventType: "UPDATE",
-          description: `Product details updated in catalog`,
+          description: activityDesc,
         },
       });
     }
-
-    // Check price changed vs product details changed
-    const oldPrice = productCaches[0]?.price;
-    const newPrice = payload.variants?.[0]?.price ? parseFloat(payload.variants[0].price) : null;
-    const isPriceChanged = oldPrice !== null && oldPrice !== undefined && newPrice !== null && oldPrice !== newPrice;
 
     if (isPriceChanged) {
       await createNotification({
@@ -548,6 +563,25 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
         });
         const collectionStr = productCache?.collections?.map((c: any) => c.collection.title).join(', ') || null;
 
+        const oldPrice = productCache?.price;
+        const newPrice = currentPayload.variants?.[0]?.price ? parseFloat(currentPayload.variants[0].price) : null;
+        const isPriceChanged = oldPrice !== null && oldPrice !== undefined && newPrice !== null && oldPrice !== newPrice;
+
+        const oldInventory = productCache?.inventoryQuantity;
+        const newInventory = currentPayload.variants?.[0]?.inventory_quantity;
+        const isInventoryChanged = oldInventory !== null && oldInventory !== undefined && newInventory !== null && newInventory !== undefined && oldInventory !== newInventory;
+
+        let activityDesc = "Product details updated in catalog";
+        if (isPriceChanged && isInventoryChanged) {
+          activityDesc = `Price updated: ₹${oldPrice} → ₹${newPrice}, Stock: ${oldInventory} → ${newInventory}`;
+        } else if (isPriceChanged) {
+          activityDesc = `Price updated: ₹${oldPrice} → ₹${newPrice}`;
+        } else if (isInventoryChanged) {
+          activityDesc = `Stock updated: ${oldInventory} → ${newInventory}`;
+        } else if (productCache && productCache.title !== currentPayload.title) {
+          activityDesc = `Title updated: ${currentPayload.title}`;
+        }
+
         const imgUrl = currentPayload.image?.src || currentPayload.images?.[0]?.src || productCache?.imageUrl || null;
         const existingLog = await prisma.activityLog.findFirst({
           where: {
@@ -566,15 +600,11 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
               sku: sku,
               imageUrl: imgUrl,
               eventType: "UPDATE",
-              description: `Product details updated in catalog`,
+              description: activityDesc,
               collection: collectionStr,
             }
           });
         }
-
-        const oldPrice = productCache?.price;
-        const newPrice = currentPayload.variants?.[0]?.price ? parseFloat(currentPayload.variants[0].price) : null;
-        const isPriceChanged = oldPrice !== null && oldPrice !== undefined && newPrice !== null && oldPrice !== newPrice;
 
         if (isPriceChanged) {
           await createNotification({

@@ -1,12 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { Icon } from '@shopify/polaris';
-import { MenuIcon, XIcon } from '@shopify/polaris-icons';
+import { MenuIcon, XIcon, HomeIcon, ChevronRightIcon, CheckCircleIcon } from '@shopify/polaris-icons';
 import { NotificationBell } from '@/components/layout/NotificationBell';
 import { StoreRoleBadge } from '@/components/ui/StoreRoleBadge';
 import { useNavbarTitle } from '@/components/providers/NavbarTitleContext';
+import { ThemeSwitcher } from '@/components/layout/ThemeSwitcher';
 
 export function ResponsiveLayout({ 
   sidebar, 
@@ -17,7 +19,19 @@ export function ResponsiveLayout({
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const shop = searchParams.get('shop');
+  const host = searchParams.get('host');
   const { customTitle } = useNavbarTitle();
+
+  const createHref = (basePath: string) => {
+    if (!basePath || basePath === '#' || basePath.startsWith('http')) return basePath;
+    const queryParams = new URLSearchParams();
+    if (shop) queryParams.set('shop', shop);
+    if (host) queryParams.set('host', host);
+    const queryString = queryParams.toString();
+    return queryString ? `${basePath}?${queryString}` : basePath;
+  };
 
   const getBreadcrumbDisplay = () => {
     if (customTitle) return customTitle;
@@ -54,21 +68,27 @@ export function ResponsiveLayout({
   }, []);
 
   return (
-    <div className="flex h-screen w-full bg-gray-50 overflow-hidden text-gray-900 relative">
+    <div className="flex h-screen w-full bg-transparent overflow-hidden text-gray-900 relative">
       
       {/* Mobile Header (Only visible on small screens) */}
-      <div className="md:hidden absolute top-0 left-0 w-full h-[60px] bg-white border-b border-gray-200 z-40 flex items-center px-4 justify-between shadow-sm">
-        <div className="flex items-center gap-3">
-          <h2 className="text-[15px] font-bold text-gray-900">Store Bridge</h2>
+      <div className="md:hidden absolute top-0 left-0 w-full h-[60px] ys-theme-navbar border-b z-40 flex items-center px-4 justify-between shadow-xs transition-colors duration-300">
+        <div className="flex items-center gap-2">
+          <Link href={createHref('/')} className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-[var(--color-primary)] text-white flex items-center justify-center font-bold text-xs shadow-2xs">
+              SB
+            </span>
+            <span className="text-sm font-extrabold text-gray-900 tracking-tight">StoreBridge</span>
+          </Link>
         </div>
         <div className="flex items-center gap-2">
+          <ThemeSwitcher />
           <NotificationBell />
           <button 
             onClick={() => setIsSidebarOpen(true)}
-            className="p-2 text-gray-600 hover:bg-gray-100 rounded-md"
+            className="p-2 text-gray-700 hover:bg-black/5 rounded-lg transition-colors cursor-pointer"
             aria-label="Open menu"
           >
-            <div style={{ width: 24, height: 24 }}>
+            <div style={{ width: 22, height: 22 }}>
               <Icon source={MenuIcon} />
             </div>
           </button>
@@ -85,14 +105,14 @@ export function ResponsiveLayout({
 
       {/* Sidebar Container */}
       <div className={`
-        fixed md:relative top-0 left-0 h-full z-50 bg-white
+        fixed md:relative top-0 left-0 h-full z-50 bg-transparent
         transition-transform duration-300 ease-in-out
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
         {/* Mobile Close Button (inside sidebar) */}
         <button
           onClick={() => setIsSidebarOpen(false)}
-          className="md:hidden absolute top-4 right-4 p-2 text-gray-500 hover:bg-gray-100 rounded-md z-50"
+          className="md:hidden absolute top-4 right-4 p-2 text-gray-500 hover:bg-black/5 rounded-lg z-50 cursor-pointer"
           aria-label="Close menu"
         >
           <div style={{ width: 20, height: 20 }}>
@@ -103,19 +123,44 @@ export function ResponsiveLayout({
       </div>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-[var(--bg-page)] relative pt-[60px] md:pt-0">
-        {/* Desktop Top Header */}
-        <div className="hidden md:flex h-16 min-h-[64px] py-3 bg-white border-b border-gray-200 px-6 items-center justify-between sticky top-0 z-30 shadow-xs">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">StoreBridge</span>
-            <span className="text-gray-300">/</span>
-            <span className="text-sm font-bold text-gray-800 capitalize">
-              {getBreadcrumbDisplay()}
-            </span>
+      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-transparent relative pt-[60px] md:pt-0">
+        {/* Desktop Top Header (Polaris-Inspired Innovative Navbar) */}
+        <div className="hidden md:flex h-16 min-h-[64px] py-2 ys-theme-navbar border-b-2 px-6 items-center justify-between sticky top-0 z-30 shadow-md backdrop-blur-xl transition-all duration-300">
+          
+          {/* Left Side: Innovative Breadcrumb Dock */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/80 dark:bg-black/20 backdrop-blur-md rounded-xl border border-black/10 shadow-2xs">
+              <Link
+                href={createHref('/')}
+                className="flex items-center gap-1.5 text-xs font-bold text-gray-600 hover:text-[var(--color-primary)] transition-colors"
+                title="Go to Dashboard"
+              >
+                <div style={{ width: 15, height: 15 }}>
+                  <Icon source={HomeIcon} />
+                </div>
+                <span>StoreBridge</span>
+              </Link>
+
+              <div style={{ width: 12, height: 12 }} className="text-gray-400">
+                <Icon source={ChevronRightIcon} />
+              </div>
+
+              <span className="text-xs font-extrabold text-gray-900 capitalize tracking-tight flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)] animate-pulse" />
+                {getBreadcrumbDisplay()}
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          {/* Right Side: Innovative Polaris Actions & Controls */}
+          <div className="flex items-center gap-2.5">
+            {/* 4K Theme Switcher */}
+            <ThemeSwitcher />
+
+            {/* Store Role Badge */}
             <StoreRoleBadge />
+
+            {/* Notification Bell */}
             <NotificationBell />
           </div>
         </div>

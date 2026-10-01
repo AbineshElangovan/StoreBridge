@@ -21,17 +21,17 @@ export function SkuGenerationActions({
   disabled,
 }: SkuGenerationActionsProps) {
   return (
-    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
-      {/* Button 1: Reset Options with Refresh Icon */}
+    <div className="p-4 bg-white border border-gray-200 rounded-xl flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 shadow-2xs">
+      {/* Button 1: Reset Options with Refresh Icon (Clean Polaris Secondary) */}
       <button
         type="button"
         onClick={onReset}
         disabled={disabled || isGenerating || isApplying}
-        className="px-4 py-2.5 text-xs sm:text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 active:bg-amber-700 border border-amber-600 rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2 group"
+        className="px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-300 rounded-lg transition-all shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2 group"
         title="Reset all variant option inputs"
       >
         <svg
-          className="w-4 h-4 text-amber-100 group-hover:rotate-180 transition-transform duration-300"
+          className="w-4 h-4 text-slate-500 group-hover:rotate-180 transition-transform duration-300"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -52,7 +52,7 @@ export function SkuGenerationActions({
           type="button"
           onClick={onGeneratePreview}
           disabled={disabled || isGenerating || isApplying}
-          className="px-5 py-2.5 bg-indigo-600 text-white border border-indigo-700 text-xs sm:text-sm font-bold rounded-lg hover:bg-indigo-700 active:bg-indigo-800 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
+          className="px-5 py-2.5 bg-slate-900 text-white border border-slate-800 text-xs sm:text-sm font-bold rounded-lg hover:bg-black active:bg-slate-950 transition-all shadow-2xs hover:shadow-xs disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
         >
           {isGenerating ? (
             <svg className="w-4 h-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
@@ -64,7 +64,7 @@ export function SkuGenerationActions({
               />
             </svg>
           ) : (
-            <svg className="w-4 h-4 text-indigo-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -87,7 +87,7 @@ export function SkuGenerationActions({
           type="button"
           onClick={onApply}
           disabled={disabled || !canApply || isGenerating || isApplying}
-          className="px-6 py-2.5 bg-[#0db69d] text-white border border-[#0a9984] text-xs sm:text-sm font-bold rounded-lg hover:bg-[#0a9984] active:bg-[#087867] transition-all shadow-sm hover:shadow-md disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#0db69d] cursor-pointer flex items-center justify-center gap-2"
+          className="px-6 py-2.5 bg-[var(--color-primary)] text-white border border-[var(--color-primary)] text-xs sm:text-sm font-bold rounded-lg hover:opacity-90 active:opacity-100 transition-all shadow-2xs hover:shadow-xs disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
         >
           {isApplying ? (
             <svg className="w-4 h-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
@@ -99,7 +99,7 @@ export function SkuGenerationActions({
               />
             </svg>
           ) : (
-            <svg className="w-4 h-4 text-emerald-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 text-white/80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
             </svg>
           )}

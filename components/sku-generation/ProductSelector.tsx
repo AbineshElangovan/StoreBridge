@@ -121,12 +121,12 @@ export function ProductSelector({ selectedProductId, onSelectProduct, disabled, 
     <div className={`p-4 sm:p-6 space-y-3 ${borderless ? "" : "bg-white border border-gray-200 rounded-2xl shadow-2xs"}`}>
       <div className="flex items-center justify-between">
         <label className="text-xs font-extrabold text-gray-900 uppercase tracking-wider flex items-center gap-2">
-          <svg className="w-4 h-4 text-[#0db69d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 text-[var(--color-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
           </svg>
           <span>Select Product</span>
         </label>
-        {loading && <span className="text-2xs text-teal-600 font-bold animate-pulse">Loading products...</span>}
+        {loading && <span className="text-2xs text-[var(--color-primary)] font-bold animate-pulse">Loading products...</span>}
       </div>
 
       {/* FILTER & INTEGRATED SEARCHABLE DROPDOWN ROW */}

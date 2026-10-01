@@ -1,6 +1,7 @@
 import React from "react";
 import { Icon } from "@shopify/polaris";
 import { ViewIcon } from "@shopify/polaris-icons";
+import { useTheme } from "@/components/providers/ThemeContext";
 
 interface AffectedProductSummaryProps {
   totalCollections: number;
@@ -13,30 +14,51 @@ export function AffectedProductSummary({
   totalAffectedProducts,
   shownProductsCount,
 }: AffectedProductSummaryProps) {
+  const { currentTheme } = useTheme();
+  const primaryColor = currentTheme?.primaryColor || '#047857';
+  const accentColor = currentTheme?.accentColor || '#d1fae5';
+  const darkColor = currentTheme?.darkColor || '#022c22';
+  const borderColor = currentTheme?.navbarBorder || '#34d399';
+
   return (
-    <div className="p-3 bg-gradient-to-r from-teal-50 to-indigo-50 border border-teal-100 rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+    <div
+      className="p-3.5 rounded-xl border flex flex-wrap items-center justify-between gap-3 shadow-2xs transition-colors"
+      style={{
+        backgroundColor: `${accentColor}30`,
+        borderColor: `${borderColor}70`,
+      }}
+    >
       <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center font-extrabold text-xs shadow-2xs">
-          <div style={{ width: 16, height: 16 }}>
-            <Icon source={ViewIcon} />
+        <div
+          className="w-8 h-8 rounded-lg text-white flex items-center justify-center font-extrabold text-xs shadow-2xs"
+          style={{ backgroundColor: primaryColor }}
+        >
+          <div style={{ width: 16, height: 16 }} className="text-white fill-white [&_svg]:fill-white">
+            <Icon source={ViewIcon} tone="inherit" />
           </div>
         </div>
         <div>
-          <h4 className="text-xs font-extrabold text-teal-950 m-0">
+          <h4 className="text-xs font-extrabold m-0" style={{ color: darkColor }}>
             Affected Products Preview
           </h4>
-          <p className="text-2xs font-medium text-teal-800 m-0">
+          <p className="text-2xs font-medium m-0" style={{ color: primaryColor }}>
             Representative sample before applying price adjustment
           </p>
         </div>
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="px-2.5 py-1 text-2xs font-extrabold bg-white text-teal-900 border border-teal-200 rounded-md shadow-2xs">
-          Selected Collections: <strong>{totalCollections}</strong>
+        <span
+          className="px-2.5 py-1 text-2xs font-extrabold bg-white border rounded-md shadow-2xs"
+          style={{ color: darkColor, borderColor: `${borderColor}80` }}
+        >
+          Selected Collections: <strong style={{ color: primaryColor }}>{totalCollections}</strong>
         </span>
-        <span className="px-2.5 py-1 text-2xs font-extrabold bg-white text-indigo-900 border border-indigo-200 rounded-md shadow-2xs">
-          Total Products Affected: <strong>{totalAffectedProducts}</strong>
+        <span
+          className="px-2.5 py-1 text-2xs font-extrabold bg-white border rounded-md shadow-2xs"
+          style={{ color: darkColor, borderColor: `${borderColor}80` }}
+        >
+          Total Products Affected: <strong style={{ color: primaryColor }}>{totalAffectedProducts}</strong>
         </span>
       </div>
     </div>

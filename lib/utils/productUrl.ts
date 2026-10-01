@@ -1,13 +1,17 @@
 export function getProductUrl(item: { id?: string | null; shopifyProductId?: string | null; sku?: string | null }): string {
-  let shopParam = '';
+  let queryParamStr = '';
   if (typeof window !== 'undefined' && window.location) {
-    const shop = new URLSearchParams(window.location.search).get('shop');
-    if (shop) {
-      shopParam = `?shop=${encodeURIComponent(shop)}`;
-    }
+    const params = new URLSearchParams(window.location.search);
+    const q = new URLSearchParams();
+    const shop = params.get('shop');
+    const host = params.get('host');
+    if (shop) q.set('shop', shop);
+    if (host) q.set('host', host);
+    const qs = q.toString();
+    if (qs) queryParamStr = `?${qs}`;
   }
 
-  if (!item) return `/products${shopParam}`;
+  if (!item) return `/products${queryParamStr}`;
   
   let basePath = '/products';
   // Prefer Prisma UUID if valid non-slashed string
@@ -26,5 +30,5 @@ export function getProductUrl(item: { id?: string | null; shopifyProductId?: str
     basePath = `/products/${encodeURIComponent(item.id || '')}`;
   }
 
-  return `${basePath}${shopParam}`;
+  return `${basePath}${queryParamStr}`;
 }

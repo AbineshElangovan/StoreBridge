@@ -54,33 +54,70 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const whereClause: any = {
-      storeId: { in: storeIdsToQuery }
-    };
+    const andConditions: any[] = [
+      { storeId: { in: storeIdsToQuery } }
+    ];
 
-    if (search) {
-      whereClause.OR = [
-        { productTitle: { contains: search, mode: 'insensitive' } },
-        { sku: { contains: search, mode: 'insensitive' } },
-      ];
+    if (search && search.trim()) {
+      const q = search.trim();
+      andConditions.push({
+        OR: [
+          { productTitle: { contains: q, mode: 'insensitive' } },
+          { sku: { contains: q, mode: 'insensitive' } },
+          { description: { contains: q, mode: 'insensitive' } },
+        ]
+      });
     }
 
-    if (collection && collection !== 'all') {
-      whereClause.collection = { contains: collection, mode: 'insensitive' };
+    if (collection && collection !== 'all' && collection.trim()) {
+      const col = collection.trim();
+      // Find all matching products in ProductCache for this collection
+      const matchingCaches = await prisma.productCache.findMany({
+        where: {
+          OR: [
+            { collections: { some: { collection: { title: { equals: col, mode: 'insensitive' } } } } },
+            { tags: { contains: col, mode: 'insensitive' } },
+            { title: { contains: col, mode: 'insensitive' } }
+          ]
+        },
+        select: { shopifyProductId: true, sku: true, title: true }
+      });
+
+      const colSkus = matchingCaches.map((c: any) => c.sku).filter(Boolean);
+      const colTitles = matchingCaches.map((c: any) => c.title).filter(Boolean);
+      const colPids = matchingCaches.map((c: any) => c.shopifyProductId).filter(Boolean);
+      const colRawPids = colPids.map((p: string) => p.replace('gid://shopify/Product/', ''));
+
+      andConditions.push({
+        OR: [
+          { collection: { contains: col, mode: 'insensitive' } },
+          { productTitle: { contains: col, mode: 'insensitive' } },
+          { description: { contains: col, mode: 'insensitive' } },
+          ...(colSkus.length > 0 ? [{ sku: { in: colSkus } }] : []),
+          ...(colPids.length > 0 ? [{ productId: { in: [...colPids, ...colRawPids] } }] : []),
+          ...(colTitles.length > 0 ? [{ productTitle: { in: colTitles } }] : [])
+        ]
+      });
     }
 
-    if (dateRange !== 'all') {
-      const now = new Date();
-      let startDate = new Date();
+    if (dateRange && dateRange !== 'all') {
+      let startDate: Date;
       if (dateRange === 'today') {
-        startDate.setHours(0, 0, 0, 0);
+        // Last 24 hours (ensures timezone-safe matching between local browser and UTC server)
+        startDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
       } else if (dateRange === 'week') {
-        startDate.setDate(now.getDate() - 7);
+        // Last 7 days
+        startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       } else if (dateRange === 'month') {
-        startDate.setMonth(now.getMonth() - 1);
+        // Last 30 days
+        startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      } else {
+        startDate = new Date(0);
       }
-      whereClause.createdAt = { gte: startDate };
+      andConditions.push({ createdAt: { gte: startDate } });
     }
+
+    const whereClause: any = andConditions.length === 1 ? andConditions[0] : { AND: andConditions };
 
     // Auto-delete logs older than 90 days for all stores with data retention enabled
     cleanupExpiredActivityLogs().catch((err) => {
@@ -102,40 +139,113 @@ export async function GET(req: NextRequest) {
       prisma.activityLog.count({ where: whereClause })
     ]);
     
-    // Attach product images from ProductCache
-    const productIds = activities.map(a => a.productId).filter(Boolean) as string[];
-    const skus = activities.map(a => a.sku).filter(Boolean) as string[];
-    
-    let enrichedActivities = activities;
-    if (productIds.length > 0 || skus.length > 0) {
-      const productCaches = await prisma.productCache.findMany({
-        where: {
-          OR: [
-            { shopifyProductId: { in: productIds } },
-            { sku: { in: skus } }
-          ]
-        },
-        select: { shopifyProductId: true, sku: true, imageUrl: true }
+    // Attach product images from ProductCache across entire catalog (multi-tier resolution: ID, SKU, Title, Collection, Store)
+    const allCaches = await prisma.productCache.findMany({
+      where: {
+        imageUrl: { not: null }
+      },
+      select: {
+        shopifyProductId: true,
+        sku: true,
+        title: true,
+        imageUrl: true,
+        storeId: true,
+        tags: true,
+        collections: {
+          select: {
+            collection: {
+              select: { title: true }
+            }
+          }
+        }
+      }
+    });
+
+    const cacheByProdId = new Map<string, string>();
+    const cacheBySku = new Map<string, string>();
+    const cacheByTitle = new Map<string, string>();
+    const cacheByStoreAndCol = new Map<string, string>(); // `${storeId}_${normalizedCol}` -> img
+    const cacheByCol = new Map<string, string>(); // `${normalizedCol}` -> img
+    const cacheByStore = new Map<string, string>(); // `${storeId}` -> img
+
+    allCaches.forEach((c: any) => {
+      if (!c.imageUrl) return;
+      const rawId = c.shopifyProductId.replace('gid://shopify/Product/', '');
+      const gid = c.shopifyProductId.startsWith('gid://') ? c.shopifyProductId : `gid://shopify/Product/${c.shopifyProductId}`;
+
+      cacheByProdId.set(rawId, c.imageUrl);
+      cacheByProdId.set(gid, c.imageUrl);
+      if (c.sku) cacheBySku.set(c.sku.toLowerCase(), c.imageUrl);
+      if (c.title) cacheByTitle.set(c.title.toLowerCase(), c.imageUrl);
+
+      if (!cacheByStore.has(c.storeId)) {
+        cacheByStore.set(c.storeId, c.imageUrl);
+      }
+
+      const colTitles: string[] = [];
+      if (c.collections) {
+        c.collections.forEach((cp: any) => {
+          if (cp.collection?.title) colTitles.push(cp.collection.title.toLowerCase());
+        });
+      }
+      if (c.tags) {
+        c.tags.split(',').forEach((t: string) => {
+          if (t.trim()) colTitles.push(t.trim().toLowerCase());
+        });
+      }
+
+      colTitles.forEach((col) => {
+        const storeColKey = `${c.storeId}_${col}`;
+        if (!cacheByStoreAndCol.has(storeColKey)) {
+          cacheByStoreAndCol.set(storeColKey, c.imageUrl);
+        }
+        if (!cacheByCol.has(col)) {
+          cacheByCol.set(col, c.imageUrl);
+        }
       });
-      
-      const imageUrlMap = new Map<string, string>();
-      productCaches.forEach((pc: any) => {
-         if (pc.imageUrl) {
-           if (pc.shopifyProductId) imageUrlMap.set(pc.shopifyProductId, pc.imageUrl);
-           if (pc.sku) imageUrlMap.set(pc.sku, pc.imageUrl);
-         }
-      });
-      
-      enrichedActivities = activities.map((a: any) => ({
+    });
+
+    const enrichedActivities = activities.map((a: any) => {
+      let resolvedImg = a.imageUrl || null;
+
+      // Tier 1: Direct match by productId
+      if (!resolvedImg && a.productId) {
+        const rawId = a.productId.replace('gid://shopify/Product/', '');
+        resolvedImg = cacheByProdId.get(rawId) || cacheByProdId.get(a.productId) || null;
+      }
+
+      // Tier 2: Match by SKU
+      if (!resolvedImg && a.sku) {
+        resolvedImg = cacheBySku.get(a.sku.toLowerCase()) || null;
+      }
+
+      // Tier 3: Match by productTitle
+      if (!resolvedImg && a.productTitle) {
+        resolvedImg = cacheByTitle.get(a.productTitle.toLowerCase()) || null;
+      }
+
+      // Tier 4: Collection match (e.g. for Price Adjustment or categorized batch actions)
+      if (!resolvedImg) {
+        const colString = a.collection || (a.productTitle?.includes('Price Adjustment (') ? a.productTitle.replace('Price Adjustment (', '').replace(')', '') : '');
+        if (colString) {
+          const cols = colString.split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
+          for (const col of cols) {
+            resolvedImg = cacheByStoreAndCol.get(`${a.storeId}_${col}`) || cacheByCol.get(col);
+            if (resolvedImg) break;
+          }
+        }
+      }
+
+      // Tier 5: Store fallback (representative store product image)
+      if (!resolvedImg && a.storeId) {
+        resolvedImg = cacheByStore.get(a.storeId) || null;
+      }
+
+      return {
         ...a,
-        imageUrl: a.imageUrl || (a.productId && imageUrlMap.get(a.productId)) || (a.sku && imageUrlMap.get(a.sku)) || null
-      })) as any;
-    } else {
-      enrichedActivities = activities.map((a: any) => ({
-        ...a,
-        imageUrl: a.imageUrl || null
-      })) as any;
-    }
+        imageUrl: resolvedImg
+      };
+    });
 
     // Deduplicate past duplicate log entries created within the same 60-second window
     const seenMap = new Set<string>();

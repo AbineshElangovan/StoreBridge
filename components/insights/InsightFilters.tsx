@@ -35,7 +35,7 @@ export function InsightFilters({
         <select
           value={selectedStore}
           onChange={(e) => onStoreChange(e.target.value)}
-          className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 pr-9 text-xs sm:text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0db69d]/20 focus:border-[#0db69d] cursor-pointer shadow-2xs transition-colors"
+          className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 pr-9 text-xs sm:text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)] cursor-pointer shadow-2xs transition-colors"
         >
           {stores.map((s) => (
             <option key={s.id} value={s.id}>
@@ -55,7 +55,7 @@ export function InsightFilters({
         <select
           value={selectedRange}
           onChange={(e) => onRangeChange(e.target.value)}
-          className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 pr-9 text-xs sm:text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0db69d]/20 focus:border-[#0db69d] cursor-pointer shadow-2xs transition-colors"
+          className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 pr-9 text-xs sm:text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)] cursor-pointer shadow-2xs transition-colors"
         >
           <option value="7">Last 7 days</option>
           <option value="30">Last 30 days</option>
@@ -74,7 +74,7 @@ export function InsightFilters({
         <select
           value={selectedCollection}
           onChange={(e) => onCollectionChange(e.target.value)}
-          className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 pr-9 text-xs sm:text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0db69d]/20 focus:border-[#0db69d] cursor-pointer shadow-2xs transition-colors"
+          className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 pr-9 text-xs sm:text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)] cursor-pointer shadow-2xs transition-colors"
         >
           {collections.map((c) => (
             <option key={c} value={c}>

@@ -7,18 +7,45 @@ export async function GET(req: NextRequest) {
   const storeIdsParam = req.nextUrl.searchParams.get('storeIds');
   const storeIds = storeIdsParam ? storeIdsParam.split(',').filter(id => id.trim() !== '') : [];
 
-  // Only query for activities that occurred AFTER the connection started
-  let lastCreatedAt = new Date(); 
+  let lastCreatedAt = new Date();
+  let isClosed = false;
 
   const stream = new ReadableStream({
     start(controller) {
-      // 1. Initial connection message
-      controller.enqueue(
-        `event: connected\ndata: ${JSON.stringify({ message: "SSE Connected", storeIds })}\n\n`
-      );
+      let pollInterval: NodeJS.Timeout | null = null;
+      let heartbeatInterval: NodeJS.Timeout | null = null;
+      let maxLifetimeTimeout: NodeJS.Timeout | null = null;
 
-      // 2. Poll Database every 5 seconds
-      const pollInterval = setInterval(async () => {
+      const cleanup = () => {
+        if (isClosed) return;
+        isClosed = true;
+        if (pollInterval) clearInterval(pollInterval);
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        if (maxLifetimeTimeout) clearTimeout(maxLifetimeTimeout);
+        try {
+          controller.close();
+        } catch (e) {
+          // Controller might already be closed
+        }
+      };
+
+      // 1. Initial connection message
+      try {
+        controller.enqueue(
+          `event: connected\ndata: ${JSON.stringify({ message: "SSE Connected", storeIds })}\n\n`
+        );
+      } catch (err) {
+        cleanup();
+        return;
+      }
+
+      // 2. Poll Database every 6 seconds
+      pollInterval = setInterval(async () => {
+        if (isClosed || req.signal.aborted) {
+          cleanup();
+          return;
+        }
+
         try {
           const newActivities = await prisma.activityLog.findMany({
             where: {
@@ -28,42 +55,43 @@ export async function GET(req: NextRequest) {
             include: {
               store: { select: { id: true, label: true, shopDomain: true, isMaster: true } }
             },
-            orderBy: { createdAt: 'asc' }
+            orderBy: { createdAt: 'asc' },
+            take: 20
           });
 
-          if (newActivities.length > 0) {
-            // Update lastCreatedAt to the timestamp of the newest record found
+          if (newActivities.length > 0 && !isClosed) {
             lastCreatedAt = newActivities[newActivities.length - 1].createdAt;
 
-            // Push each new event to the client
             for (const activity of newActivities) {
               controller.enqueue(`event: new-activity\ndata: ${JSON.stringify(activity)}\n\n`);
             }
           }
         } catch (error) {
-          console.error('[SSE Polling Error]:', error);
+          // If sending fails or DB query fails, terminate this stream to prevent zombie polling
+          cleanup();
         }
-      }, 5000);
+      }, 6000);
 
-      // 3. Heartbeat every 30 seconds to prevent connection timeouts
-      const heartbeatInterval = setInterval(() => {
+      // 3. Heartbeat every 25 seconds
+      heartbeatInterval = setInterval(() => {
+        if (isClosed || req.signal.aborted) {
+          cleanup();
+          return;
+        }
         try {
           controller.enqueue(`event: ping\ndata: {"message": "heartbeat"}\n\n`);
         } catch (e) {
-          // Ignored if stream is closed
+          cleanup();
         }
-      }, 30000);
+      }, 25000);
 
-      // 4. Cleanup when the client disconnects or aborts the request
-      req.signal.addEventListener('abort', () => {
-        clearInterval(pollInterval);
-        clearInterval(heartbeatInterval);
-        try {
-          controller.close();
-        } catch (e) {
-          // Ignore
-        }
-      });
+      // 4. Recycle connection after 30 minutes safety cap
+      maxLifetimeTimeout = setTimeout(() => {
+        cleanup();
+      }, 1800000);
+
+      // 5. Cleanup on abort signal
+      req.signal.addEventListener('abort', cleanup);
     }
   });
 
@@ -72,6 +100,7 @@ export async function GET(req: NextRequest) {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
     },
   });
 }

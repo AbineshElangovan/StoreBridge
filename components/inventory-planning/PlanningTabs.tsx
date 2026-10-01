@@ -18,7 +18,7 @@ export function PlanningTabs({ activeTab, onTabChange, replenishmentCount = 0 }:
   ];
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-1.5 mb-6 flex items-center gap-1 shadow-2xs overflow-x-auto whitespace-nowrap scrollbar-none">
+    <div className="bg-white/80 backdrop-blur-md rounded-xl border border-[var(--border-color)] p-1.5 mb-6 flex items-center gap-1.5 shadow-2xs overflow-x-auto whitespace-nowrap scrollbar-none transition-colors">
       {tabs.map((tab) => {
         const isActive = activeTab === tab.id;
         return (
@@ -26,16 +26,16 @@ export function PlanningTabs({ activeTab, onTabChange, replenishmentCount = 0 }:
             key={tab.id}
             type="button"
             onClick={() => onTabChange(tab.id)}
-            className={`px-3.5 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer shrink-0 flex items-center gap-2 ${
+            className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all duration-150 cursor-pointer shrink-0 flex items-center gap-2 ${
               isActive
-                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                ? 'bg-[var(--color-primary)] text-white shadow-xs'
+                : 'text-gray-700 hover:text-gray-900 hover:bg-black/5 font-semibold'
             }`}
           >
             <span>{tab.label}</span>
             {typeof tab.badge === 'number' && tab.badge > 0 && (
               <span className={`px-2 py-0.5 text-[10px] font-black rounded-full ${
-                isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-700'
+                isActive ? 'bg-white/25 text-white' : 'bg-gray-100 text-gray-700'
               }`}>
                 {tab.badge}
               </span>

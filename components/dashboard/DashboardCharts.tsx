@@ -1,5 +1,6 @@
 'use client';
-// Removed Polaris Grid
+
+import React from 'react';
 import { BarChart, PieChart } from '@/components/common/BarChart';
 
 export interface StoreChartEntry {
@@ -16,15 +17,16 @@ export interface DashboardChartsProps {
   };
 }
 
+// Distinct, vibrant, high-contrast palette for multi-store comparison
 const STORE_COLORS = [
-  '#38bdf8', // Light Sky Blue
-  '#a78bfa', // Light Lavender
-  '#fb923c', // Light Peach / Coral
-  '#34d399', // Light Mint
-  '#f472b6', // Light Rose
-  '#fbbf24', // Light Amber
-  '#818cf8', // Light Periwinkle
-  '#2dd4bf', // Light Aqua
+  '#0284c7', // 1. Electric Ocean Blue
+  '#f59e0b', // 2. Warm Amber Gold
+  '#10b981', // 3. Vibrant Emerald Green
+  '#ec4899', // 4. Coral Rose Pink
+  '#6366f1', // 5. Royal Indigo
+  '#ea580c', // 6. Bright Tangerine Orange
+  '#14b8a6', // 7. Caribbean Teal
+  '#8b5cf6', // 8. Vivid Violet
 ];
 
 export function DashboardCharts({ chartData }: DashboardChartsProps) {
@@ -53,32 +55,32 @@ export function DashboardCharts({ chartData }: DashboardChartsProps) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-      {/* Row 1 – Products vs Inventory grouped bar chart */}
+      {/* Row 1 – Products (Electric Blue) vs Inventory (Warm Amber) grouped bar chart */}
       <BarChart
         title="Inventory Comparison Chart"
         subtitle="Store Comparison — Products & Inventory"
         data={combinedData}
         xKey="name"
         bars={[
-          { key: 'Total Products',  color: '#38bdf8', name: 'Total Products'  },
-          { key: 'Total Inventory', color: '#a78bfa', name: 'Total Inventory' },
+          { key: 'Total Products',  color: '#0284c7', name: 'Total Products'  },
+          { key: 'Total Inventory', color: '#f59e0b', name: 'Total Inventory' },
         ]}
       />
 
-      {/* Row 2 – Sales Value bar + two pie charts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
-        <div className="col-span-1 md:col-span-2">
+      {/* Row 2 – Sales Value bar (Emerald Green) + two multi-colored pie charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5 w-full min-w-0">
+        <div className="col-span-1 md:col-span-2 min-w-0 overflow-hidden">
           <BarChart
             title="Sales Value — Store Comparison"
             subtitle="Estimated revenue across connected stores"
             data={storesForShareWithColors}
             xKey="name"
             bars={[
-              { key: 'Total Sales Value', color: '#38bdf8', name: 'Sales Value' },
+              { key: 'Total Sales Value', color: '#10b981', name: 'Sales Value' },
             ]}
           />
         </div>
-        <div className="col-span-1 md:col-span-1">
+        <div className="col-span-1 md:col-span-1 min-w-0 overflow-hidden">
           <PieChart
             title="Sales Share %"
             subtitle="Store sales distribution across network"
@@ -86,7 +88,7 @@ export function DashboardCharts({ chartData }: DashboardChartsProps) {
             unit="₹"
           />
         </div>
-        <div className="col-span-1 md:col-span-1">
+        <div className="col-span-1 md:col-span-1 min-w-0 overflow-hidden">
           <PieChart
             title="Products Share %"
             subtitle="Product catalog distribution across stores"

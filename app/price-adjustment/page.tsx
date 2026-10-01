@@ -8,10 +8,12 @@ import CollectionPriceAdjustment from '@/components/stores/CollectionPriceAdjust
 import { ThemedSection } from '@/components/ui/ThemedSection';
 import { Loading } from '@/components/common';
 import { useStoreContext } from '@/components/providers/StoreProvider';
+import { useTheme } from '@/components/providers/ThemeContext';
 
 export default function PriceAdjustmentPage() {
   const router = useRouter();
   const { currentStore, isMaster, isStandalone } = useStoreContext();
+  const { currentTheme } = useTheme();
   const [stores, setStores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>('ALL');
@@ -77,14 +79,27 @@ export default function PriceAdjustmentPage() {
     return <Loading label="Loading adjustments..." />;
   }
 
+  // Dynamic palette derived from active theme
+  const themePrimary = currentTheme?.primaryColor || '#047857';
+  const themeAccent = currentTheme?.accentColor || '#d1fae5';
+  const themeDark = currentTheme?.darkColor || '#022c22';
+  const themeBorder = currentTheme?.navbarBorder || '#34d399';
+  const themeCardBg = currentTheme?.cardBg || 'rgba(240, 253, 248, 0.95)';
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden">
       <div className="flex flex-col gap-6 sm:gap-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">
-              Price Adjustment
-            </h1>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">
+                Price Adjustment
+              </h1>
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-2xs ${currentTheme?.badgeColor || 'bg-emerald-100 text-emerald-950 border-emerald-300'}`}>
+                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: themePrimary }} />
+                <span>{currentTheme?.name || 'Theme Active'}</span>
+              </span>
+            </div>
             <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
               Configure store-specific and collection-based pricing rules for synchronized products.
             </p>
@@ -92,15 +107,24 @@ export default function PriceAdjustmentPage() {
 
           {/* Master Store Selector Dropdown */}
           {isMaster && stores.length > 1 && (
-            <div className="flex items-center gap-2.5 bg-white px-4 py-2 border border-gray-200 rounded-xl shadow-2xs">
-              <label htmlFor="master-store-select" className="text-xs sm:text-sm font-bold text-gray-700 whitespace-nowrap">
+            <div
+              className="flex items-center gap-2.5 px-4 py-2 rounded-xl shadow-2xs transition-colors"
+              style={{
+                backgroundColor: currentTheme?.navbarBg || '#ffffff',
+                border: `1.5px solid ${themeBorder}`,
+              }}
+            >
+              <label htmlFor="master-store-select" className="text-xs sm:text-sm font-bold whitespace-nowrap" style={{ color: themeDark }}>
                 Select Store:
               </label>
               <select
                 id="master-store-select"
                 value={selectedStoreFilter}
                 onChange={(e) => setSelectedStoreFilter(e.target.value)}
-                className="bg-gray-50 border border-gray-300 text-gray-900 text-xs sm:text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2 font-semibold cursor-pointer outline-none"
+                className="bg-white border text-gray-900 text-xs sm:text-sm rounded-lg p-2 font-semibold cursor-pointer outline-none transition-shadow"
+                style={{
+                  borderColor: themeBorder,
+                }}
               >
                 <option value="ALL">All Stores</option>
                 {stores.map((s) => (
@@ -117,29 +141,24 @@ export default function PriceAdjustmentPage() {
           {displayedStores.length === 0 ? (
             <p className="text-xs sm:text-sm text-gray-500 m-0">No stores available to configure.</p>
           ) : (
-            displayedStores.map((s, index) => {
-              // Alternate between 3 distinct themes
-              const themes = [
-                { bg: '#ecfdf5', border: '#a7f3d0', stripe: '#10b981', title: '#065f46', desc: '#047857' }, // Emerald (Green)
-                { bg: '#f0f9ff', border: '#bae6fd', stripe: '#0ea5e9', title: '#0369a1', desc: '#075985' }, // Sky (Blue)
-                { bg: '#eef2ff', border: '#c7d2fe', stripe: '#6366f1', title: '#3730a3', desc: '#312e81' }, // Indigo (Purple)
-              ];
-              const t = themes[index % themes.length];
-
+            displayedStores.map((s) => {
               return (
                 <ThemedSection
                   key={s.id}
                   title={`${s.label || s.shopDomain} Adjustments`}
                   description={`Manage collection-specific price adjustments for ${s.shopDomain}`}
-                  bgColor={t.bg}
-                  borderColor={t.border}
-                  stripeColor={t.stripe}
-                  titleColor={t.title}
-                  descColor={t.desc}
+                  bgColor={themeCardBg}
+                  borderColor={themeBorder}
+                  stripeColor={themePrimary}
+                  titleColor={themeDark}
+                  descColor={themePrimary}
                 >
                   <div className="flex flex-col gap-4 sm:gap-6 mt-2">
                     {/* Collection Adjustment */}
-                    <div className="p-4 sm:p-6 bg-white border border-gray-200 rounded-xl shadow-2xs overflow-x-auto">
+                    <div
+                      className="p-4 sm:p-6 bg-white rounded-xl shadow-2xs overflow-x-auto transition-colors"
+                      style={{ border: `1px solid ${themeBorder}40` }}
+                    >
                       <CollectionPriceAdjustment storeId={s.id} storeName={s.label || s.shopDomain} />
                     </div>
                   </div>

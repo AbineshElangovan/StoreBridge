@@ -11,9 +11,12 @@ import { prisma } from '@/lib/db/prisma';
 import { TimezoneProvider } from '@/components/providers/TimezoneContext';
 import { LiveRefresher } from '@/components/providers/LiveRefresher';
 import { StoreProvider } from '@/components/providers/StoreProvider';
+import { NotificationProvider } from '@/components/providers/NotificationContext';
 import { NavbarTitleProvider } from '@/components/providers/NavbarTitleContext';
 
 import { ToastProvider } from '@/components/providers/ToastContext';
+import { ThemeProvider } from '@/components/providers/ThemeContext';
+import { AutoHideScrollbar } from '@/components/providers/AutoHideScrollbar';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,29 +43,66 @@ const BUSINESS_HOURS = [
 export default function RootLayout({ children }: { children: React.ReactNode }) {
 
   return (
-    <html lang="en">
+    <html lang="en" data-theme="emerald_forest" suppressHydrationWarning>
       <head>
-        <meta name="shopify-api-key" content={process.env.NEXT_PUBLIC_SHOPIFY_API_KEY} />
-        {/* App Bridge MUST load synchronously — no async/defer. Do NOT use Next.js <Script> here. */}
-        {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-        <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                var saved = localStorage.getItem('product_app_light_wallpaper') || localStorage.getItem('storebridge_inventory_theme') || 'emerald_forest';
+                document.documentElement.setAttribute('data-theme', saved);
+              } catch (e) {
+                document.documentElement.setAttribute('data-theme', 'emerald_forest');
+              }
+
+              try {
+                var isEmbedded = false;
+                try {
+                  isEmbedded = (window.self !== window.top) || new URLSearchParams(window.location.search).has('host');
+                } catch (e) {
+                  isEmbedded = true;
+                }
+
+                if (isEmbedded) {
+                  if (!document.querySelector('meta[name="shopify-api-key"]')) {
+                    var meta = document.createElement('meta');
+                    meta.name = 'shopify-api-key';
+                    meta.content = "${process.env.NEXT_PUBLIC_SHOPIFY_API_KEY || ''}";
+                    document.head.appendChild(meta);
+                  }
+                  if (!document.querySelector('script[src*="app-bridge.js"]')) {
+                    var script = document.createElement('script');
+                    script.src = 'https://cdn.shopify.com/shopifycloud/app-bridge.js';
+                    script.async = false;
+                    document.head.appendChild(script);
+                  }
+                }
+              } catch (e) {}
+            `,
+          }}
+        />
       </head>
       <body className={inter.className}>
         <ShopifyProvider>
           <StoreProvider>
-            <NavbarTitleProvider>
-              <ToastProvider>
-                <ResponsiveLayout sidebar={
-                  <Suspense key="sidebar-suspense" fallback={<div className="w-[260px] bg-white border-r h-full animate-pulse" />}>
-                    <Sidebar />
-                  </Suspense>
-                }>
-                  <TimezoneProvider>
-                    {children}
-                  </TimezoneProvider>
-                </ResponsiveLayout>
-              </ToastProvider>
-            </NavbarTitleProvider>
+            <NotificationProvider>
+              <ThemeProvider>
+                <AutoHideScrollbar />
+                <NavbarTitleProvider>
+                  <ToastProvider>
+                    <ResponsiveLayout sidebar={
+                      <Suspense key="sidebar-suspense" fallback={<div className="w-[260px] bg-white border-r h-full animate-pulse" />}>
+                        <Sidebar />
+                      </Suspense>
+                    }>
+                      <TimezoneProvider>
+                        {children}
+                      </TimezoneProvider>
+                    </ResponsiveLayout>
+                  </ToastProvider>
+                </NavbarTitleProvider>
+              </ThemeProvider>
+            </NotificationProvider>
           </StoreProvider>
         </ShopifyProvider>
       </body>

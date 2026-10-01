@@ -1,21 +1,30 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 
 export function Loading({ label = "Loading..." }: { label?: string }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: '60vh', marginTop: '10vh', gap: 14 }}>
-      <style>{`
-        @keyframes sync-spin { to { transform: rotate(360deg); } }
-        .ys-sync-ring {
-          width: 44px; height: 44px;
-          border-radius: 50%;
-          border: 4px solid #e5e7eb;
-          border-top-color: #0db69d;
-          animation: sync-spin 0.75s linear infinite;
-        }
-      `}</style>
-      <div className="ys-sync-ring" />
-      <p style={{ margin: 0, fontSize: 13, color: '#9ca3af', fontWeight: 500 }}>{label}</p>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', minHeight: '60vh', marginTop: '5vh', gap: 16 }}>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="ys-sk-ping" />
+        <div className="ys-sk-spinner" />
+      </div>
+      <p style={{ margin: 0, fontSize: 14, color: 'var(--text-primary, #0f172a)', fontWeight: 600, letterSpacing: '-0.01em' }}>{label}</p>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            className="ys-sk-dot"
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: '50%',
+              backgroundColor: 'var(--color-primary, #047857)',
+              animation: `sk-pulse 1.2s ease-in-out ${i * 0.2}s infinite`,
+            }}
+          />
+        ))}
+      </div>
     </div>
   );
 }
+

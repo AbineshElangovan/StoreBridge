@@ -2,7 +2,6 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import Image from 'next/image';
 import {
   HomeIcon, ProductIcon, ImportIcon, HeartIcon,
   DiscountIcon,
@@ -15,7 +14,7 @@ import {
 } from '@shopify/polaris-icons';
 import { Icon } from '@shopify/polaris';
 import { useStoreContext } from '@/components/providers/StoreProvider';
-import { shopifyFetch } from '@/lib/shopify/Client';
+import { useNotifications } from '@/components/providers/NotificationContext';
 
 interface MenuItem {
   label: string;
@@ -47,7 +46,8 @@ export function Sidebar() {
     canManageNetwork, 
     loading 
   } = useStoreContext();
-  const [unreadCount, setUnreadCount] = React.useState<number>(0);
+
+  const { unreadCount } = useNotifications();
 
   const handleStoreSwitch = (e: React.ChangeEvent<HTMLSelectElement>) => {
     if (!canSwitchStores) return;
@@ -69,39 +69,8 @@ export function Sidebar() {
     }
   };
 
-  const activeShopDomain = currentStore?.shopDomain || shop;
-
-  React.useEffect(() => {
-    const fetchUnread = async () => {
-      try {
-        const shopParam = activeShopDomain ? `&shop=${encodeURIComponent(activeShopDomain)}` : '';
-        const res = await shopifyFetch(`/api/notifications?limit=1${shopParam}`);
-        if (res.ok) {
-          const json = await res.json();
-          setUnreadCount(json.unreadCount || 0);
-        }
-      } catch (e) {
-        // silent fail
-      }
-    };
-
-    fetchUnread();
-
-    const handleCountChange = (event: any) => {
-      if (typeof event?.detail === 'number') {
-        setUnreadCount(event.detail);
-      }
-    };
-
-    window.addEventListener('notification-count-changed', handleCountChange);
-    window.addEventListener('notification-updated', fetchUnread);
-    return () => {
-      window.removeEventListener('notification-count-changed', handleCountChange);
-      window.removeEventListener('notification-updated', fetchUnread);
-    };
-  }, [activeShopDomain, currentStore?.id]);
-
   const createHref = (basePath: string) => {
+    if (!basePath || basePath === '#' || basePath.startsWith('http')) return basePath;
     const queryParams = new URLSearchParams();
     if (shop) queryParams.set('shop', shop);
     if (host) queryParams.set('host', host);
@@ -165,43 +134,50 @@ export function Sidebar() {
   ];
 
   return (
-    <div className="w-[260px] flex-shrink-0 border-r border-[#0db69d]/10 bg-[#f0fdfa] h-screen sticky top-0 flex flex-col">
-      {/* Brand */}
-      <div className="px-6 py-6 flex items-center gap-3">
-        <Image src="/logo.png" alt="Logo" width={32} height={32} className="w-8 h-8 rounded-lg object-contain" priority />
-        <div>
-          <h2 className="text-[15px] font-bold text-gray-900 leading-tight">StoreBridge</h2>
-          <p className="text-[11px] text-gray-500 leading-tight">Multi-store inventory sync</p>
+    <div className="w-[260px] flex-shrink-0 border-r ys-theme-sidebar h-screen sticky top-0 flex flex-col z-20 transition-colors duration-300">
+      
+      {/* Innovative Brand Logo Header */}
+      <Link
+        href={createHref('/')}
+        className="px-5 py-5 flex items-center gap-3 border-b border-[var(--theme-border-accent)]/50 bg-white/40 hover:bg-white/60 transition-all cursor-pointer group"
+        title="Go to Dashboard"
+      >
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-dark)] text-white flex items-center justify-center shadow-xs flex-shrink-0 relative overflow-hidden border border-white/30 group-hover:scale-105 transition-transform">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
+            <path d="M4 7V4h16v3" />
+            <path d="M9 20h6" />
+            <path d="M12 4v16" />
+            <circle cx="6" cy="14" r="2.5" fill="currentColor" fillOpacity="0.25" />
+            <circle cx="18" cy="14" r="2.5" fill="currentColor" fillOpacity="0.25" />
+            <path d="M6 14h12" />
+          </svg>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
         </div>
-      </div>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[15px] font-black text-gray-900 leading-tight tracking-tight flex items-center gap-1.5 group-hover:text-[var(--color-primary)] transition-colors">
+            StoreBridge
+          </h2>
+          <p className="text-[11px] text-gray-500 leading-tight font-semibold mt-0.5">Multi-store sync</p>
+        </div>
+      </Link>
 
-      <div className="px-4 mb-6">
+      {/* Store Role Indicator Card */}
+      <div className="px-4 py-4">
         {(() => {
           const isMasterStore = currentStore?.isMaster;
           const isConnectedStore = !isMasterStore && !isStandalone;
 
-          let boxStyle = 'bg-blue-100 border-blue-300 text-blue-950';
-          let badgeStyle = 'text-blue-800 font-black';
-
-          if (isMasterStore) {
-            boxStyle = 'bg-emerald-100 border-emerald-300 text-emerald-950';
-            badgeStyle = 'text-emerald-800 font-black';
-          } else if (isConnectedStore) {
-            boxStyle = 'bg-purple-100 border-purple-300 text-purple-950';
-            badgeStyle = 'text-purple-800 font-black';
-          }
-
-          const roleLabel = isStandalone 
+          let roleLabel = isStandalone 
             ? 'STANDALONE STORE' 
             : (isMasterStore ? 'MASTER STORE' : 'CONNECTED STORE');
 
           return (
-            <div className={`px-3 py-2.5 rounded-xl border shadow-2xs flex flex-col relative transition-colors ${boxStyle}`}>
+            <div className="px-3.5 py-2.5 rounded-xl border border-[var(--theme-border-accent)] bg-white/85 shadow-2xs flex flex-col relative transition-all duration-200">
               {canSwitchStores ? (
                 <select
                   value={currentStore?.shopDomain || ''}
                   onChange={handleStoreSwitch}
-                  className="bg-transparent text-sm font-bold border-none outline-none focus:ring-0 cursor-pointer w-full pr-1 truncate"
+                  className="bg-transparent text-xs sm:text-sm font-bold border-none outline-none focus:ring-0 cursor-pointer w-full pr-1 truncate text-gray-900"
                 >
                   {activeStores.map((s) => {
                     const tag = s.isMaster ? '(Master)' : (s.isStandalone ? '(Standalone)' : '(Connected)');
@@ -213,11 +189,11 @@ export function Sidebar() {
                   })}
                 </select>
               ) : (
-                <span className="text-sm font-bold truncate">
+                <span className="text-xs sm:text-sm font-bold truncate text-gray-900">
                   {loading ? 'Loading...' : (currentStore?.label || currentStore?.shopDomain || 'ESHAN Store')}
                 </span>
               )}
-              <span className={`text-[10px] font-extrabold mt-0.5 tracking-wider uppercase ${badgeStyle}`}>
+              <span className="text-[10px] font-extrabold mt-0.5 tracking-wider uppercase text-[var(--color-primary)]">
                 {roleLabel}
               </span>
             </div>
@@ -225,10 +201,11 @@ export function Sidebar() {
         })()}
       </div>
 
-      <div className="flex-1 overflow-y-scroll px-4 pb-6 ys-sidebar-scroll">
+      {/* Nav Menu */}
+      <div className="flex-1 overflow-y-auto px-4 pb-6 ys-sidebar-scroll">
         {menuSections.map((section, idx) => (
           <div key={idx} className="mb-5">
-            <h3 className="px-3 mb-2 text-[11px] font-bold text-gray-400 tracking-wider uppercase">
+            <h3 className="px-3 mb-2 text-[10px] font-extrabold text-gray-400 tracking-wider uppercase">
               {section.title}
             </h3>
             <div className="space-y-0.5">
@@ -240,15 +217,16 @@ export function Sidebar() {
                   <Link
                     key={item.label}
                     href={createHref(item.href)}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors group ${isActive
-                      ? 'bg-[#e0f8f5] text-[#0b9c86] font-semibold'
-                      : 'text-gray-600 hover:bg-[#0db69d] hover:text-white font-medium'
+                    prefetch={false}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-150 group cursor-pointer ${isActive
+                      ? 'bg-[var(--color-primary)] text-white font-bold shadow-xs'
+                      : 'text-gray-700 hover:bg-black/5 font-medium'
                       }`}
                   >
-                    <span className={isActive ? 'text-[#0b9c86]' : 'text-gray-400 group-hover:text-white transition-colors'}>
+                    <span className={isActive ? 'text-white' : 'text-gray-500 group-hover:text-gray-900 transition-colors'}>
                       <Icon source={item.icon} tone="inherit" />
                     </span>
-                    <span className="flex-1">{item.label}</span>
+                    <span className="flex-1 truncate">{item.label}</span>
                     {item.badge && (
                       <span className="bg-red-500 text-white font-extrabold text-[11px] px-2 py-0.5 rounded-full shadow-xs">
                         {item.badge}
