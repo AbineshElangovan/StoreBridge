@@ -51,9 +51,9 @@ export async function GET(req: NextRequest) {
     });
     const authorizedStoreIds = [store.id, ...connections.map((c: any) => c.targetStoreId)];
 
+    // Look across authorized stores and global catalog for fallback images/collections
     const crossStoreProducts = await prisma.productCache.findMany({
-      where: { 
-        storeId: { in: authorizedStoreIds },
+      where: {
         OR: [
           { sku: { in: currentSkus } },
           { collections: { some: {} } },

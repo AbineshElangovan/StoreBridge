@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { Table, Loading } from '@/components/common';
+import { Table, Loading, StoreLogo } from '@/components/common';
 import {
   TextField,
   Button,
@@ -328,7 +328,8 @@ export default function ConnectionsPage() {
            <div className="flex justify-between items-start mb-4 gap-2">
              <div className="min-w-0">
                <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2 text-slate-900 flex-wrap">
-                 <span className="truncate">{master.label || master.shopDomain.split('.')[0]}</span>
+                 <StoreLogo shopDomain={master.shopDomain} label={master.label} isMaster={true} size="sm" />
+                  <span className="truncate">{master.label || master.shopDomain.split('.')[0]}</span>
                  <span className="bg-[var(--color-primary-light)] text-[var(--color-primary-dark)] px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 border border-[var(--color-primary)] shrink-0">
                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M2 22h20v-2H2v2zm9-5l5-4 4 4V5c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v12l4-4 5 4z"/></svg>
                    Master
@@ -362,6 +363,59 @@ export default function ConnectionsPage() {
           </div>
         )})}
 
+        
+        {/* Render Standalone Stores as Cards */}
+        {installedStores
+          .filter(s => !s.isMaster && !connections.some(c => c.targetStoreId === s.id))
+          .map((standalone, index) => {
+            const currency = 'INR';
+            const region = 'India';
+            const plan = '-';
+            const lastSync = standalone.updatedAt;
+
+            return (
+              <div key={standalone.id || `standalone-${index}`} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 flex flex-col">
+                <div className="flex justify-between items-start mb-4 gap-2">
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2 text-slate-900 flex-wrap">
+                      <StoreLogo shopDomain={standalone.shopDomain} label={standalone.label} isStandalone={true} size="sm" />
+                      <span className="truncate">{standalone.label || standalone.shopDomain.split('.')[0]}</span>
+                      <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-xs font-semibold border border-slate-300 shrink-0">
+                        Standalone
+                      </span>
+                    </h3>
+                    <div className="mt-1 flex flex-col gap-0.5">
+                      <p className="text-slate-700 text-xs sm:text-sm font-medium truncate">{standalone.uniqueStoreId || 'N/A'}</p>
+                      <p className="text-slate-500 text-xs truncate">https://{standalone.shopDomain}</p>
+                    </div>
+                  </div>
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold shrink-0 ${standalone.isActive ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                    {standalone.isActive ? 'healthy' : 'stale'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-xs sm:text-sm mb-4 mt-4 sm:mt-6">
+                  <div>
+                    <p className="text-slate-500 mb-0.5 text-xs">Currency</p>
+                    <p className="font-medium text-slate-900">{currency}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 mb-0.5 text-xs">Region</p>
+                    <p className="font-medium text-slate-900">{region}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 mb-0.5 text-xs">Plan</p>
+                    <p className="font-medium text-slate-900">{plan}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 mb-0.5 text-xs">Last sync</p>
+                    <p className="font-medium text-slate-900">{timeAgo(lastSync)}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
         {/* Render Target Stores as Cards */}
         {connections
           .filter(conn => {
@@ -381,6 +435,7 @@ export default function ConnectionsPage() {
               <div className="flex justify-between items-start mb-4 gap-2">
                 <div className="min-w-0">
                   <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2 text-slate-900 flex-wrap">
+                    <StoreLogo shopDomain={store.shopDomain} label={store.label} isMaster={false} size="sm" />
                     <span className="truncate">{store.label || store.shopDomain.split('.')[0]}</span>
                     {conn.direction === 'incoming' && (
                       <span className="bg-[var(--color-primary-light)] text-[var(--color-primary-dark)] px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 border border-[var(--color-primary)] shrink-0">
@@ -462,13 +517,24 @@ export default function ConnectionsPage() {
               <Table 
                 headerColor="var(--color-primary-dark)"
                 columns={[
-                  { title: 'Store Name', key: 'name', type: 'bold' },
+                  { title: 'Store Name', key: 'name', type: 'react_node' },
                   { title: 'Store URL', key: 'url' },
                   { title: 'Status', key: 'status', type: 'badge', badgeRules: { 'Healthy': 'success', 'Stale': 'warning' } },
                   { title: 'Action', key: 'action', type: 'react_node' }
                 ]}
                 items={connections.filter(c => c.direction === 'outgoing').map(conn => ({
-                  name: conn.targetStore.label || conn.targetStore.shopDomain.split('.')[0],
+                  name: (
+                    <div className="flex items-center gap-2.5">
+                      <StoreLogo 
+                        shopDomain={conn.targetStore.shopDomain} 
+                        label={conn.targetStore.label} 
+                        size="sm"
+                      />
+                      <span className="font-bold text-slate-900 truncate">
+                        {conn.targetStore.label || conn.targetStore.shopDomain.split('.')[0]}
+                      </span>
+                    </div>
+                  ),
                   url: `https://${conn.targetStore.shopDomain}`,
                   status: conn.targetStore.isActive ? 'Healthy' : 'Stale',
                   action: (

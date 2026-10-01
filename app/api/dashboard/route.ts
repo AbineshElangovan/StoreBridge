@@ -106,10 +106,14 @@ export async function GET(req: NextRequest) {
     const failedSyncs = totalSyncs - successSyncs;
     const syncStats = { totalSyncs, successSyncs, failedSyncs };
 
-    // Build image fallback maps across visible products
+    // Build image fallback maps across visible products and global catalog
+    const allKnownImages = await prisma.productCache.findMany({
+      where: { imageUrl: { not: null } },
+      select: { sku: true, title: true, imageUrl: true }
+    });
     const skuFallbackImages = new Map<string, string>();
     const titleFallbackImages = new Map<string, string>();
-    productCaches.forEach((p: any) => {
+    allKnownImages.forEach((p: any) => {
       if (p.imageUrl) {
         if (p.sku && !skuFallbackImages.has(p.sku)) {
           skuFallbackImages.set(p.sku, p.imageUrl);

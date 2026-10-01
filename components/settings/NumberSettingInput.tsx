@@ -12,6 +12,10 @@ interface NumberSettingInputProps {
   disabled?: boolean;
   min?: number;
   placeholder?: string;
+  /** Optional preset quick-pick values shown as chips below the input */
+  quickPicks?: number[];
+  /** Unit label to show inside quick-pick chips, e.g. "days" */
+  quickPickUnit?: string;
 }
 
 export const NumberSettingInput: React.FC<NumberSettingInputProps> = ({
@@ -23,8 +27,11 @@ export const NumberSettingInput: React.FC<NumberSettingInputProps> = ({
   helpText,
   disabled = false,
   min = 1,
-  placeholder = 'Enter value'
+  placeholder = 'Enter value',
+  quickPicks,
+  quickPickUnit = 'days'
 }) => {
+  const activeVal = String(value);
   return (
     <div className="space-y-1">
       <style jsx global>{`
@@ -59,10 +66,34 @@ export const NumberSettingInput: React.FC<NumberSettingInputProps> = ({
           className={`w-full px-3 py-2 text-sm font-medium rounded-lg border transition-all duration-150 outline-none ${
             error
               ? 'border-red-500 bg-red-50/50 text-red-900 focus:ring-2 focus:ring-red-200'
-              : 'border-gray-300 bg-white text-gray-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100'
+              : 'border-gray-300 bg-white text-gray-900 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20'
           } ${disabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200' : ''}`}
         />
       </div>
+
+      {quickPicks && quickPicks.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-1.5">
+          {quickPicks.map((pick) => {
+            const isActive = activeVal === String(pick);
+            return (
+              <button
+                key={pick}
+                type="button"
+                disabled={disabled}
+                onClick={() => onChange(String(pick))}
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border transition-all duration-150 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                  isActive
+                    ? 'text-white border-transparent shadow-sm'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)]'
+                }`}
+                style={isActive ? { backgroundColor: 'var(--color-primary)', borderColor: 'var(--color-primary)' } : {}}
+              >
+                {pick} {quickPickUnit}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {error ? (
         <p className="text-xs font-semibold text-red-600 flex items-center gap-1 mt-1">
@@ -72,11 +103,19 @@ export const NumberSettingInput: React.FC<NumberSettingInputProps> = ({
           {error}
         </p>
       ) : helpText ? (
-        <div className="mt-1.5 px-2.5 py-1 bg-indigo-50 border border-indigo-200/80 rounded-lg text-xs flex items-start gap-1.5 w-full shadow-2xs">
-          <span className="font-black text-indigo-800 text-[11px] shrink-0 mt-0.5">
+        <div 
+          className="mt-1.5 px-2.5 py-1.5 rounded-lg text-xs flex items-start gap-1.5 w-full border bg-white/80 backdrop-blur-xs transition-colors shadow-2xs"
+          style={{
+            borderColor: 'var(--border-color)',
+          }}
+        >
+          <span 
+            className="font-bold text-[11px] shrink-0 mt-0.5"
+            style={{ color: 'var(--color-primary)' }}
+          >
             Note:
           </span>
-          <span className="font-semibold text-indigo-950 text-[11px] leading-tight">
+          <span className="font-medium text-[11px] text-gray-600 leading-tight">
             {helpText}
           </span>
         </div>

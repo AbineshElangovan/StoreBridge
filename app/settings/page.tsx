@@ -12,13 +12,20 @@ import { StoreRoleBadge } from '@/components/ui/StoreRoleBadge';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 import { ConfirmToast } from '@/components/ui/ConfirmToast';
 import { StorePerformanceRules, StorePerformanceSetting } from '@/components/settings/StorePerformanceRules';
+import { PlanningStoreConfig, StorePlanningSetting } from '@/components/settings/PlanningStoreConfig';
+import { useTheme } from '@/components/providers/ThemeContext';
+import { StoreLogo } from '@/components/common';
 import { Icon } from '@shopify/polaris';
 import { CheckIcon } from '@shopify/polaris-icons';
 
 
+export type SettingsTabId = 'store-config' | 'planning-config' | 'data-privacy';
+
 export default function SettingsPage() {
   const router = useRouter();
+  const { currentTheme } = useTheme();
   const { isStandalone } = useStoreContext();
+  const [activeTab, setActiveTab] = useState<SettingsTabId>('store-config');
   const [stores, setStores] = useState<any[]>([]);
   const [performanceStores, setPerformanceStores] = useState<StorePerformanceSetting[]>([]);
   const [threshold, setThreshold] = useState<string>('15');
@@ -126,33 +133,42 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSaveInventoryPlanningRules = async (
+  const handleSavePlanningRules = async (
     targetStoreId: string,
-    forecastPeriodDays: number,
-    salesHistoryPeriodDays: number,
-    supplierLeadTimeDays: number,
-    safetyStockDays: number
+    values: {
+      highRiskDays: number;
+      forecastPeriodDays: number;
+      salesHistoryPeriodDays: number;
+      safetyStockDays: number;
+      bestSellerThreshold: number;
+      deadStockDays: number;
+    }
   ) => {
     try {
       const res = await shopifyFetch('/api/settings', {
         method: 'PUT',
         body: JSON.stringify({
           targetStoreId,
-          forecastPeriodDays,
-          salesHistoryPeriodDays,
-          supplierLeadTimeDays,
-          safetyStockDays
+          supplierLeadTimeDays: values.highRiskDays,
+          forecastPeriodDays: values.forecastPeriodDays,
+          salesHistoryPeriodDays: values.salesHistoryPeriodDays,
+          safetyStockDays: values.safetyStockDays,
+          bestSellerThreshold: values.bestSellerThreshold,
+          deadStockDays: values.deadStockDays
         })
       });
       const data = await res.json();
       if (res.ok && data.success) {
         if (data.stores) setPerformanceStores(data.stores);
-        setToastMessage({ message: 'Inventory Planning Rules saved.', type: 'success' });
+        setToastMessage({ message: 'Planning store configuration saved successfully.', type: 'success' });
+        return true;
       } else {
         setToastMessage({ message: `Save failed: ${data.error}`, type: 'error' });
+        return false;
       }
     } catch (err: any) {
       setToastMessage({ message: 'Save failed.', type: 'error' });
+      return false;
     }
   };
 
@@ -298,6 +314,19 @@ export default function SettingsPage() {
     installedAt: <LocalizedDate date={s.installedAt} format="date" />,
   }));
 
+  const planningStores: StorePlanningSetting[] = (performanceStores || []).map((s: any) => ({
+    id: s.id,
+    label: s.label || s.shopDomain,
+    shopDomain: s.shopDomain,
+    isMaster: s.isMaster,
+    highRiskDays: s.supplierLeadTimeDays ?? 10,
+    forecastPeriodDays: s.forecastPeriodDays ?? 7,
+    salesHistoryPeriodDays: s.salesHistoryPeriodDays ?? 30,
+    safetyStockDays: s.safetyStockDays ?? 3,
+    bestSellerThreshold: s.bestSellerThreshold ?? 20,
+    deadStockDays: s.deadStockDays ?? 90
+  }));
+
   if (loading) {
     return <Loading label="Loading settings..." />;
   }
@@ -317,18 +346,45 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Configurations Grid */}
-        <div className="flex flex-col lg:flex-row gap-6 sm:gap-8">
+        {/* ── 3-SECTION NAVIGATION BAR TABS ── */}
+        <div 
+          className="rounded-xl border p-1.5 flex items-center gap-1.5 shadow-2xs overflow-x-auto whitespace-nowrap scrollbar-none transition-colors backdrop-blur-md"
+          style={{
+            backgroundColor: 'var(--theme-navbar-bg, rgba(255, 255, 255, 0.85))',
+            borderColor: 'var(--theme-navbar-border, var(--border-color))'
+          }}
+        >
+          {[
+            { id: 'store-config', label: 'Store Configurations' },
+            { id: 'planning-config', label: 'Planning Store Config' },
+            { id: 'data-privacy', label: 'Data & Privacy' }
+          ].map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id as SettingsTabId)}
+                className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all duration-150 cursor-pointer shrink-0 flex items-center gap-2 ${
+                  isActive
+                    ? `${currentTheme.activeNavPill}`
+                    : 'text-gray-700 hover:text-gray-900 hover:bg-black/5 font-semibold'
+                }`}
+              >
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ── TAB 1: STORE CONFIGURATIONS ── */}
+        {activeTab === 'store-config' && (
+          <div className="flex flex-col lg:flex-row gap-6 sm:gap-8">
           {!isStandalone && (
             <div className="flex-1 flex flex-col gap-6 min-w-0">
               <ThemedSection
                 title="Master Store Configuration"
                 description="Identify the primary store. Synchronization originates from the Master Store."
-                bgColor="#fff1f2"
-                borderColor="#fecdd3"
-                stripeColor="#f43f5e"
-                titleColor="#9f1239"
-                descColor="#be123c"
               >
                 <div className="flex flex-col gap-3 sm:gap-4 mt-2">
                   {stores.length === 0 ? (
@@ -340,18 +396,27 @@ export default function SettingsPage() {
                     stores.map((s) => (
                       <div
                         key={s.id}
-                        className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border gap-4 transition-all ${s.isMaster
-                            ? 'border-indigo-500 bg-indigo-50/70 shadow-2xs'
-                            : 'border-gray-200 bg-white hover:border-gray-300'
-                          }`}
+                        className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border gap-4 transition-all bg-white shadow-2xs ${
+                          s.isMaster
+                            ? 'border-[var(--color-primary)] ring-1 ring-[var(--color-primary)]/20'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
+                            <StoreLogo shopDomain={s.shopDomain} label={s.label} isMaster={s.isMaster} isStandalone={s.isStandalone} size="sm" />
                             <span className="font-bold text-sm sm:text-base text-gray-900 truncate">
                               {s.label || s.shopDomain}
                             </span>
                             {s.isMaster && (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-800 text-white uppercase tracking-wider shadow-2xs shrink-0">
+                              <span 
+                                className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border shadow-2xs shrink-0"
+                                style={{
+                                  backgroundColor: 'var(--color-primary-light)',
+                                  color: 'var(--color-primary)',
+                                  borderColor: 'var(--theme-border-accent)'
+                                }}
+                              >
                                 MASTER
                               </span>
                             )}
@@ -364,7 +429,8 @@ export default function SettingsPage() {
                         <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto shrink-0 justify-start sm:justify-end">
                           {!s.isMaster && (
                             <button
-                              className="px-3.5 py-2 bg-[var(--color-primary-dark)] hover:bg-[var(--color-primary)] text-white text-xs sm:text-sm font-semibold rounded-lg transition-colors shadow-2xs disabled:opacity-50 cursor-pointer flex-1 sm:flex-none text-center"
+                              className="px-3.5 py-2 text-white text-xs sm:text-sm font-semibold rounded-lg transition-colors shadow-2xs disabled:opacity-50 cursor-pointer flex-1 sm:flex-none text-center"
+                              style={{ backgroundColor: 'var(--color-primary)' }}
                               disabled={masterSaving}
                               onClick={() => promptSetMaster(s.id, masterLabels[s.id] || (s.label || s.shopDomain).replace('.myshopify.com', ''), false)}
                             >
@@ -372,7 +438,11 @@ export default function SettingsPage() {
                             </button>
                           )}
                           <button
-                            className={`px-3.5 py-2 text-white text-xs sm:text-sm font-semibold rounded-lg transition-colors shadow-2xs flex-1 sm:flex-none text-center ${s.isMaster ? 'bg-gray-400 cursor-not-allowed opacity-60' : 'bg-blue-600 hover:bg-blue-700 cursor-pointer disabled:opacity-50'}`}
+                            className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors shadow-2xs flex-1 sm:flex-none text-center ${
+                              s.isMaster 
+                                ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed' 
+                                : 'bg-white hover:bg-gray-50 text-gray-800 border border-gray-300 hover:border-gray-400 cursor-pointer disabled:opacity-50'
+                            }`}
                             disabled={standaloneSaving || s.isMaster}
                             title={s.isMaster ? "Master store cannot be set as standalone directly." : undefined}
                             onClick={() => promptMakeStandalone(s.id)}
@@ -383,9 +453,19 @@ export default function SettingsPage() {
                       </div>
                     ))
                   )}
-                  <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-start gap-2">
-                    <span className="font-semibold shrink-0">Note:</span>
-                    <span>
+                  <div 
+                    className="mt-2 p-3 border rounded-lg text-xs flex items-start gap-2 bg-white/80 backdrop-blur-xs transition-colors shadow-2xs"
+                    style={{
+                      borderColor: 'var(--border-color)',
+                    }}
+                  >
+                    <span 
+                      className="font-bold shrink-0"
+                      style={{ color: 'var(--color-primary)' }}
+                    >
+                      Note:
+                    </span>
+                    <span className="font-medium text-gray-600 leading-relaxed">
                       Master store cannot be changed to Standalone directly. To disconnect this store, please set another connected store as Master first.
                     </span>
                   </div>
@@ -398,25 +478,21 @@ export default function SettingsPage() {
           <div className={`w-full ${isStandalone ? 'max-w-4xl' : 'lg:w-[360px] shrink-0'} flex flex-col gap-6`}>
             <ThemedSection
               title="Store Configurations"
-              bgColor="#fffbeb"
-              borderColor="#fde68a"
-              stripeColor="#f59e0b"
-              titleColor="#b45309"
             >
               <div className="flex flex-col gap-4 mt-2">
                 <div>
                   <h3 className="text-sm font-semibold text-gray-900 mb-2">Low Stock Alert Threshold</h3>
                   <div className="flex flex-col gap-2">
-                    <label className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-amber-100/50 transition-colors cursor-pointer text-sm text-gray-700 font-medium">
-                      <input type="radio" name="threshold" checked={threshold === '10'} onChange={() => setThreshold('10')} className="w-4 h-4 text-[var(--color-primary-dark)] focus:ring-[var(--color-primary-dark)]" />
+                    <label className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-[var(--color-primary-light)]/40 transition-colors cursor-pointer text-sm text-gray-700 font-medium">
+                      <input type="radio" name="threshold" checked={threshold === '10'} onChange={() => setThreshold('10')} className="w-4 h-4 text-[var(--color-primary)] focus:ring-[var(--color-primary)]" />
                       <span>10 units</span>
                     </label>
-                    <label className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-amber-100/50 transition-colors cursor-pointer text-sm text-gray-700 font-medium">
-                      <input type="radio" name="threshold" checked={threshold === '20'} onChange={() => setThreshold('20')} className="w-4 h-4 text-[var(--color-primary-dark)] focus:ring-[var(--color-primary-dark)]" />
+                    <label className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-[var(--color-primary-light)]/40 transition-colors cursor-pointer text-sm text-gray-700 font-medium">
+                      <input type="radio" name="threshold" checked={threshold === '20'} onChange={() => setThreshold('20')} className="w-4 h-4 text-[var(--color-primary)] focus:ring-[var(--color-primary)]" />
                       <span>20 units</span>
                     </label>
-                    <label className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-amber-100/50 transition-colors cursor-pointer text-sm text-gray-700 font-medium">
-                      <input type="radio" name="threshold" checked={threshold === 'custom'} onChange={() => setThreshold('custom')} className="w-4 h-4 text-[var(--color-primary-dark)] focus:ring-[var(--color-primary-dark)]" />
+                    <label className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-[var(--color-primary-light)]/40 transition-colors cursor-pointer text-sm text-gray-700 font-medium">
+                      <input type="radio" name="threshold" checked={threshold === 'custom'} onChange={() => setThreshold('custom')} className="w-4 h-4 text-[var(--color-primary)] focus:ring-[var(--color-primary)]" />
                       <span>Custom Value</span>
                     </label>
                   </div>
@@ -438,7 +514,8 @@ export default function SettingsPage() {
                 <div className="pt-2">
                   <div className="flex items-center justify-between gap-3">
                     <button
-                      className="w-full sm:w-auto px-5 py-2 bg-[var(--color-primary-dark)] text-white text-sm font-semibold rounded-lg hover:bg-[var(--color-primary)] transition-colors shadow-2xs disabled:opacity-50 cursor-pointer text-center"
+                      className="w-full sm:w-auto px-5 py-2 text-white text-sm font-semibold rounded-lg transition-all shadow-2xs disabled:opacity-50 cursor-pointer text-center"
+                      style={{ backgroundColor: 'var(--color-primary)' }}
                       disabled={saving}
                       onClick={handleSave}
                     >
@@ -458,46 +535,49 @@ export default function SettingsPage() {
             </ThemedSection>
           </div>
         </div>
+        )}
 
+        {/* ── TAB 2: PLANNING STORE CONFIG ── */}
+        {activeTab === 'planning-config' && (
+          <div className={`w-full ${isStandalone ? 'max-w-4xl' : ''}`}>
+            <PlanningStoreConfig
+              stores={planningStores}
+              onSavePlanningRules={handleSavePlanningRules}
+              isSaving={saving}
+            />
+          </div>
+        )}
 
-
-        {/* Store Performance Rules Section */}
-        <div className={`w-full ${isStandalone ? 'max-w-4xl' : ''}`}>
-          <StorePerformanceRules
-            stores={performanceStores}
-            onSavePerformanceRules={handleSavePerformanceRules}
-            isSaving={saving}
-          />
-        </div>
-
-        {/* Full-width Data Handling Section */}
-        <div className={`w-full ${isStandalone ? 'max-w-4xl' : ''}`}>
-          <ThemedSection
-            title="Data & Privacy"
-            description="Data handling - Built for Shopify app review"
-            bgColor="#f0fdfa"
-            borderColor="#ccfbf1"
-            stripeColor="#0d9488"
-            titleColor="#0f766e"
-            descColor="#115e59"
-          >
-            <div className="bg-white border border-gray-200 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs mt-2">
-              <div className="flex flex-col">
-                <span className="text-sm sm:text-base font-bold text-gray-900">Store activity logs for 90 days</span>
-                <span className="text-xs text-gray-500 mt-0.5">Then permanently deleted.</span>
+        {/* ── TAB 3: DATA & PRIVACY ── */}
+        {activeTab === 'data-privacy' && (
+          <div className={`w-full ${isStandalone ? 'max-w-4xl' : ''}`}>
+            <ThemedSection
+              title="Data & Privacy"
+              description="Data handling - Built for Shopify app review"
+            >
+              <div className="bg-white/90 border border-[var(--border-color)] rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs mt-2">
+                <div className="flex flex-col">
+                  <span className="text-sm sm:text-base font-bold text-gray-900">Store activity logs for 90 days</span>
+                  <span className="text-xs text-gray-500 mt-0.5">Then permanently deleted.</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0 self-end sm:self-auto">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={dataRetentionEnabled}
+                    onChange={(e) => setDataRetentionEnabled(e.target.checked)}
+                  />
+                  <div 
+                    className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all"
+                    style={{
+                      backgroundColor: dataRetentionEnabled ? 'var(--color-primary)' : undefined
+                    }}
+                  ></div>
+                </label>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer shrink-0 self-end sm:self-auto">
-                <input
-                  type="checkbox"
-                  className="sr-only peer"
-                  checked={dataRetentionEnabled}
-                  onChange={(e) => setDataRetentionEnabled(e.target.checked)}
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
-              </label>
-            </div>
-          </ThemedSection>
-        </div>
+            </ThemedSection>
+          </div>
+        )}
       </div>
 
       <ConfirmToast

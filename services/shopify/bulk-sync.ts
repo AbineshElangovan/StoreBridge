@@ -100,7 +100,7 @@ export async function syncStoreProducts(shopDomain: string) {
           const variantTitle = variant.title && variant.title !== 'Default Title' ? ` - ${variant.title}` : '';
           const fullTitle = `${product.title}${variantTitle}`;
           const sku = variant.sku?.trim() || null;
-          const imageObj = product.images?.edges?.[0]?.node || variant.image;
+          const imageObj = product.featuredImage || product.images?.edges?.[0]?.node || variant.image;
           const imageUrl = imageObj?.url || null;
           const price = parseFloat(variant.price || '0');
 

@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    const { store: currentStore } = await authenticate(req);
+    const { store: currentStore, sessionStore, isMasterSession } = await authenticate(req);
     const searchParams = req.nextUrl.searchParams;
 
     const selectedStore = searchParams.get('store') || 'all';
@@ -20,13 +20,18 @@ export async function GET(req: NextRequest) {
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
     const limit = Math.max(1, parseInt(searchParams.get('limit') || '15', 10));
 
+    // Master store scope resolution: master store session or current store is master
+    const effectiveMaster = isMasterSession
+      ? (sessionStore?.isMaster ? sessionStore : (currentStore.isMaster ? currentStore : null))
+      : (currentStore.isMaster ? currentStore : null);
+    const isMasterScope = Boolean(effectiveMaster);
+
     // Get authorized stores for current user context
     const storeMap = new Map<string, any>();
-    storeMap.set(currentStore.id, currentStore);
-
-    if (currentStore.isMaster) {
+    if (effectiveMaster) {
+      storeMap.set(effectiveMaster.id, effectiveMaster);
       const connections = await (prisma as any).storeConnection.findMany({
-        where: { sourceStoreId: currentStore.id },
+        where: { sourceStoreId: effectiveMaster.id },
         include: { targetStore: true }
       });
       connections.forEach((c: any) => {
@@ -34,15 +39,20 @@ export async function GET(req: NextRequest) {
           storeMap.set(c.targetStore.id, c.targetStore);
         }
       });
+      if (!storeMap.has(currentStore.id) && currentStore.isActive) {
+        storeMap.set(currentStore.id, currentStore);
+      }
+    } else {
+      storeMap.set(currentStore.id, currentStore);
     }
 
-    const isAllStores = selectedStore === 'all' && currentStore.isMaster;
+    const isAllStores = (selectedStore === 'all' || !selectedStore) && isMasterScope;
     let targetStoreIds: string[] = [];
 
     if (isAllStores) {
       targetStoreIds = Array.from(storeMap.keys());
     } else {
-      const targetId = selectedStore === 'all' ? currentStore.id : selectedStore;
+      const targetId = (selectedStore === 'all' || !selectedStore) ? currentStore.id : selectedStore;
       if (!storeMap.has(targetId)) {
         return NextResponse.json({
           success: false,
@@ -230,7 +240,8 @@ export async function GET(req: NextRequest) {
 
       const salesHistoryDays = cfg.salesHistoryPeriodDays || 30;
       const forecastDays = overrideForecastDays || cfg.forecastPeriodDays || 7;
-      const leadTimeDays = cfg.supplierLeadTimeDays || 7;
+      const highRiskDays = cfg.supplierLeadTimeDays || 10;
+      const leadTimeDays = highRiskDays;
       const safetyDays = cfg.safetyStockDays || 3;
 
       const salesMapForStore = storeSalesMap.get(storeId);
@@ -251,17 +262,15 @@ export async function GET(req: NextRequest) {
       const requiredStock = Math.ceil(leadTimeDemand + safetyStockDemand);
       const recommendedReplenishment = Math.max(0, Math.ceil(requiredStock - currentStock));
 
-      // Deterministic Risk Assignment
-      let risk: 'OUT_OF_STOCK' | 'HIGH' | 'MEDIUM' | 'LOW' | 'NO_DEMAND' = 'LOW';
+      // Deterministic Risk Assignment: Only High Risk, Low Risk, and No Demand
+      let risk: 'OUT_OF_STOCK' | 'HIGH' | 'LOW' | 'NO_DEMAND' = 'LOW';
 
       if (currentStock === 0) {
         risk = 'OUT_OF_STOCK';
       } else if (avgDailySales === 0) {
         risk = 'NO_DEMAND';
-      } else if (expectedStockoutDays !== null && expectedStockoutDays <= leadTimeDays) {
+      } else if (expectedStockoutDays !== null && expectedStockoutDays <= highRiskDays) {
         risk = 'HIGH';
-      } else if (expectedStockoutDays !== null && expectedStockoutDays <= (leadTimeDays + safetyDays)) {
-        risk = 'MEDIUM';
       } else {
         risk = 'LOW';
       }
@@ -353,14 +362,13 @@ export async function GET(req: NextRequest) {
           sb.requiredStock = Math.ceil((sb.avgDailySales * replenishDays) + (sb.avgDailySales * safetyDays));
           sb.recommendedReplenishment = Math.max(0, Math.ceil(sb.requiredStock - sb.currentStock));
           sb.replenishDays = replenishDays;
+          const highRiskDays = cfg.supplierLeadTimeDays || 10;
           if (sb.currentStock === 0) {
             sb.risk = 'OUT_OF_STOCK';
           } else if (sb.avgDailySales === 0) {
             sb.risk = 'NO_DEMAND';
-          } else if (sb.expectedStockoutDays !== null && sb.expectedStockoutDays <= leadTimeDays) {
+          } else if (sb.expectedStockoutDays !== null && sb.expectedStockoutDays <= highRiskDays) {
             sb.risk = 'HIGH';
-          } else if (sb.expectedStockoutDays !== null && sb.expectedStockoutDays <= (leadTimeDays + safetyDays)) {
-            sb.risk = 'MEDIUM';
           } else {
             sb.risk = 'LOW';
           }
@@ -391,14 +399,13 @@ export async function GET(req: NextRequest) {
         existing.recommendedReplenishment = Math.max(0, Math.ceil(existing.requiredStock - existing.currentStock));
         existing.replenishDays = replenishDays;
 
+        const highRiskDays = cfg.supplierLeadTimeDays || 10;
         if (existing.currentStock === 0) {
           existing.risk = 'OUT_OF_STOCK';
         } else if (existing.avgDailySales === 0) {
           existing.risk = 'NO_DEMAND';
-        } else if (existing.expectedStockoutDays !== null && existing.expectedStockoutDays <= leadTimeDays) {
+        } else if (existing.expectedStockoutDays !== null && existing.expectedStockoutDays <= highRiskDays) {
           existing.risk = 'HIGH';
-        } else if (existing.expectedStockoutDays !== null && existing.expectedStockoutDays <= (leadTimeDays + safetyDays)) {
-          existing.risk = 'MEDIUM';
         } else {
           existing.risk = 'LOW';
         }
@@ -442,14 +449,19 @@ export async function GET(req: NextRequest) {
 
     // Aggregate counts across processed products
     let highRiskCount = 0;
-    let mediumRiskCount = 0;
+    let lowRiskCount = 0;
     let outOfStockCount = 0;
     let replenishmentNeededCount = 0;
 
     allProcessedProducts.forEach((p) => {
-      if (p.risk === 'OUT_OF_STOCK') outOfStockCount++;
-      if (p.risk === 'HIGH') highRiskCount++;
-      if (p.risk === 'MEDIUM') mediumRiskCount++;
+      if (p.risk === 'OUT_OF_STOCK') {
+        outOfStockCount++;
+        highRiskCount++;
+      } else if (p.risk === 'HIGH') {
+        highRiskCount++;
+      } else if (p.risk === 'LOW') {
+        lowRiskCount++;
+      }
       if (p.recommendedReplenishment > 0) replenishmentNeededCount++;
     });
 
@@ -459,9 +471,8 @@ export async function GET(req: NextRequest) {
     const riskPriority: Record<string, number> = {
       OUT_OF_STOCK: 1,
       HIGH: 2,
-      MEDIUM: 3,
-      LOW: 4,
-      NO_DEMAND: 5
+      LOW: 3,
+      NO_DEMAND: 4
     };
 
     if (activeTab === 'stock-risk') {
@@ -497,18 +508,22 @@ export async function GET(req: NextRequest) {
     const paginatedData = tabData.slice(startIndex, startIndex + limit);
 
     // Dynamic Filter Options
-    const storeFilterOptions = isAllStores
+    const storeFilterOptions = (isMasterScope && storeMap.size > 1)
       ? [
           { id: 'all', label: 'All stores' },
           ...Array.from(storeMap.values()).map((s: any) => ({
             id: s.id,
-            label: s.label || s.shopDomain
+            label: s.isMaster
+              ? `${s.label || s.shopDomain} (Master)`
+              : (s.label || s.shopDomain)
           }))
         ]
       : [
           {
             id: currentStore.id,
-            label: currentStore.label || currentStore.shopDomain
+            label: currentStore.isMaster
+              ? `${currentStore.label || currentStore.shopDomain} (Master)`
+              : (currentStore.label || currentStore.shopDomain)
           }
         ];
 
@@ -524,10 +539,11 @@ export async function GET(req: NextRequest) {
       success: true,
       stats: {
         highRisk: highRiskCount,
-        mediumRisk: mediumRiskCount,
+        lowRisk: lowRiskCount,
         outOfStock: outOfStockCount,
         replenishmentNeeded: replenishmentNeededCount,
-        productsMonitored: totalMonitoredProducts
+        productsMonitored: totalMonitoredProducts,
+        highRiskThresholdDays: targetStoreIds.length === 1 ? (storeConfigMap.get(targetStoreIds[0])?.supplierLeadTimeDays || 10) : 10
       },
       filters: {
         stores: storeFilterOptions,

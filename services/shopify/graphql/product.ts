@@ -30,6 +30,9 @@ export const GET_PRODUCTS_QUERY = `
                 title
                 sku
                 price
+                image {
+                  url
+                }
                 inventoryItem {
                   id
                   inventoryLevels(first: 10) {

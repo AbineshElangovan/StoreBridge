@@ -16,7 +16,7 @@ export default function PriceAdjustmentPage() {
   const { currentTheme } = useTheme();
   const [stores, setStores] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>('ALL');
+  const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>('');
 
   const [storeAdjustments, setStoreAdjustments] = useState<{ [storeId: string]: string }>({});
   const [storeSaving, setStoreSaving] = useState<{ [storeId: string]: boolean }>({});
@@ -32,6 +32,11 @@ export default function PriceAdjustmentPage() {
         const storesJson = await storesRes.json();
         const loadedStores = storesJson.stores || [];
         setStores(loadedStores);
+
+        const defaultStore = loadedStores.find((s: any) => s.isMaster) || loadedStores[0];
+        if (defaultStore) {
+          setSelectedStoreFilter((prev) => prev || defaultStore.id);
+        }
 
         const initialAdjustments: { [storeId: string]: string } = {};
 
@@ -63,16 +68,14 @@ export default function PriceAdjustmentPage() {
   const displayedStores = React.useMemo(() => {
     if (!stores || stores.length === 0) return [];
     if (isMaster) {
-      if (selectedStoreFilter === 'ALL') {
-        return stores;
-      }
-      return stores.filter(s => s.id === selectedStoreFilter);
+      const activeId = selectedStoreFilter || stores.find(s => s.isMaster)?.id || stores[0].id;
+      return stores.filter(s => s.id === activeId);
     }
     if (currentStore?.id) {
       return stores.filter(s => s.id === currentStore.id);
     }
     // Fallback while store context is initializing
-    return stores;
+    return stores.slice(0, 1);
   }, [stores, isMaster, currentStore, selectedStoreFilter]);
 
   if (loading) {
@@ -91,15 +94,9 @@ export default function PriceAdjustmentPage() {
       <div className="flex flex-col gap-6 sm:gap-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">
-                Price Adjustment
-              </h1>
-              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-2xs ${currentTheme?.badgeColor || 'bg-emerald-100 text-emerald-950 border-emerald-300'}`}>
-                <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: themePrimary }} />
-                <span>{currentTheme?.name || 'Theme Active'}</span>
-              </span>
-            </div>
+            <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">
+              Price Adjustment
+            </h1>
             <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
               Configure store-specific and collection-based pricing rules for synchronized products.
             </p>
@@ -119,14 +116,13 @@ export default function PriceAdjustmentPage() {
               </label>
               <select
                 id="master-store-select"
-                value={selectedStoreFilter}
+                value={selectedStoreFilter || stores.find(s => s.isMaster)?.id || stores[0]?.id || ''}
                 onChange={(e) => setSelectedStoreFilter(e.target.value)}
                 className="bg-white border text-gray-900 text-xs sm:text-sm rounded-lg p-2 font-semibold cursor-pointer outline-none transition-shadow"
                 style={{
                   borderColor: themeBorder,
                 }}
               >
-                <option value="ALL">All Stores</option>
                 {stores.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.label || s.shopDomain} {s.isMaster ? '(Master)' : ''}
