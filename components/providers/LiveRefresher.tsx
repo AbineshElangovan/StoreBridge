@@ -22,8 +22,8 @@ export function LiveRefresher() {
       };
 
       eventSource.addEventListener('new-activity', (event) => {
-        console.log('[LiveRefresher] ⚡ New activity received from SSE!', event.data);
-        console.log('[LiveRefresher] 🔄 Refreshing page data...');
+        console.log('[LiveRefresher] New activity received from SSE!', event.data);
+        console.log('[LiveRefresher] Refreshing page data...');
         // Force Next.js to re-fetch Server Components (like the Dashboard) quietly in the background
         router.refresh();
       });

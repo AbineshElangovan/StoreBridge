@@ -71,6 +71,7 @@ export async function GET(req: NextRequest) {
         shopDomain: s.shopDomain,
         label: s.label,
         masterLabel: s.masterLabel,
+        uniqueStoreId: s.uniqueStoreId,
         isMaster: s.isMaster,
         isStandalone: !isConnected && !s.isMaster,
         isActive: s.isActive && hasValidShopifyAccessToken(s.accessToken),

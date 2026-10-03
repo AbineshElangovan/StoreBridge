@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useTheme } from '@/components/providers/ThemeContext';
 
 interface ConfirmToastProps {
   open: boolean;
@@ -25,25 +26,32 @@ export function ConfirmToast({
   onCancel,
   loading = false,
 }: ConfirmToastProps) {
+  const { currentTheme } = useTheme();
+
   if (!open) return null;
 
-  const confirmBtnStyles = variant === 'danger'
-    ? 'bg-[#0b8d7b] hover:bg-[#097768] text-white border-[#0b8d7b]'
-    : variant === 'warning'
+  const themePrimary = currentTheme?.primaryColor || 'var(--color-primary, #047857)';
+  const themeDark = currentTheme?.darkColor || 'var(--color-primary-dark, #022c22)';
+
+  const confirmBtnStyles = variant === 'warning'
     ? 'bg-amber-600 hover:bg-amber-700 text-white border-amber-600'
     : variant === 'standalone'
     ? 'bg-blue-600 hover:bg-blue-700 text-white border-blue-600'
-    : variant === 'master'
-    ? 'bg-[#059669] hover:bg-[#047857] text-white border-emerald-600'
-    : 'bg-[#0b8d7b] hover:bg-[#097768] text-white border-[#0b8d7b]';
+    : 'text-white border-transparent hover:opacity-90';
 
-  const borderStyle = variant === 'danger'
-    ? 'border-red-500'
-    : variant === 'warning'
-    ? 'border-amber-600'
+  const confirmBtnStyle: React.CSSProperties = (variant === 'danger' || variant === 'master' || !variant || variant === 'info')
+    ? {
+        backgroundColor: themePrimary,
+        borderColor: themeDark,
+        color: '#ffffff',
+      }
+    : {};
+
+  const borderBottomColor = variant === 'warning'
+    ? '#d97706'
     : variant === 'standalone'
-    ? 'border-blue-600'
-    : 'border-red-500';
+    ? '#2563eb'
+    : themePrimary;
 
   const iconStyle = variant === 'danger'
     ? 'bg-red-50 border-red-200 text-red-500'
@@ -53,7 +61,10 @@ export function ConfirmToast({
 
   return (
     <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] max-w-2xl w-[94%] sm:w-auto animate-fadeIn px-2">
-      <div className={`bg-white text-gray-900 border-b-4 ${borderStyle} border-x border-t border-gray-200 rounded-2xl shadow-2xl px-5 py-4 min-h-[80px] flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6`}>
+      <div 
+        className="bg-white text-gray-900 border-x border-t border-gray-200 rounded-2xl shadow-2xl px-5 py-4 min-h-[80px] flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6"
+        style={{ borderBottom: `4px solid ${borderBottomColor}` }}
+      >
         <div className="flex items-start sm:items-center gap-3.5 min-w-0 flex-1">
           <div className={`w-10 h-10 rounded-xl border flex items-center justify-center flex-shrink-0 ${iconStyle} mt-0.5 sm:mt-0`}>
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -85,6 +96,7 @@ export function ConfirmToast({
             type="button"
             onClick={onConfirm}
             disabled={loading}
+            style={confirmBtnStyle}
             className={`px-4.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm border disabled:opacity-50 whitespace-nowrap ${confirmBtnStyles}`}
           >
             {loading ? 'Processing...' : confirmLabel}

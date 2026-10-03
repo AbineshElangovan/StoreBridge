@@ -1,5 +1,7 @@
 "use client";
 import React, { useState } from "react";
+import { Icon } from "@shopify/polaris";
+import { XIcon } from "@shopify/polaris-icons";
 import { VariantOptionInput } from "@/services/sku/variant-combinations";
 import { MASTER_ATTRIBUTE_FAMILIES, AttributeFamily } from "@/lib/constants/variant-library";
 import { ColorSwatchIcon } from "@/components/ui/ColorSwatchIcon";
@@ -259,9 +261,10 @@ export function VariantOptionRow({
                 <button
                   type="button"
                   onClick={() => onRemoveValue(index, valIdx)}
-                  className="text-teal-100 hover:text-white font-bold ml-1 cursor-pointer"
+                  className="text-teal-100 hover:text-white p-0.5 ml-0.5 cursor-pointer flex items-center justify-center"
+                  title="Remove value"
                 >
-                  ✕
+                  <span className="w-2.5 h-2.5 flex items-center"><Icon source={XIcon} tone="inherit" /></span>
                 </button>
               )}
             </span>

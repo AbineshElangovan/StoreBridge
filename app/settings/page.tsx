@@ -17,6 +17,7 @@ import { useTheme } from '@/components/providers/ThemeContext';
 import { StoreLogo } from '@/components/common';
 import { Icon } from '@shopify/polaris';
 import { CheckIcon } from '@shopify/polaris-icons';
+import { PageTabs } from '@/components/ui/PageTabs';
 
 
 export type SettingsTabId = 'store-config' | 'planning-config' | 'data-privacy';
@@ -319,6 +320,7 @@ export default function SettingsPage() {
     label: s.label || s.shopDomain,
     shopDomain: s.shopDomain,
     isMaster: s.isMaster,
+    isStandalone: s.isStandalone ?? false,
     highRiskDays: s.supplierLeadTimeDays ?? 10,
     forecastPeriodDays: s.forecastPeriodDays ?? 7,
     salesHistoryPeriodDays: s.salesHistoryPeriodDays ?? 30,
@@ -347,35 +349,15 @@ export default function SettingsPage() {
         </div>
 
         {/* ── 3-SECTION NAVIGATION BAR TABS ── */}
-        <div 
-          className="rounded-xl border p-1.5 flex items-center gap-1.5 shadow-2xs overflow-x-auto whitespace-nowrap scrollbar-none transition-colors backdrop-blur-md"
-          style={{
-            backgroundColor: 'var(--theme-navbar-bg, rgba(255, 255, 255, 0.85))',
-            borderColor: 'var(--theme-navbar-border, var(--border-color))'
-          }}
-        >
-          {[
+        <PageTabs
+          tabs={[
             { id: 'store-config', label: 'Store Configurations' },
             { id: 'planning-config', label: 'Planning Store Config' },
-            { id: 'data-privacy', label: 'Data & Privacy' }
-          ].map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id as SettingsTabId)}
-                className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all duration-150 cursor-pointer shrink-0 flex items-center gap-2 ${
-                  isActive
-                    ? `${currentTheme.activeNavPill}`
-                    : 'text-gray-700 hover:text-gray-900 hover:bg-black/5 font-semibold'
-                }`}
-              >
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
+            { id: 'data-privacy', label: 'Data & Privacy' },
+          ]}
+          activeTab={activeTab}
+          onTabChange={(tab) => setActiveTab(tab as SettingsTabId)}
+        />
 
         {/* ── TAB 1: STORE CONFIGURATIONS ── */}
         {activeTab === 'store-config' && (

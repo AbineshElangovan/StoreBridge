@@ -1,5 +1,7 @@
 "use client";
 import React, { useState } from "react";
+import { Icon } from "@shopify/polaris";
+import { XIcon } from "@shopify/polaris-icons";
 import { MASTER_ATTRIBUTE_FAMILIES, AttributeFamily } from "@/lib/constants/variant-library";
 
 interface AttributeLibraryModalProps {
@@ -38,9 +40,10 @@ export function AttributeLibraryModal({ isOpen, onClose, onSelectAttribute }: At
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-xl font-bold p-1 rounded-md cursor-pointer"
+            className="text-gray-400 hover:text-gray-600 p-1.5 rounded-md cursor-pointer flex items-center justify-center"
+            title="Close"
           >
-            ✕
+            <span className="w-4 h-4 flex items-center"><Icon source={XIcon} tone="subdued" /></span>
           </button>
         </div>
 

@@ -129,19 +129,19 @@ export async function processProductCreate(shopDomain: string, payload: any, web
       });
 
       if (masterMapping) {
-        console.log(`✅ Master Unique ID found: ${masterMapping.productUniqueId}\n`);
+        console.log(`[ProductSync] Master Unique ID found: ${masterMapping.productUniqueId}\n`);
         existingMapping = await prisma.productMapping.findFirst({
           where: { storeId: targetStore.id, productUniqueId: masterMapping.productUniqueId }
         });
         if (existingMapping) {
-           console.log(`✅ Target Mapping found via Unique ID! Sync will process using Product Unique ID.\n`);
+           console.log(`[ProductSync] Target Mapping found via Unique ID! Sync will process using Product Unique ID.\n`);
         }
       }
 
       // 2. FALLBACK LOOKUP: SKU (if Unique ID mapping not found)
       if (!existingMapping) {
         console.log(`[Fallback Lookup]`);
-        console.log(`⚠️ Target Mapping NOT found via Unique ID. Falling back to SKU lookup...\n`);
+        console.log(`[ProductSync] Target Mapping NOT found via Unique ID. Falling back to SKU lookup...\n`);
         existingMapping = await prisma.productMapping.findFirst({
           where: {
             storeId: targetStore.id,
@@ -151,13 +151,13 @@ export async function processProductCreate(shopDomain: string, payload: any, web
 
         // Repair mapping if fallback succeeds
         if (existingMapping && masterMapping) {
-          console.log(`🛠️ Target Mapping found via SKU! Repairing Unique ID link...\n`);
+          console.log(`[ProductSync] Target Mapping found via SKU! Repairing Unique ID link...\n`);
           await prisma.productMapping.update({
             where: { id: existingMapping.id },
             data: { productUniqueId: masterMapping.productUniqueId }
           });
         } else if (!existingMapping) {
-          console.log(`❌ Target Mapping NOT found via SKU either. Will create new product.\n`);
+          console.log(`[ProductSync] Target Mapping NOT found via SKU either. Will create new product.\n`);
         }
       }
 

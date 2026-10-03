@@ -54,7 +54,26 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [loading, setLoading] = useState<boolean>(false);
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
 
-  const activeShopDomain = currentStore?.shopDomain;
+  // Derive activeShopDomain safely after mount to avoid SSR/render-time window access
+  const [activeShopDomain, setActiveShopDomain] = useState<string | null>(
+    currentStore?.shopDomain ?? null
+  );
+
+  useEffect(() => {
+    if (currentStore?.shopDomain) {
+      setActiveShopDomain(currentStore.shopDomain);
+      return;
+    }
+    // Fallback: read from URL or localStorage only on client, after mount
+    try {
+      const fromUrl = new URLSearchParams(window.location.search).get('shop');
+      const fromStorage = localStorage.getItem('storebridge_active_shop');
+      setActiveShopDomain(fromUrl || fromStorage || null);
+    } catch {
+      // ignore
+    }
+  }, [currentStore?.shopDomain]);
+
   const activeFilterRef = React.useRef(activeFilter);
   activeFilterRef.current = activeFilter;
 
@@ -87,6 +106,31 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     fetchNotifications(activeFilter);
   }, [activeFilter, fetchNotifications]);
+
+  // Synchronize unreadCount in real-time across components (Bell icon, Sidebar badge, Notifications page)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleCountChanged = (e: any) => {
+      if (typeof e.detail === 'number') {
+        setUnreadCount(e.detail);
+      }
+    };
+
+    const handleNotificationUpdated = () => {
+      if (fetchNotificationsRef.current) {
+        fetchNotificationsRef.current();
+      }
+    };
+
+    window.addEventListener('notification-count-changed', handleCountChanged);
+    window.addEventListener('notification-updated', handleNotificationUpdated);
+
+    return () => {
+      window.removeEventListener('notification-count-changed', handleCountChanged);
+      window.removeEventListener('notification-updated', handleNotificationUpdated);
+    };
+  }, []);
 
   // SINGLETON SSE LIFECYCLE: Exactly 1 EventSource connection across the entire application
   useEffect(() => {

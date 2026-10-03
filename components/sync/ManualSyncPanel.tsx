@@ -136,13 +136,20 @@ export function ManualSyncPanel() {
       </div>
 
       {result && (
-        <div className={`px-6 py-4 text-sm font-bold ${
-          result.type === 'success'
-            ? 'bg-green-50 text-green-800 border-t border-green-200'
-            : result.type === 'warning'
-            ? 'bg-amber-50 text-amber-900 border-t border-amber-200'
-            : 'bg-red-50 text-red-800 border-t border-red-200'
-        }`}>
+        <div
+          className={`px-6 py-4 text-sm font-bold border-t ${
+            result.type === 'warning'
+              ? 'bg-amber-50 text-amber-900 border-amber-200'
+              : result.type === 'error'
+              ? 'bg-red-50 text-red-800 border-red-200'
+              : ''
+          }`}
+          style={result.type === 'success' ? {
+            background: 'var(--color-primary-light)',
+            color: 'var(--color-primary-dark)',
+            borderColor: 'var(--border-color)',
+          } : {}}
+        >
           {result.message}
         </div>
       )}

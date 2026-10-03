@@ -21,6 +21,18 @@ export interface NotificationQueryOptions {
   offset?: number;
 }
 
+// Concurrency anti-duplicate lock: prevents race conditions when parallel webhooks/workers fire within milliseconds
+const pendingNotificationLocks = new Map<string, number>();
+
+function cleanExpiredLocks() {
+  const now = Date.now();
+  for (const [key, timestamp] of pendingNotificationLocks.entries()) {
+    if (now - timestamp > 30000) {
+      pendingNotificationLocks.delete(key);
+    }
+  }
+}
+
 /**
  * Main backend service for handling persistent store notifications.
  */
@@ -41,6 +53,20 @@ export async function createNotification(params: CreateNotificationParams) {
     console.warn('[NotificationService] Missing recipientStoreId, skipping notification.');
     return null;
   }
+
+  // Check in-flight deduplication lock to stop instant race conditions (< 15 seconds)
+  cleanExpiredLocks();
+  const cleanId = productId ? productId.replace(/^gid:\/\/shopify\/(Product|Variant)\//, '').trim() : '';
+  const dedupeKey = `${recipientStoreId}:${type}:${cleanId || productTitle || message}`;
+  const now = Date.now();
+  if (pendingNotificationLocks.has(dedupeKey)) {
+    const lockTime = pendingNotificationLocks.get(dedupeKey)!;
+    if (now - lockTime < 15000) {
+      console.log(`[NotificationService] Concurrency lock active for ${dedupeKey}. Skipping duplicate.`);
+      return null;
+    }
+  }
+  pendingNotificationLocks.set(dedupeKey, now);
 
   try {
     // 1. Fetch recipient store & settings

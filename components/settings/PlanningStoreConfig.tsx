@@ -12,6 +12,7 @@ export interface StorePlanningSetting {
   label: string;
   shopDomain: string;
   isMaster: boolean;
+  isStandalone?: boolean;
   highRiskDays: number;
   forecastPeriodDays: number;
   salesHistoryPeriodDays: number;
@@ -243,9 +244,26 @@ export function PlanningStoreConfig({
                       >
                         MASTER
                       </span>
+                    ) : store.isStandalone ? (
+                      <span
+                        className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border shadow-2xs"
+                        style={{
+                          backgroundColor: 'var(--theme-surface-2, #e2e8f0)',
+                          color: 'var(--theme-text-muted, #64748b)',
+                          borderColor: 'var(--theme-border, #cbd5e1)',
+                        }}
+                      >
+                        STANDALONE
+                      </span>
                     ) : (
                       <span 
-                        className="px-2.5 py-0.5 rounded-full text-[10px] font-bold border bg-gray-50 text-gray-700 border-gray-200"
+                        className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border shadow-2xs"
+                        style={{
+                          backgroundColor: 'var(--color-primary-light)',
+                          color: 'var(--color-primary)',
+                          borderColor: 'var(--theme-border-accent)',
+                          opacity: 0.8,
+                        }}
                       >
                         CONNECTED
                       </span>

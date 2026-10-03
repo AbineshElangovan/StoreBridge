@@ -45,7 +45,13 @@ export async function updateLocalProductCache(shopDomain: string, payload: any, 
         },
       });
 
-      const newImageUrl = payload.image?.src || payload.images?.[0]?.src || null;
+      const newImageUrl = payload.image?.src 
+        || payload.images?.[0]?.src 
+        || payload.image?.url 
+        || payload.featuredImage?.url 
+        || payload.images?.edges?.[0]?.node?.url 
+        || payload.images?.nodes?.[0]?.url 
+        || null;
 
       const existingCache = await prisma.productCache.findUnique({
         where: {
@@ -55,6 +61,17 @@ export async function updateLocalProductCache(shopDomain: string, payload: any, 
           },
         },
       });
+
+      let resolvedImageUrl = newImageUrl || existingCache?.imageUrl || null;
+      if (!resolvedImageUrl) {
+        const sibling = await prisma.productCache.findFirst({
+          where: { storeId: store.id, shopifyProductId, imageUrl: { not: null } },
+          select: { imageUrl: true }
+        });
+        if (sibling?.imageUrl) {
+          resolvedImageUrl = sibling.imageUrl;
+        }
+      }
 
       const parsedPrice = parseFloat(variant.price || "0");
       
@@ -88,7 +105,7 @@ export async function updateLocalProductCache(shopDomain: string, payload: any, 
             sku: finalSku,
             title: fullTitle,
             tags: productTags,
-            imageUrl: newImageUrl,
+            imageUrl: resolvedImageUrl,
             inventoryQuantity: trueInventory,
             price: parsedPrice,
             basePrice: parsedBasePrice,
@@ -100,7 +117,7 @@ export async function updateLocalProductCache(shopDomain: string, payload: any, 
           existingCache.price !== parsedPrice ||
           existingCache.basePrice !== parsedBasePrice ||
           existingCache.tags !== productTags ||
-          (newImageUrl !== null && existingCache.imageUrl !== newImageUrl);
+          (resolvedImageUrl !== null && existingCache.imageUrl !== resolvedImageUrl);
 
         if (needsUpdate) {
           await prisma.productCache.update({
@@ -109,7 +126,7 @@ export async function updateLocalProductCache(shopDomain: string, payload: any, 
               sku: finalSku,
               title: fullTitle,
               tags: productTags,
-              ...(newImageUrl !== null ? { imageUrl: newImageUrl } : {}),
+              ...(resolvedImageUrl !== null ? { imageUrl: resolvedImageUrl } : {}),
               shopifyProductId,
               price: parsedPrice,
               basePrice: parsedBasePrice,

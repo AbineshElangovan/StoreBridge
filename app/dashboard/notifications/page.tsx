@@ -189,10 +189,13 @@ export default function NotificationsPage() {
     };
   }, [loadNotifications]);
 
-  // Dispatch custom window event so Bell icon synchronizes dynamically
-  const notifyBellUpdate = () => {
+  // Dispatch custom window event so Bell icon and Sidebar synchronize dynamically
+  const notifyBellUpdate = (newCount?: number) => {
     if (typeof window !== 'undefined') {
       isLocalActionRef.current = true;
+      if (typeof newCount === 'number') {
+        window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: newCount }));
+      }
       window.dispatchEvent(new CustomEvent('notification-updated'));
       setTimeout(() => {
         isLocalActionRef.current = false;
@@ -207,8 +210,11 @@ export default function NotificationsPage() {
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
       );
-      setUnreadCount((prev) => Math.max(0, prev - 1));
-      notifyBellUpdate();
+      setUnreadCount((prev) => {
+        const next = Math.max(0, prev - 1);
+        notifyBellUpdate(next);
+        return next;
+      });
 
       await shopifyFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
     } catch (err) {
@@ -222,7 +228,7 @@ export default function NotificationsPage() {
     try {
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
-      notifyBellUpdate();
+      notifyBellUpdate(0);
 
       const res = await shopifyFetch('/api/notifications', {
         method: 'PUT',
@@ -342,7 +348,7 @@ export default function NotificationsPage() {
           <button
             type="button"
             onClick={loadNotifications}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 transition-colors cursor-pointer shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-[var(--color-primary-dark,#022c22)] bg-[var(--color-primary-light,#d1fae5)]/60 hover:bg-[var(--color-primary-light,#d1fae5)] border border-[var(--border-color,#34d399)]/50 transition-colors cursor-pointer shadow-2xs"
           >
             <div style={{ width: 14, height: 14 }}>
               <RefreshIcon />
@@ -353,7 +359,7 @@ export default function NotificationsPage() {
           <button
             type="button"
             onClick={() => setIsPreferencesOpen(true)}
-            className="notification-pref-btn inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-[var(--color-primary,#0db69d)] hover:bg-[var(--color-primary-hover,#0b9c86)] transition-colors cursor-pointer shadow-xs"
+            className="notification-pref-btn inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-[var(--color-primary,#047857)] hover:bg-[var(--color-primary-dark,#022c22)] transition-colors cursor-pointer shadow-xs"
           >
             <div style={{ width: 14, height: 14 }} className="text-white fill-white [&_svg]:fill-white [&_path]:fill-white flex items-center justify-center shrink-0">
               <Icon source={SettingsIcon} tone="inherit" />

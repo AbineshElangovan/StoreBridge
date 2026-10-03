@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { Icon } from '@shopify/polaris';
+import { XIcon } from '@shopify/polaris-icons';
 import { Input } from '@/components/forms';
 import { useRouter } from 'next/navigation';
 import { shopifyFetch } from '@/lib/shopify/Client';
@@ -180,9 +182,10 @@ export default function PriceAdjustmentPage() {
           <span className="truncate">{toastMessage.message}</span>
           <button
             onClick={() => setToastMessage(null)}
-            className="bg-transparent border-none text-white cursor-pointer ml-2 text-sm opacity-80 hover:opacity-100 shrink-0"
+            className="bg-transparent border-none text-white cursor-pointer ml-2 opacity-80 hover:opacity-100 shrink-0 p-0.5 flex items-center justify-center"
+            title="Dismiss"
           >
-            ✕
+            <span className="w-3.5 h-3.5 flex items-center text-white"><Icon source={XIcon} tone="inherit" /></span>
           </button>
         </div>
       )}

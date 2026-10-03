@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { Icon } from '@shopify/polaris';
+import { CheckIcon } from '@shopify/polaris-icons';
 import { useTheme, LIGHT_THEMES, WallpaperTheme } from '@/components/providers/ThemeContext';
 
 interface ThemeMergePalette {
@@ -339,10 +341,12 @@ export function ThemeSwitcher() {
                   <div className="flex items-center gap-2 flex-shrink-0 ml-1">
                     {isSelected ? (
                       <div
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-2xs"
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-white shadow-2xs"
                         style={{ backgroundColor: item.primaryColor }}
                       >
-                        ✓
+                        <span className="w-3.5 h-3.5 flex items-center justify-center text-white">
+                          <Icon source={CheckIcon} tone="inherit" />
+                        </span>
                       </div>
                     ) : (
                       <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">

@@ -202,6 +202,15 @@ async function handleProductsCreate(shop: string, payload: any, webhookId: strin
 
   if (!store) return;
 
+  // Loop prevention: check if this is an internally triggered sync creation
+  const productGid = `gid://shopify/Product/${payload.id}`;
+  if (hasSyncLock(shop, productGid, payload.title)) {
+    console.log(`[Worker:products/create] Ignored internally triggered creation to prevent infinite loop for ${shop} (Product: ${payload.title})`);
+    releaseSyncLock(shop, productGid, payload.title);
+    await updateLocalProductCache(shop, payload);
+    return;
+  }
+
   const isStandalone = !store.isMaster &&
     (await prisma.storeConnection.count({
       where: {
@@ -220,7 +229,7 @@ async function handleProductsCreate(shop: string, payload: any, webhookId: strin
     const collectionStr = payload.collections?.map((c: any) => c.title).join(', ') || null;
 
     // Create ActivityLog for this store (with deduplication)
-    const imgUrl = payload.image?.src || payload.images?.[0]?.src || null;
+    const imgUrl = payload.image?.src || payload.images?.[0]?.src || payload.featuredImage?.url || null;
     const existingLog = await prisma.activityLog.findFirst({
       where: {
         storeId: store.id,
@@ -273,14 +282,6 @@ async function handleProductsCreate(shop: string, payload: any, webhookId: strin
         });
       }
     }
-    return;
-  }
-
-  // Loop prevention: check if this is an internally triggered sync creation
-  const productGid = `gid://shopify/Product/${payload.id}`;
-  if (hasSyncLock(shop, productGid, payload.title)) {
-    console.log(`[Worker:products/create] Ignored internally triggered creation to prevent infinite loop for ${shop} (Product: ${payload.title})`);
-    releaseSyncLock(shop, productGid, payload.title);
     return;
   }
 
@@ -366,7 +367,6 @@ async function handleProductsCreate(shop: string, payload: any, webhookId: strin
           }
         });
       }
-
       // Create notification for Product Created (for current store always, plus Master if connected)
       await createNotification({
         recipientStoreId: storeRecord.id,
@@ -378,6 +378,7 @@ async function handleProductsCreate(shop: string, payload: any, webhookId: strin
         sourceStoreId: storeRecord.id,
         targetStoreId: storeRecord.id,
       });
+
     }
   });
 }
@@ -414,6 +415,24 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
     return;
   }
 
+  const productGid = `gid://shopify/Product/${payload.id}`;
+
+  // Loop prevention 1: check if this is an internally triggered price adjustment
+  if (hasSyncLock(shop, productGid, 'PRICE_ADJUSTMENT')) {
+    console.log(`[Worker:products/update] Suppressing webhook echo from price adjustment for ${shop} (Product: ${payload.title})`);
+    releaseSyncLock(shop, productGid, 'PRICE_ADJUSTMENT');
+    await updateLocalProductCache(shop, payload, 'products/update');
+    return;
+  }
+
+  // Loop prevention 2: check if this is an internally triggered sync update
+  if (hasSyncLock(shop, productGid, payload.title)) {
+    console.log(`[Worker:products/update] Ignored internally triggered update to prevent infinite loop for ${shop} (Product: ${payload.title})`);
+    releaseSyncLock(shop, productGid, payload.title);
+    await updateLocalProductCache(shop, payload, 'products/update');
+    return;
+  }
+
   if (!store.isMaster) {
     console.log(`[Worker:products/update] Processing ${isStandalone ? 'Standalone' : 'Sub'} Store catalog update: ${shop}`);
 
@@ -442,7 +461,7 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
 
     // Create ActivityLog ONLY when metadata actually changes
     const sku = payload.variants?.[0]?.sku || null;
-    const imgUrl = payload.image?.src || payload.images?.[0]?.src || productCaches[0]?.imageUrl || null;
+    const imgUrl = payload.image?.src || payload.images?.[0]?.src || payload.featuredImage?.url || productCaches[0]?.imageUrl || null;
     const existingLog = await prisma.activityLog.findFirst({
       where: {
         storeId: store.id,
@@ -504,14 +523,6 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
         });
       }
     }
-    return;
-  }
-
-  // Loop prevention: check if this is an internally triggered sync update
-  const productGid = `gid://shopify/Product/${payload.id}`;
-  if (hasSyncLock(shop, productGid, payload.title)) {
-    console.log(`[Worker:products/update] Ignored internally triggered update to prevent infinite loop for ${shop} (Product: ${payload.title})`);
-    releaseSyncLock(shop, productGid, payload.title);
     return;
   }
 
@@ -582,7 +593,7 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
           activityDesc = `Title updated: ${currentPayload.title}`;
         }
 
-        const imgUrl = currentPayload.image?.src || currentPayload.images?.[0]?.src || productCache?.imageUrl || null;
+        const imgUrl = currentPayload.image?.src || currentPayload.images?.[0]?.src || currentPayload.featuredImage?.url || productCache?.imageUrl || null;
         const existingLog = await prisma.activityLog.findFirst({
           where: {
             storeId: storeRecord.id,
@@ -612,17 +623,6 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
             type: 'PRICE_UPDATE',
             title: 'Price Update',
             message: `${currentPayload.title} price updated: ₹${oldPrice} → ₹${newPrice}`,
-            productId: String(currentPayload.id),
-            productTitle: currentPayload.title,
-            sourceStoreId: storeRecord.id,
-            targetStoreId: storeRecord.id,
-          });
-        } else {
-          await createNotification({
-            recipientStoreId: storeRecord.id,
-            type: 'PRODUCT_UPDATED',
-            title: 'Product Updated',
-            message: `${currentPayload.title} was updated`,
             productId: String(currentPayload.id),
             productTitle: currentPayload.title,
             sourceStoreId: storeRecord.id,
@@ -706,7 +706,7 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
     });
 
     // Create ActivityLog for DELETE (with deduplication & imageUrl)
-    const imgUrl = cacheForLog?.imageUrl || payload.image?.src || payload.images?.[0]?.src || null;
+    const imgUrl = cacheForLog?.imageUrl || payload.image?.src || payload.images?.[0]?.src || payload.featuredImage?.url || null;
     const existingLog = await prisma.activityLog.findFirst({
       where: {
         storeId: store.id,
@@ -806,7 +806,7 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
   const collectionStr = cacheForLog?.collections?.map((c: any) => c.collection.title).join(', ') || null;
 
   if (store) {
-    const imgUrl = cacheForLog?.imageUrl || payload.image?.src || payload.images?.[0]?.src || null;
+    const imgUrl = cacheForLog?.imageUrl || payload.image?.src || payload.images?.[0]?.src || payload.featuredImage?.url || null;
     const existingLog = await prisma.activityLog.findFirst({
       where: {
         storeId: store.id,

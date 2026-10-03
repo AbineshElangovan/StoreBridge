@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect } from 'react';
+import { Icon } from '@shopify/polaris';
+import { XIcon } from '@shopify/polaris-icons';
 
 export interface ToastProps {
   content: string;
@@ -61,14 +63,19 @@ export function Toast({
           color: '#ffffff',
           cursor: 'pointer',
           marginLeft: '8px',
-          fontSize: '14px',
           opacity: 0.85,
-          lineHeight: 1,
           padding: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '16px',
+          height: '16px',
         }}
         aria-label="Close"
       >
-        ✕
+        <span style={{ width: '14px', height: '14px', display: 'flex', alignItems: 'center' }}>
+          <Icon source={XIcon} tone="inherit" />
+        </span>
       </button>
     </div>
   );

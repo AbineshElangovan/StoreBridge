@@ -1,5 +1,7 @@
 "use client";
 import React, { useState } from "react";
+import { Icon } from "@shopify/polaris";
+import { XIcon } from "@shopify/polaris-icons";
 
 export interface ExistingVariantItem {
   id: string;
@@ -80,9 +82,10 @@ export function ExistingVariantsManager({
             <button
               type="button"
               onClick={() => setSearchTerm("")}
-              className="absolute right-2.5 top-1.5 text-gray-400 hover:text-gray-600 font-bold text-xs"
+              className="absolute right-2.5 top-1.5 text-gray-400 hover:text-gray-600 flex items-center justify-center p-0.5 cursor-pointer"
+              title="Clear search"
             >
-              ✕
+              <span className="w-3 h-3 flex items-center"><Icon source={XIcon} tone="subdued" /></span>
             </button>
           )}
         </div>

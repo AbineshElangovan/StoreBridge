@@ -16,10 +16,9 @@ interface StoreSelectorProps {
 export function StoreSelector({ masterStore, connections, selectedStores, onToggleStore }: StoreSelectorProps) {
   return (
     <div className="flex flex-col md:flex-row gap-6 mb-6">
-      <div className="w-full md:w-1/3 lg:w-1/4 bg-green-50 p-6 rounded-lg border border-green-100 flex flex-col justify-center">
+      <div className="w-full md:w-1/3 lg:w-1/4 p-6 rounded-lg border flex flex-col justify-center" style={{ background: 'var(--color-primary-light)', borderColor: 'var(--border-color)' }}>
         <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">SOURCE</h4>
-        <p className="text-sm font-bold text-green-900">{masterStore.label || masterStore.shopDomain}</p>
-        <p className="text-xs text-gray-500 truncate mt-1">{masterStore.shopDomain}</p>
+        <p className="text-sm font-bold" style={{ color: 'var(--color-primary)' }}>{masterStore.label || masterStore.shopDomain}</p>
       </div>
       
       <div className="flex-1">
@@ -30,11 +29,12 @@ export function StoreSelector({ masterStore, connections, selectedStores, onTogg
             return (
               <label 
                 key={store.id} 
-                className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${isSelected ? 'border-green-500 bg-green-50/30' : 'border-gray-200 hover:bg-gray-50'}`}
+                className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${isSelected ? '' : 'border-gray-200 hover:bg-gray-50'}`}
+                style={isSelected ? { borderColor: 'var(--color-primary)', background: 'var(--bg-hover, #d1fae5)', opacity: 1 } : {}}
               >
                 <input 
                   type="checkbox" 
-                  className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                  className="h-4 w-4 border-gray-300 rounded" style={{ accentColor: 'var(--color-primary)' }}
                   checked={isSelected}
                   onChange={() => onToggleStore(store.id)}
                 />

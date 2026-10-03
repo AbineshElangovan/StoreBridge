@@ -16,11 +16,12 @@ export function DataSyncSelector({ options, selectedOptions, onToggleOption }: D
           return (
             <label 
               key={option.id} 
-              className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${isSelected ? 'border-green-500 bg-green-50/30' : 'border-gray-200 hover:bg-gray-50'}`}
+              className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${isSelected ? '' : 'border-gray-200 hover:bg-gray-50'}`}
+              style={isSelected ? { borderColor: 'var(--color-primary)', background: 'var(--bg-hover)' } : {}}
             >
               <input 
                 type="checkbox" 
-                className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                className="h-4 w-4 border-gray-300 rounded" style={{ accentColor: 'var(--color-primary)' }}
                 checked={isSelected}
                 onChange={() => onToggleOption(option.id)}
               />

@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
+import { Icon } from '@shopify/polaris';
+import { XIcon } from '@shopify/polaris-icons';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import { ConfirmToast } from '@/components/ui/ConfirmToast';
 import { useStoreContext } from '@/components/providers/StoreProvider';
@@ -157,7 +159,9 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
             <span className="font-bold block">Save Error</span>
             <span>{saveError}</span>
           </div>
-          <button type="button" onClick={() => setSaveError(null)} className="text-rose-500 hover:text-rose-700 font-bold">✕</button>
+          <button type="button" onClick={() => setSaveError(null)} className="text-rose-500 hover:text-rose-700 p-0.5 flex items-center justify-center cursor-pointer" title="Dismiss error">
+            <span className="w-3.5 h-3.5 flex items-center"><Icon source={XIcon} tone="inherit" /></span>
+          </button>
         </div>
       )}
 

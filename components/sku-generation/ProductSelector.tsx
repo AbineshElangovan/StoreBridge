@@ -1,5 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
+import { Icon } from "@shopify/polaris";
+import { XIcon } from "@shopify/polaris-icons";
 import { shopifyFetch } from "@/lib/shopify/Client";
 
 export interface ProductItem {
@@ -197,9 +199,10 @@ export function ProductSelector({ selectedProductId, onSelectProduct, disabled, 
                   <button
                     type="button"
                     onClick={() => setSearchTerm("")}
-                    className="text-gray-400 hover:text-gray-600 text-xs font-bold px-1"
+                    className="text-gray-400 hover:text-gray-600 p-0.5 flex items-center justify-center cursor-pointer"
+                    title="Clear search"
                   >
-                    ✕
+                    <span className="w-3 h-3 flex items-center"><Icon source={XIcon} tone="subdued" /></span>
                   </button>
                 )}
               </div>

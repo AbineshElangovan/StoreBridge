@@ -30,7 +30,14 @@ export function StoreRoleBadge() {
 
   if (isStandalone) {
     return (
-      <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-extrabold bg-slate-800 text-white uppercase tracking-wider shadow-2xs border border-slate-900 transition-all">
+      <span
+        className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-wider shadow-2xs transition-all"
+        style={{
+          backgroundColor: 'var(--theme-surface-2, #1e293b)',
+          color: 'var(--theme-text-muted, #cbd5e1)',
+          border: '1px solid var(--theme-border, #334155)',
+        }}
+      >
         <span>STANDALONE</span>
         <span className="opacity-80 font-semibold text-[11px]">• {storeName}</span>
       </span>
@@ -38,7 +45,14 @@ export function StoreRoleBadge() {
   }
 
   return (
-    <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-extrabold bg-indigo-900 text-white uppercase tracking-wider shadow-2xs border border-indigo-950 transition-all">
+    <span
+      className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-wider shadow-2xs transition-all"
+      style={{
+        backgroundColor: 'var(--color-primary-light)',
+        color: 'var(--color-primary)',
+        border: '1px solid var(--theme-border-accent)',
+      }}
+    >
       <span>CONNECTED</span>
       <span className="opacity-80 font-semibold text-[11px]">• {storeName}</span>
     </span>

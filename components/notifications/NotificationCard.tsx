@@ -21,6 +21,7 @@ import {
   CartIcon,
   StoreIcon,
   ProductIcon,
+  XIcon,
 } from '@shopify/polaris-icons';
 
 export interface NotificationItem {
@@ -171,7 +172,7 @@ export function NotificationCard({
               />
             </div>
           ) : (
-            <div className="w-12 h-12 rounded-lg bg-teal-50/50 flex-shrink-0 border border-teal-100 flex items-center justify-center text-teal-600">
+            <div className="w-12 h-12 rounded-lg bg-[var(--color-primary-light,#d1fae5)]/40 flex-shrink-0 border border-[var(--border-color,#34d399)]/40 flex items-center justify-center text-[var(--color-primary,#047857)]">
               <div style={{ width: 22, height: 22 }}>
                 <Icon source={badgeInfo.iconSource} />
               </div>
@@ -200,7 +201,7 @@ export function NotificationCard({
                   type="button"
                   onClick={() => handleSyncAction('ACCEPT')}
                   disabled={isSyncing}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#0db69d] hover:bg-[#0b9c86] shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[var(--color-primary,#047857)] hover:bg-[var(--color-primary-dark,#022c22)] shadow-2xs transition-all cursor-pointer disabled:opacity-50"
                 >
                   {isSyncing ? 'Syncing...' : 'Yes, Sync'}
                 </button>
@@ -215,14 +216,16 @@ export function NotificationCard({
               </div>
             ) : syncStatus === 'ACCEPTED' ? (
               <div className="mt-2">
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                  ✓ Synced to store
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                  <span className="w-3.5 h-3.5 flex items-center"><Icon source={CheckIcon} tone="success" /></span>
+                  Synced to store
                 </span>
               </div>
             ) : syncStatus === 'DECLINED' ? (
               <div className="mt-2">
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 bg-gray-100 border border-gray-200 px-2.5 py-0.5 rounded-full">
-                  ✕ Sync skipped
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-gray-500 bg-gray-100 border border-gray-200 px-2.5 py-0.5 rounded-full">
+                  <span className="w-3.5 h-3.5 flex items-center"><Icon source={XIcon} tone="subdued" /></span>
+                  Sync skipped
                 </span>
               </div>
             ) : null}
@@ -241,7 +244,7 @@ export function NotificationCard({
                 <button
                   type="button"
                   onClick={() => onMarkAsRead(item.id)}
-                  className="inline-flex items-center gap-1 text-xs font-bold text-[#0db69d] hover:text-[#0b9c86] transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1 text-xs font-bold text-[var(--color-primary,#047857)] hover:text-[var(--color-primary-dark,#022c22)] transition-colors cursor-pointer"
                 >
                   <div style={{ width: 14, height: 14 }}>
                     <CheckIcon />

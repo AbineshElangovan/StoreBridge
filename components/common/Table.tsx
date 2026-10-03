@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useMemo } from 'react';
-import { Badge, Text } from '@shopify/polaris';
+import { Badge, Text, Icon } from '@shopify/polaris';
+import { XIcon } from '@shopify/polaris-icons';
 import { CustomSelect } from './CustomSelect';
 import { useTheme } from '@/components/providers/ThemeContext';
 
@@ -86,8 +87,13 @@ function SearchInput({ value, onChange, placeholder }: { value: string; onChange
       {value && (
         <button
           onClick={() => onChange('')}
-          className="absolute right-2 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer text-gray-400 p-0.5 leading-none"
-        >✕</button>
+          className="absolute right-2 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer text-gray-400 p-0.5 leading-none flex items-center justify-center"
+          title="Clear search"
+        >
+          <span className="w-3.5 h-3.5 flex items-center">
+            <Icon source={XIcon} tone="subdued" />
+          </span>
+        </button>
       )}
     </div>
   );

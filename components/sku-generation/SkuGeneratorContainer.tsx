@@ -1,5 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { Icon } from "@shopify/polaris";
+import { XIcon } from "@shopify/polaris-icons";
 import { shopifyFetch } from "@/lib/shopify/Client";
 import { VariantOptionInput } from "@/services/sku/variant-combinations";
 import { SkuPreviewResponse } from "@/services/sku/sku-preview-service";
@@ -175,8 +177,8 @@ export function SkuGeneratorContainer() {
           }`}
         >
           <span>{toast.message}</span>
-          <button type="button" onClick={() => setToast(null)} className="text-gray-500 hover:text-gray-800 font-bold ml-2">
-            ✕
+          <button type="button" onClick={() => setToast(null)} className="text-gray-500 hover:text-gray-800 ml-2 p-0.5 flex items-center justify-center cursor-pointer" title="Dismiss">
+            <span className="w-3.5 h-3.5 flex items-center"><Icon source={XIcon} tone="subdued" /></span>
           </button>
         </div>
       )}

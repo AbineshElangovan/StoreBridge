@@ -57,7 +57,7 @@ export function TableFilter({
             placeholder={searchPlaceholder}
             value={localSearch}
             onChange={(e) => setLocalSearch(e.target.value)}
-            className="pl-9 pr-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 w-full sm:w-64"
+            className="pl-9 pr-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm focus:outline-none focus:ring-1 w-full sm:w-64" style={{ '--tw-ring-color': 'var(--color-primary)' } as React.CSSProperties}
           />
         </div>
       )}
@@ -66,7 +66,7 @@ export function TableFilter({
         <select
           value={statusFilter}
           onChange={(e) => onStatusChange(e.target.value)}
-          className="py-2 pl-3 pr-8 border border-gray-300 rounded-md shadow-sm text-sm focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 bg-white"
+          className="py-2 pl-3 pr-8 border border-gray-300 rounded-md shadow-sm text-sm focus:outline-none focus:ring-1 bg-white" style={{ '--tw-ring-color': 'var(--color-primary)' } as React.CSSProperties}
         >
           {statusOptions.map(option => (
             <option key={option.value} value={option.value}>

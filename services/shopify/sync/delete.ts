@@ -98,7 +98,7 @@ export async function processProductDelete(shopDomain: string, payload: any, web
           where: { storeId: targetStore.id, productUniqueId: masterMapping.productUniqueId }
         });
         if (targetMapping) {
-          console.log(`[ProductSync:Delete] ✅ Found target product via Unique ID mapping in ${targetStore.shopDomain}.`);
+          console.log(`[ProductSync:Delete] Found target product via Unique ID mapping in ${targetStore.shopDomain}.`);
           targetProductId = targetMapping.shopifyProductId;
           targetMappingId = targetMapping.id;
         }
@@ -110,7 +110,7 @@ export async function processProductDelete(shopDomain: string, payload: any, web
            where: { storeId: targetStore.id, sku: { in: skus } }
          });
          if (targetMapping) {
-           console.log(`[ProductSync:Delete] 🛠️ Found target product via SKU mapping in ${targetStore.shopDomain}.`);
+           console.log(`[ProductSync:Delete] Found target product via SKU mapping in ${targetStore.shopDomain}.`);
            targetProductId = targetMapping.shopifyProductId;
            targetMappingId = targetMapping.id;
          }

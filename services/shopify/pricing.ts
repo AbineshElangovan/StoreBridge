@@ -12,6 +12,7 @@ import {
 } from './graphql';
 import { syncProductCollectionsByTags } from './collection-sync';
 import { normalizeTagOrCollection } from '@/lib/utils/categoryNormalization';
+import { acquireSyncLock } from './locks';
 
 export async function calculateAdjustedPrice(
   sourceBasePrice: number, 
@@ -302,6 +303,7 @@ export async function applyPriceAdjustmentToStore(storeId: string) {
     try {
       const client = await getAdminClient(targetStore.shopDomain);
       for (const item of productUpdatesToProcess) {
+        acquireSyncLock(targetStore.shopDomain, item.productId, 'PRICE_ADJUSTMENT');
         try {
           const response: any = await client.request(`
             mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {

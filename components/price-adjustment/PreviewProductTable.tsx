@@ -1,4 +1,5 @@
 import React from "react";
+import { useRouter } from "next/navigation";
 import { Table, ColumnConfig } from "@/components/common/Table";
 import { PreviewTableRow } from "@/services/price-adjustment/price-adjustment-preview-service";
 import { useTheme } from "@/components/providers/ThemeContext";
@@ -16,6 +17,7 @@ interface PreviewProductTableProps {
 }
 
 export function PreviewProductTable({ rows, isSaving }: PreviewProductTableProps) {
+  const router = useRouter();
   const { currentTheme } = useTheme();
   const primaryColor = currentTheme?.primaryColor || '#047857';
   const accentColor = currentTheme?.accentColor || '#d1fae5';
@@ -32,7 +34,7 @@ export function PreviewProductTable({ rows, isSaving }: PreviewProductTableProps
 
   const columns: ColumnConfig[] = [
     { title: "IMAGE", key: "imageUrl", type: "image", width: "65px", align: "center" },
-    { title: "PRODUCT NAME", key: "productTitle", type: "bold", width: "240px", align: "left" },
+    { title: "PRODUCT NAME", key: "productTitle_node", type: "react_node", width: "240px", align: "left" },
     { title: "SKU", key: "sku_node", type: "react_node", width: "160px", align: "center" },
     { title: "COLLECTION NAME", key: "collection_node", type: "react_node", width: "170px", align: "center" },
     { title: "OLD PRICE", key: "old_price_node", type: "react_node", align: "right", width: "110px" },
@@ -47,9 +49,29 @@ export function PreviewProductTable({ rows, isSaving }: PreviewProductTableProps
     const isIncreased = typeof row.adjustedPrice === 'number' && row.adjustedPrice > row.currentPrice;
     const isDecreased = typeof row.adjustedPrice === 'number' && row.adjustedPrice < row.currentPrice;
 
+    // Extract numeric Shopify product ID from GID (e.g. "gid://shopify/Product/123" → "123")
+    const numericProductId = row.shopifyProductId?.split('/').pop() || row.productId;
+
     return {
       ...row,
       imageUrl: row.imageUrl || "",
+      productTitle_node: (() => {
+        let btnEl: HTMLButtonElement | null = null;
+        return (
+          <button
+            type="button"
+            ref={(el) => { btnEl = el; }}
+            onClick={() => router.push(`/products/${numericProductId}`)}
+            onMouseEnter={() => { if (btnEl) { btnEl.style.color = darkColor; btnEl.style.textDecoration = 'underline'; } }}
+            onMouseLeave={() => { if (btnEl) { btnEl.style.color = primaryColor; btnEl.style.textDecoration = 'none'; } }}
+            className="text-left font-bold text-sm transition-all cursor-pointer bg-transparent border-none p-0"
+            style={{ color: primaryColor }}
+            title={`View ${row.productTitle} details`}
+          >
+            {row.productTitle}
+          </button>
+        );
+      })(),
       sku_node: row.sku ? (
         <span className="px-2.5 py-1 font-mono text-xs font-bold bg-gray-100 text-gray-800 border border-gray-200 rounded-md whitespace-nowrap inline-block tracking-wide shadow-2xs">
           {row.sku}

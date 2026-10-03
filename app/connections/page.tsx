@@ -15,7 +15,7 @@ import { shopifyFetch } from '@/lib/shopify/Client';
 import { useRouter } from 'next/navigation';
 import { LocalizedDate } from '@/components/common/LocalizedDate';
 import { Icon } from '@shopify/polaris';
-import { DeleteIcon, AlertTriangleIcon } from '@shopify/polaris-icons';
+import { DeleteIcon, AlertTriangleIcon, ArchiveIcon, RefreshIcon, ShieldCheckMarkIcon, XIcon } from '@shopify/polaris-icons';
 import { TableCard } from '@/components/ui/TableCard';
 import { ThemedSection } from '@/components/ui/ThemedSection';
 import { StoreRoleBadge } from '@/components/ui/StoreRoleBadge';
@@ -128,7 +128,7 @@ export default function ConnectionsPage() {
         setToastMessage({ message: 'Store connected successfully! Starting initial sync...', type: 'success' });
         setStoreIdInput('');
         fetchData();
-        
+
         // Auto-trigger sync
         setSyncing(true);
         try {
@@ -299,11 +299,11 @@ export default function ConnectionsPage() {
 
       {!isMaster && currentStoreUniqueId && (
         <div className="mb-6 sm:mb-8 p-4 sm:p-6 bg-white border border-primary-200 rounded-2xl shadow-sm text-center">
-          <h2 className="text-base sm:text-lg font-semibold text-slate-900 mb-2">Connect to a Master Store</h2>
-          <p className="text-xs sm:text-sm text-slate-500 mb-4">Provide this Unique Store ID to your Master Store administrator to link this catalog.</p>
+          <h2 className="text-base sm:text-lg font-semibold text-slate-900 mb-2">Unique Store ID</h2>
+          <p className="text-xs sm:text-sm text-slate-500 mb-4">Provide this Unique Store ID to link this catalog with a Master Store.</p>
           <div className="inline-flex items-center gap-3 bg-slate-50 border border-slate-200 px-3 sm:px-4 py-2 rounded-lg max-w-full truncate">
             <span className="font-mono text-base sm:text-lg text-primary-DEFAULT font-bold truncate">{currentStoreUniqueId}</span>
-            <button 
+            <button
               onClick={() => { navigator.clipboard.writeText(currentStoreUniqueId); setToastMessage({ message: 'Copied!', type: 'success' }); }}
               className="text-slate-400 hover:text-primary-DEFAULT transition-colors shrink-0"
             >
@@ -314,56 +314,57 @@ export default function ConnectionsPage() {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
-          
-          {/* Render Master Store */}
-          {installedStores.filter(s => s.isMaster || s.id === installedStores.find(i=>i.isMaster)?.id).map(master => {
-            const currency = 'INR';
-            const region = 'India';
-            const plan = '-';
-            const productCount = storeData?.productCount || 0;
-            const lastSync = master.updatedAt || storeData?.updatedAt;
 
-            return (
-             <div key="master" className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 flex flex-col">
-           <div className="flex justify-between items-start mb-4 gap-2">
-             <div className="min-w-0">
-               <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2 text-slate-900 flex-wrap">
-                 <StoreLogo shopDomain={master.shopDomain} label={master.label} isMaster={true} size="sm" />
-                  <span className="truncate">{master.label || master.shopDomain.split('.')[0]}</span>
-                 <span className="bg-[var(--color-primary-light)] text-[var(--color-primary-dark)] px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 border border-[var(--color-primary)] shrink-0">
-                   <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M2 22h20v-2H2v2zm9-5l5-4 4 4V5c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v12l4-4 5 4z"/></svg>
-                   Master
-                 </span>
-               </h3>
-               <p className="text-slate-500 text-xs sm:text-sm mt-0.5 truncate">{master.shopDomain}</p>
-             </div>
-             <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold shrink-0 ${master.isActive ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-               {master.isActive ? 'healthy' : 'stale'}
-             </span>
-           </div>
- 
-           <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-xs sm:text-sm mb-4 mt-4 sm:mt-6">
-              <div>
-                <p className="text-slate-500 mb-0.5 text-xs">Currency</p>
-                <p className="font-medium text-slate-900">{currency}</p>
+        {/* Render Master Store */}
+        {installedStores.filter(s => s.isMaster || s.id === installedStores.find(i => i.isMaster)?.id).map(master => {
+          const currency = 'INR';
+          const region = 'India';
+          const plan = '-';
+          const productCount = storeData?.productCount || 0;
+          const lastSync = master.updatedAt || storeData?.updatedAt;
+
+          return (
+            <div key="master" className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 flex flex-col">
+              <div className="flex justify-between items-start mb-4 gap-2">
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2 text-slate-900 flex-wrap">
+                    <StoreLogo shopDomain={master.shopDomain} label={master.label} isMaster={true} size="sm" />
+                    <span className="truncate">{master.label || master.shopDomain.split('.')[0]}</span>
+                    <span className="bg-[var(--color-primary-light)] text-[var(--color-primary-dark)] px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 border border-[var(--color-primary)] shrink-0">
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M2 22h20v-2H2v2zm9-5l5-4 4 4V5c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v12l4-4 5 4z" /></svg>
+                      Master
+                    </span>
+                  </h3>
+                  <p className="text-slate-500 text-xs mt-1 truncate">https://{master.shopDomain}</p>
+                </div>
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold shrink-0 ${master.isActive ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                  {master.isActive ? 'healthy' : 'stale'}
+                </span>
               </div>
-              <div>
-                <p className="text-slate-500 mb-0.5 text-xs">Region</p>
-                <p className="font-medium text-slate-900">{region}</p>
-              </div>
-              <div>
-                <p className="text-slate-500 mb-0.5 text-xs">Plan</p>
-                <p className="font-medium text-slate-900">{plan}</p>
-              </div>
-              <div>
-                <p className="text-slate-500 mb-0.5 text-xs">Last sync</p>
-                <p className="font-medium text-slate-900">{timeAgo(lastSync)}</p>
+
+              <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-xs sm:text-sm mb-4 mt-4 sm:mt-6">
+                <div>
+                  <p className="text-slate-500 mb-0.5 text-xs">Currency</p>
+                  <p className="font-medium text-slate-900">{currency}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 mb-0.5 text-xs">Region</p>
+                  <p className="font-medium text-slate-900">{region}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 mb-0.5 text-xs">Plan</p>
+                  <p className="font-medium text-slate-900">{plan}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500 mb-0.5 text-xs">Last sync</p>
+                  <p className="font-medium text-slate-900">{timeAgo(lastSync)}</p>
+                </div>
               </div>
             </div>
-          </div>
-        )})}
+          )
+        })}
 
-        
+
         {/* Render Standalone Stores as Cards */}
         {installedStores
           .filter(s => !s.isMaster && !connections.some(c => c.targetStoreId === s.id))
@@ -378,11 +379,8 @@ export default function ConnectionsPage() {
                 <div className="flex justify-between items-start mb-4 gap-2">
                   <div className="min-w-0">
                     <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2 text-slate-900 flex-wrap">
-                      <StoreLogo shopDomain={standalone.shopDomain} label={standalone.label} isStandalone={true} size="sm" />
+                      <StoreLogo shopDomain={standalone.shopDomain} label={standalone.label} isMaster={false} size="sm" />
                       <span className="truncate">{standalone.label || standalone.shopDomain.split('.')[0]}</span>
-                      <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-xs font-semibold border border-slate-300 shrink-0">
-                        Standalone
-                      </span>
                     </h3>
                     <div className="mt-1 flex flex-col gap-0.5">
                       <p className="text-slate-700 text-xs sm:text-sm font-medium truncate">{standalone.uniqueStoreId || 'N/A'}</p>
@@ -423,58 +421,58 @@ export default function ConnectionsPage() {
             return conn.targetStore.id !== masterId;
           })
           .map((conn, index) => {
-          const store = conn.targetStore;
-          const currency = 'INR';
-          const region = 'India';
-          const plan = '-';
-          const productCount = store.productCount || 0;
-          const lastSync = conn.lastSyncTime;
-          
-          return (
-            <div key={conn.id || `${conn.targetStoreId}-${index}`} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 flex flex-col">
-              <div className="flex justify-between items-start mb-4 gap-2">
-                <div className="min-w-0">
-                  <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2 text-slate-900 flex-wrap">
-                    <StoreLogo shopDomain={store.shopDomain} label={store.label} isMaster={false} size="sm" />
-                    <span className="truncate">{store.label || store.shopDomain.split('.')[0]}</span>
-                    {conn.direction === 'incoming' && (
-                      <span className="bg-[var(--color-primary-light)] text-[var(--color-primary-dark)] px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 border border-[var(--color-primary)] shrink-0">
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 22h20M2 18l4-10 4 6 2-8 2 8 4-6 4 10H2z"/></svg>
-                        Master
-                      </span>
-                    )}
-                  </h3>
-                  <div className="mt-1 flex flex-col gap-0.5">
-                    <p className="text-slate-700 text-xs sm:text-sm font-medium truncate">{store.uniqueStoreId || 'N/A'}</p>
-                    <p className="text-slate-500 text-xs truncate">https://{store.shopDomain}</p>
+            const store = conn.targetStore;
+            const currency = 'INR';
+            const region = 'India';
+            const plan = '-';
+            const productCount = store.productCount || 0;
+            const lastSync = conn.lastSyncTime;
+
+            return (
+              <div key={conn.id || `${conn.targetStoreId}-${index}`} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 flex flex-col">
+                <div className="flex justify-between items-start mb-4 gap-2">
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2 text-slate-900 flex-wrap">
+                      <StoreLogo shopDomain={store.shopDomain} label={store.label} isMaster={false} size="sm" />
+                      <span className="truncate">{store.label || store.shopDomain.split('.')[0]}</span>
+                      {conn.direction === 'incoming' && (
+                        <span className="bg-[var(--color-primary-light)] text-[var(--color-primary-dark)] px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 border border-[var(--color-primary)] shrink-0">
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 22h20M2 18l4-10 4 6 2-8 2 8 4-6 4 10H2z" /></svg>
+                          Master
+                        </span>
+                      )}
+                    </h3>
+                    <div className="mt-1 flex flex-col gap-0.5">
+                      <p className="text-slate-700 text-xs sm:text-sm font-medium truncate">{store.uniqueStoreId || 'N/A'}</p>
+                      <p className="text-slate-500 text-xs truncate">https://{store.shopDomain}</p>
+                    </div>
+                  </div>
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold shrink-0 ${store.isActive ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                    {store.isActive ? 'healthy' : 'stale'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-xs sm:text-sm mb-4 mt-4 sm:mt-6">
+                  <div>
+                    <p className="text-slate-500 mb-0.5 text-xs">Currency</p>
+                    <p className="font-medium text-slate-900">{currency}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 mb-0.5 text-xs">Region</p>
+                    <p className="font-medium text-slate-900">{region}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 mb-0.5 text-xs">Plan</p>
+                    <p className="font-medium text-slate-900">{plan}</p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 mb-0.5 text-xs">Last sync</p>
+                    <p className="font-medium text-slate-900">{timeAgo(lastSync)}</p>
                   </div>
                 </div>
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold shrink-0 ${store.isActive ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                  {store.isActive ? 'healthy' : 'stale'}
-                </span>
               </div>
-
-              <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-xs sm:text-sm mb-4 mt-4 sm:mt-6">
-                <div>
-                  <p className="text-slate-500 mb-0.5 text-xs">Currency</p>
-                  <p className="font-medium text-slate-900">{currency}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500 mb-0.5 text-xs">Region</p>
-                  <p className="font-medium text-slate-900">{region}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500 mb-0.5 text-xs">Plan</p>
-                  <p className="font-medium text-slate-900">{plan}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500 mb-0.5 text-xs">Last sync</p>
-                  <p className="font-medium text-slate-900">{timeAgo(lastSync)}</p>
-                </div>
-              </div>
-            </div>
-          )
-        })}
+            )
+          })}
       </div>
 
       {isMaster && (
@@ -487,14 +485,14 @@ export default function ConnectionsPage() {
             <p className="text-slate-500 text-xs sm:text-sm">Enter the Unique Store ID of the destination store to establish a connection.</p>
           </div>
           <div className="flex flex-col sm:flex-row w-full lg:w-auto gap-3 shrink-0">
-            <input 
-              type="text" 
-              placeholder="e.g. STORE-XYZ123" 
+            <input
+              type="text"
+              placeholder="e.g. STORE-XYZ123"
               className="ys-input w-full lg:min-w-[250px]"
               value={storeIdInput}
               onChange={(e) => setStoreIdInput(e.target.value)}
             />
-            <button 
+            <button
               className="w-full sm:w-auto px-4 py-2 bg-[var(--color-primary-dark)] text-white text-sm font-semibold rounded-lg hover:bg-[var(--color-primary)] transition-colors shadow-sm whitespace-nowrap text-center"
               onClick={handleAddStore}
               disabled={connecting || !storeIdInput.trim()}
@@ -514,7 +512,7 @@ export default function ConnectionsPage() {
         <div className="mb-8 w-full overflow-hidden">
           <TableCard title="Connected Stores">
             <div className="overflow-x-auto w-full max-w-full">
-              <Table 
+              <Table
                 headerColor="var(--color-primary-dark)"
                 columns={[
                   { title: 'Store Name', key: 'name', type: 'react_node' },
@@ -525,9 +523,9 @@ export default function ConnectionsPage() {
                 items={connections.filter(c => c.direction === 'outgoing').map(conn => ({
                   name: (
                     <div className="flex items-center gap-2.5">
-                      <StoreLogo 
-                        shopDomain={conn.targetStore.shopDomain} 
-                        label={conn.targetStore.label} 
+                      <StoreLogo
+                        shopDomain={conn.targetStore.shopDomain}
+                        label={conn.targetStore.label}
                         size="sm"
                       />
                       <span className="font-bold text-slate-900 truncate">
@@ -538,11 +536,11 @@ export default function ConnectionsPage() {
                   url: `https://${conn.targetStore.shopDomain}`,
                   status: conn.targetStore.isActive ? 'Healthy' : 'Stale',
                   action: (
-                    <button 
+                    <button
                       onClick={() => setRemovingConnection({
                         id: conn.targetStoreId,
                         name: conn.targetStore.label || conn.targetStore.shopDomain.split('.')[0]
-                      })} 
+                      })}
                       className="text-red-600 hover:text-red-700 font-semibold px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1.5 text-xs w-fit"
                       title="Remove Connection"
                     >
@@ -560,30 +558,115 @@ export default function ConnectionsPage() {
       )}
 
 
-      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-        <h2 className="font-bold text-lg text-slate-900 mb-4">Master store behaviour</h2>
-        <p className="text-slate-500 text-sm mb-6">What happens when the source of truth is unavailable</p>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-5 border border-slate-100 rounded-xl bg-slate-50">
-            <h4 className="font-bold text-slate-900 mb-2">Cached snapshot</h4>
-            <p className="text-slate-500 text-sm">Connected stores keep selling from the last known good inventory, flagged as stale in the header.</p>
+      <div
+        className="rounded-2xl border overflow-hidden shadow-sm"
+        style={{
+          backgroundColor: 'var(--theme-surface, #fff)',
+          borderColor: 'var(--theme-border-accent, var(--border-color))',
+        }}
+      >
+        {/* Header */}
+        <div
+          className="px-6 py-5 border-b flex items-center gap-4"
+          style={{
+            background: 'linear-gradient(135deg, var(--color-primary-light, #ede9fe), var(--theme-surface, #fff))',
+            borderColor: 'var(--theme-border-accent, var(--border-color))',
+          }}
+        >
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
+            style={{ backgroundColor: 'var(--color-primary)', color: '#ffffff' }}
+          >
+            <Icon source={ShieldCheckMarkIcon} tone="inherit" />
           </div>
-          <div className="p-5 border border-slate-100 rounded-xl bg-slate-50">
-            <h4 className="font-bold text-slate-900 mb-2">Queued writes</h4>
-            <p className="text-slate-500 text-sm">Orders placed during an outage are queued and replayed in order once master returns.</p>
+          <div>
+            <h2 className="font-extrabold text-base" style={{ color: 'var(--color-primary)' }}>
+              Master Store Behaviour
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              What happens when the source of truth is unavailable
+            </p>
           </div>
-          <div className="p-5 border border-slate-100 rounded-xl bg-slate-50">
-            <h4 className="font-bold text-slate-900 mb-2">Failover promotion</h4>
-            <p className="text-slate-500 text-sm">If master is offline beyond your threshold, you can temporarily promote another store.</p>
-          </div>
+        </div>
+
+        {/* Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-0">
+          {[
+            {
+              icon: ArchiveIcon,
+              accent: 'var(--color-primary)',
+              bg: 'var(--color-primary-light, #ede9fe)',
+              border: 'var(--theme-border-accent, #d8b4fe)',
+              title: 'Cached Snapshot',
+              desc: 'Connected stores keep selling from the last known good inventory, flagged as stale in the header. No disruption to customer orders.',
+              tag: 'Automatic',
+            },
+            {
+              icon: RefreshIcon,
+              accent: '#10b981',
+              bg: 'rgba(16, 185, 129, 0.12)',
+              border: 'rgba(16, 185, 129, 0.25)',
+              title: 'Queued Writes',
+              desc: 'Orders placed during an outage are queued and replayed in order once the master comes back online. Zero data loss.',
+              tag: 'Self-healing',
+            },
+            {
+              icon: ShieldCheckMarkIcon,
+              accent: '#e11d48',
+              bg: 'rgba(225, 29, 72, 0.12)',
+              border: 'rgba(225, 29, 72, 0.25)',
+              title: 'Failover Promotion',
+              desc: 'If master is offline beyond your threshold, you can temporarily promote another store as master to keep sync running.',
+              tag: 'Manual trigger',
+            },
+          ].map((card, idx) => (
+            <div
+              key={card.title}
+              className={`p-5 flex flex-col gap-3 group hover:bg-black/[0.015] transition-colors ${idx > 0 ? 'border-t md:border-t-0 md:border-l' : ''
+                }`}
+              style={{
+                borderColor: 'var(--theme-border-accent, var(--border-color))',
+              }}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center shadow-xs shrink-0"
+                  style={{ backgroundColor: card.bg, border: `1.5px solid ${card.border}`, color: card.accent }}
+                >
+                  <Icon source={card.icon} tone="inherit" />
+                </div>
+                <span
+                  className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider mt-1 shrink-0"
+                  style={{ backgroundColor: card.bg, color: card.accent }}
+                >
+                  {card.tag}
+                </span>
+              </div>
+              <div>
+                <h4
+                  className="font-bold text-sm mb-1"
+                  style={{ color: card.accent }}
+                >
+                  {card.title}
+                </h4>
+                <p className="text-xs text-gray-500 leading-relaxed">{card.desc}</p>
+              </div>
+              {/* Accent bar at bottom */}
+              <div
+                className="h-0.5 w-8 rounded-full mt-auto opacity-40 group-hover:w-full group-hover:opacity-70 transition-all duration-300"
+                style={{ backgroundColor: card.accent }}
+              />
+            </div>
+          ))}
         </div>
       </div>
 
       {toastMessage && (
         <div className={`fixed bottom-6 right-6 px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 text-sm font-medium z-50 text-white ${toastMessage.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
           {toastMessage.message}
-          <button onClick={() => setToastMessage(null)} className="ml-2 opacity-80 hover:opacity-100">✕</button>
+          <button onClick={() => setToastMessage(null)} className="ml-2 opacity-80 hover:opacity-100 flex items-center justify-center p-0.5" title="Close">
+            <span className="w-3.5 h-3.5 flex items-center text-white"><Icon source={XIcon} tone="inherit" /></span>
+          </button>
         </div>
       )}
 
