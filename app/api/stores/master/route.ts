@@ -33,22 +33,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: `Unauthorized to modify store ${storeId}` }, { status: 403 });
     }
 
-    if (!masterLabel || masterLabel.trim().length === 0) {
-      return NextResponse.json({ success: false, error: 'masterLabel cannot be empty' }, { status: 400 });
-    }
-
-    const trimmedLabel = masterLabel.trim();
-
-    // Check if the label is already used by another store
-    const existingLabelStore = await prisma.store.findUnique({
-      where: { masterLabel: trimmedLabel }
-    });
-
-    if (existingLabelStore && existingLabelStore.id !== storeId) {
-      return NextResponse.json({ success: false, error: `Master Label "${trimmedLabel}" is already used by another store.` }, { status: 400 });
-    }
-
-    // Check if the store is inactive
+    // Check if the store exists and is active
     const targetStore = await prisma.store.findUnique({
       where: { id: storeId }
     });
@@ -61,9 +46,23 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Cannot set an inactive store as the Master Store.' }, { status: 400 });
     }
 
+    let trimmedLabel = (masterLabel && masterLabel.trim().length > 0)
+      ? masterLabel.trim()
+      : (targetStore.label || targetStore.shopDomain.replace('.myshopify.com', ''));
+
+    // Check if the label is already used by another store
+    const existingLabelStore = await prisma.store.findUnique({
+      where: { masterLabel: trimmedLabel }
+    });
+
+    if (existingLabelStore && existingLabelStore.id !== storeId) {
+      trimmedLabel = `${trimmedLabel}-${targetStore.uniqueStoreId || targetStore.id.slice(-4)}`;
+    }
+
     // Transaction to safely switch master store
     await prisma.$transaction([
       prisma.store.updateMany({
+        where: { id: { in: Array.from(authorizedStoreIds) } },
         data: { isMaster: false }
       }),
       prisma.store.update({

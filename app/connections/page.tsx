@@ -21,6 +21,7 @@ import { ThemedSection } from '@/components/ui/ThemedSection';
 import { StoreRoleBadge } from '@/components/ui/StoreRoleBadge';
 import { ConfirmToast } from '@/components/ui/ConfirmToast';
 import { useToast } from '@/components/providers/ToastContext';
+import { useStoreContext } from '@/components/providers/StoreProvider';
 
 
 export default function ConnectionsPage() {
@@ -111,6 +112,8 @@ export default function ConnectionsPage() {
     }
   };
 
+  const { refreshStores } = useStoreContext();
+
   const handleAddStore = async () => {
     if (!storeIdInput.trim()) return;
     setConnecting(true);
@@ -125,9 +128,15 @@ export default function ConnectionsPage() {
       const data = await res.json();
 
       if (data.success) {
-        setToastMessage({ message: 'Store connected successfully! Starting initial sync...', type: 'success' });
+        const msg = data.promotedToMaster
+          ? 'Store connected! This store has been promoted to Master store. Starting initial sync...'
+          : 'Store connected successfully! Starting initial sync...';
+        setToastMessage({ message: msg, type: 'success' });
         setStoreIdInput('');
-        fetchData();
+        await fetchData();
+        if (refreshStores) {
+          await refreshStores();
+        }
 
         // Auto-trigger sync
         setSyncing(true);
@@ -187,7 +196,10 @@ export default function ConnectionsPage() {
       if (data.success) {
         showSuccess(`Store connection "${removingConnection.name}" removed successfully.`);
         setRemovingConnection(null);
-        fetchData();
+        await fetchData();
+        if (refreshStores) {
+          await refreshStores();
+        }
       } else {
         showError('Failed to remove: ' + data.error);
       }
@@ -475,33 +487,44 @@ export default function ConnectionsPage() {
           })}
       </div>
 
-      {isMaster && (
-        <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-5 sm:p-8 shadow-sm mb-6 flex flex-col lg:flex-row items-start lg:items-center gap-4 sm:gap-6 hover:border-slate-300 transition-colors">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary-50 rounded-full flex items-center justify-center text-primary-DEFAULT shrink-0">
-            <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      {/* Pair New Store for Master and Standalone stores */}
+      {(() => {
+        const isConnectedSubStore = connections.some(c => c.direction === 'incoming');
+        const canPairStores = isMaster || !isConnectedSubStore;
+        if (!canPairStores) return null;
+
+        return (
+          <div className="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-5 sm:p-8 shadow-sm mb-6 flex flex-col lg:flex-row items-start lg:items-center gap-4 sm:gap-6 hover:border-slate-300 transition-colors">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-primary-50 rounded-full flex items-center justify-center text-primary-DEFAULT shrink-0">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-base sm:text-lg text-slate-900 mb-1">Pair New Store</h3>
+              <p className="text-slate-500 text-xs sm:text-sm">
+                {isMaster
+                  ? 'Enter the Unique Store ID of the destination store to establish a connection.'
+                  : 'Enter the Unique Store ID of a store to connect. Connecting a store will establish this store as the Master store.'}
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row w-full lg:w-auto gap-3 shrink-0">
+              <input
+                type="text"
+                placeholder="e.g. STORE-XYZ123"
+                className="ys-input w-full lg:min-w-[250px]"
+                value={storeIdInput}
+                onChange={(e) => setStoreIdInput(e.target.value)}
+              />
+              <button
+                className="w-full sm:w-auto px-4 py-2 bg-[var(--color-primary-dark)] text-white text-sm font-semibold rounded-lg hover:bg-[var(--color-primary)] transition-colors shadow-sm whitespace-nowrap text-center"
+                onClick={handleAddStore}
+                disabled={connecting || !storeIdInput.trim()}
+              >
+                {connecting ? 'Connecting...' : 'Connect Store'}
+              </button>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-base sm:text-lg text-slate-900 mb-1">Pair New Store</h3>
-            <p className="text-slate-500 text-xs sm:text-sm">Enter the Unique Store ID of the destination store to establish a connection.</p>
-          </div>
-          <div className="flex flex-col sm:flex-row w-full lg:w-auto gap-3 shrink-0">
-            <input
-              type="text"
-              placeholder="e.g. STORE-XYZ123"
-              className="ys-input w-full lg:min-w-[250px]"
-              value={storeIdInput}
-              onChange={(e) => setStoreIdInput(e.target.value)}
-            />
-            <button
-              className="w-full sm:w-auto px-4 py-2 bg-[var(--color-primary-dark)] text-white text-sm font-semibold rounded-lg hover:bg-[var(--color-primary)] transition-colors shadow-sm whitespace-nowrap text-center"
-              onClick={handleAddStore}
-              disabled={connecting || !storeIdInput.trim()}
-            >
-              {connecting ? 'Connecting...' : 'Connect Store'}
-            </button>
-          </div>
-        </div>
-      )}
+        );
+      })()}
 
 
 

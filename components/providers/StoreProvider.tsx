@@ -35,6 +35,7 @@ interface StoreContextValue {
   canManageNetwork: boolean;
   canSyncToConnectedStores: boolean;
   loading: boolean;
+  refreshStores: () => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextValue>({
@@ -54,6 +55,7 @@ const StoreContext = createContext<StoreContextValue>({
   canManageNetwork: false,
   canSyncToConnectedStores: false,
   loading: true,
+  refreshStores: async () => {},
 });
 
 export const useStoreContext = () => useContext(StoreContext);
@@ -105,44 +107,45 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, [currentShopDomain]);
 
-  useEffect(() => {
-    async function loadStores() {
-      try {
-        const res = await shopifyFetch('/api/stores');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.success && data.stores) {
-            // Only consider genuinely active stores for the count
-            const active = data.stores.filter((s: StoreInfo) => s.isActive);
-            setActiveStores(active);
-            if (data.currentStoreId) setServerCurrentStoreId(data.currentStoreId);
-            if (data.currentShopDomain) setServerCurrentShopDomain(data.currentShopDomain);
-            if (data.sessionShopDomain) setSessionShopDomain(data.sessionShopDomain);
+  const loadStores = React.useCallback(async () => {
+    try {
+      const res = await shopifyFetch('/api/stores');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.stores) {
+          // Only consider genuinely active stores for the count
+          const active = data.stores.filter((s: StoreInfo) => s.isActive);
+          setActiveStores(active);
+          if (data.currentStoreId) setServerCurrentStoreId(data.currentStoreId);
+          if (data.currentShopDomain) setServerCurrentShopDomain(data.currentShopDomain);
+          if (data.sessionShopDomain) setSessionShopDomain(data.sessionShopDomain);
 
-            const isMaster = Boolean(data.isMasterSession);
-            setIsMasterSession(isMaster);
+          const isMaster = Boolean(data.isMasterSession);
+          setIsMasterSession(isMaster);
 
-            if (!isMaster) {
-              // Connected store: clear any master shops from localStorage
-              try {
-                localStorage.removeItem('storebridge_master_shop');
-              } catch (e) {}
-            }
+          if (!isMaster) {
+            // Connected store: clear any master shops from localStorage
+            try {
+              localStorage.removeItem('storebridge_master_shop');
+            } catch (e) {}
+          }
 
-            if (data.sessionStoreId) {
-              const foundSession = active.find((s: StoreInfo) => s.id === data.sessionStoreId);
-              if (foundSession) setSessionStore(foundSession);
-            }
+          if (data.sessionStoreId) {
+            const foundSession = active.find((s: StoreInfo) => s.id === data.sessionStoreId);
+            if (foundSession) setSessionStore(foundSession);
           }
         }
-      } catch (err) {
-        console.error("Error fetching stores for StoreProvider", err);
-      } finally {
-        setLoading(false);
       }
+    } catch (err) {
+      console.error("Error fetching stores for StoreProvider", err);
+    } finally {
+      setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
     loadStores();
-  }, [currentShopDomain]);
+  }, [loadStores, currentShopDomain]);
 
   // For connected stores (!isMasterSession), currentStore is strictly activeStores[0] (itself)
   // For master sessions, user can view any activeStore
@@ -190,7 +193,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       canManagePricing,
       canManageNetwork,
       canSyncToConnectedStores,
-      loading
+      loading,
+      refreshStores: loadStores
     }}>
       {children}
     </StoreContext.Provider>

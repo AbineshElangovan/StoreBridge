@@ -202,7 +202,7 @@ export function InventoryPlanningRules({
 
                 <NumberSettingInput
                   id={`sh-days-${store.id}`}
-                  label="Sales History Period (Days)"
+                  label="Past Sales Analyzed (Days)"
                   value={storeForm.salesHistoryPeriodDays}
                   onChange={(val) => handleChange(store.id, 'salesHistoryPeriodDays', val)}
                   error={storeErr.salesHistoryPeriodDays}
@@ -213,7 +213,7 @@ export function InventoryPlanningRules({
 
                 <NumberSettingInput
                   id={`ss-days-${store.id}`}
-                  label="Safety Stock (Days)"
+                  label="Extra Buffer Stock (Days)"
                   value={storeForm.safetyStockDays}
                   onChange={(val) => handleChange(store.id, 'safetyStockDays', val)}
                   error={storeErr.safetyStockDays}

@@ -25,7 +25,7 @@ export type SettingsTabId = 'store-config' | 'planning-config' | 'data-privacy';
 export default function SettingsPage() {
   const router = useRouter();
   const { currentTheme } = useTheme();
-  const { isStandalone } = useStoreContext();
+  const { isStandalone, refreshStores } = useStoreContext();
   const [activeTab, setActiveTab] = useState<SettingsTabId>('store-config');
   const [stores, setStores] = useState<any[]>([]);
   const [performanceStores, setPerformanceStores] = useState<StorePerformanceSetting[]>([]);
@@ -206,8 +206,6 @@ export default function SettingsPage() {
   };
 
   const promptMakeStandalone = (storeId: string) => {
-    const targetStore = stores.find((s) => s.id === storeId);
-    if (targetStore?.isMaster) return;
     setConfirmState({
       open: true,
       storeId,
@@ -227,11 +225,14 @@ export default function SettingsPage() {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        setToastMessage({ message: 'Master store changed successfully.', type: 'success' });
+        setToastMessage({ message: 'Store updated to Master successfully! All features are now enabled as Master.', type: 'success' });
         setTimeout(() => {
-          setToastMessage(prev => prev?.message === 'Master store changed successfully.' ? null : prev);
+          setToastMessage(prev => prev?.message?.includes('Master') ? null : prev);
         }, 3000);
         await loadData();
+        if (refreshStores) {
+          await refreshStores();
+        }
         router.refresh();
       } else {
         setToastMessage({ message: `Failed: ${data.error}`, type: 'error' });
@@ -261,6 +262,9 @@ export default function SettingsPage() {
         setToastMessage({ message: 'Store is now standalone.', type: 'success' });
         setTimeout(() => setToastMessage(null), 3000);
         await loadData();
+        if (refreshStores) {
+          await refreshStores();
+        }
         router.refresh();
       } else {
         setToastMessage({ message: `Failed: ${data.error}`, type: 'error' });
@@ -362,11 +366,14 @@ export default function SettingsPage() {
         {/* ── TAB 1: STORE CONFIGURATIONS ── */}
         {activeTab === 'store-config' && (
           <div className="flex flex-col lg:flex-row gap-6 sm:gap-8">
-          {!isStandalone && (
             <div className="flex-1 flex flex-col gap-6 min-w-0">
               <ThemedSection
                 title="Master Store Configuration"
-                description="Identify the primary store. Synchronization originates from the Master Store."
+                description={
+                  isStandalone
+                    ? "Configure store role. Promote this store to Master to enable multi-store network synchronization and store pairing."
+                    : "Identify the primary store. Synchronization originates from the Master Store."
+                }
               >
                 <div className="flex flex-col gap-3 sm:gap-4 mt-2">
                   {stores.length === 0 ? (
@@ -390,7 +397,7 @@ export default function SettingsPage() {
                             <span className="font-bold text-sm sm:text-base text-gray-900 truncate">
                               {s.label || s.shopDomain}
                             </span>
-                            {s.isMaster && (
+                            {s.isMaster ? (
                               <span 
                                 className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border shadow-2xs shrink-0"
                                 style={{
@@ -401,7 +408,13 @@ export default function SettingsPage() {
                               >
                                 MASTER
                               </span>
-                            )}
+                            ) : s.isStandalone ? (
+                              <span
+                                className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border shadow-2xs shrink-0 bg-slate-100 text-slate-700 border-slate-300"
+                              >
+                                STANDALONE
+                              </span>
+                            ) : null}
                           </div>
                           <div className="text-xs text-gray-500 mt-0.5 truncate max-w-full sm:max-w-xs">
                             {s.shopDomain}
@@ -419,18 +432,21 @@ export default function SettingsPage() {
                               {masterSaving ? 'Saving...' : 'Make Master'}
                             </button>
                           )}
-                          <button
-                            className={`px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors shadow-2xs flex-1 sm:flex-none text-center ${
-                              s.isMaster 
-                                ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed' 
-                                : 'bg-white hover:bg-gray-50 text-gray-800 border border-gray-300 hover:border-gray-400 cursor-pointer disabled:opacity-50'
-                            }`}
-                            disabled={standaloneSaving || s.isMaster}
-                            title={s.isMaster ? "Master store cannot be set as standalone directly." : undefined}
-                            onClick={() => promptMakeStandalone(s.id)}
-                          >
-                            Make Standalone
-                          </button>
+                          {((s.isMaster && stores.length === 1) || (!s.isMaster && !s.isStandalone)) && (
+                            <button
+                              className="px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors shadow-2xs flex-1 sm:flex-none text-center bg-white hover:bg-gray-50 text-gray-800 border border-gray-300 hover:border-gray-400 cursor-pointer disabled:opacity-50"
+                              disabled={standaloneSaving}
+                              onClick={() => {
+                                if (stores.length > 1) {
+                                  promptMakeStandalone(s.id);
+                                } else {
+                                  handleMakeStandalone(s.id);
+                                }
+                              }}
+                            >
+                              {standaloneSaving ? 'Saving...' : 'Make Standalone'}
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))
@@ -448,16 +464,17 @@ export default function SettingsPage() {
                       Note:
                     </span>
                     <span className="font-medium text-gray-600 leading-relaxed">
-                      Master store cannot be changed to Standalone directly. To disconnect this store, please set another connected store as Master first.
+                      {isStandalone
+                        ? "Promoting this store to Master will allow you to pair new stores and synchronize products across your multi-store network."
+                        : "Master store cannot be changed to Standalone directly. To disconnect this store, please set another connected store as Master first."}
                     </span>
                   </div>
                 </div>
               </ThemedSection>
             </div>
-          )}
 
           {/* Right Column (Threshold Settings) */}
-          <div className={`w-full ${isStandalone ? 'max-w-4xl' : 'lg:w-[360px] shrink-0'} flex flex-col gap-6`}>
+          <div className="w-full lg:w-[360px] shrink-0 flex flex-col gap-6">
             <ThemedSection
               title="Store Configurations"
             >
@@ -567,16 +584,28 @@ export default function SettingsPage() {
         message={
           confirmState?.type === 'STANDALONE'
             ? 'Make this store standalone?'
-            : confirmState?.isAlreadyMaster
-              ? 'Update Master Store Label?'
-              : 'Change Master Store?'
+            : isStandalone
+              ? 'Promote this store to Master Store?'
+              : confirmState?.isAlreadyMaster
+                ? 'Update Master Store Label?'
+                : 'Change Master Store?'
         }
         subMessage={
           confirmState?.type === 'STANDALONE'
-            ? 'This store will stop synchronizing with the multi-store network.'
-            : 'All connected stores will align synchronization with this store.'
+            ? (stores.length > 1
+                ? 'This store has connected stores. Making it standalone will disconnect all store connections.'
+                : 'This store will stop synchronizing with the multi-store network.')
+            : isStandalone
+              ? 'This store will become the Master Store with store pairing and multi-store sync capabilities.'
+              : 'All connected stores will align synchronization with this store.'
         }
-        confirmLabel={confirmState?.type === 'STANDALONE' ? 'Make Standalone' : 'Set as Master'}
+        confirmLabel={
+          confirmState?.type === 'STANDALONE'
+            ? 'Make Standalone'
+            : isStandalone
+              ? 'Promote to Master'
+              : 'Set as Master'
+        }
         cancelLabel="Cancel"
         variant={confirmState?.type === 'STANDALONE' ? 'standalone' : 'master'}
         loading={masterSaving || standaloneSaving}

@@ -140,6 +140,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "You cannot connect a store to itself" }, { status: 400 });
     }
 
+    // Check if the current store is already a connected child store under another master
+    const currentIsChild = await prisma.storeConnection.findFirst({
+      where: { targetStoreId: store.id }
+    });
+    if (currentIsChild) {
+      return NextResponse.json({
+        success: false,
+        error: "This store is currently connected to another Master store. Connected stores cannot pair new stores."
+      }, { status: 403 });
+    }
+
     // Find the target store by uniqueStoreId
     const targetStore = await prisma.store.findUnique({
       where: { uniqueStoreId }
@@ -149,7 +160,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Invalid Unique Store ID. Store not found." }, { status: 404 });
     }
 
-    // Prevent duplicate connections (in either direction to be safe)
+    // Prevent target store if it is already connected to another Master
+    const targetHasParent = await prisma.storeConnection.findFirst({
+      where: { targetStoreId: targetStore.id }
+    });
+    if (targetHasParent) {
+      return NextResponse.json({
+        success: false,
+        error: "The destination store is already connected to another Master store."
+      }, { status: 400 });
+    }
+
+    // Prevent duplicate connections (in either direction)
     const existing = await prisma.storeConnection.findFirst({
       where: {
         OR: [
@@ -163,6 +185,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Store is already connected" }, { status: 400 });
     }
 
+    // If current store was Standalone, promote it to Master
+    const wasStandalone = !store.isMaster;
+    if (!store.isMaster) {
+      await prisma.store.update({
+        where: { id: store.id },
+        data: { isMaster: true }
+      });
+      console.log(`[Connections API] Promoted store ${store.shopDomain} from Standalone to Master.`);
+    }
+
+    // Ensure the target store is not marked as Master (it is now a connected child store)
+    if (targetStore.isMaster) {
+      await prisma.store.update({
+        where: { id: targetStore.id },
+        data: { isMaster: false }
+      });
+      console.log(`[Connections API] Updated target store ${targetStore.shopDomain} isMaster: false.`);
+    }
+
     const connection = await prisma.storeConnection.create({
       data: {
         sourceStoreId: store.id,
@@ -170,7 +211,11 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    return NextResponse.json({ success: true, connection });
+    return NextResponse.json({
+      success: true,
+      connection,
+      promotedToMaster: wasStandalone
+    });
   } catch (err: any) {
     console.error("[Connections API] POST Error:", err.message);
     return handleApiError(err);
@@ -196,7 +241,47 @@ export async function DELETE(req: NextRequest) {
       }
     });
 
-    return NextResponse.json({ success: true });
+    // Check if the current store has any remaining connections
+    const currentRemaining = await prisma.storeConnection.count({
+      where: {
+        OR: [
+          { sourceStoreId: store.id },
+          { targetStoreId: store.id }
+        ]
+      }
+    });
+
+    // If current store has 0 connections left, revert to Standalone (isMaster: false)
+    if (currentRemaining === 0) {
+      await prisma.store.update({
+        where: { id: store.id },
+        data: { isMaster: false }
+      });
+      console.log(`[Connections API] Store ${store.shopDomain} has no remaining connections. Reverted to Standalone.`);
+    }
+
+    // Check if target store has any remaining connections
+    const targetRemaining = await prisma.storeConnection.count({
+      where: {
+        OR: [
+          { sourceStoreId: targetStoreId },
+          { targetStoreId: targetStoreId }
+        ]
+      }
+    });
+
+    if (targetRemaining === 0) {
+      await prisma.store.update({
+        where: { id: targetStoreId },
+        data: { isMaster: false }
+      });
+      console.log(`[Connections API] Target store ${targetStoreId} has no remaining connections. Reverted to Standalone.`);
+    }
+
+    return NextResponse.json({
+      success: true,
+      revertedToStandalone: currentRemaining === 0
+    });
   } catch (err: any) {
     console.error("[Connections API] DELETE Error:", err.message);
     return handleApiError(err);

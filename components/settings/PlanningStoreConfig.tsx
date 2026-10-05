@@ -162,7 +162,7 @@ export function PlanningStoreConfig({
 
     const ss = parseInt(current.safetyStockDays, 10);
     if (isNaN(ss) || ss < 0) {
-      fieldErrors.safetyStockDays = 'Enter a valid safety buffer (>= 0).';
+      fieldErrors.safetyStockDays = 'Enter a valid buffer stock (>= 0).';
     }
 
     const bs = parseInt(current.bestSellerThreshold, 10);
@@ -204,7 +204,7 @@ export function PlanningStoreConfig({
   return (
     <ThemedSection
       title="Planning Store Config"
-      description="Manually configure inventory planning risk thresholds, demand forecast horizons, sales velocity windows, and restock parameters per store."
+      description="Configure low stock alerts, demand forecast periods, past sales analysis windows, and buffer stock per store."
     >
       <div className="flex flex-col gap-5 mt-2">
         {stores.length === 0 ? (
@@ -274,14 +274,14 @@ export function PlanningStoreConfig({
 
                 {/* Planning & Risk Parameters Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
-                  {/* High Risk Threshold */}
+                  {/* Low Stock Alert */}
                   <NumberSettingInput
                     id={`high-risk-${store.id}`}
-                    label="High Risk Threshold (Days)"
+                    label="Low Stock Alert (Days)"
                     value={storeValues.highRiskDays}
                     onChange={(val) => handleChange(store.id, 'highRiskDays', val)}
                     error={storeErrors.highRiskDays}
-                    helpText="Stockout estimated within this number of days triggers High Risk (otherwise Low Risk)."
+                    helpText="Alerts as High Risk if your stock will run out within this many days (e.g. supplier delivery time)."
                     disabled={isStoreSaving}
                     min={1}
                     placeholder="10"
@@ -289,40 +289,40 @@ export function PlanningStoreConfig({
                     quickPickUnit="days"
                   />
 
-                  {/* Forecast Period Horizon */}
+                  {/* Forecast Period */}
                   <NumberSettingInput
                     id={`forecast-days-${store.id}`}
-                    label="Forecast Horizon (Days)"
+                    label="Forecast Period (Days)"
                     value={storeValues.forecastPeriodDays}
                     onChange={(val) => handleChange(store.id, 'forecastPeriodDays', val)}
                     error={storeErrors.forecastPeriodDays}
-                    helpText="Forward projection horizon for future demand (default: 7 days)."
+                    helpText="Number of upcoming days to forecast customer demand and sales (default: 7 days)."
                     disabled={isStoreSaving}
                     min={1}
                     placeholder="7"
                   />
 
-                  {/* Sales History Window */}
+                  {/* Past Sales Analyzed */}
                   <NumberSettingInput
                     id={`history-days-${store.id}`}
-                    label="Sales History Period (Days)"
+                    label="Past Sales Analyzed (Days)"
                     value={storeValues.salesHistoryPeriodDays}
                     onChange={(val) => handleChange(store.id, 'salesHistoryPeriodDays', val)}
                     error={storeErrors.salesHistoryPeriodDays}
-                    helpText="Historical period used to calculate average daily sales run rate (default: 30 days)."
+                    helpText="Number of past sales days used to calculate average daily sales speed (default: 30 days)."
                     disabled={isStoreSaving}
                     min={1}
                     placeholder="30"
                   />
 
-                  {/* Safety Stock Buffer */}
+                  {/* Extra Buffer Stock */}
                   <NumberSettingInput
                     id={`safety-stock-${store.id}`}
-                    label="Safety Buffer (Days)"
+                    label="Extra Buffer Stock (Days)"
                     value={storeValues.safetyStockDays}
                     onChange={(val) => handleChange(store.id, 'safetyStockDays', val)}
                     error={storeErrors.safetyStockDays}
-                    helpText="Buffer days added to recommended replenishment orders."
+                    helpText="Extra buffer days of stock added to restock orders to prevent sudden stockouts."
                     disabled={isStoreSaving}
                     min={0}
                     placeholder="3"

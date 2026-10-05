@@ -20,27 +20,20 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Store not found' }, { status: 404 });
     }
 
-    if (store.isMaster) {
-      const anotherMaster = await prisma.store.findFirst({
+    await prisma.$transaction(async (tx) => {
+      // Find all connected stores before deleting connections
+      const relatedConnections = await tx.storeConnection.findMany({
         where: {
-          id: { not: storeId },
-          isActive: true,
-          isMaster: true,
+          OR: [
+            { sourceStoreId: storeId },
+            { targetStoreId: storeId }
+          ]
         }
       });
+      const otherStoreIds = relatedConnections.map((c: any) =>
+        c.sourceStoreId === storeId ? c.targetStoreId : c.sourceStoreId
+      );
 
-      if (!anotherMaster) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "Cannot make Master store Standalone. assign a new Master first."
-          },
-          { status: 400 }
-        );
-      }
-    }
-
-    await prisma.$transaction(async (tx) => {
       // Delete all connections where this store is either source or target
       await tx.storeConnection.deleteMany({
         where: {
@@ -56,6 +49,24 @@ export async function PUT(req: NextRequest) {
         where: { id: storeId },
         data: { isMaster: false }
       });
+
+      // If any previously connected stores have no remaining connections, ensure isMaster is false
+      for (const otherId of otherStoreIds) {
+        const remaining = await tx.storeConnection.count({
+          where: {
+            OR: [
+              { sourceStoreId: otherId },
+              { targetStoreId: otherId }
+            ]
+          }
+        });
+        if (remaining === 0) {
+          await tx.store.update({
+            where: { id: otherId },
+            data: { isMaster: false }
+          });
+        }
+      }
     });
 
     return NextResponse.json({ success: true, message: 'Store is now standalone.' });

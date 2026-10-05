@@ -43,10 +43,10 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
 
   const handlePriceChange = (variantId: string, val: string) => {
     setSaveError(null);
-    const onlyDigits = val.replace(/[^\d]/g, '');
-    const cleanStr = onlyDigits.replace(/^0+(?=\d)/, '');
-    const num = cleanStr === '' ? 0 : Math.max(0, parseInt(cleanStr, 10) || 0);
-    setVariantList(prev => prev.map(v => v.id === variantId ? { ...v, price: num } : v));
+    const sanitized = val.replace(/[^0-9.]/g, '');
+    const parts = sanitized.split('.');
+    const cleanStr = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : sanitized;
+    setVariantList(prev => prev.map(v => v.id === variantId ? { ...v, price: cleanStr as any } : v));
     setModifiedIds(prev => new Set(prev).add(variantId));
   };
 
@@ -75,8 +75,8 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             variantId: v.id,
-            price: v.price,
-            quantity: v.quantity
+            price: Number(v.price) || 0,
+            quantity: Number(v.quantity) || 0
           })
         });
 
@@ -204,7 +204,7 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
             <tr className="border-b border-gray-200 text-gray-400 font-extrabold uppercase text-[10px] tracking-wider">
               <th className="py-2.5 px-3">Variant</th>
               <th className="py-2.5 px-3">SKU</th>
-              <th className="py-2.5 px-3 text-right">Price</th>
+              <th className="py-2.5 px-3 text-center">Price (INR)</th>
               <th className="py-2.5 px-3 text-center">Quantity</th>
               <th className="py-2.5 px-3 text-center">Status</th>
               <th className="py-2.5 px-3 text-center">Action</th>
@@ -227,25 +227,34 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
                     <td className="py-3.5 px-3 font-mono text-gray-600">
                       {v.sku}
                     </td>
-                    <td className="py-3.5 px-3 text-right">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        value={v.price === 0 ? '0' : String(v.price).replace(/^0+(?=\d)/, '')}
-                        onChange={(e) => handlePriceChange(v.id, e.target.value)}
-                        className="w-24 text-right bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0db69d]/20 focus:border-[#0db69d] shadow-2xs transition-colors"
-                      />
+                    <td className="py-3.5 px-3 text-center">
+                      <div className="flex items-center justify-center">
+                        <div className="relative flex items-center">
+                          <span className="absolute left-2.5 text-[10px] font-black text-slate-800 uppercase tracking-wider select-none pointer-events-none">
+                            INR
+                          </span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={v.price === 0 ? '0' : String(v.price).replace(/^0+(?=\d)/, '')}
+                            onChange={(e) => handlePriceChange(v.id, e.target.value)}
+                            className="w-32 sm:w-36 pl-9 pr-2.5 py-1.5 text-center bg-white border border-gray-300 rounded-xl text-xs font-extrabold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0db69d]/20 focus:border-[#0db69d] shadow-2xs transition-colors"
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
                     </td>
                     <td className="py-3.5 px-3 text-center">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        value={v.quantity <= 0 ? '0' : String(v.quantity).replace(/^0+(?=\d)/, '')}
-                        onChange={(e) => handleQuantityChange(v.id, e.target.value)}
-                        className="w-20 text-center bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0db69d]/20 focus:border-[#0db69d] shadow-2xs transition-colors"
-                      />
+                      <div className="flex items-center justify-center">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={v.quantity <= 0 ? '0' : String(v.quantity).replace(/^0+(?=\d)/, '')}
+                          onChange={(e) => handleQuantityChange(v.id, e.target.value)}
+                          className="w-20 text-center bg-white border border-gray-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0db69d]/20 focus:border-[#0db69d] shadow-2xs transition-colors"
+                        />
+                      </div>
                     </td>
                     <td className="py-3.5 px-3 text-center">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
