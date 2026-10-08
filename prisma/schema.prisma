@@ -62,6 +62,11 @@ model Store {
   activityLogs               ActivityLog[]
   importHistories            ImportHistory[]
   notifications              Notification[]
+  preorderConfigs            PreorderConfig[]
+  notifyMeSettings           NotifyMeSetting?
+  notifyMeRegistrations      NotifyMeRegistration[]
+  notificationJobs           NotificationJob[]
+  preorderRecords            PreorderRecord[]
 
   @@map("stores")
 }
@@ -525,5 +530,150 @@ model Notification {
   @@index([recipientStoreId, isRead])
   @@index([recipientStoreId, createdAt])
   @@map("notifications")
+}
+
+// -----------------------------------------------------------------------------
+// CUSTOMER EXPERIENCE: PRE-ORDER, NOTIFY ME, BACK IN STOCK
+// -----------------------------------------------------------------------------
+
+model PreorderConfig {
+  id                 String   @id @default(uuid())
+  storeId            String
+  shopifyProductId   String?
+  shopifyVariantId   String?
+  enabled            Boolean  @default(true)
+  inventoryThreshold Int      @default(0)
+  maxQuantity        Int?
+  customerMessage    String   @default("Pre-order before it's gone.")
+  shippingMessage    String   @default("Shipping: As soon as possible")
+  fulfillmentMessage String   @default("We will fulfill the item as soon as it becomes available")
+  discountType       String   @default("none")
+  discountValue      Float    @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, shopifyProductId, shopifyVariantId])
+  @@index([storeId])
+  @@index([shopifyProductId])
+  @@index([shopifyVariantId])
+  @@map("preorder_configs")
+}
+
+model NotifyMeSetting {
+  id             String   @id @default(uuid())
+  storeId        String   @unique
+  enabled        Boolean  @default(true)
+  notifyEmail    Boolean  @default(true)
+  notifyWhatsApp Boolean  @default(true)
+  popupMessage   String   @default("Get notified when this item is back in stock.")
+  buttonText     String   @default("Notify me when available")
+  successMessage String   @default("You're on the list!")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@map("notify_me_settings")
+}
+
+enum NotifyMeStatus {
+  PENDING
+  NOTIFIED
+  CANCELLED
+}
+
+model NotifyMeRegistration {
+  id               String         @id @default(uuid())
+  storeId          String
+  shopifyProductId String
+  shopifyVariantId String
+  customerEmail    String?
+  customerWhatsApp String?
+  requestedQuantity Int           @default(1)
+  notifyByEmail    Boolean        @default(true)
+  notifyByWhatsApp Boolean        @default(false)
+  status           NotifyMeStatus @default(PENDING)
+  notifiedAt       DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  store            Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  notificationJobs NotificationJob[]
+
+  @@index([storeId])
+  @@index([shopifyProductId])
+  @@index([shopifyVariantId])
+  @@index([status])
+  @@index([storeId, shopifyVariantId, customerEmail])
+  @@map("notify_me_registrations")
+}
+
+enum NotificationChannel {
+  EMAIL
+  WHATSAPP
+}
+
+enum NotificationJobStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+}
+
+model NotificationJob {
+  id               String                @id @default(uuid())
+  registrationId   String?
+  storeId          String
+  shopifyVariantId String
+  customerEmail    String?
+  customerWhatsApp String?
+  channel          NotificationChannel
+  productTitle     String
+  variantTitle     String?
+  imageUrl         String?
+  productUrl       String?
+  status           NotificationJobStatus @default(PENDING)
+  attempts         Int                   @default(0)
+  maxAttempts      Int                   @default(3)
+  lastError        String?               @db.Text
+  sentAt           DateTime?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  store        Store                 @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  registration NotifyMeRegistration? @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([registrationId])
+  @@index([status])
+  @@index([shopifyVariantId])
+  @@map("notification_jobs")
+}
+
+model PreorderRecord {
+  id               String    @id @default(uuid())
+  storeId          String
+  shopifyOrderId   String
+  orderNumber      String
+  shopifyVariantId String
+  customerName     String?   // Encrypted AES-256-GCM
+  customerEmail    String?   // Encrypted AES-256-GCM
+  customerPhone    String?   // Encrypted AES-256-GCM
+  quantity         Int       @default(1)
+  whatsappOptIn    Boolean   @default(false)
+  status           String    @default("UNFULFILLED")
+  notifiedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, shopifyOrderId, shopifyVariantId])
+  @@index([storeId])
+  @@index([shopifyVariantId])
+  @@index([status])
+  @@map("preorder_records")
 }
 

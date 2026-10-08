@@ -1006,6 +1006,24 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
     const prodTitle = cache.title || 'Product';
     const prodSku = cache.sku || variantMap?.sku || null;
 
+    // BACK IN STOCK DETECTION:
+    // When inventory transitions from 0 -> positive, notify pending waitlist subscribers
+    if (prevQty <= 0 && safeAvailable > 0) {
+      try {
+        const { BackInStockService } = require('@/services/back-in-stock/back-in-stock-service');
+        await BackInStockService.processBackInStock({
+          storeId: storeRecord.id,
+          shopifyProductId: cache.shopifyProductId,
+          shopifyVariantId: cache.shopifyVariantId,
+          available: safeAvailable,
+          productTitle: prodTitle,
+          imageUrl: cache.imageUrl,
+        });
+      } catch (bisErr: any) {
+        console.error('[WebhookWorker:BackInStock] Error processing restock notifications:', bisErr.message);
+      }
+    }
+
     if (diff !== 0) {
       const isSale = diff < 0;
       const eventType = isSale ? "SOLD" : "UPDATE";

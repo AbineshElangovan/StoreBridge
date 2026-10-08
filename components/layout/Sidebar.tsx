@@ -10,7 +10,10 @@ import {
   LinkIcon,
   CodeIcon,
   ClockIcon,
-  NotificationIcon
+  NotificationIcon,
+  CartIcon,
+  EmailIcon,
+  OrderIcon
 } from '@shopify/polaris-icons';
 import { Icon } from '@shopify/polaris';
 import { useStoreContext } from '@/components/providers/StoreProvider';
@@ -116,6 +119,14 @@ export function Sidebar() {
       items: [
         { label: 'SKU Generation', href: '/sku', icon: DiscountIcon },
         { label: 'Price Adjustment', href: '/price-adjustment', icon: CashDollarIcon },
+      ]
+    },
+    {
+      title: 'CUSTOMER EXPERIENCE',
+      items: [
+        { label: 'Pre-order', href: '/preorder', icon: CartIcon },
+        { label: 'Notify Me', href: '/notify-me', icon: EmailIcon },
+        { label: 'Back in Stock', href: '/back-in-stock', icon: OrderIcon },
       ]
     },
     {

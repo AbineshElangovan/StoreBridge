@@ -3,6 +3,19 @@
   "handle": "",
   "modules": [
     {
+      "type": "theme_app_extension",
+      "handle": "storebridge-customer-experience",
+      "uid": "ce4ecd70-a6af-0114-8258-a2358b9a935a62b67176",
+      "uuid": "01a114db-454c-74a6-9114-6310278cab0b",
+      "assets": "ce4ecd70-a6af-0114-8258-a2358b9a935a62b67176",
+      "target": "",
+      "config": {
+        "theme_extension": {
+          "files": {}
+        }
+      }
+    },
+    {
       "type": "app_access",
       "handle": "app_access",
       "uid": "app_access",

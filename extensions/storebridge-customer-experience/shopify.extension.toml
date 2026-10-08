@@ -1,0 +1,7 @@
+api_version = "2026-10"
+
+[[extensions]]
+name = "StoreBridge Customer Experience"
+handle = "storebridge-customer-experience"
+uid = "ce4ecd70-a6af-0114-8258-a2358b9a935a62b67176"
+type = "theme"

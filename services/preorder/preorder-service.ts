@@ -1,0 +1,325 @@
+import { prisma } from '@/lib/db/prisma';
+
+export interface PreorderConfigInput {
+  enabled?: boolean;
+  inventoryThreshold?: number;
+  customerMessage?: string;
+  shippingMessage?: string;
+  fulfillmentMessage?: string;
+  maxQuantity?: number | null;
+  discountType?: 'none' | 'percentage' | 'fixed';
+  discountValue?: number;
+  shopifyProductId?: string | null;
+  shopifyVariantId?: string | null;
+}
+
+export interface PreorderPriceCalculation {
+  originalPrice: number;
+  discountType: 'none' | 'percentage' | 'fixed';
+  discountValue: number;
+  discountAmount: number;
+  finalPrice: number;
+  formattedOriginalPrice: string;
+  formattedDiscountAmount: string;
+  formattedFinalPrice: string;
+  savingsText: string;
+  offerBadge: string;
+}
+
+export const DEFAULT_PREORDER_CONFIG = {
+  enabled: true,
+  inventoryThreshold: 0,
+  customerMessage: "Pre-order before it's gone.",
+  shippingMessage: "Shipping: As soon as possible",
+  fulfillmentMessage: "We will fulfill the item as soon as it becomes available",
+  maxQuantity: null as number | null,
+  discountType: 'none' as 'none' | 'percentage' | 'fixed',
+  discountValue: 0,
+};
+
+export class PreorderService {
+  /**
+   * Get pre-order configuration for a store, with optional product/variant override.
+   */
+  static async getConfig(storeId: string, shopifyProductId?: string | null, shopifyVariantId?: string | null) {
+    if (!storeId) {
+      throw new Error('storeId is required to retrieve preorder configuration');
+    }
+
+    // 1. Try variant-specific config if variantId is provided
+    let config = null;
+    if (shopifyVariantId) {
+      config = await prisma.preorderConfig.findFirst({
+        where: { storeId, shopifyVariantId },
+      });
+    }
+
+    // 2. Try product-specific config if productId is provided
+    if (!config && shopifyProductId) {
+      config = await prisma.preorderConfig.findFirst({
+        where: { storeId, shopifyProductId, shopifyVariantId: null },
+      });
+    }
+
+    // 3. Fallback to store-level default config
+    if (!config) {
+      config = await prisma.preorderConfig.findFirst({
+        where: { storeId, shopifyProductId: null, shopifyVariantId: null },
+      });
+    }
+
+    // If none exists in DB yet, create standard default
+    if (!config) {
+      config = await prisma.preorderConfig.create({
+        data: {
+          storeId,
+          shopifyProductId: null,
+          shopifyVariantId: null,
+          ...DEFAULT_PREORDER_CONFIG,
+        },
+      });
+    }
+
+    if (config && ((config as any).discountType === undefined || (config as any).discountType === null)) {
+      try {
+        const rows: any[] = await prisma.$queryRawUnsafe(
+          'SELECT "discountType", "discountValue" FROM "preorder_configs" WHERE "id" = $1 LIMIT 1',
+          config.id
+        );
+        if (rows && rows[0]) {
+          (config as any).discountType = rows[0].discountType || 'none';
+          (config as any).discountValue = Number(rows[0].discountValue) || 0;
+        }
+      } catch (e) {
+        console.warn('[PreorderService] Fallback raw query error:', e);
+      }
+    }
+
+    return config;
+  }
+
+  /**
+   * Upsert pre-order configuration for store or specific product/variant.
+   */
+  static async upsertConfig(storeId: string, data: PreorderConfigInput) {
+    if (!storeId) {
+      throw new Error('storeId is required to update preorder configuration');
+    }
+
+    const productId = data.shopifyProductId ?? null;
+    const variantId = data.shopifyVariantId ?? null;
+
+    const existing = await prisma.preorderConfig.findFirst({
+      where: {
+        storeId,
+        shopifyProductId: productId,
+        shopifyVariantId: variantId,
+      },
+    });
+
+    if (existing) {
+      try {
+        return await prisma.preorderConfig.update({
+          where: { id: existing.id },
+          data: {
+            enabled: data.enabled !== undefined ? data.enabled : existing.enabled,
+            inventoryThreshold: data.inventoryThreshold !== undefined ? data.inventoryThreshold : existing.inventoryThreshold,
+            customerMessage: data.customerMessage !== undefined ? data.customerMessage.trim() : existing.customerMessage,
+            shippingMessage: data.shippingMessage !== undefined ? data.shippingMessage.trim() : existing.shippingMessage,
+            fulfillmentMessage: data.fulfillmentMessage !== undefined ? data.fulfillmentMessage.trim() : existing.fulfillmentMessage,
+            maxQuantity: data.maxQuantity !== undefined ? data.maxQuantity : existing.maxQuantity,
+            discountType: data.discountType !== undefined ? data.discountType : (existing as any).discountType ?? 'none',
+            discountValue: data.discountValue !== undefined ? Number(data.discountValue) : (existing as any).discountValue ?? 0,
+          },
+        });
+      } catch (err: any) {
+        if (err.message?.includes('Unknown argument')) {
+          const dType = data.discountType !== undefined ? data.discountType : (existing as any).discountType ?? 'none';
+          const dVal = data.discountValue !== undefined ? Number(data.discountValue) : (existing as any).discountValue ?? 0;
+          const en = data.enabled !== undefined ? data.enabled : existing.enabled;
+          const th = data.inventoryThreshold !== undefined ? data.inventoryThreshold : existing.inventoryThreshold;
+          const cm = data.customerMessage !== undefined ? data.customerMessage.trim() : existing.customerMessage;
+          const sm = data.shippingMessage !== undefined ? data.shippingMessage.trim() : existing.shippingMessage;
+          const fm = data.fulfillmentMessage !== undefined ? data.fulfillmentMessage.trim() : existing.fulfillmentMessage;
+          const mq = data.maxQuantity !== undefined ? data.maxQuantity : existing.maxQuantity;
+
+          await prisma.$executeRawUnsafe(
+            `UPDATE "preorder_configs" SET "enabled" = $1, "inventoryThreshold" = $2, "customerMessage" = $3, "shippingMessage" = $4, "fulfillmentMessage" = $5, "maxQuantity" = $6, "discountType" = $7, "discountValue" = $8, "updatedAt" = NOW() WHERE "id" = $9`,
+            en, th, cm, sm, fm, mq, dType, dVal, existing.id
+          );
+
+          return {
+            ...existing,
+            enabled: en,
+            inventoryThreshold: th,
+            customerMessage: cm,
+            shippingMessage: sm,
+            fulfillmentMessage: fm,
+            maxQuantity: mq,
+            discountType: dType,
+            discountValue: dVal,
+          };
+        }
+        throw err;
+      }
+    }
+
+    try {
+      return await prisma.preorderConfig.create({
+        data: {
+          storeId,
+          shopifyProductId: productId,
+          shopifyVariantId: variantId,
+          enabled: data.enabled ?? DEFAULT_PREORDER_CONFIG.enabled,
+          inventoryThreshold: data.inventoryThreshold ?? DEFAULT_PREORDER_CONFIG.inventoryThreshold,
+          customerMessage: data.customerMessage?.trim() || DEFAULT_PREORDER_CONFIG.customerMessage,
+          shippingMessage: data.shippingMessage?.trim() || DEFAULT_PREORDER_CONFIG.shippingMessage,
+          fulfillmentMessage: data.fulfillmentMessage?.trim() || DEFAULT_PREORDER_CONFIG.fulfillmentMessage,
+          maxQuantity: data.maxQuantity ?? DEFAULT_PREORDER_CONFIG.maxQuantity,
+          discountType: data.discountType ?? DEFAULT_PREORDER_CONFIG.discountType,
+          discountValue: data.discountValue !== undefined ? Number(data.discountValue) : DEFAULT_PREORDER_CONFIG.discountValue,
+        },
+      });
+    } catch (err: any) {
+      if (err.message?.includes('Unknown argument')) {
+        const id = crypto.randomUUID();
+        const dType = data.discountType ?? DEFAULT_PREORDER_CONFIG.discountType;
+        const dVal = data.discountValue !== undefined ? Number(data.discountValue) : DEFAULT_PREORDER_CONFIG.discountValue;
+        const en = data.enabled ?? DEFAULT_PREORDER_CONFIG.enabled;
+        const th = data.inventoryThreshold ?? DEFAULT_PREORDER_CONFIG.inventoryThreshold;
+        const cm = data.customerMessage?.trim() || DEFAULT_PREORDER_CONFIG.customerMessage;
+        const sm = data.shippingMessage?.trim() || DEFAULT_PREORDER_CONFIG.shippingMessage;
+        const fm = data.fulfillmentMessage?.trim() || DEFAULT_PREORDER_CONFIG.fulfillmentMessage;
+        const mq = data.maxQuantity ?? DEFAULT_PREORDER_CONFIG.maxQuantity;
+
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO "preorder_configs" ("id", "storeId", "shopifyProductId", "shopifyVariantId", "enabled", "inventoryThreshold", "customerMessage", "shippingMessage", "fulfillmentMessage", "maxQuantity", "discountType", "discountValue", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), NOW())`,
+          id, storeId, productId, variantId, en, th, cm, sm, fm, mq, dType, dVal
+        );
+
+        return {
+          id,
+          storeId,
+          shopifyProductId: productId,
+          shopifyVariantId: variantId,
+          enabled: en,
+          inventoryThreshold: th,
+          customerMessage: cm,
+          shippingMessage: sm,
+          fulfillmentMessage: fm,
+          maxQuantity: mq,
+          discountType: dType,
+          discountValue: dVal,
+        };
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Pure backend calculation engine for Pre-order offers.
+   * Handles:
+   * - 'none': No discount (final price = base price)
+   * - 'percentage': (basePrice * discountValue) / 100 (e.g., 100 with 10% => -10 = 90)
+   * - 'fixed': basePrice - discountValue (e.g., 100 with 10 => -10 = 90)
+   * Dynamically applies to any product price.
+   */
+  static calculatePrice(
+    basePrice: number,
+    discountType: 'none' | 'percentage' | 'fixed' = 'none',
+    discountValue: number = 0,
+    currencySymbol: string = 'Rs.'
+  ): PreorderPriceCalculation {
+    const originalPrice = Math.max(0, Number(basePrice) || 0);
+    const value = Math.max(0, Number(discountValue) || 0);
+    let discountAmount = 0;
+
+    if (discountType === 'percentage') {
+      discountAmount = (originalPrice * value) / 100;
+    } else if (discountType === 'fixed') {
+      discountAmount = Math.min(originalPrice, value);
+    } else {
+      discountAmount = 0;
+    }
+
+    discountAmount = Math.round(discountAmount * 100) / 100;
+    const finalPrice = Math.max(0, Math.round((originalPrice - discountAmount) * 100) / 100);
+
+    let savingsText = '';
+    let offerBadge = '';
+
+    if (discountType === 'percentage' && value > 0) {
+      savingsText = `Save ${value}% (-${currencySymbol} ${discountAmount.toFixed(2)})`;
+      offerBadge = `${value}% OFF`;
+    } else if (discountType === 'fixed' && value > 0) {
+      savingsText = `Save ${currencySymbol} ${discountAmount.toFixed(2)}`;
+      offerBadge = `${currencySymbol} ${value.toFixed(0)} OFF`;
+    }
+
+    return {
+      originalPrice,
+      discountType,
+      discountValue: value,
+      discountAmount,
+      finalPrice,
+      formattedOriginalPrice: `${currencySymbol} ${originalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      formattedDiscountAmount: `${currencySymbol} ${discountAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      formattedFinalPrice: `${currencySymbol} ${finalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      savingsText,
+      offerBadge,
+    };
+  }
+
+  /**
+   * List all custom product/variant pre-order overrides for a store.
+   */
+  static async listOverrides(storeId: string) {
+    return prisma.preorderConfig.findMany({
+      where: {
+        storeId,
+        OR: [
+          { shopifyProductId: { not: null } },
+          { shopifyVariantId: { not: null } },
+        ],
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+
+  /**
+   * Get paginated pre-order customer orders with safe decryption of sensitive consumer data.
+   */
+  static async getPreorderRecords(storeId: string, page = 1, pageSize = 15) {
+    const { safeDecrypt } = require('@/lib/utils/encryption');
+    const skip = (Math.max(1, page) - 1) * pageSize;
+
+    const [total, records] = await Promise.all([
+      prisma.preorderRecord.count({ where: { storeId } }),
+      prisma.preorderRecord.findMany({
+        where: { storeId },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: pageSize,
+      }),
+    ]);
+
+    const decryptedRecords = records.map((r) => ({
+      ...r,
+      customerName: safeDecrypt(r.customerName),
+      customerEmail: safeDecrypt(r.customerEmail),
+      customerPhone: safeDecrypt(r.customerPhone),
+    }));
+
+    return {
+      data: decryptedRecords,
+      pagination: {
+        total,
+        page,
+        pageSize,
+        totalPages: Math.ceil(total / pageSize) || 1,
+        hasNext: page < Math.ceil(total / pageSize),
+        hasPrev: page > 1,
+      },
+    };
+  }
+}

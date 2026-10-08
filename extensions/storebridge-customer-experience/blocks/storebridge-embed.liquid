@@ -1,0 +1,25 @@
+<div
+  id="storebridge-global-embed"
+  data-storebridge-embed="true"
+  data-shop="{{ shop.permanent_domain }}"
+  data-api-url="{{ block.settings.api_url | default: 'https://dz50mdfc-3000.inc1.devtunnels.ms' }}"
+  style="display: none;"
+></div>
+
+{% schema %}
+{
+  "name": "StoreBridge Global Embed",
+  "target": "body",
+  "stylesheet": "availability.css",
+  "javascript": "availability.js",
+  "settings": [
+    {
+      "type": "text",
+      "id": "api_url",
+      "label": "StoreBridge App URL",
+      "default": "https://dz50mdfc-3000.inc1.devtunnels.ms",
+      "info": "Backend API endpoint for StoreBridge"
+    }
+  ]
+}
+{% endschema %}

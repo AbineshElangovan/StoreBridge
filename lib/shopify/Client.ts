@@ -95,6 +95,26 @@ export async function shopifyFetch(input: RequestInfo, init: RequestInit = {}): 
         headers,
       });
       const buffer = await res.arrayBuffer();
+
+      // Guard against HTML error pages throwing syntax errors on res.json()
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json") && res.status >= 400) {
+        const textDecoder = new TextDecoder();
+        const text = textDecoder.decode(buffer);
+        console.warn(`[shopifyFetch] Server returned HTML error (${res.status}):`, text.substring(0, 120));
+        const errorJson = JSON.stringify({
+          success: false,
+          error: `Server error (${res.status}): Please refresh or check server logs.`
+        });
+        const enc = new TextEncoder();
+        return {
+          status: res.status,
+          statusText: res.statusText,
+          headers: [["Content-Type", "application/json"]],
+          body: enc.encode(errorJson).buffer,
+        };
+      }
+
       return {
         status: res.status,
         statusText: res.statusText,

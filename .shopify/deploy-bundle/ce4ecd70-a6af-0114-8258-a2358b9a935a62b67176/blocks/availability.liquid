@@ -1,0 +1,98 @@
+{%- assign raw_image = product.featured_image | image_url: width: 600 -%}
+{%- assign secure_image = raw_image -%}
+{%- if raw_image != blank -%}
+  {%- unless raw_image contains 'http' -%}
+    {%- assign secure_image = 'https:' | append: raw_image -%}
+  {%- endunless -%}
+{%- endif -%}
+<div
+  id="storebridge-availability"
+  data-storebridge="availability"
+  data-shop="{{ shop.permanent_domain }}"
+  data-product-id="{{ product.id }}"
+  data-product-title="{{ product.title | escape }}"
+  data-product-url="{{ product.url }}"
+  data-product-image="{{ secure_image }}"
+  data-selected-variant-id="{{ product.selected_or_first_available_variant.id }}"
+  data-api-url="{{ block.settings.api_url | default: 'https://dz50mdfc-3000.inc1.devtunnels.ms' }}"
+>
+  <script type="application/json" id="storebridge-product-variants-data">
+    [
+      {% for variant in product.variants %}
+        {
+          "id": {{ variant.id | json }},
+          "title": {{ variant.title | json }},
+          "available": {{ variant.available | json }},
+          "inventory_quantity": {% if variant.inventory_quantity != blank %}{{ variant.inventory_quantity | json }}{% else %}null{% endif %},
+          "price": {{ variant.price | money | json }},
+          "image": {% if variant.featured_image %}{% assign vimg = variant.featured_image | image_url: width: 600 %}{% unless vimg contains 'http' %}{% assign vimg = 'https:' | append: vimg %}{% endunless %}{{ vimg | json }}{% else %}null{% endif %}
+        }{% unless forloop.last %},{% endunless %}
+      {% endfor %}
+    ]
+  </script>
+
+  <!-- STOREBRIDGE AVAILABILITY & PRE-ORDER UI (Hidden by default, shown ONLY when sold out) -->
+  <div id="storebridge-ui-content" class="storebridge-ui-content" style="display: none;">
+    <div class="storebridge-info-card">
+      <p class="storebridge-customer-msg" id="storebridge-card-customer-msg">
+        {{ block.settings.customer_message | default: "Pre-order before it's gone." }}
+      </p>
+      <div class="storebridge-shipping-row">
+        <svg width="15" height="15" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path fill-rule="evenodd" d="M3 4.5A1.5 1.5 0 0 1 4.5 3h7A1.5 1.5 0 0 1 13 4.5v2.25h2.172a1.5 1.5 0 0 1 1.06.44l2.329 2.328a1.5 1.5 0 0 1 .439 1.06V14.5a1.5 1.5 0 0 1-1.5 1.5h-.543a2.502 2.502 0 0 1-4.914 0H8.457a2.502 2.502 0 0 1-4.914 0H3A1.5 1.5 0 0 1 1.5 14.5v-8.5A1.5 1.5 0 0 1 3 4.5Zm3 11a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm8.5 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd"/>
+        </svg>
+        <span id="storebridge-card-shipping-msg">{{ block.settings.shipping_message | default: "Shipping: As soon as possible" }}</span>
+      </div>
+    </div>
+
+    <p class="storebridge-supporting-msg">Don't miss out - Grab yours now before we sell out again!</p>
+
+    <!-- 1. PRE-ORDER BUTTON -->
+    <button type="button" class="storebridge-preorder-btn" id="storebridge-preorder-action-btn" data-storebridge-action="preorder">
+      Pre Order
+    </button>
+
+    <p class="storebridge-fulfillment-msg" id="storebridge-card-fulfillment-msg">
+      {{ block.settings.fulfillment_message | default: "We will fulfill the item as soon as it becomes available" }}
+    </p>
+
+    <!-- 2. NOTIFY ME BUTTON -->
+    <button type="button" class="storebridge-notify-btn" id="storebridge-notify-action-btn" data-storebridge-action="notify">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+      </svg>
+      <span>Notify me</span>
+    </button>
+
+    <div class="storebridge-pickup-box">
+      <div class="storebridge-pickup-available">
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <path fill-rule="evenodd" d="M16.704 5.293a1 1 0 0 1 .003 1.414l-8.5 8.53a1 1 0 0 1-1.417.003l-4.5-4.5a1 1 0 0 1 1.414-1.414l3.79 3.79 7.796-7.826a1 1 0 0 1 1.414.003Z" clip-rule="evenodd"/>
+        </svg>
+        <span>Pickup available at {{ shop.name }}</span>
+      </div>
+      <p style="margin: 2px 0 0 16px; color: #6b7280; font-size: 11px;">Usually ready in 24 hours</p>
+      <p style="margin: 2px 0 0 16px; color: #9ca3af; font-size: 10px; text-decoration: underline; cursor: pointer;">View store information</p>
+    </div>
+  </div>
+</div>
+
+{% schema %}
+{
+  "name": "StoreBridge Availability",
+  "target": "section",
+  "stylesheet": "availability.css",
+  "javascript": "availability.js",
+  "templates": ["product", "cart"],
+  "settings": [
+    {
+      "type": "text",
+      "id": "api_url",
+      "label": "StoreBridge App URL",
+      "default": "https://dz50mdfc-3000.inc1.devtunnels.ms",
+      "info": "Backend API endpoint for StoreBridge"
+    }
+  ]
+}
+{% endschema %}

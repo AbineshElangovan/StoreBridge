@@ -1,0 +1,17 @@
+{
+  "preorder": {
+    "button": "Pre Order",
+    "badge": "Preorder",
+    "default_customer_message": "Pre-order before it's gone.",
+    "default_shipping_message": "Shipping: As soon as possible",
+    "default_fulfillment_message": "We will fulfill the item as soon as it becomes available"
+  },
+  "notify_me": {
+    "button": "Notify me",
+    "modal_title": "Notify me",
+    "modal_subtitle": "Get notified when this item is back in stock.",
+    "submit_button": "Notify me when available",
+    "success_title": "You're on the list!",
+    "success_message": "We'll notify you when this variant becomes available."
+  }
+}

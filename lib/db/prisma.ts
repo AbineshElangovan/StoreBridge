@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client'
 
 const prismaClientSingleton = () => {
   return new PrismaClient({
+    datasourceUrl: process.env.DATABASE_URL,
     log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   }).$extends({
     query: {
@@ -44,8 +45,14 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClientSingleton | undefined
 }
 
-export const prisma = globalForPrisma.prisma ?? prismaClientSingleton()
+// Reset cached client to force loading newly migrated schema fields (discountType, discountValue)
+if (globalForPrisma.prisma) {
+  globalForPrisma.prisma = undefined;
+}
+
+export const prisma = prismaClientSingleton();
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
 }
+

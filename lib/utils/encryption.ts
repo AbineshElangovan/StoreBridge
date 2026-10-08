@@ -28,3 +28,52 @@ export function decrypt(encryptedString: string): string {
   decipher.setAuthTag(tag)
   return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8')
 }
+
+const ENCRYPTED_PATTERN = /^[0-9a-fA-F]{32}:[0-9a-fA-F]{32}:[0-9a-fA-F]+$/
+
+/**
+ * Checks if a string has the AES-256-GCM encrypted format (iv:tag:data).
+ */
+export function isEncrypted(val: string | null | undefined): boolean {
+  if (!val || typeof val !== 'string') return false
+  return ENCRYPTED_PATTERN.test(val.trim())
+}
+
+/**
+ * Safely encrypts a string. If already encrypted, null, or empty, leaves it untouched.
+ */
+export function safeEncrypt(plaintext: string | null | undefined): string | null {
+  if (!plaintext || typeof plaintext !== 'string') return (plaintext as any) ?? null
+  const trimmed = plaintext.trim()
+  if (!trimmed) return plaintext
+  if (isEncrypted(trimmed)) return trimmed
+  return encrypt(trimmed)
+}
+
+/**
+ * Safely decrypts a string. If not encrypted, null, or empty, returns as-is.
+ * Does not throw on unencrypted legacy data.
+ */
+export function safeDecrypt(encryptedString: string | null | undefined): string | null {
+  if (!encryptedString || typeof encryptedString !== 'string') return (encryptedString as any) ?? null
+  const trimmed = encryptedString.trim()
+  if (!trimmed) return encryptedString
+  if (!isEncrypted(trimmed)) {
+    // Unencrypted legacy plaintext - return as-is
+    return trimmed
+  }
+  try {
+    return decrypt(trimmed)
+  } catch (err: any) {
+    console.warn('[Encryption:safeDecrypt] Decryption failed, returning raw string:', err.message)
+    return trimmed
+  }
+}
+
+/**
+ * Generates a deterministic hash for search/lookups without exposing plaintext.
+ */
+export function hashSearchToken(val: string | null | undefined): string | null {
+  if (!val || typeof val !== 'string') return null
+  return crypto.createHash('sha256').update(val.trim().toLowerCase()).digest('hex')
+}
