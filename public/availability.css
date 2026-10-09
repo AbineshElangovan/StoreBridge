@@ -133,6 +133,102 @@
   line-height: 1.4;
 }
 
+/* Out of Stock Notice Card */
+.storebridge-out-of-stock-card {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  color: #991b1b;
+}
+
+.storebridge-out-of-stock-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #b91c1c;
+  margin: 0 0 6px 0;
+}
+
+.storebridge-out-of-stock-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #ef4444;
+  flex-shrink: 0;
+}
+
+.storebridge-out-of-stock-desc {
+  font-size: 12px;
+  color: #4b5563;
+  margin: 0;
+  line-height: 1.45;
+}
+
+/* ==========================================================================
+   Hide Quantity Counter in Notify Me / Out of Stock State
+   ========================================================================== */
+html.storebridge-notify-active .product-form__quantity,
+html.storebridge-notify-active quantity-input,
+html.storebridge-notify-active quantity-popover,
+html.storebridge-notify-active .quantity,
+html.storebridge-notify-active .quantity__input,
+html.storebridge-notify-active .quantity__button,
+html.storebridge-notify-active .product__quantity,
+html.storebridge-notify-active .product-form__input--quantity,
+html.storebridge-notify-active [data-quantity-input],
+html.storebridge-notify-active .price-per-item__container,
+html.storebridge-notify-active input[name="quantity"],
+html.storebridge-notify-active input[name="qty"],
+html.storebridge-notify-active [class*="quantity" i]:not([class*="inventory" i]):not([class*="badge" i]),
+html.storebridge-notify-active [class*="qty-wrapper" i],
+html.storebridge-notify-active [class*="quantity-wrapper" i],
+html.storebridge-notify-active .product-form__input:has(input[name="quantity"]),
+html.storebridge-notify-active .product-form__input:has(quantity-input),
+body.storebridge-notify-active .product-form__quantity,
+body.storebridge-notify-active quantity-input,
+body.storebridge-notify-active quantity-popover,
+body.storebridge-notify-active .quantity,
+body.storebridge-notify-active .quantity__input,
+body.storebridge-notify-active .quantity__button,
+body.storebridge-notify-active .product__quantity,
+body.storebridge-notify-active .product-form__input--quantity,
+body.storebridge-notify-active [data-quantity-input],
+body.storebridge-notify-active .price-per-item__container,
+body.storebridge-notify-active input[name="quantity"],
+body.storebridge-notify-active input[name="qty"],
+body.storebridge-notify-active [class*="quantity" i]:not([class*="inventory" i]):not([class*="badge" i]),
+body.storebridge-notify-active [class*="qty-wrapper" i],
+body.storebridge-notify-active [class*="quantity-wrapper" i],
+body.storebridge-notify-active .product-form__input:has(input[name="quantity"]),
+body.storebridge-notify-active .product-form__input:has(quantity-input),
+form:has(.storebridge-out-of-stock-card) .product-form__quantity,
+form:has(.storebridge-out-of-stock-card) quantity-input,
+form:has(.storebridge-out-of-stock-card) quantity-popover,
+form:has(.storebridge-out-of-stock-card) .quantity,
+form:has(.storebridge-out-of-stock-card) .product__quantity,
+form:has(.storebridge-out-of-stock-card) .product-form__input:has(input[name="quantity"]),
+.product__info-container:has(.storebridge-out-of-stock-card) .product-form__quantity,
+.product__info-container:has(.storebridge-out-of-stock-card) quantity-input,
+.product__info-container:has(.storebridge-out-of-stock-card) quantity-popover,
+.product__info-container:has(.storebridge-out-of-stock-card) .quantity,
+.product__info-container:has(.storebridge-out-of-stock-card) .product__quantity,
+.product__info-container:has(.storebridge-out-of-stock-card) .product-form__input:has(input[name="quantity"]),
+.product-single__meta:has(.storebridge-out-of-stock-card) .product-form__quantity,
+.product-single__meta:has(.storebridge-out-of-stock-card) quantity-input,
+.product-single__meta:has(.storebridge-out-of-stock-card) .quantity {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  pointer-events: none !important;
+}
+
 /* Notify Me Secondary CTA */
 .storebridge-notify-btn {
   display: flex;

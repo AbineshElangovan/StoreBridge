@@ -6,8 +6,16 @@ import { Loading } from '@/components/common/Loading';
 import { Toast } from '@/components/common/Toast';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useTheme } from '@/components/providers/ThemeContext';
-import {SettingsCard,SettingsToggle,SettingsInput,SettingsTextarea,SaveButton,PreviewCard,
-} from'@/components/customer-experience/shared';
+import {
+  SettingsCard,
+  SettingsToggle,
+  SettingsInput,
+  SettingsTextarea,
+  SaveButton,
+  PreviewCard,
+} from '@/components/customer-experience/shared';
+import { PreorderProductSelector } from '@/components/preorder/PreorderProductSelector';
+import { PreorderCollectionSelector } from '@/components/preorder/PreorderCollectionSelector';
 
 export default function PreorderAdminPage() {
   const { currentTheme } = useTheme();
@@ -18,6 +26,11 @@ export default function PreorderAdminPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Selection Mode State (Specific Product, Collection-Based, All Products)
+  const [selectionMode, setSelectionMode] = useState<'ALL_PRODUCTS' | 'SPECIFIC_PRODUCTS' | 'COLLECTIONS'>('ALL_PRODUCTS');
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>([]);
 
   // Form State
   const [enabled, setEnabled] = useState(true);
@@ -84,6 +97,9 @@ export default function PreorderAdminPage() {
         setMaxQuantity(data.config.maxQuantity !== null && data.config.maxQuantity !== undefined ? String(data.config.maxQuantity) : '');
         setDiscountType(data.config.discountType || 'none');
         setDiscountValue(String(data.config.discountValue ?? 0));
+        setSelectionMode(data.config.selectionMode || 'ALL_PRODUCTS');
+        setSelectedProductIds(data.config.selectedProductIds || []);
+        setSelectedCollectionIds(data.config.selectedCollectionIds || []);
         if (data.calculation) {
           setCalculation(data.calculation);
         }
@@ -114,6 +130,9 @@ export default function PreorderAdminPage() {
         maxQuantity: maxQtyNum && !isNaN(maxQtyNum) ? maxQtyNum : null,
         discountType,
         discountValue: isNaN(valNum) ? 0 : valNum,
+        selectionMode,
+        selectedProductIds,
+        selectedCollectionIds,
       };
 
       const res = await shopifyFetch('/api/preorder', {
@@ -198,7 +217,7 @@ export default function PreorderAdminPage() {
             <div className="pt-2 border-t border-gray-100">
               <SettingsInput
                 label="Inventory Threshold"
-                description="Variants with stock at or below this value will display the Pre-order button (default: 0)."
+                description="Variants with stock at or below this value (e.g. 0 or negative) display Pre-order. In-stock products (> threshold) show the normal Add to Cart button."
                 value={inventoryThreshold}
                 onChange={setInventoryThreshold}
                 type="number"
@@ -217,6 +236,182 @@ export default function PreorderAdminPage() {
                 min={1}
                 placeholder="No limit"
               />
+            </div>
+          </SettingsCard>
+
+          {/* Product Selection Mode Card */}
+          <SettingsCard
+            title="Product Selection Mode"
+            description="Control which products are targeted for pre-order offers. Only eligible out-of-stock items will support pre-order."
+            badge={
+              <span
+                className="px-2.5 py-0.5 rounded-full text-xs font-bold"
+                style={{
+                  backgroundColor: accentColor,
+                  color: primaryColor,
+                  border: `1px solid ${primaryColor}40`,
+                }}
+              >
+                {selectionMode === 'ALL_PRODUCTS'
+                  ? 'All Products'
+                  : selectionMode === 'SPECIFIC_PRODUCTS'
+                  ? `${selectedProductIds.length} Products Selected`
+                  : `${selectedCollectionIds.length} Collections Selected`}
+              </span>
+            }
+          >
+            <div className="space-y-4">
+              {/* The 3 Selection Modes Radio Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* 1. All Products */}
+                <label
+                  className={`p-3.5 border rounded-xl cursor-pointer flex flex-col gap-1 transition-all ${
+                    selectionMode === 'ALL_PRODUCTS'
+                      ? 'border-emerald-600 bg-emerald-50/50 shadow-2xs ring-1 ring-emerald-600'
+                      : 'border-gray-200 hover:border-gray-300 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="selectionMode"
+                      value="ALL_PRODUCTS"
+                      checked={selectionMode === 'ALL_PRODUCTS'}
+                      onChange={() => setSelectionMode('ALL_PRODUCTS')}
+                      style={{ accentColor: primaryColor }}
+                      className="h-4 w-4 cursor-pointer"
+                    />
+                    <span className="text-sm font-bold text-gray-900">All Products</span>
+                  </div>
+                  <p className="text-xs text-gray-500 pl-6 leading-relaxed">
+                    Target all products in the store that meet inventory conditions.
+                  </p>
+                </label>
+
+                {/* 2. Specific Product */}
+                <label
+                  className={`p-3.5 border rounded-xl cursor-pointer flex flex-col gap-1 transition-all ${
+                    selectionMode === 'SPECIFIC_PRODUCTS'
+                      ? 'border-emerald-600 bg-emerald-50/50 shadow-2xs ring-1 ring-emerald-600'
+                      : 'border-gray-200 hover:border-gray-300 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="selectionMode"
+                      value="SPECIFIC_PRODUCTS"
+                      checked={selectionMode === 'SPECIFIC_PRODUCTS'}
+                      onChange={() => setSelectionMode('SPECIFIC_PRODUCTS')}
+                      style={{ accentColor: primaryColor }}
+                      className="h-4 w-4 cursor-pointer"
+                    />
+                    <span className="text-sm font-bold text-gray-900">Specific Product</span>
+                  </div>
+                  <p className="text-xs text-gray-500 pl-6 leading-relaxed">
+                    Select individual products from your Shopify catalog.
+                  </p>
+                </label>
+
+                {/* 3. Collection-Based */}
+                <label
+                  className={`p-3.5 border rounded-xl cursor-pointer flex flex-col gap-1 transition-all ${
+                    selectionMode === 'COLLECTIONS'
+                      ? 'border-emerald-600 bg-emerald-50/50 shadow-2xs ring-1 ring-emerald-600'
+                      : 'border-gray-200 hover:border-gray-300 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="selectionMode"
+                      value="COLLECTIONS"
+                      checked={selectionMode === 'COLLECTIONS'}
+                      onChange={() => setSelectionMode('COLLECTIONS')}
+                      style={{ accentColor: primaryColor }}
+                      className="h-4 w-4 cursor-pointer"
+                    />
+                    <span className="text-sm font-bold text-gray-900">Collection-Based</span>
+                  </div>
+                  <p className="text-xs text-gray-500 pl-6 leading-relaxed">
+                    Target eligible products belonging to selected collections.
+                  </p>
+                </label>
+              </div>
+
+              {/* Dynamic Target Selection UI */}
+              <div className="pt-2 border-t border-gray-100">
+                {selectionMode === 'ALL_PRODUCTS' && (
+                  <div className="p-4 bg-emerald-50/60 rounded-xl border border-emerald-200 text-emerald-950 text-xs space-y-1">
+                    <div className="font-bold flex items-center gap-1.5 text-emerald-900">
+                      <svg className="w-4 h-4 text-emerald-700 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      All Products Mode Active
+                    </div>
+                    <p className="text-emerald-800 leading-relaxed pl-5.5">
+                      Pre-order offers apply across your entire catalog, but only for products or variants with stock ≤ {inventoryThreshold}. Products that are in stock remain standard purchases and will not show pre-order.
+                    </p>
+                  </div>
+                )}
+
+                {selectionMode === 'SPECIFIC_PRODUCTS' && (
+                  <div className="space-y-2">
+                    <div className="text-xs font-semibold text-gray-700">
+                      Select individual products to target for Pre-order:
+                    </div>
+                    <PreorderProductSelector
+                      selectedProductIds={selectedProductIds}
+                      onChange={setSelectedProductIds}
+                      inventoryThreshold={parseInt(inventoryThreshold, 10) || 0}
+                    />
+                  </div>
+                )}
+
+                {selectionMode === 'COLLECTIONS' && (
+                  <div className="space-y-2">
+                    <div className="text-xs font-semibold text-gray-700">
+                      Select Shopify collections to target for Pre-order:
+                    </div>
+                    <PreorderCollectionSelector
+                      selectedCollectionIds={selectedCollectionIds}
+                      onChange={setSelectedCollectionIds}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Card Footer with Direct Save Button */}
+              <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+                <span className="text-xs text-gray-500 font-medium">
+                  {selectionMode === 'COLLECTIONS'
+                    ? `${selectedCollectionIds.length} collection${selectedCollectionIds.length === 1 ? '' : 's'} selected`
+                    : selectionMode === 'SPECIFIC_PRODUCTS'
+                    ? `${selectedProductIds.length} product${selectedProductIds.length === 1 ? '' : 's'} selected`
+                    : 'All catalog products targeted'}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving}
+                  style={{ backgroundColor: primaryColor }}
+                  className="px-4 py-2 text-xs font-bold text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
+                >
+                  {saving ? (
+                    <>
+                      <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                      Save Selection
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </SettingsCard>
 

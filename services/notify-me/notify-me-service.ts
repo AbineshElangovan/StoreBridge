@@ -9,6 +9,7 @@ export interface NotifyMeSettingInput {
   popupMessage?: string;
   buttonText?: string;
   successMessage?: string;
+  emailSubject?: string;
 }
 
 export const DEFAULT_NOTIFY_ME_SETTING = {
@@ -16,8 +17,9 @@ export const DEFAULT_NOTIFY_ME_SETTING = {
   notifyEmail: true,
   notifyWhatsApp: true,
   popupMessage: 'Get notified when this item is back in stock.',
-  buttonText: 'Notify me when available',
+  buttonText: 'Notify me',
   successMessage: "You're on the list!",
+  emailSubject: 'Good news! {{product_title}} is back in stock',
 };
 
 export interface RegisterCustomerParams {
@@ -81,6 +83,7 @@ export class NotifyMeService {
         popupMessage: data.popupMessage?.trim() || DEFAULT_NOTIFY_ME_SETTING.popupMessage,
         buttonText: data.buttonText?.trim() || DEFAULT_NOTIFY_ME_SETTING.buttonText,
         successMessage: data.successMessage?.trim() || DEFAULT_NOTIFY_ME_SETTING.successMessage,
+        emailSubject: data.emailSubject?.trim() || DEFAULT_NOTIFY_ME_SETTING.emailSubject,
       },
       update: {
         ...(data.enabled !== undefined && { enabled: data.enabled }),
@@ -89,6 +92,7 @@ export class NotifyMeService {
         ...(data.popupMessage !== undefined && { popupMessage: data.popupMessage.trim() }),
         ...(data.buttonText !== undefined && { buttonText: data.buttonText.trim() }),
         ...(data.successMessage !== undefined && { successMessage: data.successMessage.trim() }),
+        ...(data.emailSubject !== undefined && { emailSubject: data.emailSubject.trim() }),
       },
     });
   }

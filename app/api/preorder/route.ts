@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticate, handleApiError } from '@/lib/shopify/authenticate';
 import { PreorderService } from '@/services/preorder/preorder-service';
+import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
 
 const PreorderConfigSchema = z.object({
   enabled: z.boolean().optional(),
-  inventoryThreshold: z.number().int().min(0).max(10000).optional(),
+  inventoryThreshold: z.number().int().min(-9999).max(10000).optional(),
   customerMessage: z.string().max(255).optional(),
   shippingMessage: z.string().max(255).optional(),
   fulfillmentMessage: z.string().max(255).optional(),
   maxQuantity: z.number().int().positive().nullable().optional(),
   discountType: z.enum(['none', 'percentage', 'fixed']).optional(),
   discountValue: z.number().min(0).max(1000000).optional(),
+  selectionMode: z.enum(['ALL_PRODUCTS', 'SPECIFIC_PRODUCTS', 'COLLECTIONS']).optional(),
+  selectedProductIds: z.array(z.string()).optional(),
+  selectedCollectionIds: z.array(z.string()).optional(),
   shopifyProductId: z.string().nullable().optional(),
   shopifyVariantId: z.string().nullable().optional(),
 });
@@ -40,6 +44,87 @@ export async function GET(req: NextRequest) {
         calculation,
         sample100,
         sample1240,
+      });
+    }
+
+    if (action === 'products') {
+      const items = await prisma.productCache.findMany({
+        where: { storeId: store.id },
+        select: {
+          id: true,
+          shopifyProductId: true,
+          shopifyVariantId: true,
+          title: true,
+          sku: true,
+          imageUrl: true,
+          price: true,
+          inventoryQuantity: true,
+          collections: {
+            select: {
+              collection: {
+                select: { id: true, title: true }
+              }
+            }
+          }
+        },
+        orderBy: { title: 'asc' }
+      });
+
+      const productMap = new Map<string, any>();
+      for (const item of items) {
+        const cleanTitle = item.title ? item.title.split(' - ')[0].trim() : 'Untitled Product';
+        let existing = productMap.get(item.shopifyProductId);
+        if (!existing) {
+          existing = {
+            id: item.id,
+            shopifyProductId: item.shopifyProductId,
+            title: cleanTitle,
+            sku: item.sku || null,
+            imageUrl: item.imageUrl || null,
+            price: item.price || 0,
+            totalInventory: 0,
+            variantCount: 0,
+            hasOutOfStockVariant: false,
+            variants: [],
+            collections: [],
+          };
+          productMap.set(item.shopifyProductId, existing);
+        }
+
+        existing.variantCount += 1;
+        existing.totalInventory += item.inventoryQuantity;
+        if (item.inventoryQuantity <= 0) {
+          existing.hasOutOfStockVariant = true;
+        }
+
+        existing.variants.push({
+          id: item.shopifyVariantId,
+          title: item.title,
+          sku: item.sku,
+          inventoryQuantity: item.inventoryQuantity,
+          price: item.price,
+        });
+
+        if (item.collections) {
+          for (const cp of item.collections) {
+            if (cp.collection && !existing.collections.some((c: any) => c.id === cp.collection.id)) {
+              existing.collections.push(cp.collection);
+            }
+          }
+        }
+        if (!existing.imageUrl && item.imageUrl) {
+          existing.imageUrl = item.imageUrl;
+        }
+      }
+
+      const products = Array.from(productMap.values()).map(p => ({
+        ...p,
+        isOutOfStock: p.totalInventory <= 0 || p.hasOutOfStockVariant,
+      }));
+
+      return NextResponse.json({
+        success: true,
+        products,
       });
     }
 

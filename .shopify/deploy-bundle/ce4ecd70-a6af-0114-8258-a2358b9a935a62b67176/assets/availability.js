@@ -50,7 +50,8 @@
     variantsInventory: {},
 
     preorder: {
-      enabled: true,
+      enabled: false,
+      isTargeted: false,
       inventoryThreshold: 0,
       customerMessage: "Pre-order before it's gone.",
       shippingMessage: "Shipping: As soon as possible",
@@ -66,7 +67,7 @@
       notifyEmail: true,
       notifyWhatsApp: true,
       popupMessage: "Get notified when this item is back in stock.",
-      buttonText: "Notify me when available",
+      buttonText: "Notify me",
       successMessage: "You're on the list!"
     }
   };
@@ -397,12 +398,15 @@
 
     /*
      * Out of stock / threshold reached
+     * Strictly trigger Pre-order only if enabled AND product is targeted
      */
-    if (config.preorder.enabled) {
+    const isTargeted = Boolean(config.preorder && config.preorder.isTargeted === true);
+
+    if (config.preorder && config.preorder.enabled && isTargeted && inventory <= threshold) {
       return 'PREORDER';
     }
 
-    if (config.notifyMe.enabled) {
+    if (config.notifyMe && config.notifyMe.enabled) {
       return 'NOTIFY_ME';
     }
 
@@ -505,6 +509,80 @@
         element.style.removeProperty('display');
       });
     });
+  }
+
+  // ============================================================
+  // QUANTITY SELECTOR STATE
+  // ============================================================
+
+  let savedQuantityElements = [];
+
+  function hideQuantitySelector(form) {
+    document.documentElement.classList.add('storebridge-notify-active');
+    document.body?.classList.add('storebridge-notify-active');
+
+    const selectors = [
+      '.product-form__quantity',
+      'quantity-input',
+      'quantity-popover',
+      '.quantity',
+      '.product-form__input--quantity',
+      '[data-quantity-input]',
+      '.product__quantity',
+      '.price-per-item__container',
+      '.quantity__input',
+      '.quantity__button'
+    ];
+
+    selectors.forEach((selector) => {
+      document.querySelectorAll(selector).forEach((element) => {
+        if (!savedQuantityElements.some((item) => item.element === element)) {
+          savedQuantityElements.push({
+            element,
+            display: element.style.display
+          });
+        }
+        element.style.setProperty('display', 'none', 'important');
+        element.style.setProperty('visibility', 'hidden', 'important');
+      });
+    });
+
+    document.querySelectorAll('input[name="quantity"], input[name="qty"]').forEach((qtyInput) => {
+      const parent = qtyInput.closest(
+        '.product-form__quantity, quantity-input, quantity-popover, .quantity, .product-form__input, .product__quantity'
+      );
+      const target = parent || qtyInput;
+      if (!savedQuantityElements.some((item) => item.element === target)) {
+        savedQuantityElements.push({
+          element: target,
+          display: target.style.display
+        });
+      }
+      target.style.setProperty('display', 'none', 'important');
+      target.style.setProperty('visibility', 'hidden', 'important');
+      qtyInput.style.setProperty('display', 'none', 'important');
+    });
+
+    document.querySelectorAll('button[name="minus"], button[name="plus"]').forEach((btn) => {
+      const parent = btn.closest('quantity-input, .quantity, .product-form__quantity') || btn;
+      parent.style.setProperty('display', 'none', 'important');
+      parent.style.setProperty('visibility', 'hidden', 'important');
+    });
+  }
+
+  function restoreQuantitySelector() {
+    document.documentElement.classList.remove('storebridge-notify-active');
+    document.body?.classList.remove('storebridge-notify-active');
+
+    savedQuantityElements.forEach(({ element, display }) => {
+      if (display) {
+        element.style.display = display;
+      } else {
+        element.style.removeProperty('display');
+      }
+      element.style.removeProperty('visibility');
+    });
+    savedQuantityElements = [];
   }
 
   // ============================================================
@@ -706,6 +784,7 @@
   ) {
     hideNativeButton(nativeButton);
     hidePaymentButton();
+    restoreQuantitySelector();
 
     removeAvailabilityUI();
 
@@ -878,7 +957,6 @@
   // ============================================================
   // RENDER NOTIFY ME
   // ============================================================
-
   function renderNotifyMeUI(
     form,
     nativeButton,
@@ -886,6 +964,7 @@
   ) {
     hideNativeButton(nativeButton);
     hidePaymentButton();
+    hideQuantitySelector(form);
 
     removeAvailabilityUI();
 
@@ -900,6 +979,16 @@
       'storebridge-wrapper';
 
     container.innerHTML = `
+      <div class="storebridge-out-of-stock-card">
+        <div class="storebridge-out-of-stock-header">
+          <span class="storebridge-out-of-stock-dot"></span>
+          <span>This product is currently out of stock</span>
+        </div>
+        <p class="storebridge-out-of-stock-desc">
+          Click <strong>Notify me</strong> and enter your details to receive an email notification as soon as stock is back!
+        </p>
+      </div>
+
       <button
         type="button"
         class="storebridge-notify-btn"
@@ -914,15 +1003,10 @@
           stroke-width="2"
         >
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M13.73 21a2 2 0 0 0-3.46 0" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
         </svg>
 
-        <span>
-          ${escapeHtml(
-            config.notifyMe.buttonText ||
-              'Notify me'
-          )}
-        </span>
+        <span>Notify me</span>
       </button>
     `;
 
@@ -969,6 +1053,7 @@
   ) {
     hideNativeButton(nativeButton);
     hidePaymentButton();
+    hideQuantitySelector(form);
 
     removeAvailabilityUI();
 
@@ -1045,6 +1130,7 @@
     );
 
     restorePaymentButton();
+    restoreQuantitySelector();
   }
 
   // ============================================================
@@ -1297,6 +1383,7 @@
         'Configuration loaded successfully.',
         { preorder: config.preorder, notifyMe: config.notifyMe, inventory: config.variantsInventory }
       );
+      updateAvailability();
     } catch (error) {
       warn(
         'Could not load StoreBridge configuration. Using defaults.',

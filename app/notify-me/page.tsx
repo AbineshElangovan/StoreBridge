@@ -26,8 +26,9 @@ export default function NotifyMeAdminPage() {
   const [notifyEmail, setNotifyEmail] = useState(true);
   const [notifyWhatsApp, setNotifyWhatsApp] = useState(true);
   const [popupMessage, setPopupMessage] = useState('Get notified when this item is back in stock.');
-  const [buttonText, setButtonText] = useState('Notify me when available');
+  const [buttonText, setButtonText] = useState('Notify me');
   const [successMessage, setSuccessMessage] = useState("You're on the list!");
+  const [emailSubject, setEmailSubject] = useState('Good news! {{product_title}} is back in stock');
 
   // Registrations table state (server-side paginated)
   const [registrations, setRegistrations] = useState<any[]>([]);
@@ -61,8 +62,9 @@ export default function NotifyMeAdminPage() {
           setNotifyEmail(data.settings.notifyEmail);
           setNotifyWhatsApp(data.settings.notifyWhatsApp);
           setPopupMessage(data.settings.popupMessage || 'Get notified when this item is back in stock.');
-          setButtonText(data.settings.buttonText || 'Notify me when available');
+          setButtonText(data.settings.buttonText || 'Notify me');
           setSuccessMessage(data.settings.successMessage || "You're on the list!");
+          setEmailSubject(data.settings.emailSubject || 'Good news! {{product_title}} is back in stock');
         }
 
         setRegistrations(data.registrations || []);
@@ -102,6 +104,7 @@ export default function NotifyMeAdminPage() {
         popupMessage: popupMessage.trim(),
         buttonText: buttonText.trim(),
         successMessage: successMessage.trim(),
+        emailSubject: emailSubject.trim(),
       };
 
       const res = await shopifyFetch('/api/notify-me', {
@@ -183,7 +186,7 @@ export default function NotifyMeAdminPage() {
     customerContact: (
       <div>
         {r.customerEmail && <div className="font-semibold text-gray-900 text-sm">{r.customerEmail}</div>}
-        {r.customerWhatsApp && <div className="text-xs text-gray-500 font-mono">📱 {r.customerWhatsApp}</div>}
+        {r.customerWhatsApp && <div className="text-xs text-gray-500 font-mono">Tel: {r.customerWhatsApp}</div>}
       </div>
     ),
     channels: (
@@ -322,6 +325,21 @@ export default function NotifyMeAdminPage() {
               onChange={setSuccessMessage}
               placeholder="You're on the list!"
             />
+          </SettingsCard>
+
+          <SettingsCard
+            title="Restock Email Template"
+            description="Configure the email subject and sender details sent to customers when this product is replenished."
+          >
+            <SettingsInput
+              label="Email Notification Subject"
+              value={emailSubject}
+              onChange={setEmailSubject}
+              placeholder="Good news! {{product_title}} is back in stock"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Tip: Use <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded font-mono text-[11px]">&#123;&#123;product_title&#125;&#125;</code> to insert the product title dynamically. A personalized subject prevents your notification from landing in spam.
+            </p>
           </SettingsCard>
         </div>
 

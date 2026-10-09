@@ -13,6 +13,7 @@ const NotifyMeSettingsSchema = z.object({
   popupMessage: z.string().max(255).optional(),
   buttonText: z.string().max(100).optional(),
   successMessage: z.string().max(255).optional(),
+  emailSubject: z.string().max(255).optional(),
 });
 
 const StatusUpdateSchema = z.object({

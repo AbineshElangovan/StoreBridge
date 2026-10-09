@@ -142,7 +142,49 @@ export async function GET(req: NextRequest) {
       PreorderService.getConfig(store.id, resolvedProductId, variantId),
       NotifyMeService.getSettings(store.id),
     ]);
-    console.log('[Storefront:Config:Debug] storeId:', store.id, 'shopDomain:', store.shopDomain, 'preorderConfig:', preorderConfig, 'variantsInventory:', variantsInventory);
+
+    let productCollectionIds: string[] = [];
+    if (resolvedProductId || productId) {
+      try {
+        const pid = resolvedProductId || productId;
+        const cleanPidNum = pid?.replace(/^gid:\/\/shopify\/Product\//, '');
+        const productCaches = await prisma.productCache.findMany({
+          where: {
+            storeId: store.id,
+            OR: [
+              ...(pid ? [{ shopifyProductId: pid }] : []),
+              ...(cleanPidNum ? [{ shopifyProductId: cleanPidNum }] : []),
+              ...(cleanPidNum ? [{ shopifyProductId: `gid://shopify/Product/${cleanPidNum}` }] : []),
+            ],
+          },
+          select: {
+            collections: {
+              select: {
+                collection: {
+                  select: { id: true, shopifyCollectionId: true, title: true }
+                }
+              }
+            }
+          }
+        });
+        for (const pc of productCaches) {
+          for (const cp of pc.collections) {
+            if (cp.collection.id) productCollectionIds.push(cp.collection.id);
+            if (cp.collection.shopifyCollectionId) productCollectionIds.push(cp.collection.shopifyCollectionId);
+          }
+        }
+      } catch (e) {
+        console.warn('[Storefront:Config] Error reading product collections:', e);
+      }
+    }
+
+    const isTargeted = PreorderService.isProductTargeted(
+      preorderConfig,
+      resolvedProductId || productId,
+      productCollectionIds
+    );
+
+    console.log('[Storefront:Config:Debug] storeId:', store.id, 'shopDomain:', store.shopDomain, 'isTargeted:', isTargeted, 'selectionMode:', (preorderConfig as any).selectionMode, 'variantsInventory:', variantsInventory);
 
     const discountType = (preorderConfig as any).discountType || 'none';
     const discountValue = Number((preorderConfig as any).discountValue) || 0;
@@ -154,6 +196,8 @@ export async function GET(req: NextRequest) {
         variantsInventory,
         preorder: {
           enabled: preorderConfig.enabled,
+          isTargeted,
+          selectionMode: (preorderConfig as any).selectionMode || 'ALL_PRODUCTS',
           inventoryThreshold: preorderConfig.inventoryThreshold,
           customerMessage: preorderConfig.customerMessage,
           shippingMessage: preorderConfig.shippingMessage,

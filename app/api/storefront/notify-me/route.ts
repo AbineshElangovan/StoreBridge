@@ -235,6 +235,17 @@ export async function POST(req: NextRequest) {
     const storeDisplayName = store.label || store.shopDomain;
 
     if (email) {
+      let customSubject: string | undefined;
+      try {
+        const setting = await (prisma as any).notifyMeSetting.findUnique({
+          where: { storeId: store.id },
+          select: { emailSubject: true },
+        });
+        if (setting?.emailSubject) customSubject = setting.emailSubject;
+      } catch (subErr) {
+        console.warn('[NotifyMe:SettingLookup:Error]', subErr);
+      }
+
       // Dispatch confirmation email asynchronously in background so storefront modal receives instant (<200ms) response
       EmailNotificationService.sendWaitlistConfirmationEmail({
         to: email,
@@ -244,6 +255,7 @@ export async function POST(req: NextRequest) {
         imageUrl: finalImageUrl,
         price: finalPrice,
         storeName: storeDisplayName,
+        subject: customSubject,
       })
         .then((emailRes) => {
           if (!emailRes.success) {

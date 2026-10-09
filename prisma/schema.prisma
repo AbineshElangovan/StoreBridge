@@ -549,6 +549,9 @@ model PreorderConfig {
   fulfillmentMessage String   @default("We will fulfill the item as soon as it becomes available")
   discountType       String   @default("none")
   discountValue      Float    @default(0)
+  selectionMode      String   @default("ALL_PRODUCTS")
+  selectedProductIds String[] @default([])
+  selectedCollectionIds String[] @default([])
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -568,8 +571,9 @@ model NotifyMeSetting {
   notifyEmail    Boolean  @default(true)
   notifyWhatsApp Boolean  @default(true)
   popupMessage   String   @default("Get notified when this item is back in stock.")
-  buttonText     String   @default("Notify me when available")
+  buttonText     String   @default("Notify me")
   successMessage String   @default("You're on the list!")
+  emailSubject   String?  @default("Good news! {{product_title}} is back in stock")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

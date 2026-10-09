@@ -70,6 +70,15 @@ export class CustomerNotificationService {
       const decryptedEmail = safeDecrypt(job.customerEmail);
 
       if (job.channel === NotificationChannel.EMAIL && decryptedEmail) {
+        let customSubject: string | undefined;
+        try {
+          const setting = await (prisma as any).notifyMeSetting.findUnique({
+            where: { storeId: job.storeId },
+            select: { emailSubject: true },
+          });
+          if (setting?.emailSubject) customSubject = setting.emailSubject;
+        } catch {}
+
         sendResult = await EmailNotificationService.sendBackInStockEmail({
           to: decryptedEmail,
           productTitle: job.productTitle,
@@ -78,6 +87,7 @@ export class CustomerNotificationService {
           imageUrl: finalImageUrl,
           price: productPrice,
           storeName,
+          subject: customSubject,
         });
       } else {
         // Channel is not EMAIL or phone lead only
