@@ -97,20 +97,33 @@ export async function POST(req: NextRequest) {
     }
 
     const updated = await PreorderService.upsertConfig(store.id, parsed.data);
+    const effectiveDiscountType = (updated as any).discountType || parsed.data.discountType || 'none';
+    const effectiveDiscountValue = (updated as any).discountValue !== undefined ? Number((updated as any).discountValue) : Number(parsed.data.discountValue || 0);
+
+    let discountCode = null;
+    if (effectiveDiscountType !== 'none' && effectiveDiscountValue > 0) {
+      discountCode = await PreorderService.syncShopifyDiscount(
+        store.id,
+        effectiveDiscountType,
+        effectiveDiscountValue
+      );
+    }
+
     const calculation = PreorderService.calculatePrice(
       1240,
-      (updated as any).discountType || 'none',
-      (updated as any).discountValue || 0
+      effectiveDiscountType,
+      effectiveDiscountValue
     );
     const sample100 = PreorderService.calculatePrice(
       100,
-      (updated as any).discountType || 'none',
-      (updated as any).discountValue || 0
+      effectiveDiscountType,
+      effectiveDiscountValue
     );
 
     return NextResponse.json({
       success: true,
       config: updated,
+      discountCode,
       calculation,
       sample100,
       message: 'Pre-order configuration saved successfully',

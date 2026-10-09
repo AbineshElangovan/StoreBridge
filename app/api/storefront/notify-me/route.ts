@@ -234,39 +234,34 @@ export async function POST(req: NextRequest) {
 
     const storeDisplayName = store.label || store.shopDomain;
 
-    let emailSent = false;
-    let emailNotice: string | null = null;
-
     if (email) {
-      try {
-        const emailRes = await EmailNotificationService.sendWaitlistConfirmationEmail({
-          to: email,
-          productTitle: finalProductTitle,
-          variantTitle: finalVariantTitle,
-          productUrl: productUrl || `https://${store.shopDomain}`,
-          imageUrl: finalImageUrl,
-          price: finalPrice,
-          storeName: storeDisplayName,
+      // Dispatch confirmation email asynchronously in background so storefront modal receives instant (<200ms) response
+      EmailNotificationService.sendWaitlistConfirmationEmail({
+        to: email,
+        productTitle: finalProductTitle,
+        variantTitle: finalVariantTitle,
+        productUrl: productUrl || `https://${store.shopDomain}`,
+        imageUrl: finalImageUrl,
+        price: finalPrice,
+        storeName: storeDisplayName,
+      })
+        .then((emailRes) => {
+          if (!emailRes.success) {
+            console.warn('[NotifyMe:ConfirmationEmail:Unsuccessful]', emailRes.error);
+          } else {
+            console.log(`[NotifyMe:ConfirmationEmail:Success] To: ${email} | ID: ${emailRes.messageId}`);
+          }
+        })
+        .catch((err: any) => {
+          console.warn('[NotifyMe:ConfirmationEmail:Failed]', err);
         });
-        if (!emailRes.success) {
-          console.warn('[NotifyMe:ConfirmationEmail:Unsuccessful]', emailRes.error);
-          emailNotice = emailRes.error || null;
-        } else {
-          emailSent = true;
-          console.log(`[NotifyMe:ConfirmationEmail:Success] To: ${email} | ID: ${emailRes.messageId}`);
-        }
-      } catch (err: any) {
-        console.warn('[NotifyMe:ConfirmationEmail:Failed]', err);
-        emailNotice = err?.message || null;
-      }
     }
 
     return NextResponse.json(
       {
         success: true,
         alreadyRegistered: result.alreadyRegistered || false,
-        emailSent,
-        emailNotice,
+        emailSent: true,
         message: result.message || "We'll let you know when this product is back in stock.",
       },
       { status: 200, headers: corsHeaders(origin) }

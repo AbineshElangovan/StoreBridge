@@ -144,6 +144,10 @@ export async function GET(req: NextRequest) {
     ]);
     console.log('[Storefront:Config:Debug] storeId:', store.id, 'shopDomain:', store.shopDomain, 'preorderConfig:', preorderConfig, 'variantsInventory:', variantsInventory);
 
+    const discountType = (preorderConfig as any).discountType || 'none';
+    const discountValue = Number((preorderConfig as any).discountValue) || 0;
+    const discountCode = PreorderService.getDiscountCode(discountType, discountValue);
+
     return NextResponse.json(
       {
         success: true,
@@ -155,12 +159,13 @@ export async function GET(req: NextRequest) {
           shippingMessage: preorderConfig.shippingMessage,
           fulfillmentMessage: preorderConfig.fulfillmentMessage,
           maxQuantity: preorderConfig.maxQuantity,
-          discountType: (preorderConfig as any).discountType || 'none',
-          discountValue: (preorderConfig as any).discountValue || 0,
+          discountType,
+          discountValue,
+          discountCode,
           pricing: PreorderService.calculatePrice(
             parseFloat(searchParams.get('price') || searchParams.get('variantPrice') || '0'),
-            (preorderConfig as any).discountType || 'none',
-            (preorderConfig as any).discountValue || 0
+            discountType,
+            discountValue
           ),
         },
         notifyMe: {

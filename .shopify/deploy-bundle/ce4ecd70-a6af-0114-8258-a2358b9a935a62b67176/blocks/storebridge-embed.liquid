@@ -1,3 +1,49 @@
+{{ 'availability.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'availability.js' | asset_url }}" defer></script>
+
+{%- if request.page_type == 'cart' -%}
+  {%- assign sb_has_preorder = false -%}
+  {%- for item in cart.items -%}
+    {%- if item.properties._preorder == 'true' or item.properties._preorder == true -%}
+      {%- assign sb_has_preorder = true -%}
+    {%- endif -%}
+    {%- for prop in item.properties -%}
+      {%- assign p_key = prop.first | downcase -%}
+      {%- if p_key contains 'pre-order' or p_key contains 'preorder' or p_key == '_preorder' -%}
+        {%- assign sb_has_preorder = true -%}
+      {%- endif -%}
+    {%- endfor -%}
+    {%- assign i_title = item.title | downcase -%}
+    {%- if i_title contains 'pre-order' or i_title contains 'preorder' -%}
+      {%- assign sb_has_preorder = true -%}
+    {%- endif -%}
+  {%- endfor -%}
+
+  <script id="storebridge-server-cart" type="application/json">{{ cart | json }}</script>
+
+  <script>
+    try {
+      if ({% if sb_has_preorder %}true{% else %}false{% endif %} || sessionStorage.getItem('storebridge_has_preorder') === 'true') {
+        document.documentElement.classList.add('storebridge-custom-cart-active');
+        sessionStorage.setItem('storebridge_has_preorder', 'true');
+      }
+    } catch(e){}
+  </script>
+
+  <style id="storebridge-cart-flicker-guard">
+    html.storebridge-custom-cart-active [id*="cart-footer"],
+    html.storebridge-custom-cart-active [id*="cart_footer"],
+    html.storebridge-custom-cart-active .cart__footer-wrapper,
+    html.storebridge-custom-cart-active .section-main-cart-footer,
+    html.storebridge-custom-cart-active #main-cart-footer,
+    html.storebridge-custom-cart-active cart-items,
+    html.storebridge-custom-cart-active #main-cart-items,
+    html.storebridge-custom-cart-active form[action*="/cart"] {
+      display: none !important;
+    }
+  </style>
+{%- endif -%}
+
 <div
   id="storebridge-global-embed"
   data-storebridge-embed="true"
@@ -9,9 +55,7 @@
 {% schema %}
 {
   "name": "StoreBridge Global Embed",
-  "target": "body",
-  "stylesheet": "availability.css",
-  "javascript": "availability.js",
+  "target": "head",
   "settings": [
     {
       "type": "text",

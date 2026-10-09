@@ -483,211 +483,881 @@
   to { transform: rotate(360deg); }
 }
 
+
 /* ==========================================================================
-   StoreBridge Cart Page & Drawer Enhancements (Innovative UI)
+   StoreBridge Cart Page Redesign (Complete Removal of Native Gray Sidebar & Backgrounds)
    ========================================================================== */
 
-.storebridge-badge-pill {
+/* 1. Complete universal eradication of ALL native theme cart tables & footers (ONLY native cart elements) */
+html.storebridge-custom-cart-active [id*="cart-footer"],
+html.storebridge-custom-cart-active [id*="cart_footer"],
+html.storebridge-custom-cart-active [class*="cart-footer"],
+html.storebridge-custom-cart-active [class*="cart_footer"],
+html.storebridge-custom-cart-active [class*="cart__footer"],
+html.storebridge-custom-cart-active [class*="cart-sidebar"],
+html.storebridge-custom-cart-active [class*="cart__sidebar"],
+html.storebridge-custom-cart-active .cart__footer-wrapper,
+html.storebridge-custom-cart-active .cart__footer,
+html.storebridge-custom-cart-active #main-cart-footer,
+html.storebridge-custom-cart-active .section-main-cart-footer,
+html.storebridge-custom-cart-active .shopify-section-main-cart-footer,
+html.storebridge-custom-cart-active .shopify-section:has(#main-cart-footer),
+html.storebridge-custom-cart-active .shopify-section:has([id*="cart-footer"]),
+html.storebridge-custom-cart-active .shopify-section:has([id*="cart_footer"]),
+html.storebridge-custom-cart-active .shopify-section:has(.cart__footer),
+html.storebridge-custom-cart-active .shopify-section:has(.cart__footer-wrapper),
+html.storebridge-custom-cart-active .shopify-section:has([class*="cart__footer"]),
+html.storebridge-custom-cart-active .shopify-section:has([class*="cart-footer"]),
+html.storebridge-custom-cart-active .shopify-section:has([class*="cart_footer"]),
+html.storebridge-custom-cart-active .shopify-section:has(.cart-summary),
+html.storebridge-custom-cart-active .shopify-section:has(.cart__summary),
+html.storebridge-custom-cart-active .shopify-section:has(button[name="checkout"]),
+html.storebridge-custom-cart-active .shopify-section:has(.cart__checkout-button),
+html.storebridge-custom-cart-active .cart__aside,
+html.storebridge-custom-cart-active .cart-summary,
+html.storebridge-custom-cart-active .cart__summary,
+html.storebridge-custom-cart-active #cart-footer,
+html.storebridge-custom-cart-active #main-cart-items,
+html.storebridge-custom-cart-active .cart__contents,
+html.storebridge-custom-cart-active cart-items,
+html.storebridge-custom-cart-active cart-items > form,
+html.storebridge-custom-cart-active cart-items > .title-wrapper-with-link,
+html.storebridge-custom-cart-active form#cart,
+html.storebridge-custom-cart-active form#cartform,
+html.storebridge-custom-cart-active form[action*="/cart"],
+html.storebridge-custom-cart-active .cart-items,
+html.storebridge-custom-cart-active .title-wrapper-with-link,
+html.storebridge-custom-cart-active .cart__warnings,
+html.storebridge-custom-cart-active .Cart,
+html.storebridge-custom-cart-active .Cart__ItemList,
+html.storebridge-custom-cart-active .Cart__Recap,
+html.storebridge-custom-cart-active .cart-form,
+html.storebridge-custom-cart-active .cart-template,
+html.storebridge-custom-cart-active .cart__page-table,
+html.storebridge-custom-cart-active [data-cart-form],
+body.storebridge-custom-cart-active [id*="cart-footer"],
+body.storebridge-custom-cart-active [id*="cart_footer"],
+body.storebridge-custom-cart-active [class*="cart-footer"],
+body.storebridge-custom-cart-active [class*="cart_footer"],
+body.storebridge-custom-cart-active [class*="cart__footer"],
+body.storebridge-custom-cart-active [class*="cart-sidebar"],
+body.storebridge-custom-cart-active [class*="cart__sidebar"],
+body.storebridge-custom-cart-active .cart__footer-wrapper,
+body.storebridge-custom-cart-active .cart__footer,
+body.storebridge-custom-cart-active #main-cart-footer,
+body.storebridge-custom-cart-active .section-main-cart-footer,
+body.storebridge-custom-cart-active .shopify-section-main-cart-footer,
+body.storebridge-custom-cart-active .shopify-section:has(#main-cart-footer),
+body.storebridge-custom-cart-active .shopify-section:has([id*="cart-footer"]),
+body.storebridge-custom-cart-active .shopify-section:has([id*="cart_footer"]),
+body.storebridge-custom-cart-active .shopify-section:has(.cart__footer),
+body.storebridge-custom-cart-active .shopify-section:has(.cart__footer-wrapper),
+body.storebridge-custom-cart-active .shopify-section:has([class*="cart__footer"]),
+body.storebridge-custom-cart-active .shopify-section:has([class*="cart-footer"]),
+body.storebridge-custom-cart-active .shopify-section:has([class*="cart_footer"]),
+body.storebridge-custom-cart-active .shopify-section:has(.cart-summary),
+body.storebridge-custom-cart-active .shopify-section:has(.cart__summary),
+body.storebridge-custom-cart-active .shopify-section:has(button[name="checkout"]),
+body.storebridge-custom-cart-active .shopify-section:has(.cart__checkout-button),
+body.storebridge-custom-cart-active .cart__aside,
+body.storebridge-custom-cart-active .cart-summary,
+body.storebridge-custom-cart-active .cart__summary,
+body.storebridge-custom-cart-active #cart-footer,
+body.storebridge-custom-cart-active #main-cart-items,
+body.storebridge-custom-cart-active .cart__contents,
+body.storebridge-custom-cart-active cart-items,
+body.storebridge-custom-cart-active cart-items > form,
+body.storebridge-custom-cart-active cart-items > .title-wrapper-with-link,
+body.storebridge-custom-cart-active form#cart,
+body.storebridge-custom-cart-active form#cartform,
+body.storebridge-custom-cart-active form[action*="/cart"],
+body.storebridge-custom-cart-active .cart-items,
+body.storebridge-custom-cart-active .title-wrapper-with-link,
+body.storebridge-custom-cart-active .cart__warnings,
+body.storebridge-custom-cart-active .Cart,
+body.storebridge-custom-cart-active .Cart__ItemList,
+body.storebridge-custom-cart-active .Cart__Recap,
+body.storebridge-custom-cart-active .cart-form,
+body.storebridge-custom-cart-active .cart-template,
+body.storebridge-custom-cart-active .cart__page-table,
+body.storebridge-custom-cart-active [data-cart-form] {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  width: 0 !important;
+  min-height: 0 !important;
+  max-width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  opacity: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  pointer-events: none !important;
+  overflow: hidden !important;
+}
+
+/* 2. EXPLICIT WHITELIST: Keep theme's native Related Products section visible without breaking card sizing */
+body.storebridge-custom-cart-active product-recommendations,
+body.storebridge-custom-cart-active .shopify-section:has(product-recommendations),
+body.storebridge-custom-cart-active .shopify-section:has(.product-recommendations),
+body.storebridge-custom-cart-active [id*="shopify-section"][id*="recommendations"],
+body.storebridge-custom-cart-active [id*="shopify-section"][id*="related"],
+body.storebridge-custom-cart-active .section-product-recommendations {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+/* 3. Neutralize ALL gray backgrounds and theme 2-column grids on Cart page */
+body.storebridge-custom-cart-active,
+body.storebridge-custom-cart-active main,
+body.storebridge-custom-cart-active #MainContent,
+body.storebridge-custom-cart-active .main-content {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  --color-background: 255, 255, 255 !important;
+  --gradient-background: #ffffff !important;
+  --color-base-background-1: 255, 255, 255 !important;
+  --color-base-background-2: 255, 255, 255 !important;
+}
+
+body.storebridge-custom-cart-active .gradient,
+body.storebridge-custom-cart-active [class*="color-scheme-"] {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+body.storebridge-custom-cart-active main,
+body.storebridge-custom-cart-active #MainContent,
+body.storebridge-custom-cart-active .page-width,
+body.storebridge-custom-cart-active .cart {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  grid-template-columns: 1fr !important;
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* Smooth fade-in for pre-order product page widget */
+.storebridge-wrapper {
+  animation: storebridge-fade-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes storebridge-fade-in {
+  from { opacity: 0.9; transform: translateY(1px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 4. StoreBridge Cart Page Container (Matches Theme Standard 1200px) */
+.storebridge-cart-page {
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #0f172a;
+  background: #ffffff;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Header: "Cart  1" */
+.storebridge-cart-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.storebridge-cart-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+}
+
+.storebridge-cart-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 9999px;
+  background-color: #f1f5f9;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* 2-Column Responsive Layout */
+.storebridge-cart-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 32px;
+  align-items: start;
+}
+
+/* Left Column: Cart Items */
+.storebridge-cart-items-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+/* Innovative Cart Item Card - Balanced & Sleek */
+.storebridge-cart-item-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px 20px;
+  box-sizing: border-box;
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 6px 18px -4px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  width: 100%;
+}
+
+.storebridge-cart-item-card:hover {
+  border-color: #cbd5e1;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.04), 0 12px 24px -4px rgba(0, 0, 0, 0.06);
+}
+
+.storebridge-cart-item-card.storebridge-item-loading {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Crisp Square Image Wrapper */
+.storebridge-cart-item-image-wrapper {
+  width: 78px;
+  height: 78px;
+  min-width: 78px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.storebridge-cart-item-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* Content Container */
+.storebridge-cart-item-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Top Row: Title/Variant on left, Controls and Line Total on right */
+.storebridge-cart-item-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  width: 100%;
+}
+
+.storebridge-cart-item-heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.storebridge-cart-item-title {
+  font-size: 15.5px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.storebridge-cart-item-variant {
+  font-size: 13px;
+  color: #64748b;
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+/* Controls and Line Price Wrapper */
+.storebridge-cart-item-controls-and-price {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Modern Quantity Pill Box: [ − 1 + ] */
+.storebridge-cart-qty-wrapper {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  height: 32px;
+  background: #ffffff;
+  user-select: none;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.storebridge-qty-btn {
+  width: 28px;
+  height: 100%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.storebridge-qty-btn:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+.storebridge-qty-btn:active {
+  background-color: #e2e8f0;
+  transform: scale(0.92);
+}
+
+.storebridge-qty-value {
+  min-width: 24px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 32px;
+}
+
+/* Trash Can Button */
+.storebridge-delete-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #94a3b8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+  border-radius: 7px;
+  transition: all 0.2s ease;
+}
+
+.storebridge-delete-btn:hover {
+  color: #ef4444;
+  background-color: #fee2e2;
+  transform: scale(1.06);
+}
+
+.storebridge-delete-btn svg,
+.storebridge-delete-btn svg * {
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+
+.storebridge-qty-btn * {
+  pointer-events: none;
+}
+
+/* Line Total on the right */
+.storebridge-cart-item-line-price {
+  text-align: right;
+  min-width: 90px;
+  margin-left: 4px;
+}
+
+.storebridge-line-final-price {
+  font-size: 16px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.storebridge-line-original-price {
+  font-size: 12px;
+  color: #94a3b8;
+  text-decoration: line-through;
+  margin-top: 2px;
+  font-weight: 500;
+}
+
+/* Pre-order Section under Title */
+.storebridge-cart-item-preorder-section {
+  display: flex;
+  flex-direction: column;
+  margin-top: 5px;
+}
+
+/* Innovative Badges */
+.storebridge-preorder-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding: 4px 10px;
+  padding: 3.5px 10px;
   border-radius: 9999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.35px;
+  text-transform: uppercase;
+  line-height: 1;
+  width: fit-content;
+  margin-top: 4px;
   margin-bottom: 6px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  transition: transform 0.2s ease;
-  line-height: 1.3;
 }
 
-.storebridge-badge-pill:hover {
-  transform: translateY(-1px);
+.storebridge-preorder-badge svg {
+  flex-shrink: 0;
+  width: 11px;
+  height: 11px;
 }
 
-.storebridge-badge-orange {
+/* 1. Percentage Badge: Soft warm sunset orange */
+.storebridge-badge-percentage {
   background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
   color: #ea580c;
   border: 1px solid #fed7aa;
+  box-shadow: 0 1px 3px rgba(234, 88, 12, 0.08);
 }
 
-.storebridge-badge-blue {
-  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-  color: #2563eb;
-  border: 1px solid #bfdbfe;
+/* 2. Fixed Badge: Soft sapphire blue */
+.storebridge-badge-fixed {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  color: #0284c7;
+  border: 1px solid #bae6fd;
+  box-shadow: 0 1px 3px rgba(2, 132, 199, 0.08);
 }
 
-.storebridge-badge-green {
+/* 3. None Badge: Soft emerald green */
+.storebridge-badge-none {
   background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
   color: #16a34a;
   border: 1px solid #bbf7d0;
+  box-shadow: 0 1px 3px rgba(22, 163, 74, 0.08);
 }
 
-.storebridge-cart-custom-block {
-  margin: 6px 0;
+/* Clean Price Hierarchy */
+.storebridge-cart-item-prices {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  text-align: left;
+  gap: 1px;
 }
 
-.storebridge-cart-pricing-block {
-  margin: 2px 0 4px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.storebridge-cart-original-struck {
-  font-size: 13px;
-  color: #9ca3af;
+.storebridge-unit-original-price {
+  color: #94a3b8;
+  font-size: 12px;
   text-decoration: line-through;
-  line-height: 1.2;
+  font-weight: 500;
+  margin-bottom: 0px;
 }
 
-.storebridge-cart-bold-price {
-  font-size: 19px;
+.storebridge-unit-final-price {
+  color: #0f172a;
+  font-size: 16px;
   font-weight: 800;
-  color: #111827;
-  letter-spacing: -0.02em;
   line-height: 1.2;
+  letter-spacing: -0.015em;
 }
 
-.storebridge-cart-savings-green {
+.storebridge-unit-savings {
   display: inline-flex;
   align-items: center;
-  font-size: 12px;
-  font-weight: 700;
+  gap: 3px;
   color: #15803d;
-  background-color: #ecfdf5;
-  border: 1px solid #a7f3d0;
-  padding: 2px 8px;
-  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #ecfdf5;
+  border: 1px solid #bbf7d0;
+  padding: 2.5px 7px;
+  border-radius: 5px;
   width: fit-content;
   margin-top: 3px;
 }
 
-.storebridge-cart-note-card {
+/* Fulfillment Reassurance Note */
+.storebridge-cart-fulfillment-note {
   display: flex;
   align-items: center;
-  gap: 6px;
-  background-color: #f9fafb;
-  border: 1px solid #e5e7eb;
+  gap: 5px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.4;
+  margin-top: 5px;
+  background: #f8fafc;
+  padding: 4px 10px;
   border-radius: 6px;
-  padding: 6px 10px;
+  width: fit-content;
+  border: 1px solid #f1f5f9;
+}
+
+/* Normal product prices (when not pre-order) */
+.storebridge-cart-item-normal-prices {
+  margin-top: 6px;
+}
+
+/* =========================================================
+   INNOVATIVE ORDER SUMMARY CARD (RIGHT COLUMN)
+   ========================================================= */
+
+.storebridge-cart-summary-column {
+  position: sticky;
+  top: 24px;
+}
+
+.storebridge-order-summary-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 28px 24px;
+  box-sizing: border-box;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02), 0 12px 28px -4px rgba(0, 0, 0, 0.05);
+}
+
+.storebridge-summary-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 18px 0;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+/* Innovative Discount Box */
+.storebridge-discount-box {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 13px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+  margin-bottom: 20px;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.storebridge-discount-box:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.storebridge-discount-plus-icon {
+  font-size: 18px;
+  font-weight: 700;
+  color: #475569;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.storebridge-discount-drawer {
+  margin-bottom: 20px;
+}
+
+.storebridge-discount-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.storebridge-discount-input {
+  flex: 1;
+  height: 42px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 14px;
+  color: #0f172a;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.storebridge-discount-input:focus {
+  border-color: #0f172a;
+}
+
+.storebridge-discount-apply-btn {
+  height: 42px;
+  padding: 0 16px;
+  background: #0f172a;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.storebridge-discount-apply-btn:hover {
+  background: #1e293b;
+}
+
+.storebridge-discount-message {
   margin-top: 8px;
-  font-size: 12px;
-  color: #4b5563;
-  line-height: 1.35;
+  font-size: 12.5px;
+  font-weight: 500;
 }
 
-.storebridge-cart-note-card svg {
-  flex-shrink: 0;
-  color: #6b7280;
+.storebridge-discount-message.error {
+  color: #ef4444;
 }
 
-/* Line Item Totals (Right Column) */
-.storebridge-cart-right-price-box {
+.storebridge-discount-message.success {
+  color: #16a34a;
+}
+
+/* Summary Rows */
+.storebridge-summary-rows {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  text-align: right;
-}
-
-.storebridge-cart-right-price {
-  font-size: 16px;
-  font-weight: 800;
-  color: #111827;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-}
-
-.storebridge-cart-right-original {
-  font-size: 13px;
-  color: #9ca3af;
-  text-decoration: line-through;
-  margin-top: 2px;
-  line-height: 1.2;
-}
-
-/* Order Summary Box Enhancement */
-.storebridge-order-summary-block {
-  margin: 14px 0;
-  width: 100%;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  box-sizing: border-box;
-}
-
-.storebridge-summary-header {
-  font-size: 18px;
-  font-weight: 800;
-  color: #111827;
-  margin: 0 0 14px 0;
-  letter-spacing: -0.01em;
+  gap: 12px;
+  margin-bottom: 20px;
 }
 
 .storebridge-summary-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 13px;
-  color: #4b5563;
-  margin-bottom: 10px;
+  font-size: 14.5px;
   line-height: 1.4;
 }
 
-.storebridge-summary-offer-val {
-  color: #dc2626;
+.storebridge-summary-row-label {
+  color: #475569;
+  font-weight: 500;
+}
+
+.storebridge-summary-row-value {
+  color: #0f172a;
   font-weight: 700;
 }
 
-.storebridge-summary-highlight-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 14px;
-  border-radius: 8px;
-  margin: 12px 0 0 0;
-  box-sizing: border-box;
+.storebridge-savings-red {
+  color: #dc2626 !important;
+  font-weight: 700 !important;
 }
 
-.storebridge-highlight-orange {
-  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
-  border: 1px solid #fed7aa;
+/* Warm Highlight Box for Total (All possible class names) */
+.storebridge-total-highlight-box,
+.storebridge-summary-total-box {
+  background: #fff4e5 !important;
+  border: 1.5px solid #fed7aa !important;
+  border-radius: 12px !important;
+  padding: 16px 20px !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 14px !important;
+  box-sizing: border-box !important;
 }
 
-.storebridge-highlight-blue {
-  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-  border: 1px solid #bfdbfe;
+.storebridge-total-label,
+.storebridge-total-box-label {
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  color: #0f172a !important;
 }
 
-.storebridge-highlight-green {
-  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-  border: 1px solid #bbf7d0;
+.storebridge-total-value,
+.storebridge-total-box-value {
+  font-size: 22px !important;
+  font-weight: 900 !important;
+  color: #0f172a !important;
+  letter-spacing: -0.015em !important;
 }
 
-.storebridge-highlight-label {
+/* Taxes Note */
+.storebridge-taxes-note,
+.storebridge-summary-taxes-note {
+  font-size: 12px !important;
+  color: #64748b !important;
+  margin: 0 0 18px 0 !important;
+  line-height: 1.4 !important;
+}
+
+/* Primary Checkout Button (Robust styling with all selectors + ID) */
+.storebridge-checkout-btn,
+.storebridge-cart-checkout-btn,
+button#storebridge-checkout-action-btn {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: 50px !important;
+  background: #18181b !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 12px !important;
+  font-size: 15.5px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  text-align: center !important;
+  line-height: 50px !important;
+  text-decoration: none !important;
+  box-sizing: border-box !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  margin-top: 14px !important;
+}
+
+.storebridge-checkout-btn:hover,
+.storebridge-cart-checkout-btn:hover,
+button#storebridge-checkout-action-btn:hover {
+  background: #09090b !important;
+  color: #ffffff !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18) !important;
+}
+
+.storebridge-checkout-btn:active,
+.storebridge-cart-checkout-btn:active,
+button#storebridge-checkout-action-btn:active {
+  transform: translateY(0) !important;
+}
+
+/* Empty Cart State */
+.storebridge-cart-empty {
+  text-align: center;
+  padding: 80px 20px;
+}
+
+.storebridge-cart-empty h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 20px;
+}
+
+.storebridge-continue-shopping-btn {
+  display: inline-block;
+  padding: 12px 28px;
+  background: #0f172a;
+  color: #ffffff;
+  text-decoration: none;
+  border-radius: 10px;
+  font-weight: 600;
   font-size: 14px;
-  font-weight: 800;
-  color: #111827;
+  transition: background 0.2s ease;
 }
 
-.storebridge-highlight-price {
-  font-size: 19px;
-  font-weight: 900;
-  color: #111827;
+.storebridge-continue-shopping-btn:hover {
+  background: #1e293b;
+}
+
+@media screen and (max-width: 900px) {
+  .storebridge-cart-layout {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .storebridge-cart-items-column {
+    max-width: 100%;
+  }
+
+  .storebridge-cart-item-card {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .storebridge-cart-item-image-wrapper {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+  }
+
+  .storebridge-cart-item-top-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .storebridge-cart-item-controls-and-price {
+    width: 100%;
+    margin-left: 0;
+    justify-content: space-between;
+  }
+
+  .storebridge-cart-item-line-price {
+    min-width: auto;
+  }
+
+  .storebridge-cart-summary-column {
+    position: static;
+  }
+}
+
+/* Empty Cart State */
+.storebridge-cart-empty {
+  text-align: center;
+  padding: 80px 24px;
+  background: #ffffff;
+  border-radius: 18px;
+  border: 1px solid #e2e8f0;
+  max-width: 560px;
+  margin: 40px auto;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03), 0 8px 24px -4px rgba(0, 0, 0, 0.04);
+}
+
+.storebridge-cart-empty h2 {
+  font-size: 26px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 12px 0;
   letter-spacing: -0.02em;
 }
 
-/* Clean up raw unstyled line-item property list */
-.storebridge-hidden-prop {
-  display: none !important;
+.storebridge-continue-shopping-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  padding: 0 28px;
+  background: #18181b;
+  color: #ffffff !important;
+  font-size: 15px;
+  font-weight: 700;
+  border-radius: 12px;
+  text-decoration: none;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.storebridge-continue-shopping-btn:hover {
+  background: #27272a;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
 }
 
 

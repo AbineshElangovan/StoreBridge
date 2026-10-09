@@ -15,6 +15,25 @@
 
 (function () {
   'use strict';
+  if (window.__STOREBRIDGE_AVAILABILITY_LOADED__) {
+    return;
+  }
+  window.__STOREBRIDGE_AVAILABILITY_LOADED__ = true;
+
+  // Strict page isolation: Purge cart UI if not on /cart page
+  if (!isCartPage()) {
+    document.documentElement.classList.remove('storebridge-custom-cart-active');
+    if (document.body) document.body.classList.remove('storebridge-custom-cart-active');
+    const strayCart = document.getElementById('storebridge-cart-page');
+    if (strayCart) strayCart.remove();
+  } else {
+    try {
+      if (sessionStorage.getItem('storebridge_has_preorder') === 'true') {
+        document.documentElement.classList.add('storebridge-custom-cart-active');
+        if (document.body) document.body.classList.add('storebridge-custom-cart-active');
+      }
+    } catch (e) {}
+  }
 
   // ============================================================
   // CONFIGURATION
@@ -111,11 +130,11 @@
   // ROOT ELEMENT
   // ============================================================
 
-  function getRootElement() {
+    function getRootElement() {
     return (
       document.getElementById('storebridge-availability') ||
-      document.getElementById('storebridge-global-embed') ||
-      document.querySelector('[data-storebridge-embed="true"]')
+      document.getElementById('storebridge-cart-embed') ||
+      document.getElementById('storebridge-global-embed')
     );
   }
 
@@ -544,6 +563,7 @@
       const rootPath =
         window.Shopify?.routes?.root || '/';
 
+      try { sessionStorage.setItem('storebridge_has_preorder', 'true'); } catch(e){}
       const addUrl = `${rootPath}cart/add.js`;
       const cartUrl = `${rootPath}cart`;
 
@@ -2181,7 +2201,7 @@
       }
 
       const controller = new AbortController();
-      const timeoutHandle = setTimeout(() => controller.abort(), 8000);
+      const timeoutHandle = setTimeout(() => controller.abort(), 25000);
 
       const response =
         await fetch(endpoint, {
@@ -2694,410 +2714,997 @@
     });
   }
 
+
   // ============================================================
-  // CART PAGE & DRAWER ENHANCER
+  // CART PAGE ENHANCER (STRICTLY ISOLATED TO /cart PAGE ONLY)
   // ============================================================
 
+  function isCartPage() {
+    const rawPath = (window.location.pathname || '').toLowerCase();
+    const cleanPath = rawPath.replace(/\/+$/, '');
+
+    // 1. Strict exclusions: Home page, collections, products, blogs, pages are NEVER the cart page
+    if (
+      cleanPath === '' ||
+      cleanPath === '/' ||
+      cleanPath.includes('/products/') ||
+      cleanPath.includes('/collections/') ||
+      cleanPath.includes('/pages/') ||
+      cleanPath.includes('/blogs/') ||
+      cleanPath.includes('/search')
+    ) {
+      return false;
+    }
+
+    // 2. Exact match for /cart or internationalized locale paths (e.g. /en/cart, /fr/cart)
+    if (cleanPath === '/cart' || cleanPath.endsWith('/cart')) {
+      return true;
+    }
+
+    // 3. Official Shopify template check
+    if (window.Shopify?.template === 'cart' || document.body?.classList?.contains('template-cart')) {
+      return true;
+    }
+
+    return false;
+  }
+
+  function isProductPage() {
+    if (isCartPage()) {
+      return false;
+    }
+    const pathname = (window.location.pathname || '').toLowerCase();
+    return (
+      pathname.includes('/products/') ||
+      Boolean(
+        document.querySelector(
+          '#storebridge-availability, [data-storebridge="availability"]'
+        )
+      ) ||
+      Boolean(
+        document.querySelector(
+          '.product-form, #product-form, product-info, [data-product-id]'
+        )
+      )
+    );
+  }
+
+  function getCurrencyPrefix() {
+    if (window.Shopify && window.Shopify.currency && window.Shopify.currency.active) {
+      if (window.Shopify.currency.active === 'USD') return '$';
+      if (window.Shopify.currency.active === 'INR') return 'Rs. ';
+    }
+    return 'Rs. ';
+  }
+
+  function formatMoney(amount) {
+    const num = Number(amount || 0);
+    const formatted = num.toLocaleString('en-IN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+    return `${getCurrencyPrefix()}${formatted}`;
+  }
+
+  function parseOffer(value) {
+    if (!value) return { type: 'none', value: 0 };
+    const text = String(value).trim();
+    if (!text || text.toLowerCase() === 'none' || text.toLowerCase() === 'null') {
+      return { type: 'none', value: 0 };
+    }
+
+    // 1. Percentage check: e.g. "10% OFF", "10%", "20% OFF"
+    const pctMatch = text.match(/(\d+(?:\.\d+)?)\s*%/i);
+    if (pctMatch) {
+      const val = parseFloat(pctMatch[1]);
+      if (val > 0) return { type: 'percentage', value: val };
+    }
+
+    // 2. Fixed check: e.g. "Rs. 10 OFF", "Rs 10 OFF", "₹10 OFF", "10 OFF", "$10 OFF"
+    const fixedMatch = text.match(/(?:Rs\.?|₹|\$)?\s*(\d+(?:\.\d+)?)\s*(?:Rs\.?|₹|\$)?\s*OFF/i);
+    if (fixedMatch) {
+      const val = parseFloat(fixedMatch[1]);
+      if (val > 0) return { type: 'fixed', value: val };
+    }
+
+    const plainFixed = text.match(/(?:Rs\.?|₹|\$)\s*(\d+(?:\.\d+)?)/i);
+    if (plainFixed) {
+      const val = parseFloat(plainFixed[1]);
+      if (val > 0) return { type: 'fixed', value: val };
+    }
+
+    return { type: 'none', value: 0 };
+  }
+
+  function getItemProperty(item, key) {
+    if (!item || !item.properties) return '';
+    const props = item.properties;
+    if (typeof props === 'object' && !Array.isArray(props)) {
+      if (props[key] !== undefined) return String(props[key]);
+      const lowerKey = key.toLowerCase();
+      for (const k of Object.keys(props)) {
+        if (k.toLowerCase() === lowerKey) return String(props[k]);
+      }
+      return '';
+    }
+    if (Array.isArray(props)) {
+      for (const entry of props) {
+        if (Array.isArray(entry) && entry[0] && String(entry[0]).toLowerCase() === key.toLowerCase()) {
+          return String(entry[1] || '');
+        }
+        if (entry && typeof entry === 'object' && entry.name && String(entry.name).toLowerCase() === key.toLowerCase()) {
+          return String(entry.value || '');
+        }
+      }
+    }
+    return '';
+  }
+
+  function isItemPreorder(item) {
+    if (!item) return false;
+    const props = item.properties;
+    if (props) {
+      if (typeof props === 'object' && !Array.isArray(props)) {
+        if (props._preorder === 'true' || props._preorder === true) return true;
+        if (props['Pre-order'] || props['pre-order']) return true;
+        if (props['Pre-order Note'] || props['pre-order note']) return true;
+        if (props['Pre-order Offer'] || props['pre-order offer'] || props['Offer']) return true;
+        for (const k of Object.keys(props)) {
+          const lk = k.toLowerCase();
+          if (lk.includes('pre-order') || lk.includes('preorder')) return true;
+        }
+      }
+      if (Array.isArray(props)) {
+        for (const entry of props) {
+          const key = String(entry[0] || entry.name || '').toLowerCase();
+          if (key.includes('pre-order') || key.includes('preorder')) return true;
+        }
+      }
+    }
+    const title = String(item.title || item.product_title || '').toLowerCase();
+    if (title.includes('pre-order') || title.includes('[pre-order]')) return true;
+    return false;
+  }
+
+  let activeDiscountCode = '';
+  let isCartUpdating = false;
   let isEnhancingCart = false;
+  let enhanceTimeout = null;
+  let cachedRemoteCartConfig = null;
+  let lastCartUpdateTimestamp = 0;
 
-  async function enhanceCartPage() {
-    if (isEnhancingCart) return;
+  async function updateItemQuantity(itemKey, newQuantity, lineIndex) {
+    if (isCartUpdating) return;
+    isCartUpdating = true;
+    lastCartUpdateTimestamp = Date.now();
+
+    const safetyTimer = setTimeout(() => {
+      isCartUpdating = false;
+    }, 3500);
+
+    // Visual feedback: find card by data-key or data-line
+    const cards = Array.from(document.querySelectorAll('.storebridge-cart-item-card'));
+    const card = cards.find((c) =>
+      (itemKey && c.getAttribute('data-key') === String(itemKey)) ||
+      (lineIndex && c.getAttribute('data-line') === String(lineIndex))
+    );
+    if (card) {
+      card.classList.add('storebridge-item-loading');
+    }
+
+    const targetQty = Math.max(0, parseInt(newQuantity, 10));
+
+    // Optimistic UI updates
+    if (card) {
+      if (targetQty === 0) {
+        card.style.opacity = '0.35';
+      } else {
+        const qtySpan = card.querySelector('.storebridge-qty-value');
+        if (qtySpan) qtySpan.textContent = String(targetQty);
+        card.querySelectorAll('.storebridge-qty-btn').forEach((b) => b.setAttribute('data-qty', String(targetQty)));
+      }
+    }
+
     try {
-      const cartItemEls = document.querySelectorAll(
-        '.cart-item, tr.cart-item, .cart__item, [data-cart-item], .line-item, .cart-drawer__item, .cart-items tbody tr'
-      );
+      const rootPath = window.Shopify?.routes?.root || '/';
 
-      const hasDomPreorder = Array.from(cartItemEls).some((row) => {
-        const text = (row.innerText || row.textContent || '').toLowerCase();
-        return (
-          text.includes('pre-order note') ||
-          text.includes('pre-order item') ||
-          text.includes('pre-order') ||
-          row.querySelector('[data-preorder="true"]')
-        );
+      // Always prioritize 1-based line number if available (Shopify standard for cart line items)
+      const primaryPayload = (lineIndex !== null && lineIndex !== undefined && String(lineIndex).trim() !== '') ? {
+        line: parseInt(lineIndex, 10),
+        quantity: targetQty
+      } : {
+        id: String(itemKey),
+        quantity: targetQty
+      };
+
+      let res = await fetch(`${rootPath}cart/change.js`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        },
+        body: JSON.stringify(primaryPayload)
       });
 
-      let preorderItems = [];
-      try {
-        const rootPath = window.Shopify?.routes?.root || '/';
-        const cartRes = await fetch(`${rootPath}cart.js`, { credentials: 'same-origin' });
-        if (cartRes.ok) {
-          const cartData = await cartRes.json();
-          if (cartData && cartData.items) {
-            preorderItems = cartData.items.filter((item) => {
-              const props = item.properties || {};
-              if (Array.isArray(props)) {
-                return props.some((p) => String(p.name || '').toLowerCase().includes('pre-order'));
-              }
-              return (
-                props._preorder === 'true' ||
-                props._preorder === true ||
-                props['Pre-order'] ||
-                props['Pre-order Note'] ||
-                props['Pre-order Offer']
-              );
-            });
-          }
-        }
-      } catch (e) {}
+      // If primary payload failed, fallback to alternate parameter
+      if (!res.ok) {
+        const altPayload = primaryPayload.line ? {
+          id: String(itemKey),
+          quantity: targetQty
+        } : (lineIndex ? {
+          line: parseInt(lineIndex, 10),
+          quantity: targetQty
+        } : null);
 
-      // ONLY continue if there are pre-order items in the cart
-      if (preorderItems.length === 0 && !hasDomPreorder) return;
-
-      isEnhancingCart = true;
-      ensureConfig();
-
-      if (!config.preorder || config.preorder.discountType === undefined) {
-        try {
-          await fetchConfig();
-        } catch (e) {}
-      }
-
-      let discountType = config.preorder?.discountType || 'none';
-      let discountValue = Number(config.preorder?.discountValue) || 0;
-
-      // Resilient Fallback: Extract offer preset directly from line item properties or DOM
-      if (discountType === 'none' || discountValue <= 0) {
-        for (const item of preorderItems) {
-          const props = item.properties || {};
-          const offerStr = props['Pre-order Offer'] || props['Offer'] || '';
-          if (offerStr) {
-            const pctMatch = offerStr.match(/(\d+)%\s*OFF/i);
-            if (pctMatch) {
-              discountType = 'percentage';
-              discountValue = parseFloat(pctMatch[1]);
-              break;
-            }
-            const fixMatch = offerStr.match(/(?:Rs\.?|₹|\$)\s*(\d+(?:\.\d+)?)\s*OFF/i);
-            if (fixMatch) {
-              discountType = 'fixed';
-              discountValue = parseFloat(fixMatch[1]);
-              break;
-            }
-          }
+        if (altPayload) {
+          log('[StoreBridge:CartChange] Retrying with fallback payload:', altPayload);
+          res = await fetch(`${rootPath}cart/change.js`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Accept: 'application/json'
+            },
+            body: JSON.stringify(altPayload)
+          });
         }
       }
 
-      if (discountType === 'none' || discountValue <= 0) {
-        const fullCartText = document.body.innerText || '';
-        const domOfferMatch = fullCartText.match(/Pre-order Offer:\s*(\d+)%\s*OFF/i);
-        if (domOfferMatch) {
-          discountType = 'percentage';
-          discountValue = parseFloat(domOfferMatch[1]);
-        } else {
-          const domFixMatch = fullCartText.match(/Pre-order Offer:\s*(?:Rs\.?|₹|\$)\s*(\d+(?:\.\d+)?)\s*OFF/i);
-          if (domFixMatch) {
-            discountType = 'fixed';
-            discountValue = parseFloat(domFixMatch[1]);
-          }
-        }
-      }
+      if (res.ok) {
+        const updatedCart = await res.json();
 
-      let fulfillmentMessage = config.preorder?.fulfillmentMessage || '';
-      if (!fulfillmentMessage) {
-        for (const item of preorderItems) {
-          const props = item.properties || {};
-          if (props['Pre-order Note']) {
-            fulfillmentMessage = props['Pre-order Note'];
-            break;
-          }
-        }
-      }
-      if (!fulfillmentMessage) {
-        const domNoteMatch = (document.body.innerText || '').match(/Pre-order Note:\s*([^\n\r]+)/i);
-        if (domNoteMatch) {
-          fulfillmentMessage = domNoteMatch[1].trim();
-        }
-      }
-      if (!fulfillmentMessage) {
-        fulfillmentMessage = 'We will fulfill the item as soon as it becomes available';
-      }
-
-      const hasOffer = discountType !== 'none' && discountValue > 0;
-
-      // Determine Theme / Preset (Case 1: percentage, Case 2: fixed, Case 3: none)
-      let badgeThemeClass = 'storebridge-badge-green';
-      let highlightThemeClass = 'storebridge-highlight-green';
-      let badgeLabel = 'PRE-ORDER';
-      let offerSummaryLabel = 'Offer:';
-
-      if (discountType === 'percentage' && discountValue > 0) {
-        badgeThemeClass = 'storebridge-badge-orange';
-        highlightThemeClass = 'storebridge-highlight-orange';
-        badgeLabel = `PRE-ORDER • ${discountValue}% OFF`;
-        offerSummaryLabel = `Pre-order Offer (${discountValue}% OFF)`;
-      } else if (discountType === 'fixed' && discountValue > 0) {
-        badgeThemeClass = 'storebridge-badge-blue';
-        highlightThemeClass = 'storebridge-highlight-blue';
-        badgeLabel = `PRE-ORDER • Rs. ${discountValue} OFF`;
-        offerSummaryLabel = `Pre-order Offer (Rs. ${discountValue} OFF)`;
-      }
-
-      const boxIconSvg = `
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:-2px; margin-right:4px;">
-          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-          <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-          <line x1="12" y1="22.08" x2="12" y2="12"></line>
-        </svg>
-      `;
-
-      // 1. ENHANCE CART ITEMS (Left Side)
-      let totalOriginalSum = 0;
-      let totalDiscountSum = 0;
-      let totalFinalSum = 0;
-      let totalItemCount = 0;
-
-      cartItemEls.forEach((row, idx) => {
-        const text = (row.innerText || row.textContent || '').toLowerCase();
-        const isPreorder =
-          text.includes('pre-order note') ||
-          text.includes('pre-order item') ||
-          text.includes('pre-order') ||
-          row.querySelector('[data-preorder="true"]');
-
-        if (!isPreorder) return;
-
-        // Hide raw unstyled Shopify property strings
-        const allTextEls = row.querySelectorAll('li, dl, dt, dd, p, div.product-option, .product-option, .cart-item__properties, [data-line-item-property]');
-        allTextEls.forEach((el) => {
-          const txt = el.innerText || el.textContent || '';
-          if (
-            txt.includes('Pre-order:') ||
-            txt.includes('Pre-order Note') ||
-            txt.includes('Pre-order Offer') ||
-            txt.includes('Pre-order Price') ||
-            txt.includes('Offer Savings') ||
-            txt.includes('_preorder')
-          ) {
-            if (!el.classList.contains('cart-item__details') && !el.classList.contains('cart-item') && !el.classList.contains('storebridge-cart-custom-block')) {
-              el.style.setProperty('display', 'none', 'important');
-              el.classList.add('storebridge-hidden-prop');
-            }
-          }
-        });
-
-        // Hide default single price line in details if present
-        const strayPrices = row.querySelectorAll('.cart-item__details .price, .cart-item__details > div:not(.storebridge-cart-custom-block) .price, .cart-item__details [class*="price"]');
-        strayPrices.forEach((sp) => {
-          if (!sp.closest('.storebridge-cart-custom-block')) {
-            sp.style.setProperty('display', 'none', 'important');
-            sp.classList.add('storebridge-hidden-prop');
-          }
-        });
-
-        const matchedItem = preorderItems.find((p) => {
-          const pTitle = (p.title || p.product_title || '').toLowerCase();
-          return pTitle && text.includes(pTitle);
-        }) || preorderItems[idx] || preorderItems[0];
-
-        let unitPrice = 0;
-        if (matchedItem && matchedItem.price) {
-          unitPrice = matchedItem.price / 100;
-        }
-        if (!unitPrice || unitPrice <= 0) {
-          const priceEl = row.querySelector('.cart-item__price-wrapper, .price--end, .price, .cart-item__totals');
-          if (priceEl) unitPrice = parseCurrencyAmount(priceEl.innerText || priceEl.textContent || '');
-        }
-        if (!unitPrice || unitPrice <= 0) {
-          unitPrice = 1240;
+        // Update server cart element if present
+        const serverCartEl = document.getElementById('storebridge-server-cart');
+        if (serverCartEl) {
+          try {
+            serverCartEl.textContent = JSON.stringify(updatedCart);
+          } catch (e) {}
         }
 
-        let qty = 1;
-        const qtyInput = row.querySelector('.quantity__input, input[name="updates[]"], input[type="number"]');
-        if (qtyInput && qtyInput.value) {
-          qty = parseInt(qtyInput.value, 10) || 1;
-        } else if (matchedItem && matchedItem.quantity) {
-          qty = matchedItem.quantity;
-        }
-        totalItemCount += qty;
+        renderStoreBridgeCart(updatedCart);
 
-        const discountAmt = hasOffer
-          ? (discountType === 'percentage'
-              ? (unitPrice * discountValue) / 100
-              : discountValue)
-          : 0;
-
-        const finalPrice = Math.max(0, unitPrice - discountAmt);
-        const lineOriginal = unitPrice * qty;
-        const lineDiscount = discountAmt * qty;
-        const lineFinal = finalPrice * qty;
-
-        totalOriginalSum += lineOriginal;
-        totalDiscountSum += lineDiscount;
-        totalFinalSum += lineFinal;
-
-        // Inject or update custom block in details
-        let customBlock = row.querySelector('.storebridge-cart-custom-block');
-        if (!customBlock) {
-          customBlock = document.createElement('div');
-          customBlock.className = 'storebridge-cart-custom-block';
-
-          const detailsEl = row.querySelector('.cart-item__details, .cart__item-details') || row;
-          const visibleOptions = Array.from(detailsEl.querySelectorAll('.product-option, .cart-item__name, h2, h3, a[href*="/products/"]'))
-            .filter(el => el.style.display !== 'none' && !el.classList.contains('storebridge-hidden-prop'));
-          const insertAnchor = visibleOptions[visibleOptions.length - 1];
-          if (insertAnchor && insertAnchor.parentElement === detailsEl) {
-            insertAnchor.insertAdjacentElement('afterend', customBlock);
-          } else {
-            detailsEl.appendChild(customBlock);
-          }
-        }
-
-        const formattedOrig = unitPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        const formattedFinal = finalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        const formattedSavings = discountAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        const pctText = discountType === 'percentage' ? `${discountValue}%` : `Rs. ${discountValue}`;
-
-        customBlock.innerHTML = `
-          <div class="storebridge-badge-pill ${badgeThemeClass}">
-            ${boxIconSvg}
-            <span>${escapeHtml(badgeLabel)}</span>
-          </div>
-          <div class="storebridge-cart-pricing-block">
-            ${hasOffer ? `<div class="storebridge-cart-original-struck">Rs. ${formattedOrig}</div>` : ''}
-            <div class="storebridge-cart-bold-price">Rs. ${formattedFinal}</div>
-            ${hasOffer ? `<div class="storebridge-cart-savings-green">Save Rs. ${formattedSavings} (${pctText})</div>` : ''}
-            <div class="storebridge-cart-note-card">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="1" y="3" width="15" height="13"></rect>
-                <polygon points="16 8 20 8 23 11 23 16 16 16 8"></polygon>
-                <circle cx="5.5" cy="18.5" r="2.5"></circle>
-                <circle cx="18.5" cy="18.5" r="2.5"></circle>
-              </svg>
-              <span>${escapeHtml(fulfillmentMessage)}</span>
-            </div>
-          </div>
-        `;
-
-        // Update Right Column Line Price
-        const rightTotals = row.querySelector('.cart-item__totals, .cart-item__price-wrapper, td.cart-item__totals');
-        if (rightTotals) {
-          let customRight = rightTotals.querySelector('.storebridge-cart-right-price-box');
-          if (!customRight) {
-            customRight = document.createElement('div');
-            customRight.className = 'storebridge-cart-right-price-box';
-            rightTotals.innerHTML = '';
-            rightTotals.appendChild(customRight);
-          }
-          const formattedLineFinal = lineFinal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-          const formattedLineOrig = lineOriginal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-          customRight.innerHTML = `
-            <div class="storebridge-cart-right-price">Rs. ${formattedLineFinal}</div>
-            ${hasOffer ? `<div class="storebridge-cart-right-original">Rs. ${formattedLineOrig}</div>` : ''}
-          `;
-        }
-      });
-
-      // 2. ENHANCE ORDER SUMMARY (Right Side Box)
-      const footerBlocks = document.querySelector(
-        '.cart__blocks, .cart__footer, .cart__footer-wrapper, #cart-footer, .cart-sidebar'
-      );
-
-      if (footerBlocks && totalItemCount > 0) {
-        // Ensure "Order Summary" Title is present at top
-        if (!footerBlocks.querySelector('.storebridge-summary-header')) {
-          const headerEl = document.createElement('h2');
-          headerEl.className = 'storebridge-summary-header';
-          headerEl.textContent = 'Order Summary';
-          footerBlocks.prepend(headerEl);
-        }
-
-        // Hide default Dawn estimated total row
-        const defaultTotals = footerBlocks.querySelectorAll('.totals, .cart-subtotal, .totals__subtotal');
-        defaultTotals.forEach((dt) => {
-          dt.style.setProperty('display', 'none', 'important');
-        });
-
-        // Inject or update Order Summary Breakdown block
-        let summaryBlock = footerBlocks.querySelector('.storebridge-order-summary-block');
-        if (!summaryBlock) {
-          summaryBlock = document.createElement('div');
-          summaryBlock.className = 'storebridge-order-summary-block';
-          
-          const taxNote = footerBlocks.querySelector('.tax-note, .cart__ctas');
-          if (taxNote) {
-            taxNote.insertAdjacentElement('beforebegin', summaryBlock);
-          } else {
-            footerBlocks.appendChild(summaryBlock);
-          }
-        }
-
-        const formattedTotalOrig = totalOriginalSum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        const formattedTotalDiscount = totalDiscountSum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        const formattedTotalFinal = totalFinalSum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-        summaryBlock.innerHTML = `
-          <div class="storebridge-summary-row">
-            <span>Original Price (${totalItemCount} item${totalItemCount > 1 ? 's' : ''})</span>
-            <span>Rs. ${formattedTotalOrig}</span>
-          </div>
-          <div class="storebridge-summary-row">
-            <span>${escapeHtml(offerSummaryLabel)}</span>
-            <span class="storebridge-summary-offer-val">- Rs. ${formattedTotalDiscount}</span>
-          </div>
-          <div class="storebridge-summary-highlight-card ${highlightThemeClass}">
-            <span class="storebridge-highlight-label">Pre-order Total</span>
-            <span class="storebridge-highlight-price">Rs. ${formattedTotalFinal}</span>
-          </div>
-        `;
+        document.dispatchEvent(new CustomEvent('cart:updated', { detail: updatedCart }));
+        document.dispatchEvent(new CustomEvent('cart-update', { detail: updatedCart }));
+        window.dispatchEvent(new CustomEvent('cart:refreshed', { detail: updatedCart }));
+      } else {
+        console.warn('[StoreBridge:CartChange] change.js returned error status:', res.status);
+        await enhanceCartPage();
       }
     } catch (err) {
-      console.warn('[StoreBridge:CartEnhancer]', err);
+      console.error('[StoreBridge:CartChange]', err);
+      await enhanceCartPage();
+    } finally {
+      clearTimeout(safetyTimer);
+      if (card) {
+        card.classList.remove('storebridge-item-loading');
+        card.style.opacity = '';
+        card.style.pointerEvents = '';
+      }
+      isCartUpdating = false;
+    }
+  }
+
+  function renderStoreBridgeCart(cart) {
+    if (!cart) return;
+
+    const totalCount = cart.item_count !== undefined ? cart.item_count : (cart.items ? cart.items.length : 0);
+    const hasItems = cart.items && cart.items.length > 0 && totalCount > 0;
+    const hasPreorder = hasItems && cart.items.some((item) => isItemPreorder(item));
+
+    // If cart has items but NONE are preorder, restore native theme cart view cleanly
+    if (hasItems && !hasPreorder) {
+      const existingRoot = document.getElementById('storebridge-cart-page');
+      if (existingRoot) existingRoot.remove();
+      document.documentElement.classList.remove('storebridge-custom-cart-active');
+      document.body.classList.remove('storebridge-custom-cart-active');
+      try { sessionStorage.removeItem('storebridge_has_preorder'); } catch (e) {}
+
+      // Unhide native cart sections
+      document.querySelectorAll(
+        '[id*="cart-footer"], [id*="cart_footer"], [class*="cart-footer"], [class*="cart_footer"], [class*="cart__footer"], [class*="cart-sidebar"], [class*="cart__sidebar"], .section-main-cart-footer, .shopify-section-main-cart-footer, #main-cart-footer, .cart__footer, .cart__footer-wrapper, .cart__aside, .cart__summary, .cart-summary, #main-cart-items, .cart__contents, cart-items, form#cart, form#cartform, form[action*="/cart"], .cart__warnings, .title-wrapper-with-link, .cart-items, .Cart, .Cart__ItemList, .Cart__Recap, .cart-form, .cart-template, .cart__page-table, [data-cart-form]'
+      ).forEach((el) => {
+        el.style.removeProperty('display');
+        el.style.removeProperty('visibility');
+        el.style.removeProperty('height');
+        el.style.removeProperty('width');
+        el.style.removeProperty('min-height');
+        el.style.removeProperty('background');
+        el.style.removeProperty('overflow');
+      });
+      return;
+    }
+
+    try { sessionStorage.setItem('storebridge_has_preorder', 'true'); } catch (e) {}
+    document.documentElement.classList.add('storebridge-custom-cart-active');
+    document.body.classList.add('storebridge-custom-cart-active');
+
+    // Create or select root container FIRST
+    let root = document.getElementById('storebridge-cart-page');
+    if (!root) {
+      root = document.createElement('div');
+      root.id = 'storebridge-cart-page';
+      root.className = 'storebridge-cart-page';
+
+      // Mount into the main page wrapper
+      const mainContent = document.querySelector('main, #MainContent, .main-content') || document.body;
+      const firstCartSection =
+        document.querySelector('.shopify-section-main-cart-items') ||
+        document.querySelector('[id*="cart-items"]')?.closest('.shopify-section') ||
+        document.querySelector('[id*="cart_items"]')?.closest('.shopify-section') ||
+        document.querySelector('cart-items')?.closest('.shopify-section') ||
+        document.querySelector('cart-items') ||
+        document.querySelector('#main-cart-items');
+
+      if (firstCartSection && firstCartSection.parentNode) {
+        firstCartSection.parentNode.insertBefore(root, firstCartSection);
+      } else if (mainContent) {
+        mainContent.prepend(root);
+      } else {
+        document.body.prepend(root);
+      }
+    }
+
+    // Actively hide ALL native theme cart tables & footers (NEVER recommendations)
+    document.querySelectorAll(
+      '[id*="cart-footer"], [id*="cart_footer"], [class*="cart-footer"], [class*="cart_footer"], [class*="cart__footer"], [class*="cart-sidebar"], [class*="cart__sidebar"], .section-main-cart-footer, .shopify-section-main-cart-footer, #main-cart-footer, .cart__footer, .cart__footer-wrapper, .cart__aside, .cart__summary, .cart-summary, #main-cart-items, .cart__contents, cart-items, form#cart, form#cartform, form[action*="/cart"], .cart__warnings, .title-wrapper-with-link, .cart-items, .Cart, .Cart__ItemList, .Cart__Recap, .cart-form, .cart-template, .cart__page-table, [data-cart-form]'
+    ).forEach((el) => {
+      if (!el.closest('#storebridge-cart-page') && el !== root) {
+        const parentSection = el.closest('.shopify-section, section, [id*="shopify-section"]');
+        if (parentSection && !parentSection.contains(root)) {
+          // Verify it's not a recommendations section
+          const isRec = parentSection.matches('product-recommendations, [class*="recommend"], [id*="recommend"], [class*="related"], [id*="related"], [class*="featured"], [id*="featured"]') ||
+                        parentSection.querySelector('product-recommendations, [class*="recommend"], [class*="related"], [class*="product-card"], [class*="card--product"]');
+          if (!isRec) {
+            parentSection.style.setProperty('display', 'none', 'important');
+            parentSection.style.setProperty('visibility', 'hidden', 'important');
+            parentSection.style.setProperty('height', '0px', 'important');
+            parentSection.style.setProperty('width', '0px', 'important');
+            parentSection.style.setProperty('min-height', '0px', 'important');
+            parentSection.style.setProperty('background', 'transparent', 'important');
+            parentSection.style.setProperty('overflow', 'hidden', 'important');
+          }
+        }
+        el.style.setProperty('display', 'none', 'important');
+        el.style.setProperty('visibility', 'hidden', 'important');
+        el.style.setProperty('height', '0px', 'important');
+        el.style.setProperty('width', '0px', 'important');
+        el.style.setProperty('min-height', '0px', 'important');
+        el.style.setProperty('background', 'transparent', 'important');
+        el.style.setProperty('overflow', 'hidden', 'important');
+      }
+    });
+
+    // Walk up parent chain, neutralize multi-column grid, but EXPLICITLY PRESERVE recommendations
+    let currentParent = root.parentElement;
+    while (currentParent && currentParent !== document.body && currentParent !== document.documentElement) {
+      currentParent.style.setProperty('display', 'block', 'important');
+      currentParent.style.setProperty('width', '100%', 'important');
+      currentParent.style.setProperty('max-width', '100%', 'important');
+      currentParent.style.setProperty('background', 'transparent', 'important');
+
+      Array.from(currentParent.children).forEach((child) => {
+        if (child !== root && !child.contains(root)) {
+          // EXPLICIT CHECK: If this is Related Products / Recommendations, KEEP IT VISIBLE!
+          const isRecommendations =
+            child.matches?.('product-recommendations, [class*="recommend"], [id*="recommend"], [class*="related"], [id*="related"], [class*="featured"], [id*="featured"], [class*="complementary"], [id*="complementary"]') ||
+            child.querySelector?.('product-recommendations, [class*="recommend"], [class*="related"], [class*="product-card"], [class*="card--product"], [class*="collection"]');
+
+          if (isRecommendations) {
+            child.style.removeProperty('display');
+            child.style.removeProperty('visibility');
+            child.style.removeProperty('height');
+            child.style.removeProperty('width');
+            child.style.removeProperty('overflow');
+            return;
+          }
+
+          // Only hide native cart item forms or footers
+          const isNativeCartSection =
+            child.matches?.('[id*="cart-items"], [id*="cart_items"], [id*="cart-footer"], [id*="cart_footer"], .section-main-cart-items, .section-main-cart-footer, .cart__footer-wrapper, #main-cart-items, #main-cart-footer, cart-items') ||
+            child.querySelector?.('button[name="checkout"], .cart__checkout-button, [class*="cart-footer"], [class*="cart_footer"], [id*="cart-footer"], [id*="cart_footer"]');
+
+          if (isNativeCartSection) {
+            child.style.setProperty('display', 'none', 'important');
+            child.style.setProperty('visibility', 'hidden', 'important');
+            child.style.setProperty('height', '0px', 'important');
+            child.style.setProperty('width', '0px', 'important');
+            child.style.setProperty('min-height', '0px', 'important');
+            child.style.setProperty('background', 'transparent', 'important');
+            child.style.setProperty('overflow', 'hidden', 'important');
+          }
+        }
+      });
+
+      currentParent = currentParent.parentElement;
+    }
+
+    // Empty Cart
+    if (!hasItems) {
+      root.innerHTML = `
+        <div class="storebridge-cart-header">
+          <h1 class="storebridge-cart-title">Cart</h1>
+        </div>
+        <div class="storebridge-cart-empty">
+          <h2>Your cart is empty</h2>
+          <p style="color: #64748b; font-size: 15px; margin: 0 0 24px 0;">Your pre-order cart is currently empty.</p>
+          <a href="/collections/all" class="storebridge-continue-shopping-btn">Continue shopping</a>
+        </div>
+      `;
+      return;
+    }
+
+    // Calculate totals dynamically
+    let totalOriginalSum = 0;
+    let totalDiscountSum = 0;
+    let totalFinalSum = 0;
+    let totalItemCount = 0;
+    let preorderItemCount = 0;
+    const detectedOffers = [];
+
+    const processedItems = cart.items.map((item, index) => {
+      const isPreorder = isItemPreorder(item);
+      const qty = Number(item.quantity || 1);
+      totalItemCount += qty;
+
+      let unitPrice = 0;
+      if (item.original_price) {
+        unitPrice = Number(item.original_price) / 100;
+      } else if (item.price) {
+        unitPrice = Number(item.price) / 100;
+      } else if (item.line_price && qty > 0) {
+        unitPrice = Number(item.line_price) / (qty * 100);
+      }
+
+      if (unitPrice <= 0) unitPrice = 1240;
+
+      if (!isPreorder) {
+        const lineTotal = unitPrice * qty;
+        totalOriginalSum += lineTotal;
+        totalFinalSum += lineTotal;
+        return {
+          item,
+          index,
+          isPreorder: false,
+          qty,
+          unitPrice,
+          unitDiscount: 0,
+          finalUnitPrice: unitPrice,
+          lineOriginal: lineTotal,
+          lineDiscount: 0,
+          lineFinal: lineTotal,
+          offer: { type: 'none', value: 0 }
+        };
+      }
+
+      // Pre-order item
+      preorderItemCount += qty;
+
+      let offer = parseOffer(
+        getItemProperty(item, 'Pre-order Offer') ||
+        getItemProperty(item, 'Offer') ||
+        ''
+      );
+
+      if (offer.type === 'none') {
+        const savingsProp = getItemProperty(item, 'Offer Savings');
+        if (savingsProp) {
+          offer = parseOffer(savingsProp);
+        }
+      }
+
+      // Fallback: check remote store config
+      if (
+        offer.type === 'none' &&
+        cachedRemoteCartConfig?.preorder?.discountType &&
+        cachedRemoteCartConfig.preorder.discountType !== 'none' &&
+        Number(cachedRemoteCartConfig.preorder.discountValue) > 0
+      ) {
+        offer = {
+          type: cachedRemoteCartConfig.preorder.discountType,
+          value: Number(cachedRemoteCartConfig.preorder.discountValue)
+        };
+      }
+
+      if (offer.type !== 'none' && offer.value > 0) {
+        detectedOffers.push(offer);
+      }
+
+      let unitDiscount = 0;
+      if (offer.type === 'percentage' && offer.value > 0) {
+        unitDiscount = (unitPrice * offer.value) / 100;
+      } else if (offer.type === 'fixed' && offer.value > 0) {
+        unitDiscount = Math.min(unitPrice, offer.value);
+      }
+
+      const finalUnitPrice = Math.max(0, unitPrice - unitDiscount);
+      const lineOriginal = unitPrice * qty;
+      const lineDiscount = unitDiscount * qty;
+      const lineFinal = finalUnitPrice * qty;
+
+      totalOriginalSum += lineOriginal;
+      totalDiscountSum += lineDiscount;
+      totalFinalSum += lineFinal;
+
+      return {
+        item,
+        index,
+        isPreorder: true,
+        qty,
+        unitPrice,
+        unitDiscount,
+        finalUnitPrice,
+        lineOriginal,
+        lineDiscount,
+        lineFinal,
+        offer
+      };
+    });
+
+    const boxIconSvg = `
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+        <line x1="12" y1="22.08" x2="12" y2="12"/>
+      </svg>
+    `;
+
+    const trashIconSvg = `
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polyline points="3 6 5 6 21 6"></polyline>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        <line x1="10" y1="11" x2="10" y2="17"></line>
+        <line x1="14" y1="11" x2="14" y2="17"></line>
+      </svg>
+    `;
+
+    // Generate Cards HTML
+    const itemsHtml = processedItems.map((p) => {
+      const item = p.item;
+      const isPreorder = p.isPreorder;
+      const hasOffer = p.offer.type !== 'none' && p.offer.value > 0;
+      const lineIndex = p.index + 1;
+      const itemKey = item.key || String(item.id);
+
+      let badgeClass = 'storebridge-badge-none';
+      let badgeText = 'PRE-ORDER';
+      let savingsText = '';
+
+      if (p.offer.type === 'percentage' && p.offer.value > 0) {
+        badgeClass = 'storebridge-badge-percentage';
+        badgeText = `PRE-ORDER • ${p.offer.value}% OFF`;
+        savingsText = `Save ${formatMoney(p.unitDiscount)} (${p.offer.value}%)`;
+      } else if (p.offer.type === 'fixed' && p.offer.value > 0) {
+        badgeClass = 'storebridge-badge-fixed';
+        badgeText = `PRE-ORDER • ${formatMoney(p.offer.value).replace('.00', '')} OFF`;
+        savingsText = `Save ${formatMoney(p.unitDiscount)}`;
+      }
+
+      const fulfillmentNote = getItemProperty(item, 'Pre-order Note') ||
+        config.preorder.fulfillmentMessage ||
+        'This is a pre-order item. It will be fulfilled when stock arrives.';
+
+      const imageUrl = item.featured_image?.url || item.image || '//cdn.shopify.com/s/files/1/0836/6748/4891/t/1/assets/no-image.gif';
+      const variantText = item.variant_title && item.variant_title !== 'Default Title' ? item.variant_title : '';
+
+      return `
+        <div class="storebridge-cart-item-card" data-key="${escapeHtml(itemKey)}" data-line="${lineIndex}">
+          <div class="storebridge-cart-item-image-wrapper">
+            <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(item.product_title || item.title)}" class="storebridge-cart-item-image" loading="lazy" />
+          </div>
+
+          <div class="storebridge-cart-item-content">
+            <div class="storebridge-cart-item-top-row">
+              <div class="storebridge-cart-item-heading">
+                <h3 class="storebridge-cart-item-title">${escapeHtml(item.product_title || item.title)}</h3>
+                ${variantText ? `<div class="storebridge-cart-item-variant">${escapeHtml(variantText)}</div>` : ''}
+              </div>
+
+              <div class="storebridge-cart-item-controls-and-price">
+                <div class="storebridge-cart-qty-wrapper">
+                  <button type="button" class="storebridge-qty-btn storebridge-qty-minus" aria-label="Decrease quantity" data-key="${escapeHtml(itemKey)}" data-line="${lineIndex}" data-qty="${p.qty}">−</button>
+                  <span class="storebridge-qty-value">${p.qty}</span>
+                  <button type="button" class="storebridge-qty-btn storebridge-qty-plus" aria-label="Increase quantity" data-key="${escapeHtml(itemKey)}" data-line="${lineIndex}" data-qty="${p.qty}">+</button>
+                </div>
+
+                <button type="button" class="storebridge-delete-btn" aria-label="Remove item" data-key="${escapeHtml(itemKey)}" data-line="${lineIndex}">
+                  ${trashIconSvg}
+                </button>
+
+                <div class="storebridge-cart-item-line-price">
+                  <div class="storebridge-line-final-price">${formatMoney(p.lineFinal)}</div>
+                  ${hasOffer ? `<div class="storebridge-line-original-price">${formatMoney(p.lineOriginal)}</div>` : ''}
+                </div>
+              </div>
+            </div>
+
+            ${isPreorder ? `
+              <div class="storebridge-cart-item-preorder-section">
+                <div class="storebridge-preorder-badge ${badgeClass}">
+                  ${boxIconSvg}
+                  <span>${escapeHtml(badgeText)}</span>
+                </div>
+
+                <div class="storebridge-cart-item-prices">
+                  ${hasOffer ? `<div class="storebridge-unit-original-price">${formatMoney(p.unitPrice)}</div>` : ''}
+                  <div class="storebridge-unit-final-price">${formatMoney(p.finalUnitPrice)}</div>
+                  ${hasOffer ? `<div class="storebridge-unit-savings">${escapeHtml(savingsText)}</div>` : ''}
+                </div>
+
+                <div class="storebridge-cart-fulfillment-note">
+                  ${escapeHtml(fulfillmentNote)}
+                </div>
+              </div>
+            ` : `
+              <div class="storebridge-cart-item-normal-prices">
+                <div class="storebridge-unit-final-price">${formatMoney(p.unitPrice)}</div>
+              </div>
+            `}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Summary offer label
+    let summaryOfferLabel = 'Pre-order Offer (Savings)';
+    if (detectedOffers.length === 1) {
+      const singleOffer = detectedOffers[0];
+      if (singleOffer.type === 'percentage') {
+        summaryOfferLabel = `Pre-order Offer (${singleOffer.value}% OFF)`;
+      } else if (singleOffer.type === 'fixed') {
+        summaryOfferLabel = `Pre-order Offer (${formatMoney(singleOffer.value).replace('.00', '')} OFF)`;
+      }
+    }
+
+    const totalHeading = (preorderItemCount === totalItemCount) ? 'Pre-order Total' : 'Order Total';
+
+    // Render Full Page HTML
+    root.innerHTML = `
+      <div class="storebridge-cart-header">
+        <h1 class="storebridge-cart-title">Cart</h1>
+        <span class="storebridge-cart-count-badge">${totalItemCount}</span>
+      </div>
+
+      <div class="storebridge-cart-layout">
+        <div class="storebridge-cart-items-column">
+          ${itemsHtml}
+        </div>
+
+        <div class="storebridge-cart-summary-column">
+          <div class="storebridge-order-summary-card">
+            <h2 class="storebridge-summary-title">Order Summary</h2>
+
+            <div class="storebridge-discount-box" id="storebridge-discount-toggle">
+              <span>Discount</span>
+              <span class="storebridge-discount-plus-icon" id="storebridge-discount-icon">+</span>
+            </div>
+
+            <div class="storebridge-discount-drawer" id="storebridge-discount-drawer" style="display: none;">
+              <div class="storebridge-discount-input-row">
+                <input type="text" id="storebridge-discount-input" class="storebridge-discount-input" placeholder="Discount code" value="${escapeHtml(activeDiscountCode)}" />
+                <button type="button" id="storebridge-discount-apply-btn" class="storebridge-discount-apply-btn">Apply</button>
+              </div>
+              <div id="storebridge-discount-message" class="storebridge-discount-message" style="display: none;"></div>
+            </div>
+
+            <div class="storebridge-summary-rows">
+              <div class="storebridge-summary-row">
+                <span class="storebridge-summary-row-label">Original Price (${totalItemCount} item${totalItemCount > 1 ? 's' : ''})</span>
+                <span class="storebridge-summary-row-value">${formatMoney(totalOriginalSum)}</span>
+              </div>
+
+              ${totalDiscountSum > 0 ? `
+                <div class="storebridge-summary-row">
+                  <span class="storebridge-summary-row-label">${escapeHtml(summaryOfferLabel)}</span>
+                  <span class="storebridge-summary-row-value storebridge-savings-red">- ${formatMoney(totalDiscountSum)}</span>
+                </div>
+              ` : ''}
+            </div>
+
+            <div class="storebridge-total-highlight-box storebridge-summary-total-box" style="background: #fff4e5 !important; border: 1.5px solid #fed7aa !important; border-radius: 12px !important; padding: 16px 20px !important; display: flex !important; justify-content: space-between !important; align-items: center !important; margin-bottom: 14px !important; box-sizing: border-box !important;">
+              <span class="storebridge-total-label storebridge-total-box-label" style="font-size: 16px !important; font-weight: 800 !important; color: #0f172a !important;">${escapeHtml(totalHeading)}</span>
+              <span class="storebridge-total-value storebridge-total-box-value" style="font-size: 22px !important; font-weight: 900 !important; color: #0f172a !important; letter-spacing: -0.015em !important;">${formatMoney(totalFinalSum)}</span>
+            </div>
+
+            <div class="storebridge-summary-divider"></div>
+
+            <p class="storebridge-taxes-note storebridge-summary-taxes-note">Taxes and shipping calculated at checkout.</p>
+
+            <button type="button" class="storebridge-checkout-btn storebridge-cart-checkout-btn button button--primary button--full-width" id="storebridge-checkout-action-btn" style="display: flex !important; align-items: center !important; justify-content: center !important; width: 100% !important; height: 50px !important; background: #18181b !important; color: #ffffff !important; border: none !important; border-radius: 12px !important; font-size: 16px !important; font-weight: 800 !important; cursor: pointer !important; text-align: center !important; line-height: 50px !important; text-decoration: none !important; box-sizing: border-box !important; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14) !important; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important; margin-top: 14px !important;">
+              Check out
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Cache current detected offers on root for checkout button access
+    root._currentDetectedOffers = detectedOffers;
+
+    // Attach Delegated Event Listeners to root container (binds once, survives re-renders)
+    if (!root.dataset.eventsBound) {
+      root.dataset.eventsBound = 'true';
+
+      root.addEventListener('click', (e) => {
+        // 1. Delete button
+        const deleteBtn = e.target.closest('.storebridge-delete-btn');
+        if (deleteBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          const card = deleteBtn.closest('.storebridge-cart-item-card');
+          const key = deleteBtn.getAttribute('data-key') || card?.getAttribute('data-key');
+          const line = deleteBtn.getAttribute('data-line') || card?.getAttribute('data-line');
+          updateItemQuantity(key, 0, line);
+          return;
+        }
+
+        // 2. Quantity Minus
+        const minusBtn = e.target.closest('.storebridge-qty-minus');
+        if (minusBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          const card = minusBtn.closest('.storebridge-cart-item-card');
+          const key = minusBtn.getAttribute('data-key') || card?.getAttribute('data-key');
+          const line = minusBtn.getAttribute('data-line') || card?.getAttribute('data-line');
+          const qtySpan = card?.querySelector('.storebridge-qty-value') || minusBtn.parentElement?.querySelector('.storebridge-qty-value');
+          const curQty = parseInt(minusBtn.getAttribute('data-qty') || qtySpan?.textContent || '1', 10);
+          updateItemQuantity(key, Math.max(0, curQty - 1), line);
+          return;
+        }
+
+        // 3. Quantity Plus
+        const plusBtn = e.target.closest('.storebridge-qty-plus');
+        if (plusBtn) {
+          e.preventDefault();
+          e.stopPropagation();
+          const card = plusBtn.closest('.storebridge-cart-item-card');
+          const key = plusBtn.getAttribute('data-key') || card?.getAttribute('data-key');
+          const line = plusBtn.getAttribute('data-line') || card?.getAttribute('data-line');
+          const qtySpan = card?.querySelector('.storebridge-qty-value') || plusBtn.parentElement?.querySelector('.storebridge-qty-value');
+          const curQty = parseInt(plusBtn.getAttribute('data-qty') || qtySpan?.textContent || '1', 10);
+          updateItemQuantity(key, curQty + 1, line);
+          return;
+        }
+
+        // 4. Discount Box Toggle
+        const discountToggle = e.target.closest('#storebridge-discount-toggle');
+        if (discountToggle) {
+          e.preventDefault();
+          const discountDrawer = root.querySelector('#storebridge-discount-drawer');
+          const discountIcon = root.querySelector('#storebridge-discount-icon');
+          if (discountDrawer) {
+            const isOpen = discountDrawer.style.display !== 'none';
+            discountDrawer.style.display = isOpen ? 'none' : 'block';
+            if (discountIcon) discountIcon.textContent = isOpen ? '+' : '−';
+          }
+          return;
+        }
+
+        // 5. Discount Apply Button
+        const discountApplyBtn = e.target.closest('#storebridge-discount-apply-btn');
+        if (discountApplyBtn) {
+          e.preventDefault();
+          const discountInput = root.querySelector('#storebridge-discount-input');
+          const discountMsg = root.querySelector('#storebridge-discount-message');
+          const code = (discountInput?.value || '').trim();
+          if (code) {
+            activeDiscountCode = code;
+            if (discountMsg) {
+              discountMsg.textContent = `Discount code "${code}" applied. It will be reflected at checkout.`;
+              discountMsg.style.display = 'block';
+            }
+          }
+          return;
+        }
+
+        // 6. Checkout Action Button
+        const checkoutBtn = e.target.closest('#storebridge-checkout-action-btn');
+        if (checkoutBtn) {
+          e.preventDefault();
+          let codeToApply = activeDiscountCode;
+          const offers = root._currentDetectedOffers || [];
+          if (!codeToApply && offers.length > 0) {
+            const firstOffer = offers[0];
+            const cleanVal = Math.round(Number(firstOffer.value));
+            codeToApply = firstOffer.type === 'percentage' ? `PREORDER-${cleanVal}PCT` : `PREORDER-${cleanVal}OFF`;
+          }
+          if (!codeToApply && cachedRemoteCartConfig?.preorder?.discountCode) {
+            codeToApply = cachedRemoteCartConfig.preorder.discountCode;
+          }
+
+          if (codeToApply) {
+            window.location.href = `/checkout?discount=${encodeURIComponent(codeToApply)}`;
+          } else {
+            window.location.href = '/checkout';
+          }
+          return;
+        }
+      });
+    }
+
+    // Input Enter key for discount
+    const discountInput = root.querySelector('#storebridge-discount-input');
+    if (discountInput) {
+      discountInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const btn = root.querySelector('#storebridge-discount-apply-btn');
+          if (btn) btn.click();
+        }
+      });
+    }
+  }
+
+  async function enhanceCartPage() {
+    if (isEnhancingCart || isCartUpdating || !isCartPage()) return;
+    if (Date.now() - lastCartUpdateTimestamp < 1200) return;
+
+    try {
+      isEnhancingCart = true;
+
+      const rootPath = window.Shopify?.routes?.root || '/';
+      const response = await fetch(`${rootPath}cart.js`, {
+        credentials: 'same-origin',
+        headers: {
+          Accept: 'application/json'
+        }
+      });
+
+      if (!response.ok) return;
+      const cart = await response.json();
+
+      if (!cart || !cart.items || cart.items.length === 0) {
+        renderStoreBridgeCart(cart);
+        return;
+      }
+
+      // Fetch live StoreBridge store configuration if not cached yet
+      if (!cachedRemoteCartConfig) {
+        try {
+          ensureConfig();
+          const shopDomain = config.shop || window.Shopify?.shop || window.location.hostname;
+          const apiUrl = (config.apiUrl || 'https://dz50mdfc-3000.inc1.devtunnels.ms').replace(/\/+$/, '');
+          if (shopDomain) {
+            const cfgRes = await fetch(`${apiUrl}/api/storefront/config?shop=${encodeURIComponent(shopDomain)}`);
+            if (cfgRes.ok) {
+              const cfgData = await cfgRes.json();
+              if (cfgData?.success) {
+                cachedRemoteCartConfig = cfgData;
+              }
+            }
+          }
+        } catch (err) {
+          // Graceful fallback
+        }
+      }
+
+      renderStoreBridgeCart(cart);
+
+    } catch (error) {
+      console.warn('[StoreBridge:CartEnhancer]', error);
     } finally {
       isEnhancingCart = false;
     }
   }
 
-  function start() {
-    log('Script loaded on storefront.');
-    attachGlobalDelegatedListeners();
-    ensureConfig();
+  function debouncedEnhanceCart() {
+    if (enhanceTimeout) clearTimeout(enhanceTimeout);
+    enhanceTimeout = setTimeout(() => {
+      enhanceCartPage();
+    }, 60);
+  }
 
-    enhanceCartPage();
+  let cartObserverStarted = false;
 
-    // Observe body for cart drawer open, cart updates, etc.
-    const cartObserver = new MutationObserver(() => {
-      if (
-        document.querySelector(
-          '.cart-item, tr.cart-item, .cart__item, [data-cart-item], .cart-drawer'
-        )
-      ) {
-        enhanceCartPage();
-      }
+  function setupCartObserver() {
+    if (cartObserverStarted) return;
+    cartObserverStarted = true;
+
+    const cartContainer =
+      document.querySelector('#main-cart-items, .cart, form#cart, .cart-items, cart-items') || document.body;
+
+    const cartObserver = new MutationObserver((mutations) => {
+      if (!isCartPage()) return;
+      const isInternalMutation = mutations.every((m) => {
+        const t = m.target;
+        return (
+          t &&
+          (t.id === 'storebridge-cart-page' ||
+           t.closest?.('#storebridge-cart-page') ||
+           t.classList?.contains('storebridge-cart-page'))
+        );
+      });
+      if (isInternalMutation) return;
+      debouncedEnhanceCart();
     });
 
-    cartObserver.observe(document.body, {
+    cartObserver.observe(cartContainer, {
       childList: true,
       subtree: true
     });
 
-    if (
-      document.readyState ===
-      'loading'
-    ) {
-      document.addEventListener(
-        'DOMContentLoaded',
-        () => {
-          initializeStoreBridge();
-          enhanceCartPage();
-        },
-        {
-          once: true
-        }
-      );
-    } else {
-      initializeStoreBridge();
+    document.addEventListener('change', (e) => {
+      if (isCartPage() && e.target && e.target.closest('form[action*="/cart"], .cart-item, quantity-input')) {
+        debouncedEnhanceCart();
+        setTimeout(debouncedEnhanceCart, 250);
+        setTimeout(debouncedEnhanceCart, 600);
+      }
+    });
+
+    document.addEventListener('cart:updated', debouncedEnhanceCart);
+    document.addEventListener('cart-update', debouncedEnhanceCart);
+    window.addEventListener('cart:refreshed', debouncedEnhanceCart);
+  }
+
+
+  
+  function start() {
+    log('Script loaded on storefront.');
+    attachGlobalDelegatedListeners();
+
+    // CART PAGE: Execute immediately without waiting for DOMContentLoaded if possible
+    if (isCartPage()) {
+      log('Running Cart Page logic');
+
+      // Instant synchronous render from server cart JSON if present
+      const serverCartEl = document.getElementById('storebridge-server-cart');
+      if (serverCartEl) {
+        try {
+          const parsed = JSON.parse(serverCartEl.textContent || '{}');
+          if (parsed && parsed.items && parsed.items.length > 0) {
+            renderStoreBridgeCart(parsed);
+          }
+        } catch (e) {}
+      }
+
       enhanceCartPage();
+      setupCartObserver();
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+          enhanceCartPage();
+          setupCartObserver();
+        }, { once: true });
+      }
+
+      let attempts = 0;
+      const intervalId = setInterval(() => {
+        attempts++;
+        enhanceCartPage();
+        if (attempts >= 6) clearInterval(intervalId);
+      }, 250);
+
+      return;
     }
 
-    let attempts = 0;
-    const intervalId = setInterval(() => {
-      attempts++;
-      enhanceCartPage();
-      if (attempts >= 8) clearInterval(intervalId);
-    }, 400);
+    // PRODUCT PAGE: Execute immediately without waiting for DOMContentLoaded if form is present
+    if (isProductPage()) {
+      log('Running Product Availability logic');
+      ensureConfig();
+
+      if (getProductForm() || document.querySelector('button[name="add"], .product-form__submit')) {
+        initializeStoreBridge();
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeStoreBridge, { once: true });
+      } else {
+        initializeStoreBridge();
+      }
+
+      let attempts = 0;
+      const intervalId = setInterval(() => {
+        attempts++;
+        if (!document.querySelector('[data-storebridge="ui-container"]')) {
+          initializeStoreBridge();
+        }
+        if (attempts >= 6) clearInterval(intervalId);
+      }, 250);
+
+      return;
+    }
+
+    // OTHER PAGES
+    log('No StoreBridge page-specific functionality required.');
   }
 
   start();
-
 })();

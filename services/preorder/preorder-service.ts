@@ -322,4 +322,124 @@ export class PreorderService {
       },
     };
   }
+
+  /**
+   * Helper to derive deterministic discount code name from offer settings.
+   */
+  static getDiscountCode(
+    discountType: 'none' | 'percentage' | 'fixed' | string,
+    discountValue: number
+  ): string | null {
+    if (discountType === 'none' || !discountValue || discountValue <= 0) {
+      return null;
+    }
+    const cleanVal = Math.round(Number(discountValue) * 100) / 100;
+    return discountType === 'percentage'
+      ? `PREORDER-${Math.round(cleanVal)}PCT`
+      : `PREORDER-${Math.round(cleanVal)}OFF`;
+  }
+
+  /**
+   * Synchronize Shopify Discount Code corresponding to pre-order offer settings.
+   * Auto-creates matching discount code in Shopify Admin so checkout charges discounted price.
+   */
+  static async syncShopifyDiscount(
+    storeId: string,
+    discountType: 'none' | 'percentage' | 'fixed' | string,
+    discountValue: number
+  ): Promise<string | null> {
+    const discountCode = PreorderService.getDiscountCode(discountType, discountValue);
+    if (!discountCode) {
+      return null;
+    }
+
+    const store = await prisma.store.findUnique({
+      where: { id: storeId },
+      select: { shopDomain: true, accessToken: true },
+    });
+
+    if (!store || !store.shopDomain) {
+      console.warn('[PreorderService:syncShopifyDiscount] Store not found:', storeId);
+      return discountCode;
+    }
+
+    try {
+      const { getAdminClient } = require('@/lib/shopify/admin');
+      const client = await getAdminClient(store.shopDomain);
+
+      const cleanVal = Math.round(Number(discountValue) * 100) / 100;
+      const customerGetsValue =
+        discountType === 'percentage'
+          ? { percentage: cleanVal / 100 }
+          : { discountAmount: { amount: cleanVal.toFixed(2), appliesOnEachItem: false } };
+
+      const mutation = `
+        mutation discountCodeBasicCreate($basicCodeDiscount: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
+            codeDiscountNode {
+              id
+              codeDiscount {
+                ... on DiscountCodeBasic {
+                  title
+                  codes(first: 1) {
+                    nodes {
+                      code
+                    }
+                  }
+                }
+              }
+            }
+            userErrors {
+              field
+              code
+              message
+            }
+          }
+        }
+      `;
+
+      const title =
+        discountType === 'percentage'
+          ? `StoreBridge Pre-order ${cleanVal}% Discount`
+          : `StoreBridge Pre-order Rs. ${cleanVal} Discount`;
+
+      const variables = {
+        basicCodeDiscount: {
+          title,
+          code: discountCode,
+          startsAt: new Date(Date.now() - 60000).toISOString(),
+          customerSelection: { all: true },
+          customerGets: {
+            value: customerGetsValue,
+            items: { all: true },
+          },
+          appliesOncePerCustomer: false,
+        },
+      };
+
+      const response: any = await client.request(mutation, { variables });
+      const userErrors = response.data?.discountCodeBasicCreate?.userErrors || [];
+
+      if (userErrors.length > 0) {
+        const isTaken = userErrors.some(
+          (e: any) =>
+            e.code === 'TAKEN' ||
+            e.message?.toLowerCase().includes('taken') ||
+            e.message?.toLowerCase().includes('already exists')
+        );
+        if (isTaken) {
+          console.log(`[PreorderService:syncShopifyDiscount] Discount ${discountCode} already exists in Shopify. Active.`);
+        } else {
+          console.warn('[PreorderService:syncShopifyDiscount] Shopify returned userErrors:', userErrors);
+        }
+      } else {
+        console.log(`[PreorderService:syncShopifyDiscount] Successfully synchronized Shopify discount code: ${discountCode}`);
+      }
+    } catch (err: any) {
+      console.warn('[PreorderService:syncShopifyDiscount] Note while creating Shopify discount (check scopes):', err.message || err);
+    }
+
+    return discountCode;
+  }
 }
+

@@ -1,3 +1,6 @@
+{{ 'availability.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'availability.js' | asset_url }}" defer></script>
+
 {%- assign raw_image = product.featured_image | image_url: width: 600 -%}
 {%- assign secure_image = raw_image -%}
 {%- if raw_image != blank -%}
@@ -5,6 +8,20 @@
     {%- assign secure_image = 'https:' | append: raw_image -%}
   {%- endunless -%}
 {%- endif -%}
+
+{%- assign current_variant = product.selected_or_first_available_variant -%}
+{%- if product.available == false or current_variant.available == false -%}
+  <style id="storebridge-product-flicker-guard">
+    form[action*="/cart/add"] button[name="add"][disabled],
+    form[action*="/cart/add"] .product-form__submit[disabled],
+    .product-form__buttons button[disabled],
+    .shopify-payment-button,
+    [data-shopify="payment-button"] {
+      display: none !important;
+    }
+  </style>
+{%- endif -%}
+
 <div
   id="storebridge-availability"
   data-storebridge="availability"
@@ -82,9 +99,6 @@
 {
   "name": "StoreBridge Availability",
   "target": "section",
-  "stylesheet": "availability.css",
-  "javascript": "availability.js",
-  "templates": ["product", "cart"],
   "settings": [
     {
       "type": "text",

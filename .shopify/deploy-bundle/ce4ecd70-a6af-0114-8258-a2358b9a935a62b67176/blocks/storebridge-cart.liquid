@@ -1,0 +1,27 @@
+{%- if request.page_type == 'cart' -%}
+  {{ 'availability.css' | asset_url | stylesheet_tag }}
+  <script src="{{ 'availability.js' | asset_url }}" defer></script>
+
+  <div
+    id="storebridge-cart-embed"
+    data-storebridge-cart="true"
+    data-shop="{{ shop.permanent_domain }}"
+    data-api-url="{{ block.settings.api_url | default: 'https://dz50mdfc-3000.inc1.devtunnels.ms' }}"
+    style="display: none;"
+  ></div>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "StoreBridge Cart",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "api_url",
+      "label": "StoreBridge App URL",
+      "default": "https://dz50mdfc-3000.inc1.devtunnels.ms"
+    }
+  ]
+}
+{% endschema %}
