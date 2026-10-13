@@ -69,7 +69,29 @@ function getRelativeTime(dateString: string): string {
   return `${days} d ago`;
 }
 
-function getTypeBadge(type: string): { label: string; tone: 'critical' | 'warning' | 'info' | 'success' | 'attention'; iconSource: any } {
+function getTypeBadge(type: string, title?: string, message?: string): {
+  label: string;
+  tone: 'critical' | 'warning' | 'info' | 'success' | 'attention';
+  customBadgeClass?: string;
+  iconSource: any;
+} {
+  const combined = `${title || ''} ${message || ''}`.toLowerCase();
+  if (combined.includes('pre-order') || combined.includes('preorder')) {
+    return {
+      label: 'Pre-order',
+      tone: 'attention',
+      customBadgeClass: 'bg-purple-100 text-purple-800 border border-purple-300 font-extrabold',
+      iconSource: OrderIcon,
+    };
+  }
+  if (combined.includes('notify me') || combined.includes('waitlist')) {
+    return {
+      label: 'Notify Me',
+      tone: 'info',
+      customBadgeClass: 'bg-sky-100 text-sky-800 border border-sky-300 font-extrabold',
+      iconSource: ProductIcon,
+    };
+  }
   switch (type) {
     case 'OUT_OF_STOCK':
       return { label: 'Out of Stock', tone: 'critical', iconSource: AlertCircleIcon };
@@ -102,9 +124,20 @@ export function NotificationCard({
     item.metadata?.syncStatus || (item.metadata?.syncPending ? 'PENDING' : null)
   );
 
-  const badgeInfo = getTypeBadge(item.type);
+  const badgeInfo = getTypeBadge(item.type, item.title, item.message);
   const storeLabel = item.recipientStore?.label || item.recipientStore?.shopDomain || 'Store';
   const isMaster = item.recipientStore?.isMaster || false;
+
+  const emailMatch = (item.message || '').match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+  const email = emailMatch ? emailMatch[0] : null;
+  const orderMatch = (item.message || '').match(/(#\w+(?:-[A-Za-z0-9]+)?)/);
+  const orderNumber = orderMatch ? orderMatch[0] : null;
+  const qtyMatch = (item.message || '').match(/(\d+)\s+units?/i);
+  const quantity = qtyMatch ? qtyMatch[0] : null;
+
+  const combined = `${item.title || ''} ${item.message || ''}`.toLowerCase();
+  const isPreorder = combined.includes('pre-order') || combined.includes('preorder');
+  const isNotifyMe = combined.includes('notify me') || combined.includes('waitlist');
 
   const handleSyncAction = async (action: 'ACCEPT' | 'DECLINE') => {
     setIsSyncing(true);
@@ -137,9 +170,15 @@ export function NotificationCard({
         {/* Top Header: Badge, Unread status, Store & Time */}
         <InlineStack align="space-between" blockAlign="center">
           <InlineStack gap="200" blockAlign="center">
-            <Badge tone={badgeInfo.tone} size="small">
-              {badgeInfo.label}
-            </Badge>
+            {badgeInfo.customBadgeClass ? (
+              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wider ${badgeInfo.customBadgeClass}`}>
+                {badgeInfo.label}
+              </span>
+            ) : (
+              <Badge tone={badgeInfo.tone} size="small">
+                {badgeInfo.label}
+              </Badge>
+            )}
             {!item.isRead && (
               <span className="w-2 h-2 rounded-full bg-teal-500 inline-block animate-pulse" title="Unread" />
             )}
@@ -172,7 +211,13 @@ export function NotificationCard({
               />
             </div>
           ) : (
-            <div className="w-12 h-12 rounded-lg bg-[var(--color-primary-light,#d1fae5)]/40 flex-shrink-0 border border-[var(--border-color,#34d399)]/40 flex items-center justify-center text-[var(--color-primary,#047857)]">
+            <div className={`w-12 h-12 rounded-lg flex-shrink-0 border flex items-center justify-center ${
+              isPreorder
+                ? 'bg-purple-50 border-purple-200 text-purple-700'
+                : isNotifyMe
+                ? 'bg-sky-50 border-sky-200 text-sky-700'
+                : 'bg-[var(--color-primary-light,#d1fae5)]/40 border-[var(--border-color,#34d399)]/40 text-[var(--color-primary,#047857)]'
+            }`}>
               <div style={{ width: 22, height: 22 }}>
                 <Icon source={badgeInfo.iconSource} />
               </div>
@@ -193,6 +238,33 @@ export function NotificationCard({
             <Text variant="bodySm" as="p" tone={item.isRead ? 'subdued' : 'base'}>
               {item.message}
             </Text>
+
+            {/* Structured Customer & Order Metadata Tags */}
+            {(email || isPreorder || isNotifyMe) && (
+              <div className="flex flex-wrap items-center gap-1.5 mt-2.5 pt-2 border-t border-gray-100">
+                {email && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-gray-100 border border-gray-300 text-[11px] font-mono text-gray-900 font-bold shadow-2xs">
+                    <span className="text-gray-500">✉</span>
+                    <span>{email}</span>
+                  </span>
+                )}
+                {isPreorder && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200 text-[10px] font-extrabold uppercase tracking-wider">
+                    Pre-order {quantity ? `(${quantity})` : ''}
+                  </span>
+                )}
+                {isNotifyMe && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-200 text-[10px] font-extrabold uppercase tracking-wider">
+                    Notify Me {quantity ? `(${quantity})` : ''}
+                  </span>
+                )}
+                {orderNumber && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-50 border border-gray-200 text-[11px] font-mono text-gray-600 font-semibold">
+                    Order {orderNumber}
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Sync Action Buttons: Yes, Sync / No, Skip */}
             {syncStatus === 'PENDING' ? (

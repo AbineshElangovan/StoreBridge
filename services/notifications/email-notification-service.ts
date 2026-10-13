@@ -98,7 +98,7 @@ async function dispatchEmail(
   fallbackUrl?: string,
   plainText?: string
 ): Promise<NotificationResult> {
-  const cleanSubject = subject.replace(/[\r\n]+/g, ' ').trim();
+  const cleanSubject = subject.replace(/[\r\n]+/g, ' ').replace(/["']/g, '').trim();
   const text = (plainText && plainText.trim()) || stripHtmlToPlainText(html);
 
   // 1. Try Gmail / Custom SMTP if credentials exist
@@ -106,8 +106,8 @@ async function dispatchEmail(
   const smtpConfig = getSmtpConfig();
   if (transporter && smtpConfig) {
     try {
-      const storeName = fromEmail.replace(/<.*>/, '').replace(/"/g, '').trim() || 'Online Store';
-      const cleanFrom = `"${storeName}" <${smtpConfig.user}>`;
+      const storeName = fromEmail.replace(/<.*>/, '').replace(/["']/g, '').trim() || 'Online Store';
+      const cleanFrom = `${storeName} <${smtpConfig.user}>`;
 
       const info = await transporter.sendMail({
         from: cleanFrom,
@@ -219,18 +219,67 @@ async function resolveLiveImageUrl(url?: string | null): Promise<string> {
   return VERIFIED_PRODUCT_FALLBACK_IMAGE;
 }
 
+function cleanTitleAndVariant(
+  rawProductTitle?: string | null,
+  rawVariantTitle?: string | null,
+  storeName?: string | null
+): { productTitle: string; variantTitle: string | null; fullTitle: string } {
+  let pTitle = (rawProductTitle || 'Product').trim().replace(/["']/g, '');
+  let vTitle = (rawVariantTitle && rawVariantTitle !== 'Default Title' && rawVariantTitle !== 'Default Variant')
+    ? rawVariantTitle.trim().replace(/["']/g, '')
+    : null;
+
+  // Clean trailing store name like " - ESHAN Chennai Store" or " – ESHAN Chennai Store"
+  if (storeName) {
+    const cleanStore = storeName.trim().replace(/["']/g, '');
+    const storeRegex = new RegExp(`\\s*[-–—|:]\\s*${cleanStore}$`, 'i');
+    pTitle = pTitle.replace(storeRegex, '').trim();
+    if (vTitle) {
+      vTitle = vTitle.replace(storeRegex, '').trim();
+    }
+  }
+
+  // Normalize en-dash / em-dash to " - "
+  pTitle = pTitle.replace(/\s*[–—]\s*/g, ' - ');
+  if (vTitle) {
+    vTitle = vTitle.replace(/\s*[–—]\s*/g, ' - ');
+  }
+
+  // If productTitle already contains " - " (e.g. "Cotton T-shirt - White / M")
+  if (pTitle.includes(' - ')) {
+    const parts = pTitle.split(' - ');
+    pTitle = parts[0].trim();
+    if (!vTitle && parts.length > 1) {
+      vTitle = parts.slice(1).join(' - ').trim();
+    }
+  }
+
+  // If variantTitle is already inside productTitle or equals productTitle
+  if (vTitle && pTitle.toLowerCase().includes(vTitle.toLowerCase())) {
+    vTitle = null;
+  }
+
+  // De-duplicate any internal variant duplication (e.g. "White / M - White / M")
+  if (vTitle && vTitle.includes(' - ')) {
+    const vParts = vTitle.split(' - ').map(p => p.trim());
+    const uniqueVParts = Array.from(new Set(vParts));
+    vTitle = uniqueVParts.join(' - ');
+  }
+
+  const fullTitle = vTitle ? `${pTitle} - ${vTitle}` : pTitle;
+  return { productTitle: pTitle, variantTitle: vTitle, fullTitle };
+}
+
 export class EmailNotificationService {
   /**
    * Send a Back in Stock notification email.
    * Renders a responsive, modern HTML template with Buy Now CTA direct to Shopify product.
    */
   static async sendBackInStockEmail(params: SendEmailParams): Promise<NotificationResult> {
-    const { to, productTitle, variantTitle, productUrl, imageUrl, storeName, price } = params;
+    const { to, productTitle: rawProductTitle, variantTitle: rawVariantTitle, productUrl, imageUrl, storeName, price } = params;
 
-    const fullTitle = variantTitle && variantTitle !== 'Default Title'
-      ? `${productTitle} - ${variantTitle}`
-      : productTitle;
-    const storeDisplayName = storeName || 'Online Store';
+    const storeDisplayName = (storeName || 'Online Store').replace(/["']/g, '');
+    const { productTitle, variantTitle, fullTitle } = cleanTitleAndVariant(rawProductTitle, rawVariantTitle, storeDisplayName);
     const fallbackUrl = productUrl || '#';
     const displayPrice = price ? (price.startsWith('₹') || price.startsWith('Rs') || price.startsWith('$') ? price : `₹${price}`) : '₹1,240';
     const safeImageUrl = await resolveLiveImageUrl(imageUrl);
@@ -241,9 +290,10 @@ export class EmailNotificationService {
         .replace(/\{\{product_title\}\}/gi, fullTitle)
         .replace(/\{\{product\}\}/gi, fullTitle)
         .replace(/\{\{store_name\}\}/gi, storeDisplayName)
-        .replace(/\{\{store\}\}/gi, storeDisplayName);
+        .replace(/\{\{store\}\}/gi, storeDisplayName)
+        .replace(/["']/g, '');
     } else {
-      emailSubject = `Good news! ${fullTitle} is back in stock - ${storeDisplayName}`;
+      emailSubject = `Back in Stock: ${fullTitle} - ${storeDisplayName}`;
     }
 
     const subject = emailSubject;
@@ -377,12 +427,10 @@ export class EmailNotificationService {
    * Includes product photo, variant, and promise to reach out as soon as restocked.
    */
   static async sendWaitlistConfirmationEmail(params: SendEmailParams): Promise<NotificationResult> {
-    const { to, productTitle, variantTitle, productUrl, imageUrl, storeName, price } = params;
+    const { to, productTitle: rawProductTitle, variantTitle: rawVariantTitle, productUrl, imageUrl, storeName, price } = params;
 
-    const fullTitle = variantTitle && variantTitle !== 'Default Title'
-      ? `${productTitle} - ${variantTitle}`
-      : productTitle;
-    const storeDisplayName = storeName || 'Online Store';
+    const storeDisplayName = (storeName || 'Online Store').replace(/["']/g, '');
+    const { productTitle, variantTitle, fullTitle } = cleanTitleAndVariant(rawProductTitle, rawVariantTitle, storeDisplayName);
     const fallbackUrl = productUrl || '#';
     const displayPrice = price ? (price.startsWith('₹') || price.startsWith('Rs') || price.startsWith('$') ? price : `₹${price}`) : '₹1,240';
     const safeImageUrl = await resolveLiveImageUrl(imageUrl);
@@ -393,9 +441,10 @@ export class EmailNotificationService {
         .replace(/\{\{product_title\}\}/gi, fullTitle)
         .replace(/\{\{product\}\}/gi, fullTitle)
         .replace(/\{\{store_name\}\}/gi, storeDisplayName)
-        .replace(/\{\{store\}\}/gi, storeDisplayName);
+        .replace(/\{\{store\}\}/gi, storeDisplayName)
+        .replace(/["']/g, '');
     } else {
-      emailSubject = `You're on the waitlist for ${fullTitle} - ${storeDisplayName}`;
+      emailSubject = `Waitlist Confirmed: ${fullTitle} - ${storeDisplayName}`;
     }
 
     const subject = emailSubject;
@@ -403,9 +452,9 @@ export class EmailNotificationService {
     const plainText = [
       `Hello,`,
       ``,
-      `You're on the waitlist for ${fullTitle} at ${storeDisplayName}.`,
+      `Waitlist confirmed for ${fullTitle} at ${storeDisplayName}.`,
       ``,
-      `We've saved your request. As soon as this product is back in stock, we'll send you an instant notification so you can get yours first.`,
+      `We have saved your request. As soon as this product is back in stock, we will send you an instant notification so you can get yours first.`,
       ``,
       `Product: ${fullTitle}`,
       `Price: ${displayPrice}`,
@@ -426,7 +475,7 @@ export class EmailNotificationService {
 <body style="margin:0;padding:0;background-color:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <!-- Hidden Preheader Preview Text -->
   <div style="display:none;font-size:1px;color:#ffffff;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;mso-hide:all;">
-    You're confirmed on the waitlist for ${fullTitle}. We'll notify you as soon as it's back in stock.
+    Waitlist confirmed for ${fullTitle}. We will notify you as soon as stock arrives.
   </div>
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f5f7;padding:30px 10px;">
     <tr>
@@ -453,9 +502,9 @@ export class EmailNotificationService {
               <div style="background-color:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;display:inline-block;margin-bottom:14px;letter-spacing:0.02em;">
                 Waitlist Confirmed
               </div>
-              <h1 style="margin:0 0 10px;font-size:22px;font-weight:800;color:#111827;line-height:1.3;">You're on the Waitlist</h1>
+              <h1 style="margin:0 0 10px;font-size:22px;font-weight:800;color:#111827;line-height:1.3;">Waitlist Confirmed</h1>
               <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.5;">
-                We'll let you know the moment this item is back in stock.
+                We will notify you the moment this item is back in stock.
               </p>
 
               <!-- Product Card -->
@@ -501,7 +550,7 @@ export class EmailNotificationService {
                 </tr>
                 <tr>
                   <td align="center" style="padding-top:4px;font-size:12px;color:#059669;font-weight:600;">
-                    We'll notify you as soon as inventory arrives.
+                    We will notify you as soon as inventory arrives.
                   </td>
                 </tr>
               </table>
@@ -531,19 +580,17 @@ export class EmailNotificationService {
    * their item is now in stock and being prepared for fulfillment.
    */
   static async sendPreorderInStockEmail(params: SendEmailParams): Promise<NotificationResult> {
-    const { to, productTitle, variantTitle, productUrl, imageUrl, storeName, price, customerName, orderNumber } = params;
+    const { to, productTitle: rawProductTitle, variantTitle: rawVariantTitle, productUrl, imageUrl, storeName, price, customerName, orderNumber } = params;
 
-    const fullTitle = variantTitle && variantTitle !== 'Default Title'
-      ? `${productTitle} - ${variantTitle}`
-      : productTitle;
-    const storeDisplayName = storeName || 'Online Store';
+    const storeDisplayName = (storeName || 'Online Store').replace(/["']/g, '');
+    const { productTitle, variantTitle, fullTitle } = cleanTitleAndVariant(rawProductTitle, rawVariantTitle, storeDisplayName);
     const fallbackUrl = productUrl || '#';
     const displayPrice = price ? (price.startsWith('₹') || price.startsWith('Rs') || price.startsWith('$') ? price : `₹${price}`) : '₹1,240';
     const safeImageUrl = await resolveLiveImageUrl(imageUrl);
     const greetingName = customerName && customerName.trim() ? customerName.trim() : 'Customer';
     const orderDisplay = orderNumber ? (orderNumber.startsWith('#') ? orderNumber : `#${orderNumber}`) : '#1234';
 
-    const subject = `Good News! Your Pre-order Is Ready for Fulfillment`;
+    const subject = `Pre-order Ready: ${fullTitle} - ${storeDisplayName}`;
 
     const html = `
 <!DOCTYPE html>
@@ -585,7 +632,7 @@ export class EmailNotificationService {
               </p>
               <p style="margin:0 0 16px;font-size:14px;color:#4b5563;line-height:1.6;">
                 Great news!<br/>
-                The product you pre-ordered is back in stock, and we're preparing to fulfill your order.
+                The product you pre-ordered is back in stock, and we are preparing to fulfill your order.
               </p>
 
               <!-- Order & Product Details -->
@@ -637,7 +684,7 @@ export class EmailNotificationService {
               </table>
 
               <p style="margin:0 0 10px;font-size:14px;color:#4b5563;line-height:1.5;">
-                We'll notify you once your order has been shipped.
+                We will notify you once your order has been shipped.
               </p>
               <p style="margin:0 0 16px;font-size:14px;color:#4b5563;line-height:1.5;">
                 Thank you for your patience and for shopping with us!
@@ -671,12 +718,10 @@ export class EmailNotificationService {
    * Confirms order number, reserved product, and fulfillment promise.
    */
   static async sendPreorderConfirmationEmail(params: SendEmailParams): Promise<NotificationResult> {
-    const { to, productTitle, variantTitle, productUrl, imageUrl, storeName, price, customerName, orderNumber } = params;
+    const { to, productTitle: rawProductTitle, variantTitle: rawVariantTitle, productUrl, imageUrl, storeName, price, customerName, orderNumber } = params;
 
-    const fullTitle = variantTitle && variantTitle !== 'Default Title'
-      ? `${productTitle} - ${variantTitle}`
-      : productTitle;
-    const storeDisplayName = storeName || 'Online Store';
+    const storeDisplayName = (storeName || 'Online Store').replace(/["']/g, '');
+    const { productTitle, variantTitle, fullTitle } = cleanTitleAndVariant(rawProductTitle, rawVariantTitle, storeDisplayName);
     const fallbackUrl = productUrl || '#';
     const displayPrice = price ? (price.startsWith('₹') || price.startsWith('Rs') || price.startsWith('$') ? price : `₹${price}`) : '₹1,240';
     const safeImageUrl = await resolveLiveImageUrl(imageUrl);
@@ -724,7 +769,7 @@ export class EmailNotificationService {
                 Your pre-order has been successfully placed.
               </p>
               <p style="margin:0 0 16px;font-size:14px;color:#4b5563;line-height:1.6;">
-                Hi ${greetingName}, thank you for your order! We've received your pre-order <strong>${orderDisplay}</strong>.<br/>
+                Hi ${greetingName}, thank you for your order! We have received your pre-order <strong>${orderDisplay}</strong>.<br/>
                 Your items have been safely reserved. We will notify you by email the moment new stock arrives and your order is prepared for fulfillment.
               </p>
 

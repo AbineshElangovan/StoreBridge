@@ -2959,43 +2959,124 @@
   let enhanceTimeout = null;
   let cachedRemoteCartConfig = null;
   let lastCartUpdateTimestamp = 0;
+  const pendingQtyDebounceTimers = new Map();
 
-  async function updateItemQuantity(itemKey, newQuantity, lineIndex) {
-    if (isCartUpdating) return;
-    isCartUpdating = true;
-    lastCartUpdateTimestamp = Date.now();
+  function updateCartTotalsInPlace(root) {
+    if (!root) root = document.getElementById('storebridge-cart-page');
+    if (!root) return;
 
-    const safetyTimer = setTimeout(() => {
-      isCartUpdating = false;
-    }, 3500);
-
-    // Visual feedback: find card by data-key or data-line
-    const cards = Array.from(document.querySelectorAll('.storebridge-cart-item-card'));
-    const card = cards.find((c) =>
-      (itemKey && c.getAttribute('data-key') === String(itemKey)) ||
-      (lineIndex && c.getAttribute('data-line') === String(lineIndex))
-    );
-    if (card) {
-      card.classList.add('storebridge-item-loading');
+    const cards = Array.from(root.querySelectorAll('.storebridge-cart-item-card'));
+    if (cards.length === 0) {
+      root.innerHTML = `
+        <div class="storebridge-cart-header">
+          <h1 class="storebridge-cart-title">Cart</h1>
+        </div>
+        <div class="storebridge-cart-empty">
+          <h2>Your cart is empty</h2>
+          <p style="color: #64748b; font-size: 15px; margin: 0 0 24px 0;">Your pre-order cart is currently empty.</p>
+          <a href="/collections/all" class="storebridge-continue-shopping-btn">Continue shopping</a>
+        </div>
+      `;
+      return;
     }
 
-    const targetQty = Math.max(0, parseInt(newQuantity, 10));
+    let totalOriginalSum = 0;
+    let totalDiscountSum = 0;
+    let totalFinalSum = 0;
+    let totalItemCount = 0;
+    let preorderItemCount = 0;
 
-    // Optimistic UI updates
-    if (card) {
-      if (targetQty === 0) {
-        card.style.opacity = '0.35';
-      } else {
-        const qtySpan = card.querySelector('.storebridge-qty-value');
-        if (qtySpan) qtySpan.textContent = String(targetQty);
-        card.querySelectorAll('.storebridge-qty-btn').forEach((b) => b.setAttribute('data-qty', String(targetQty)));
+    cards.forEach((card) => {
+      const qtySpan = card.querySelector('.storebridge-qty-value');
+      const qty = Math.max(0, parseInt(qtySpan?.textContent || '1', 10));
+      const unitPrice = parseFloat(card.getAttribute('data-unit-price') || '0');
+      const unitDiscount = parseFloat(card.getAttribute('data-unit-discount') || '0');
+      const unitFinal = parseFloat(card.getAttribute('data-unit-final') || String(unitPrice - unitDiscount));
+      const isPreorder = card.getAttribute('data-is-preorder') === '1';
+
+      if (isPreorder) preorderItemCount += qty;
+      totalItemCount += qty;
+
+      const lineOriginal = unitPrice * qty;
+      const lineDiscount = unitDiscount * qty;
+      const lineFinal = unitFinal * qty;
+
+      totalOriginalSum += lineOriginal;
+      totalDiscountSum += lineDiscount;
+      totalFinalSum += lineFinal;
+
+      // Update line prices in card
+      const finalPriceEl = card.querySelector('.storebridge-line-final-price');
+      if (finalPriceEl) finalPriceEl.textContent = formatMoney(lineFinal);
+
+      const origPriceEl = card.querySelector('.storebridge-line-original-price');
+      if (origPriceEl) {
+        if (unitDiscount > 0) {
+          origPriceEl.textContent = formatMoney(lineOriginal);
+          origPriceEl.style.display = '';
+        } else {
+          origPriceEl.style.display = 'none';
+        }
+      }
+
+      // Update button data-qty
+      card.querySelectorAll('.storebridge-qty-btn').forEach((btn) => {
+        btn.setAttribute('data-qty', String(qty));
+      });
+    });
+
+    // Update Header Badge
+    const countBadge = root.querySelector('.storebridge-cart-count-badge');
+    if (countBadge) countBadge.textContent = String(totalItemCount);
+
+    // Update Summary Original Price row
+    const origLabel = root.querySelector('.storebridge-summary-row-label');
+    if (origLabel && origLabel.textContent.includes('Original Price')) {
+      origLabel.textContent = `Original Price (${totalItemCount} item${totalItemCount > 1 ? 's' : ''})`;
+    }
+    const origValue = root.querySelector('.storebridge-summary-rows .storebridge-summary-row-value');
+    if (origValue) origValue.textContent = formatMoney(totalOriginalSum);
+
+    // Update Discount Savings row
+    const savingsValue = root.querySelector('.storebridge-summary-row-value.storebridge-savings-red');
+    if (savingsValue) {
+      savingsValue.textContent = `- ${formatMoney(totalDiscountSum)}`;
+      const discountRow = savingsValue.closest('.storebridge-summary-row');
+      if (discountRow) {
+        discountRow.style.display = totalDiscountSum > 0 ? '' : 'none';
       }
     }
 
+    // Update Total Box
+    const totalBoxValue = root.querySelector('.storebridge-total-box-value, .storebridge-total-value');
+    if (totalBoxValue) totalBoxValue.textContent = formatMoney(totalFinalSum);
+
+    const totalBoxLabel = root.querySelector('.storebridge-total-box-label, .storebridge-total-label');
+    if (totalBoxLabel) {
+      totalBoxLabel.textContent = (preorderItemCount === totalItemCount) ? 'Pre-order Total' : 'Order Total';
+    }
+  }
+
+  function queueQuantityUpdate(itemKey, targetQty, lineIndex) {
+    lastCartUpdateTimestamp = Date.now();
+    const mapKey = itemKey ? String(itemKey) : String(lineIndex);
+
+    if (pendingQtyDebounceTimers.has(mapKey)) {
+      clearTimeout(pendingQtyDebounceTimers.get(mapKey));
+    }
+
+    const timer = setTimeout(async () => {
+      pendingQtyDebounceTimers.delete(mapKey);
+      await sendCartQuantityChange(itemKey, targetQty, lineIndex);
+    }, 280);
+
+    pendingQtyDebounceTimers.set(mapKey, timer);
+  }
+
+  async function sendCartQuantityChange(itemKey, targetQty, lineIndex) {
+    lastCartUpdateTimestamp = Date.now();
     try {
       const rootPath = window.Shopify?.routes?.root || '/';
-
-      // Always prioritize 1-based line number if available (Shopify standard for cart line items)
       const primaryPayload = (lineIndex !== null && lineIndex !== undefined && String(lineIndex).trim() !== '') ? {
         line: parseInt(lineIndex, 10),
         quantity: targetQty
@@ -3013,7 +3094,6 @@
         body: JSON.stringify(primaryPayload)
       });
 
-      // If primary payload failed, fallback to alternate parameter
       if (!res.ok) {
         const altPayload = primaryPayload.line ? {
           id: String(itemKey),
@@ -3024,7 +3104,6 @@
         } : null);
 
         if (altPayload) {
-          log('[StoreBridge:CartChange] Retrying with fallback payload:', altPayload);
           res = await fetch(`${rootPath}cart/change.js`, {
             method: 'POST',
             headers: {
@@ -3038,35 +3117,19 @@
 
       if (res.ok) {
         const updatedCart = await res.json();
-
-        // Update server cart element if present
         const serverCartEl = document.getElementById('storebridge-server-cart');
         if (serverCartEl) {
           try {
             serverCartEl.textContent = JSON.stringify(updatedCart);
           } catch (e) {}
         }
-
-        renderStoreBridgeCart(updatedCart);
-
-        document.dispatchEvent(new CustomEvent('cart:updated', { detail: updatedCart }));
-        document.dispatchEvent(new CustomEvent('cart-update', { detail: updatedCart }));
-        window.dispatchEvent(new CustomEvent('cart:refreshed', { detail: updatedCart }));
-      } else {
-        console.warn('[StoreBridge:CartChange] change.js returned error status:', res.status);
-        await enhanceCartPage();
+        if (!updatedCart.items || updatedCart.items.length === 0) {
+          const root = document.getElementById('storebridge-cart-page');
+          if (root) updateCartTotalsInPlace(root);
+        }
       }
     } catch (err) {
       console.error('[StoreBridge:CartChange]', err);
-      await enhanceCartPage();
-    } finally {
-      clearTimeout(safetyTimer);
-      if (card) {
-        card.classList.remove('storebridge-item-loading');
-        card.style.opacity = '';
-        card.style.pointerEvents = '';
-      }
-      isCartUpdating = false;
     }
   }
 
@@ -3373,7 +3436,7 @@
       const variantText = item.variant_title && item.variant_title !== 'Default Title' ? item.variant_title : '';
 
       return `
-        <div class="storebridge-cart-item-card" data-key="${escapeHtml(itemKey)}" data-line="${lineIndex}">
+        <div class="storebridge-cart-item-card" data-key="${escapeHtml(itemKey)}" data-line="${lineIndex}" data-unit-price="${p.unitPrice}" data-unit-discount="${p.unitDiscount}" data-unit-final="${p.finalUnitPrice}" data-is-preorder="${isPreorder ? '1' : '0'}">
           <div class="storebridge-cart-item-image-wrapper">
             <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(item.product_title || item.title)}" class="storebridge-cart-item-image" loading="lazy" />
           </div>
@@ -3519,7 +3582,16 @@
           const card = deleteBtn.closest('.storebridge-cart-item-card');
           const key = deleteBtn.getAttribute('data-key') || card?.getAttribute('data-key');
           const line = deleteBtn.getAttribute('data-line') || card?.getAttribute('data-line');
-          updateItemQuantity(key, 0, line);
+          if (card) {
+            card.style.transition = 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)';
+            card.style.opacity = '0';
+            card.style.transform = 'scale(0.96)';
+            setTimeout(() => {
+              card.remove();
+              updateCartTotalsInPlace(root);
+            }, 200);
+          }
+          queueQuantityUpdate(key, 0, line);
           return;
         }
 
@@ -3532,8 +3604,25 @@
           const key = minusBtn.getAttribute('data-key') || card?.getAttribute('data-key');
           const line = minusBtn.getAttribute('data-line') || card?.getAttribute('data-line');
           const qtySpan = card?.querySelector('.storebridge-qty-value') || minusBtn.parentElement?.querySelector('.storebridge-qty-value');
-          const curQty = parseInt(minusBtn.getAttribute('data-qty') || qtySpan?.textContent || '1', 10);
-          updateItemQuantity(key, Math.max(0, curQty - 1), line);
+          const curQty = parseInt(qtySpan?.textContent || minusBtn.getAttribute('data-qty') || '1', 10);
+          const nextQty = Math.max(0, curQty - 1);
+
+          if (nextQty === 0) {
+            if (card) {
+              card.style.transition = 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)';
+              card.style.opacity = '0';
+              card.style.transform = 'scale(0.96)';
+              setTimeout(() => {
+                card.remove();
+                updateCartTotalsInPlace(root);
+              }, 200);
+            }
+            queueQuantityUpdate(key, 0, line);
+          } else {
+            if (qtySpan) qtySpan.textContent = String(nextQty);
+            updateCartTotalsInPlace(root);
+            queueQuantityUpdate(key, nextQty, line);
+          }
           return;
         }
 
@@ -3546,8 +3635,12 @@
           const key = plusBtn.getAttribute('data-key') || card?.getAttribute('data-key');
           const line = plusBtn.getAttribute('data-line') || card?.getAttribute('data-line');
           const qtySpan = card?.querySelector('.storebridge-qty-value') || plusBtn.parentElement?.querySelector('.storebridge-qty-value');
-          const curQty = parseInt(plusBtn.getAttribute('data-qty') || qtySpan?.textContent || '1', 10);
-          updateItemQuantity(key, curQty + 1, line);
+          const curQty = parseInt(qtySpan?.textContent || plusBtn.getAttribute('data-qty') || '1', 10);
+          const nextQty = curQty + 1;
+
+          if (qtySpan) qtySpan.textContent = String(nextQty);
+          updateCartTotalsInPlace(root);
+          queueQuantityUpdate(key, nextQty, line);
           return;
         }
 
@@ -3622,7 +3715,7 @@
 
   async function enhanceCartPage() {
     if (isEnhancingCart || isCartUpdating || !isCartPage()) return;
-    if (Date.now() - lastCartUpdateTimestamp < 1200) return;
+    if (Date.now() - lastCartUpdateTimestamp < 4000) return;
 
     try {
       isEnhancingCart = true;
@@ -3690,6 +3783,7 @@
 
     const cartObserver = new MutationObserver((mutations) => {
       if (!isCartPage()) return;
+      if (Date.now() - lastCartUpdateTimestamp < 4000) return;
       const isInternalMutation = mutations.every((m) => {
         const t = m.target;
         return (
@@ -3710,15 +3804,11 @@
 
     document.addEventListener('change', (e) => {
       if (isCartPage() && e.target && e.target.closest('form[action*="/cart"], .cart-item, quantity-input')) {
+        if (e.target.closest('#storebridge-cart-page')) return;
+        if (Date.now() - lastCartUpdateTimestamp < 4000) return;
         debouncedEnhanceCart();
-        setTimeout(debouncedEnhanceCart, 250);
-        setTimeout(debouncedEnhanceCart, 600);
       }
     });
-
-    document.addEventListener('cart:updated', debouncedEnhanceCart);
-    document.addEventListener('cart-update', debouncedEnhanceCart);
-    window.addEventListener('cart:refreshed', debouncedEnhanceCart);
   }
 
 

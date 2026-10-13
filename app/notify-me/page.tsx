@@ -10,10 +10,32 @@ import {
   SettingsCard,
   SettingsToggle,
   SettingsInput,
-  SettingsTextarea,
   SaveButton,
   NotifyMeModalPreview,
 } from '@/components/customer-experience/shared';
+
+function ProductThumbnail({ src, alt }: { src?: string | null; alt?: string }) {
+  const [hasError, setHasError] = useState(false);
+
+  if (!src || hasError) {
+    return (
+      <div className="w-10 h-10 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0 text-gray-400">
+        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt || 'Product'}
+      onError={() => setHasError(true)}
+      className="w-10 h-10 rounded-xl object-cover border border-gray-200 shrink-0 bg-white"
+    />
+  );
+}
 
 export default function NotifyMeAdminPage() {
   const [loading, setLoading] = useState(true);
@@ -30,7 +52,7 @@ export default function NotifyMeAdminPage() {
   const [successMessage, setSuccessMessage] = useState("You're on the list!");
   const [emailSubject, setEmailSubject] = useState('Good news! {{product_title}} is back in stock');
 
-  // Registrations table state (server-side paginated)
+  // Registrations table state (server-side paginated, 10 items per page)
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -44,7 +66,7 @@ export default function NotifyMeAdminPage() {
       setTableLoading(true);
       const params = new URLSearchParams({
         page: String(currentPage),
-        pageSize: '15',
+        pageSize: '10',
       });
       if (currentStatus && currentStatus !== 'ALL') {
         params.set('status', currentStatus);
@@ -145,16 +167,28 @@ export default function NotifyMeAdminPage() {
 
   const columns: ColumnConfig[] = [
     {
+      title: 'Product & SKU',
+      key: 'productInfo',
+      type: 'react_node',
+      width: '32%',
+    },
+    {
       title: 'Customer Contact',
       key: 'customerContact',
       type: 'react_node',
-      width: '30%',
+      width: '24%',
     },
     {
-      title: 'Channels',
+      title: 'Channel',
       key: 'channels',
       type: 'react_node',
-      width: '20%',
+      width: '12%',
+    },
+    {
+      title: 'Quantity',
+      key: 'quantityBadge',
+      type: 'react_node',
+      width: '10%',
     },
     {
       title: 'Status',
@@ -165,43 +199,77 @@ export default function NotifyMeAdminPage() {
         NOTIFIED: 'success',
         CANCELLED: 'critical',
       },
-      width: '15%',
+      width: '10%',
     },
     {
       title: 'Registered Date',
       key: 'formattedDate',
       type: 'text',
-      width: '20%',
-    },
-    {
-      title: 'Variant ID',
-      key: 'shortVariant',
-      type: 'text',
-      width: '15%',
+      width: '12%',
     },
   ];
 
   const formattedItems = registrations.map((r) => ({
     ...r,
+    productInfo: (
+      <div className="flex items-center gap-3 text-left">
+        <ProductThumbnail src={r.imageUrl} alt={r.productTitle} />
+        <div className="min-w-0">
+          <p className="font-bold text-gray-900 text-xs sm:text-sm truncate">
+            {r.productTitle || 'Product'}
+          </p>
+          <p className="text-[11px] text-gray-500 truncate">
+            {r.variantTitle && r.variantTitle !== 'Default Title'
+              ? r.variantTitle
+              : (r.shopifyVariantId ? `Var ID: ${r.shopifyVariantId.replace(/^gid:\/\/shopify\/ProductVariant\//, '')}` : '')}
+          </p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+              SKU: {r.sku || '-'}
+            </span>
+            <span className="text-[10px] text-gray-400 font-mono">
+              ID: {r.shopifyVariantId?.replace(/^gid:\/\/shopify\/ProductVariant\//, '') || '-'}
+            </span>
+          </div>
+        </div>
+      </div>
+    ),
     customerContact: (
-      <div>
-        {r.customerEmail && <div className="font-semibold text-gray-900 text-sm">{r.customerEmail}</div>}
-        {r.customerWhatsApp && <div className="text-xs text-gray-500 font-mono">Tel: {r.customerWhatsApp}</div>}
+      <div className="space-y-0.5 text-left">
+        {r.customerEmail ? (
+          <>
+            <div className="font-semibold text-gray-900 text-sm truncate">
+              {r.customerEmail}
+            </div>
+            {r.customerWhatsApp && (
+              <div className="text-xs text-gray-600 font-mono truncate">{r.customerWhatsApp}</div>
+            )}
+          </>
+        ) : (
+          <div className="font-semibold text-gray-900 text-sm font-mono truncate">
+            {r.customerWhatsApp || '-'}
+          </div>
+        )}
       </div>
     ),
     channels: (
       <div className="flex gap-1.5">
         {r.notifyByEmail && (
-          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
+          <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-sky-100 text-sky-800 border border-sky-200">
             EMAIL
           </span>
         )}
         {r.customerWhatsApp && (
-          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-            PHONE LEAD
+          <span className="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+            PHONE
           </span>
         )}
       </div>
+    ),
+    quantityBadge: (
+      <span className="inline-flex items-center justify-center font-extrabold text-gray-900 bg-gray-100 px-2.5 py-1 rounded-lg text-xs border border-gray-200">
+        {r.requestedQuantity || 1} {r.requestedQuantity === 1 ? 'unit' : 'units'}
+      </span>
     ),
     formattedDate: new Date(r.createdAt).toLocaleDateString(undefined, {
       month: 'short',
@@ -210,7 +278,6 @@ export default function NotifyMeAdminPage() {
       hour: '2-digit',
       minute: '2-digit',
     }),
-    shortVariant: r.shopifyVariantId?.replace(/^gid:\/\/shopify\/ProductVariant\//, '') || '-',
   }));
 
   if (loading) {
@@ -294,8 +361,8 @@ export default function NotifyMeAdminPage() {
                   onChange={setNotifyEmail}
                 />
                 <SettingsToggle
-                  label="Collect WhatsApp / Phone (Lead Only)"
-                  description="Displays an optional WhatsApp / phone number field in the modal to capture customer leads (no WhatsApp messages sent)."
+                  label="Collect Phone Number (Contact)"
+                  description="Displays an optional phone number field in the modal to capture customer contact details."
                   checked={notifyWhatsApp}
                   onChange={setNotifyWhatsApp}
                 />
@@ -329,7 +396,7 @@ export default function NotifyMeAdminPage() {
 
           <SettingsCard
             title="Restock Email Template"
-            description="Configure the email subject and sender details sent to customers when this product is replenished."
+            description="Configure the email subject sent to customers when this product is replenished."
           >
             <SettingsInput
               label="Email Notification Subject"
@@ -338,7 +405,7 @@ export default function NotifyMeAdminPage() {
               placeholder="Good news! {{product_title}} is back in stock"
             />
             <p className="text-xs text-gray-500 mt-1">
-              Tip: Use <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded font-mono text-[11px]">&#123;&#123;product_title&#125;&#125;</code> to insert the product title dynamically. A personalized subject prevents your notification from landing in spam.
+              Tip: Use <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded font-mono text-[11px]">&#123;&#123;product_title&#125;&#125;</code> to insert the product title dynamically.
             </p>
           </SettingsCard>
         </div>
@@ -361,7 +428,7 @@ export default function NotifyMeAdminPage() {
           <div>
             <h3 className="text-lg font-bold text-gray-900">Waitlist Registrations</h3>
             <p className="text-xs text-gray-500 mt-0.5">
-              Customers waiting for variants to be restocked. Showing 15 records per page.
+              Customers waiting for items to be restocked. Status remains <strong>PENDING</strong> until the variant inventory is refilled and restock alerts are dispatched. Showing 10 records per page.
             </p>
           </div>
         </div>
@@ -383,11 +450,11 @@ export default function NotifyMeAdminPage() {
           onFilterChange={handleStatusChange}
           filterOptions={[
             { label: 'All Statuses', value: 'ALL' },
-            { label: 'Pending', value: 'PENDING' },
-            { label: 'Notified', value: 'NOTIFIED' },
+            { label: 'Pending (Waiting)', value: 'PENDING' },
+            { label: 'Notified (Alerted)', value: 'NOTIFIED' },
             { label: 'Cancelled', value: 'CANCELLED' },
           ]}
-          itemsPerPage={15}
+          itemsPerPage={10}
         />
       </div>
     </div>

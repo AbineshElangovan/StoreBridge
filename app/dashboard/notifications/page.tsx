@@ -145,7 +145,7 @@ export default function NotificationsPage() {
     try {
       const params = new URLSearchParams();
       params.append('page', page.toString());
-      params.append('limit', '15');
+      params.append('limit', '10');
       if (activeShopDomain) params.append('shop', activeShopDomain);
       if (typeFilter && typeFilter !== 'ALL') params.append('type', typeFilter);
       if (statusFilter && statusFilter !== 'all') params.append('status', statusFilter);
@@ -161,7 +161,9 @@ export default function NotificationsPage() {
         setUnreadCount(unread);
         setTotalPages(data.totalPages || 1);
         if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: unread }));
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: unread }));
+          }, 0);
         }
       } else {
         setNotifications([]);
@@ -193,13 +195,15 @@ export default function NotificationsPage() {
   const notifyBellUpdate = (newCount?: number) => {
     if (typeof window !== 'undefined') {
       isLocalActionRef.current = true;
-      if (typeof newCount === 'number') {
-        window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: newCount }));
-      }
-      window.dispatchEvent(new CustomEvent('notification-updated'));
       setTimeout(() => {
-        isLocalActionRef.current = false;
-      }, 100);
+        if (typeof newCount === 'number') {
+          window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: newCount }));
+        }
+        window.dispatchEvent(new CustomEvent('notification-updated'));
+        setTimeout(() => {
+          isLocalActionRef.current = false;
+        }, 100);
+      }, 0);
     }
   };
 
@@ -210,11 +214,9 @@ export default function NotificationsPage() {
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
       );
-      setUnreadCount((prev) => {
-        const next = Math.max(0, prev - 1);
-        notifyBellUpdate(next);
-        return next;
-      });
+      const nextUnread = Math.max(0, unreadCount - 1);
+      setUnreadCount(nextUnread);
+      notifyBellUpdate(nextUnread);
 
       await shopifyFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
     } catch (err) {
@@ -427,7 +429,7 @@ export default function NotificationsPage() {
 
         {/* Main Notifications List Section */}
         <Layout.Section>
-          {loading ? (
+          {loading && notifications.length === 0 ? (
             <Box padding="800">
               <PageLoader />
             </Box>
@@ -445,24 +447,26 @@ export default function NotificationsPage() {
               </EmptyState>
             </Card>
           ) : (
-            <BlockStack gap="300">
-              {notifications.map((item) => (
-                <NotificationCard
-                  key={item.id}
-                  item={item}
-                  onMarkAsRead={handleMarkAsRead}
-                  onDelete={handleDeleteNotification}
-                />
-              ))}
+            <div className={loading ? 'opacity-70 transition-opacity' : 'transition-opacity'}>
+              <BlockStack gap="300">
+                {notifications.map((item) => (
+                  <NotificationCard
+                    key={item.id}
+                    item={item}
+                    onMarkAsRead={handleMarkAsRead}
+                    onDelete={handleDeleteNotification}
+                  />
+                ))}
 
-              {/* Reusable Pagination Controls */}
-              <Pagination
-                page={page}
-                totalPages={totalPages}
-                onPageChange={setPage}
-                className="py-4"
-              />
-            </BlockStack>
+                {/* Reusable Pagination Controls */}
+                <Pagination
+                  page={page}
+                  totalPages={totalPages}
+                  onPageChange={setPage}
+                  className="py-4"
+                />
+              </BlockStack>
+            </div>
           )}
         </Layout.Section>
       </Layout>

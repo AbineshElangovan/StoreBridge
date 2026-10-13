@@ -97,7 +97,7 @@ export default function ActivityPage() {
       if (storeFilter) params.append("storeId", storeFilter);
       if (dateFilter) params.append("dateRange", dateFilter);
       params.append("page", page.toString());
-      params.append("limit", "15");
+      params.append("limit", "10");
 
       const response = await shopifyFetch(`/api/activity?${params.toString()}`);
       if (response.ok) {

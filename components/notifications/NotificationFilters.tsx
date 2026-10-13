@@ -93,8 +93,10 @@ export function NotificationFilters({
             <div className="inline-flex rounded-lg p-0.5 bg-gray-100 border border-gray-200">
               <button
                 type="button"
-                onClick={() => onStatusChange('all')}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                onClick={() => {
+                  if (statusFilter !== 'all') onStatusChange('all');
+                }}
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                   statusFilter === 'all'
                     ? 'bg-[#0db69d] text-white shadow-xs'
                     : 'text-gray-600 hover:text-gray-900'
@@ -104,8 +106,10 @@ export function NotificationFilters({
               </button>
               <button
                 type="button"
-                onClick={() => onStatusChange('unread')}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                onClick={() => {
+                  if (statusFilter !== 'unread') onStatusChange('unread');
+                }}
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                   statusFilter === 'unread'
                     ? 'bg-[#0db69d] text-white shadow-xs'
                     : 'text-gray-600 hover:text-gray-900'
@@ -115,8 +119,10 @@ export function NotificationFilters({
               </button>
               <button
                 type="button"
-                onClick={() => onStatusChange('read')}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+                onClick={() => {
+                  if (statusFilter !== 'read') onStatusChange('read');
+                }}
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                   statusFilter === 'read'
                     ? 'bg-[#0db69d] text-white shadow-xs'
                     : 'text-gray-600 hover:text-gray-900'

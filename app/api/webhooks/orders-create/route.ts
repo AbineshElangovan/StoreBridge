@@ -53,11 +53,15 @@ export async function POST(req: NextRequest) {
 
     for (const item of lineItems) {
       const properties = item.properties || item.customAttributes || [];
-      const isPreorder = properties.some((prop: any) => {
-        const key = prop.name || prop.key;
-        const val = prop.value;
-        return key === '_preorder' && (val === 'true' || val === true);
+      let isPreorder = properties.some((prop: any) => {
+        const key = (prop.name || prop.key || '').toLowerCase();
+        const val = String(prop.value || '').toLowerCase();
+        return key === '_preorder' || key.includes('preorder') || key.includes('pre-order') || val === 'true';
       });
+
+      if (!isPreorder && (item.title?.toLowerCase().includes('pre-order') || item.variant_title?.toLowerCase().includes('pre-order'))) {
+        isPreorder = true;
+      }
 
       if (!isPreorder) continue;
 
@@ -98,6 +102,20 @@ export async function POST(req: NextRequest) {
             customerEmail: safeEncrypt(customerEmail),
             customerPhone: safeEncrypt(customerPhone),
             quantity,
+          },
+        });
+
+        // 1b. Create in-app notification for merchant
+        await prisma.notification.create({
+          data: {
+            recipientStoreId: store.id,
+            type: 'OUT_OF_STOCK',
+            title: 'New Pre-order Received',
+            message: `${customerEmail || customerName || 'Customer'} pre-ordered ${quantity} unit(s) of ${itemTitle} (${orderNumber})`,
+            productId: String(item.product_id || ''),
+            productTitle: itemTitle,
+            sourceStoreId: store.id,
+            isRead: false,
           },
         });
       } catch (dbErr: any) {

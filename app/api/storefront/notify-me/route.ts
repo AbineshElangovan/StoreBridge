@@ -209,7 +209,28 @@ export async function POST(req: NextRequest) {
       if (cached) {
         if (!finalImageUrl && cached.imageUrl) finalImageUrl = cached.imageUrl;
         if (!finalPrice && cached.price) finalPrice = `₹${cached.price}`;
-        if (!finalProductTitle && cached.title) finalProductTitle = cached.title;
+        if (cached.title) {
+          if (cached.title.includes(' - ')) {
+            const parts = cached.title.split(' - ');
+            if (!finalProductTitle || finalProductTitle.includes(' - ')) {
+              finalProductTitle = parts[0].trim();
+            }
+            if (!finalVariantTitle) {
+              finalVariantTitle = parts.slice(1).join(' - ').trim();
+            }
+          } else if (!finalProductTitle) {
+            finalProductTitle = cached.title.trim();
+          }
+        }
+      }
+
+      // If finalProductTitle still contains " - ", clean it up so variant is not duplicated
+      if (finalProductTitle.includes(' - ')) {
+        const parts = finalProductTitle.split(' - ');
+        finalProductTitle = parts[0].trim();
+        if (!finalVariantTitle) {
+          finalVariantTitle = parts.slice(1).join(' - ').trim();
+        }
       }
 
       // 4. If image is STILL null, fallback to any valid product image in the store
@@ -229,52 +250,45 @@ export async function POST(req: NextRequest) {
     }
 
     if (!finalProductTitle) finalProductTitle = 'Cotton T-shirt';
-    if (!finalVariantTitle) finalVariantTitle = 'White / L';
+    if (!finalVariantTitle || finalVariantTitle === 'Default Title' || finalVariantTitle === 'Default Variant') {
+      finalVariantTitle = '';
+    }
     if (!finalPrice) finalPrice = '₹1,240';
 
     const storeDisplayName = store.label || store.shopDomain;
 
-    if (email) {
-      let customSubject: string | undefined;
+    let emailDelivered = false;
+    // Dispatch waitlist confirmation email strictly for NEW registrations (prevent duplicate emails)
+    if (email && !result.alreadyRegistered) {
       try {
-        const setting = await (prisma as any).notifyMeSetting.findUnique({
-          where: { storeId: store.id },
-          select: { emailSubject: true },
+        const emailRes = await EmailNotificationService.sendWaitlistConfirmationEmail({
+          to: email,
+          productTitle: finalProductTitle,
+          variantTitle: finalVariantTitle,
+          productUrl: productUrl || `https://${store.shopDomain}`,
+          imageUrl: finalImageUrl,
+          price: finalPrice,
+          storeName: storeDisplayName,
         });
-        if (setting?.emailSubject) customSubject = setting.emailSubject;
-      } catch (subErr) {
-        console.warn('[NotifyMe:SettingLookup:Error]', subErr);
+        if (emailRes.success) {
+          emailDelivered = true;
+          console.log(`[NotifyMe:ConfirmationEmail:Success] To: ${email} | ID: ${emailRes.messageId}`);
+        } else {
+          console.warn('[NotifyMe:ConfirmationEmail:Unsuccessful]', emailRes.error);
+        }
+      } catch (err: any) {
+        console.warn('[NotifyMe:ConfirmationEmail:Failed]', err.message);
       }
-
-      // Dispatch confirmation email asynchronously in background so storefront modal receives instant (<200ms) response
-      EmailNotificationService.sendWaitlistConfirmationEmail({
-        to: email,
-        productTitle: finalProductTitle,
-        variantTitle: finalVariantTitle,
-        productUrl: productUrl || `https://${store.shopDomain}`,
-        imageUrl: finalImageUrl,
-        price: finalPrice,
-        storeName: storeDisplayName,
-        subject: customSubject,
-      })
-        .then((emailRes) => {
-          if (!emailRes.success) {
-            console.warn('[NotifyMe:ConfirmationEmail:Unsuccessful]', emailRes.error);
-          } else {
-            console.log(`[NotifyMe:ConfirmationEmail:Success] To: ${email} | ID: ${emailRes.messageId}`);
-          }
-        })
-        .catch((err: any) => {
-          console.warn('[NotifyMe:ConfirmationEmail:Failed]', err);
-        });
     }
 
     return NextResponse.json(
       {
         success: true,
         alreadyRegistered: result.alreadyRegistered || false,
-        emailSent: true,
-        message: result.message || "We'll let you know when this product is back in stock.",
+        emailSent: emailDelivered,
+        message: result.alreadyRegistered
+          ? "You are already on the waitlist for this item. We will notify you as soon as stock arrives!"
+          : (result.message || "We will notify you when this product is back in stock."),
       },
       { status: 200, headers: corsHeaders(origin) }
     );

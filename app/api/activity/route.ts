@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     const isExport = searchParams.get('export') === 'true';
     
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '15', 10);
+    const limit = parseInt(searchParams.get('limit') || '10', 10);
     const skip = (page - 1) * limit;
 
     let allowedStoreIds: string[] = [];

@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     const overrideReplenishDays = replenishDaysParam ? parseInt(replenishDaysParam, 10) : null;
     const activeTab = searchParams.get('tab') || 'stock-risk';
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
-    const limit = Math.max(1, parseInt(searchParams.get('limit') || '15', 10));
+    const limit = Math.max(1, parseInt(searchParams.get('limit') || '10', 10));
 
     // Master store scope resolution: master store session or current store is master
     const effectiveMaster = isMasterSession

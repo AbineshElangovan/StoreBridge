@@ -8,7 +8,6 @@ import { Table, ColumnConfig } from '@/components/common/Table';
 import { Icon } from '@shopify/polaris';
 import {
   EmailIcon,
-  ChatIcon,
   NotificationIcon,
   CheckIcon,
   AlertCircleIcon,
@@ -16,11 +15,38 @@ import {
   CartIcon,
 } from '@shopify/polaris-icons';
 
+function ProductThumbnail({ src, alt }: { src?: string | null; alt?: string }) {
+  const [hasError, setHasError] = useState(false);
+
+  if (!src || hasError) {
+    return (
+      <div className="w-10 h-10 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0 text-gray-400">
+        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt || 'Product'}
+      onError={() => setHasError(true)}
+      className="w-10 h-10 rounded-xl object-cover border border-gray-200 shrink-0 bg-white"
+    />
+  );
+}
+
 export default function BackInStockAdminPage() {
   const [loading, setLoading] = useState(true);
   const [tableLoading, setTableLoading] = useState(false);
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Template preview tab & collapsible toggle
+  const [previewTab, setPreviewTab] = useState<'notify_me' | 'preorder'>('notify_me');
+  const [showEmailPreview, setShowEmailPreview] = useState(false);
 
   // Stats
   const [stats, setStats] = useState({
@@ -40,26 +66,26 @@ export default function BackInStockAdminPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const [channelFilter, setChannelFilter] = useState('ALL');
+  const [batchFilter, setBatchFilter] = useState<'ALL' | 'NOTIFY_ME' | 'PRE_ORDER'>('ALL');
   const [search, setSearch] = useState('');
 
   const loadData = useCallback(async (
     currentPage = 1,
     currentStatus = statusFilter,
-    currentChannel = channelFilter,
-    currentSearch = search
+    currentSearch = search,
+    currentBatch = batchFilter
   ) => {
     try {
       setTableLoading(true);
       const params = new URLSearchParams({
         page: String(currentPage),
-        pageSize: '15',
+        pageSize: '10',
       });
       if (currentStatus && currentStatus !== 'ALL') {
         params.set('status', currentStatus);
       }
-      if (currentChannel && currentChannel !== 'ALL') {
-        params.set('channel', currentChannel);
+      if (currentBatch && currentBatch !== 'ALL') {
+        params.set('batch', currentBatch);
       }
       if (currentSearch.trim()) {
         params.set('search', currentSearch.trim());
@@ -85,11 +111,10 @@ export default function BackInStockAdminPage() {
       setLoading(false);
       setTableLoading(false);
     }
-  }, [statusFilter, channelFilter, search]);
+  }, [statusFilter, search, batchFilter]);
 
   useEffect(() => {
-    loadData(1, statusFilter, channelFilter, search);
-    // Fetch stores for multi-store template preview
+    loadData(1, statusFilter, search, batchFilter);
     shopifyFetch('/api/stores?active=false')
       .then((res) => res.json())
       .then((data) => {
@@ -106,145 +131,245 @@ export default function BackInStockAdminPage() {
   const previewStoreDomain = activeStore ? activeStore.shopDomain : 'eshan-inventory-solutions.myshopify.com';
   const previewStoreProductUrl = `https://${previewStoreDomain}/products/cotton-t-shirt`;
 
-  const handleRetry = async (jobId: string) => {
+  const handleAction = async (action: 'retry' | 'sendNow', itemId: string) => {
     try {
-      setRetryingId(jobId);
+      setRetryingId(itemId);
       const res = await shopifyFetch('/api/back-in-stock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'retry', jobId }),
+        body: JSON.stringify({ action, itemId }),
       });
       const data = await res.json();
       if (data.success) {
-        setToast({ message: 'Notification retry initiated successfully!', type: 'success' });
-        loadData(page, statusFilter, channelFilter, search);
+        setToast({
+          message: action === 'sendNow' ? 'Restock notification dispatched to customer!' : 'Notification retry initiated successfully!',
+          type: 'success',
+        });
+        loadData(page, statusFilter, search);
       } else {
-        setToast({ message: data.error || 'Retry failed', type: 'error' });
+        setToast({ message: data.error || 'Action failed', type: 'error' });
       }
     } catch (err: any) {
-      setToast({ message: err.message || 'Error executing retry', type: 'error' });
+      setToast({ message: err.message || 'Error executing action', type: 'error' });
     } finally {
       setRetryingId(null);
     }
   };
 
+  const handleBatchChange = (newBatch: 'ALL' | 'NOTIFY_ME' | 'PRE_ORDER') => {
+    setBatchFilter(newBatch);
+    setPage(1);
+    loadData(1, statusFilter, search, newBatch);
+  };
+
   const handleStatusChange = (newStatus: string) => {
     setStatusFilter(newStatus);
     setPage(1);
-    loadData(1, newStatus, channelFilter, search);
-  };
-
-  const handleChannelChange = (newChannel: string) => {
-    setChannelFilter(newChannel);
-    setPage(1);
-    loadData(1, statusFilter, newChannel, search);
+    loadData(1, newStatus, search, batchFilter);
   };
 
   const handleSearchChange = (newSearch: string) => {
     setSearch(newSearch);
     setPage(1);
-    loadData(1, statusFilter, channelFilter, newSearch);
+    loadData(1, statusFilter, newSearch, batchFilter);
   };
 
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
-    loadData(newPage, statusFilter, channelFilter, search);
+    loadData(newPage, statusFilter, search, batchFilter);
   };
 
   const columns: ColumnConfig[] = [
     {
-      title: 'Product / Variant',
+      title: 'Product & SKU',
       key: 'productInfo',
       type: 'react_node',
-      width: '28%',
+      width: '26%',
     },
     {
-      title: 'Recipient',
-      key: 'recipient',
-      type: 'text',
-      width: '22%',
-    },
-    {
-      title: 'Channel',
-      key: 'channelBadge',
+      title: 'Restock Type',
+      key: 'sourceTypeBadge',
       type: 'react_node',
       width: '12%',
+    },
+    {
+      title: 'Quantity',
+      key: 'quantityBadge',
+      type: 'react_node',
+      width: '8%',
+    },
+    {
+      title: 'Customer Recipient',
+      key: 'recipient',
+      type: 'react_node',
+      width: '20%',
+    },
+    {
+      title: 'Registration Date',
+      key: 'registrationDate',
+      type: 'react_node',
+      width: '12%',
+      align: 'center',
     },
     {
       title: 'Status',
-      key: 'status',
-      type: 'status',
-      badgeRules: {
-        SENT: 'success',
-        PENDING: 'warning',
-        PROCESSING: 'info',
-        FAILED: 'critical',
-      },
-      width: '12%',
-    },
-    {
-      title: 'Sent At',
-      key: 'formattedSentAt',
-      type: 'text',
-      width: '14%',
-    },
-    {
-      title: 'Actions',
-      key: 'actions',
+      key: 'notificationStatus',
       type: 'react_node',
       width: '12%',
+      align: 'center',
+    },
+    {
+      title: 'Order / Action Status',
+      key: 'orderStatusBadge',
+      type: 'react_node',
+      width: '12%',
+      align: 'center',
     },
   ];
 
   const formattedItems = jobs.map((job) => ({
     ...job,
     productInfo: (
-      <div className="flex items-center gap-3">
-        {job.imageUrl && (
-          <img
-            src={job.imageUrl}
-            alt=""
-            className="w-9 h-9 rounded-lg object-cover border border-gray-200 shrink-0"
-          />
-        )}
+      <div className="flex items-center gap-3 text-left">
+        <ProductThumbnail src={job.imageUrl} alt={job.productTitle} />
         <div className="min-w-0">
-          <p className="font-bold text-gray-900 text-xs sm:text-sm truncate">{job.productTitle}</p>
-          <p className="text-[11px] text-gray-500 truncate">
-            {job.variantTitle && job.variantTitle !== 'Default Title' ? job.variantTitle : `ID: ${job.shopifyVariantId}`}
+          <p className="font-bold text-gray-900 text-xs sm:text-sm truncate">
+            {job.productTitle}
           </p>
+          <p className="text-[11px] text-gray-500 truncate">
+            {job.variantTitle && job.variantTitle !== 'Default Title' ? job.variantTitle : (job.shopifyVariantId ? `ID: ${job.shopifyVariantId}` : '')}
+          </p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+              SKU: {job.sku || '-'}
+            </span>
+          </div>
         </div>
       </div>
     ),
-    recipient: job.customerEmail || job.customerWhatsApp || '-',
-    channelBadge: (
+    sourceTypeBadge: (
       <span
-        className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
-          job.channel === 'EMAIL'
-            ? 'bg-sky-100 text-sky-800 border border-sky-300'
-            : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+        className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+          job.sourceType === 'PRE_ORDER' || job.isPreorder
+            ? 'bg-purple-100 text-purple-800 border border-purple-300'
+            : 'bg-sky-100 text-sky-800 border border-sky-300'
         }`}
       >
-        {job.channel}
+        {job.sourceType === 'PRE_ORDER' || job.isPreorder ? 'Pre-order' : 'Notify Me'}
       </span>
     ),
-    formattedSentAt: job.sentAt
-      ? new Date(job.sentAt).toLocaleDateString(undefined, {
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-      : '-',
-    actions: job.status === 'FAILED' ? (
-      <button
-        type="button"
-        disabled={retryingId === job.id}
-        onClick={() => handleRetry(job.id)}
-        className="px-2.5 py-1 text-xs font-bold rounded-lg bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition-all cursor-pointer disabled:opacity-50"
-      >
-        {retryingId === job.id ? 'Retrying...' : 'Retry'}
-      </button>
-    ) : null,
+    quantityBadge: (
+      <span className="inline-flex items-center justify-center font-extrabold text-gray-900 bg-gray-100 px-2.5 py-1 rounded-lg text-xs border border-gray-200">
+        {job.quantity || 1} {job.quantity === 1 ? 'unit' : 'units'}
+      </span>
+    ),
+    recipient: (
+      <div className="space-y-0.5 text-left">
+        {job.customerEmail ? (
+          <>
+            <p className="font-semibold text-gray-900 text-xs sm:text-sm truncate">
+              {job.customerEmail}
+            </p>
+            {job.customerWhatsApp && (
+              <p className="text-[11px] text-gray-500 font-mono truncate">{job.customerWhatsApp}</p>
+            )}
+          </>
+        ) : (
+          <p className="font-semibold text-gray-900 text-xs sm:text-sm font-mono truncate">
+            {job.customerWhatsApp || '-'}
+          </p>
+        )}
+      </div>
+    ),
+    registrationDate: (
+      <div className="flex flex-col items-center justify-center text-center space-y-0.5">
+        <span className="text-xs font-semibold text-gray-800">
+          {job.createdAt
+            ? new Date(job.createdAt).toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })
+            : '-'}
+        </span>
+        {job.createdAt && (
+          <p className="text-[10px] text-gray-500 font-mono">
+            {new Date(job.createdAt).toLocaleTimeString(undefined, {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </p>
+        )}
+      </div>
+    ),
+    notificationStatus: job.status === 'SENT' ? (
+      <div className="flex flex-col items-center justify-center text-center space-y-0.5">
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 shadow-2xs">
+          Sent
+        </span>
+        {job.sentAt && (
+          <p className="text-[10px] text-emerald-700 font-medium whitespace-nowrap">
+            {new Date(job.sentAt).toLocaleDateString(undefined, {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </p>
+        )}
+      </div>
+    ) : job.status === 'FAILED' ? (
+      <div className="flex justify-center">
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold text-rose-800 bg-rose-50 border border-rose-200 shadow-2xs">
+          Failed
+        </span>
+      </div>
+    ) : (
+      <div className="flex justify-center">
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 shadow-2xs">
+          Pending Restock
+        </span>
+      </div>
+    ),
+    orderStatusBadge: job.sourceType === 'PRE_ORDER' || job.isPreorder ? (
+      <div className="flex flex-col items-center justify-center text-center space-y-0.5">
+        <span className="text-xs font-mono font-bold text-gray-900 block truncate">
+          {job.orderNumber || 'Order Confirmed'}
+        </span>
+        <span
+          className={`inline-block px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider ${
+            job.orderStatus === 'ALLOCATED'
+              ? 'bg-purple-100 text-purple-800 border border-purple-300'
+              : 'bg-amber-100 text-amber-800 border border-amber-300'
+          }`}
+        >
+          {job.orderStatus === 'ALLOCATED' ? 'Allocated' : 'Unfulfilled'}
+        </span>
+      </div>
+    ) : job.status === 'FAILED' ? (
+      <div className="flex justify-center">
+        <button
+          type="button"
+          disabled={retryingId === job.id}
+          onClick={() => handleAction('retry', job.id)}
+          className="px-2.5 py-1 text-xs font-bold rounded-lg bg-red-50 text-red-700 hover:bg-red-100 border border-red-200 transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
+        >
+          {retryingId === job.id ? 'Retrying...' : 'Retry'}
+        </button>
+      </div>
+    ) : (
+      <div className="flex justify-center">
+        <span
+          className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+            job.status === 'SENT'
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              : 'bg-sky-50 text-sky-700 border border-sky-200'
+          }`}
+        >
+          {job.status === 'SENT' ? 'Alert Sent' : 'Pending'}
+        </span>
+      </div>
+    ),
   }));
 
   if (loading) {
@@ -270,7 +395,7 @@ export default function BackInStockAdminPage() {
         <div>
           <h1 className="text-2xl font-black text-gray-900 tracking-tight">Back in Stock Monitor</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Real-time restock triggers and customer notification dispatch logs.
+            Real-time restock triggers and priority customer notification dispatch logs. Pre-orders are fulfilled first, followed by Notify Me waitlist subscribers.
           </p>
         </div>
       </div>
@@ -318,177 +443,231 @@ export default function BackInStockAdminPage() {
         </div>
       </div>
 
-      {/* NOTIFICATION TEMPLATE SECTION (EMAIL) */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
-        <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 text-gray-800">
+      {/* Collapsible Notification Template Preview */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-2xs overflow-hidden transition-all">
+        <div className="p-4 sm:px-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center text-gray-700 border border-gray-200 shrink-0">
+              <div className="w-4 h-4">
                 <Icon source={EmailIcon} />
               </div>
-              <h2 className="text-lg font-black text-gray-900 tracking-tight">Restock Email Template</h2>
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Automated email notification sent to customers when out-of-stock items are replenished. Select a store to preview.
-            </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-gray-900 tracking-tight">Email Notification Template</h2>
+                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                  Automated
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Preview the customer alert layout sent for product restocks and pre-order arrivals.
+              </p>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Store Switcher for Template Preview ("same like all store") */}
-            <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-1.5 shadow-2xs">
-              <div className="w-4 h-4 text-gray-500">
-                <Icon source={StoreIcon} />
-              </div>
-              <span className="text-xs font-bold text-gray-500">Preview Store:</span>
-              <select
-                aria-label="Preview Store"
-                value={selectedStoreId}
-                onChange={(e) => setSelectedStoreId(e.target.value)}
-                className="text-xs font-bold text-gray-900 bg-transparent outline-none cursor-pointer"
-              >
-                {stores.length > 0 ? (
-                  stores.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.label || s.shopDomain}
-                    </option>
-                  ))
-                ) : (
-                  <option value="default">ESHAN Chennai Store</option>
-                )}
-              </select>
-            </div>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            {showEmailPreview && (
+              <>
+                {/* Template Type Tabs */}
+                <div className="inline-flex p-0.5 bg-gray-100 rounded-lg border border-gray-200 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTab('notify_me')}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                      previewTab === 'notify_me'
+                        ? 'bg-white text-gray-900 shadow-2xs'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Notify Me
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewTab('preorder')}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                      previewTab === 'preorder'
+                        ? 'bg-white text-purple-900 shadow-2xs'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Pre-order
+                  </button>
+                </div>
+
+                {/* Store Switcher */}
+                <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1 shadow-2xs text-xs">
+                  <span className="text-gray-400 font-medium">Store:</span>
+                  <select
+                    aria-label="Preview Store"
+                    value={selectedStoreId}
+                    onChange={(e) => setSelectedStoreId(e.target.value)}
+                    className="font-bold text-gray-900 bg-transparent outline-none cursor-pointer max-w-[140px] truncate"
+                  >
+                    {stores.length > 0 ? (
+                      stores.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.label || s.shopDomain}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="default">ESHAN Chennai Store</option>
+                    )}
+                  </select>
+                </div>
+              </>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowEmailPreview(!showEmailPreview)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer shadow-2xs shrink-0 ${
+                showEmailPreview
+                  ? 'bg-gray-900 text-white border border-gray-900 hover:bg-black'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:text-gray-900'
+              }`}
+            >
+              <span>{showEmailPreview ? 'Hide Preview' : 'Preview Email Template'}</span>
+              <span className={showEmailPreview ? 'text-gray-300 text-[10px]' : 'text-gray-500 text-[10px]'}>
+                {showEmailPreview ? '▲' : '▼'}
+              </span>
+            </button>
           </div>
         </div>
 
-        {/* TEMPLATE PREVIEW CONTENT */}
-        <div className="p-6 bg-gray-50/50">
-          {/* EMAIL TEMPLATE PREVIEW */}
-          <div className="max-w-2xl mx-auto bg-white rounded-2xl border border-gray-200 shadow-md overflow-hidden">
-              {/* Email Client Header Bar */}
-              <div className="bg-gray-900 text-white px-6 py-4 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-5 h-5 text-gray-300">
-                    <Icon source={StoreIcon} />
-                  </div>
-                  <span className="font-extrabold text-sm tracking-tight">{previewStoreName}</span>
-                </div>
-                <div className="text-[10px] uppercase font-bold tracking-wider text-gray-400 bg-gray-800 px-2.5 py-1 rounded-full border border-gray-700">
-                  Powered by StoreBridge
-                </div>
+        {/* COMPACT TEMPLATE PREVIEW CONTENT (COLLAPSIBLE) */}
+        {showEmailPreview && (
+          <div className="p-4 sm:p-6 bg-gray-50/70 border-t border-gray-100">
+            <div className="max-w-lg mx-auto bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden text-center">
+              {/* Header */}
+              <div className="bg-gray-900 text-white px-4 py-2.5 flex items-center justify-between text-xs">
+                <span className="font-extrabold tracking-tight truncate">{previewStoreName}</span>
+                <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">OFFICIAL STORE</span>
               </div>
 
-              {/* Urgency Ribbon with Polaris Alert Icon (No Emoji) */}
-              <div className="bg-red-600 text-white text-xs font-black uppercase tracking-wider py-2.5 px-4 flex items-center justify-center gap-2">
-                <div className="w-3.5 h-3.5">
-                  <Icon source={AlertCircleIcon} />
-                </div>
-                <span>Urgent: Back in Stock &bull; Only a Few Available</span>
+              {/* Status Banner */}
+              <div
+                className={`${
+                  previewTab === 'preorder' ? 'bg-purple-700' : 'bg-emerald-600'
+                } text-white text-[11px] font-bold py-1.5 px-3 flex items-center justify-center gap-1.5`}
+              >
+                <span>
+                  {previewTab === 'preorder'
+                    ? 'Pre-order Allocated • Ready for Fulfillment'
+                    : 'Back in Stock • Available Now'}
+                </span>
               </div>
 
-              {/* Email Content Body */}
-              <div className="p-8 text-center space-y-6">
-                <div className="w-12 h-12 mx-auto rounded-full bg-gray-100 flex items-center justify-center text-gray-900 border border-gray-200">
-                  <div className="w-6 h-6">
-                    <Icon source={NotificationIcon} />
-                  </div>
-                </div>
-
+              {/* Compact Body */}
+              <div className="p-5 space-y-3.5">
                 <div>
-                  <h3 className="text-xl font-extrabold text-gray-950">Cotton T-shirt (White / L) is Available!</h3>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Good news! The item you were waiting for at <strong className="text-gray-900">{previewStoreName}</strong> is back in stock.
+                  <h3 className="text-base font-extrabold text-gray-900">
+                    {previewTab === 'preorder'
+                      ? 'Your Pre-ordered Item is Ready'
+                      : 'Cotton T-shirt is Back in Stock!'}
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {previewTab === 'preorder'
+                      ? `Stock has arrived at ${previewStoreName}. Preparing fulfillment.`
+                      : `The item you requested at ${previewStoreName} is available now.`}
                   </p>
                 </div>
 
-                {/* Urgency Box with Polaris Alert Icon */}
-                <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center max-w-md mx-auto space-y-1">
-                  <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-red-700">
-                    <div className="w-3.5 h-3.5">
-                      <Icon source={AlertCircleIcon} />
-                    </div>
-                    <span>Urgent &mdash; Only Few Quantities in Stock!</span>
-                  </div>
-                  <p className="text-[11px] text-red-600 font-medium leading-relaxed">
-                    Stock is strictly limited and selling fast. Come and get yours now before it runs out again!
-                  </p>
-                </div>
-
-                {/* Product Box */}
-                <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 max-w-md mx-auto space-y-4">
-                  {/* Product Image */}
-                  <div className="w-36 h-36 mx-auto bg-white rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden p-2">
+                {/* Compact Product Box */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 max-w-sm mx-auto flex items-center gap-3 text-left">
+                  <div className="w-16 h-16 bg-white rounded-md border border-gray-200 flex items-center justify-center p-1 shrink-0 overflow-hidden">
                     <img
-                      src="https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-lifestyle-1_large.png"
+                      src="https://cdn.shopify.com/s/files/1/0836/6748/4891/files/cotton-t-shirt_924bced9-4b4d-4e4f-9f3b-b554623c9e69.png?v=1790857896"
                       alt="Cotton T-shirt"
                       className="max-h-full max-w-full object-contain"
                     />
                   </div>
 
-                  <div>
-                    <h4 className="text-base font-bold text-gray-900">Cotton T-shirt</h4>
-                    <span className="inline-block mt-1 text-[11px] font-semibold text-gray-600 bg-gray-200 px-2.5 py-0.5 rounded-full">
-                      Variant: White / L
-                    </span>
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-xs font-bold text-gray-900 truncate">Cotton T-shirt</h4>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-[10px] font-semibold text-gray-600 bg-gray-200 px-1.5 py-0.5 rounded">
+                        White / M
+                      </span>
+                      <span className="text-[10px] font-bold text-gray-900">
+                        ₹1,240
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-emerald-600 font-semibold mt-1">
+                      {previewTab === 'preorder' ? 'Reserved & in stock' : 'Ready to order'}
+                    </p>
                   </div>
-
-                  {/* Shop Now Button */}
-                  <div>
-                    <a
-                      href={previewStoreProductUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center gap-2 w-full py-3 px-6 bg-gray-900 hover:bg-black text-white font-bold text-sm rounded-xl shadow-md transition-all active:scale-[0.99]"
-                    >
-                      <div className="w-4 h-4">
-                        <Icon source={CartIcon} />
-                      </div>
-                      <span>Shop Now &rarr;</span>
-                    </a>
-                  </div>
-
-                  <p className="text-[10px] text-gray-400 font-medium">
-                    Direct checkout at {previewStoreName} ({previewStoreDomain})
-                  </p>
                 </div>
 
-                {/* Email Footer */}
-                <div className="pt-6 border-t border-gray-100 text-[11px] text-gray-400 space-y-1">
-                  <p>You received this restock alert because you requested a notification on {previewStoreName}.</p>
-                  <p className="font-semibold text-gray-500">
-                    &copy; {new Date().getFullYear()} {previewStoreName} &bull; Powered by StoreBridge Customer Experience
-                  </p>
+                {/* CTA Button */}
+                <div className="pt-1">
+                  <a
+                    href={previewStoreProductUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-1.5 py-2 px-5 bg-gray-900 hover:bg-black text-white font-bold text-xs rounded-lg shadow-sm transition-all"
+                  >
+                    <div className="w-3.5 h-3.5">
+                      <Icon source={CartIcon} />
+                    </div>
+                    <span>{previewTab === 'preorder' ? 'View Order Status →' : 'Shop Now →'}</span>
+                  </a>
                 </div>
+
+                {/* Footer */}
+                <p className="text-[10px] text-gray-400 pt-2 border-t border-gray-100">
+                  © {new Date().getFullYear()} {previewStoreName} • Sent automatically via StoreBridge
+                </p>
               </div>
             </div>
           </div>
-        </div>
+        )}
+      </div>
 
       {/* Activity / Notification History Table */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
-        <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h3 className="text-lg font-bold text-gray-900">Recent Restock Notifications</h3>
             <p className="text-xs text-gray-500 mt-0.5">
-              Automated alerts triggered when variant inventory transitions from 0 to positive.
+              Automated restock alerts dispatched when product inventory transitions from 0 to positive. Showing 10 records per page.
             </p>
           </div>
 
-          {/* Secondary channel filter buttons */}
-          <div className="flex gap-2">
-            {['ALL', 'EMAIL'].map((ch) => (
-              <button
-                key={ch}
-                type="button"
-                onClick={() => handleChannelChange(ch)}
-                className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all ${
-                  channelFilter === ch
-                    ? 'bg-gray-900 text-white border-gray-900 shadow-xs'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                {ch === 'ALL' ? 'All Channels' : ch}
-              </button>
-            ))}
+          {/* Restock Type Tabs: All, Notify Me, Pre-order */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleBatchChange('ALL')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                batchFilter === 'ALL'
+                  ? 'bg-gray-900 text-white shadow-2xs'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              All Restocks
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBatchChange('NOTIFY_ME')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                batchFilter === 'NOTIFY_ME'
+                  ? 'bg-sky-600 text-white shadow-2xs'
+                  : 'bg-sky-50 text-sky-800 hover:bg-sky-100 border border-sky-200'
+              }`}
+            >
+              Notify Me Waitlist
+            </button>
+            <button
+              type="button"
+              onClick={() => handleBatchChange('PRE_ORDER')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                batchFilter === 'PRE_ORDER'
+                  ? 'bg-purple-600 text-white shadow-2xs'
+                  : 'bg-purple-50 text-purple-800 hover:bg-purple-100 border border-purple-200'
+              }`}
+            >
+              Pre-order Commitments
+            </button>
           </div>
         </div>
 
@@ -514,7 +693,7 @@ export default function BackInStockAdminPage() {
             { label: 'Processing', value: 'PROCESSING' },
             { label: 'Failed', value: 'FAILED' },
           ]}
-          itemsPerPage={15}
+          itemsPerPage={10}
         />
       </div>
     </div>

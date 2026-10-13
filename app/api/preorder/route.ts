@@ -130,7 +130,7 @@ export async function GET(req: NextRequest) {
 
     if (type === 'records') {
       const page = parseInt(searchParams.get('page') || '1', 10);
-      const pageSize = parseInt(searchParams.get('pageSize') || '15', 10);
+      const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
       const records = await PreorderService.getPreorderRecords(store.id, page, pageSize);
       return NextResponse.json({
         success: true,

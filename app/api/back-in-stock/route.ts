@@ -5,9 +5,10 @@ import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
 
-const RetryJobSchema = z.object({
-  action: z.literal('retry'),
-  jobId: z.string().uuid(),
+const ActionSchema = z.object({
+  action: z.enum(['retry', 'sendNow']),
+  jobId: z.string().optional(),
+  itemId: z.string().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -16,9 +17,10 @@ export async function GET(req: NextRequest) {
     const searchParams = req.nextUrl.searchParams;
 
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const pageSize = parseInt(searchParams.get('pageSize') || '15', 10);
+    const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
     const status = (searchParams.get('status') || 'ALL') as any;
     const channel = (searchParams.get('channel') || 'ALL') as any;
+    const batch = (searchParams.get('batch') || 'ALL') as any;
     const search = searchParams.get('search') || undefined;
     const productId = searchParams.get('productId') || undefined;
     const variantId = searchParams.get('variantId') || undefined;
@@ -30,6 +32,7 @@ export async function GET(req: NextRequest) {
       pageSize,
       status,
       channel,
+      batch,
       search,
       productId,
       variantId,
@@ -53,7 +56,7 @@ export async function POST(req: NextRequest) {
     const { store } = await authenticate(req);
     const body = await req.json();
 
-    const parsed = RetryJobSchema.safeParse(body);
+    const parsed = ActionSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
         { success: false, error: 'Validation failed', details: parsed.error.format() },
@@ -61,11 +64,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await BackInStockService.retryJob(store.id, parsed.data.jobId);
+    const targetId = parsed.data.itemId || parsed.data.jobId;
+    if (!targetId) {
+      return NextResponse.json(
+        { success: false, error: 'Target item ID is required' },
+        { status: 400 }
+      );
+    }
+
+    const result = await BackInStockService.sendManualNotification(store.id, targetId);
 
     return NextResponse.json({
       success: true,
-      message: 'Notification retry initiated',
+      message: parsed.data.action === 'sendNow' ? 'Restock notification dispatched' : 'Notification retry initiated',
       result,
     });
   } catch (error: any) {

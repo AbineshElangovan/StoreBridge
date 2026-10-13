@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     const status = (searchParams.get('status') as 'unread' | 'read' | 'all') || 'all';
     const search = searchParams.get('search') || undefined;
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '15', 10);
+    const limit = parseInt(searchParams.get('limit') || '10', 10);
     const storeIdFilter = searchParams.get('storeId') || undefined;
 
     let result = await getNotifications(store.id, {

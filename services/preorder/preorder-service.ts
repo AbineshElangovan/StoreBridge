@@ -380,7 +380,7 @@ export class PreorderService {
   /**
    * Get paginated pre-order customer orders with safe decryption of sensitive consumer data.
    */
-  static async getPreorderRecords(storeId: string, page = 1, pageSize = 15) {
+  static async getPreorderRecords(storeId: string, page = 1, pageSize = 10) {
     const { safeDecrypt } = require('@/lib/utils/encryption');
     const skip = (Math.max(1, page) - 1) * pageSize;
 

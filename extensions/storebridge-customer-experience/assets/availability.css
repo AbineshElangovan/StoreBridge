@@ -832,8 +832,7 @@ body.storebridge-custom-cart-active .cart {
 }
 
 .storebridge-cart-item-card.storebridge-item-loading {
-  opacity: 0.5;
-  pointer-events: none;
+  opacity: 0.9;
 }
 
 /* Crisp Square Image Wrapper */

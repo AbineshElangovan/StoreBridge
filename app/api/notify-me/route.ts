@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     const searchParams = req.nextUrl.searchParams;
 
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const pageSize = parseInt(searchParams.get('pageSize') || '15', 10);
+    const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
     const status = (searchParams.get('status') || 'ALL') as any;
     const search = searchParams.get('search') || undefined;
     const productId = searchParams.get('productId') || undefined;

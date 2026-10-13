@@ -24,6 +24,7 @@ export interface NotificationHistoryFilters {
   search?: string;
   status?: NotificationJobStatus | 'ALL';
   channel?: NotificationChannel | 'ALL';
+  batch?: 'ALL' | 'PRE_ORDER' | 'NOTIFY_ME';
   productId?: string;
   variantId?: string;
   startDate?: string;
@@ -123,6 +124,23 @@ export class BackInStockService {
 
         if (po.email) {
           try {
+            const encryptedPoEmail = safeEncrypt(po.email);
+            // Check if customer was already notified for this pre-order within the last 1 hour
+            const recentPoJob = await prisma.notificationJob.findFirst({
+              where: {
+                storeId,
+                shopifyVariantId: cleanVariantId,
+                customerEmail: encryptedPoEmail,
+                productTitle: { startsWith: '[Pre-order]' },
+                createdAt: { gte: new Date(Date.now() - 3600000) },
+              },
+            });
+
+            if (recentPoJob) {
+              console.log(`[BackInStockService] Skipping duplicate pre-order notification for ${po.email}`);
+              continue;
+            }
+
             await EmailNotificationService.sendPreorderInStockEmail({
               to: po.email,
               productTitle,
@@ -134,12 +152,13 @@ export class BackInStockService {
               orderNumber: po.orderNumber,
             });
 
-            // Log dispatched job in DB with encrypted customer email
+            // Log dispatched job in DB with encrypted customer email & phone
             await prisma.notificationJob.create({
               data: {
                 storeId,
                 shopifyVariantId: cleanVariantId,
                 customerEmail: safeEncrypt(po.email),
+                customerWhatsApp: po.phone ? safeEncrypt(po.phone) : null,
                 channel: NotificationChannel.EMAIL,
                 productTitle: `[Pre-order] ${productTitle}`,
                 variantTitle: variantTitle || null,
@@ -465,19 +484,27 @@ export class BackInStockService {
 
   /**
    * Paginated notification history for StoreBridge Admin /back-in-stock
-   * Default: 15 records per page server-side.
+   * Default: 10 records per page server-side.
    */
   static async getNotificationHistory(storeId: string, filters: NotificationHistoryFilters = {}) {
     if (!storeId) throw new Error('storeId is required');
 
     const page = Math.max(1, filters.page || 1);
-    const pageSize = Math.max(1, Math.min(100, filters.pageSize || 15));
+    const pageSize = Math.max(1, Math.min(100, filters.pageSize || 10));
     const skip = (page - 1) * pageSize;
 
     const baseWhere: any = { storeId };
 
     if (filters.status && filters.status !== 'ALL') {
       baseWhere.status = filters.status;
+    }
+
+    if (filters.batch && filters.batch !== 'ALL') {
+      if (filters.batch === 'PRE_ORDER') {
+        baseWhere.productTitle = { startsWith: '[Pre-order]' };
+      } else if (filters.batch === 'NOTIFY_ME') {
+        baseWhere.NOT = { productTitle: { startsWith: '[Pre-order]' } };
+      }
     }
 
     if (filters.channel && filters.channel !== 'ALL') {
@@ -505,59 +532,307 @@ export class BackInStockService {
       prisma.notifyMeRegistration.count({ where: { storeId } }),
     ]);
 
-    let total = 0;
-    let paginatedData: any[] = [];
-
-    if (filters.search) {
-      const q = filters.search.trim().toLowerCase();
-      const candidates = await prisma.notificationJob.findMany({
+    const [rawJobs, preorders, pendingRegs, allStoreRegs] = await Promise.all([
+      prisma.notificationJob.findMany({
         where: baseWhere,
         orderBy: { createdAt: 'desc' },
-      });
+      }),
+      prisma.preorderRecord.findMany({
+        where: { storeId },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.notifyMeRegistration.findMany({
+        where: { storeId, status: 'PENDING' },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.notifyMeRegistration.findMany({
+        where: { storeId },
+        select: { customerEmail: true, customerWhatsApp: true },
+      }),
+    ]);
 
-      const matched = candidates.filter((job) => {
-        const email = (safeDecrypt(job.customerEmail) || '').toLowerCase();
-        const wa = (safeDecrypt(job.customerWhatsApp) || '').toLowerCase();
-        const title = (job.productTitle || '').toLowerCase();
-        const vTitle = (job.variantTitle || '').toLowerCase();
-        const varId = (job.shopifyVariantId || '').toLowerCase();
-        return email.includes(q) || wa.includes(q) || title.includes(q) || vTitle.includes(q) || varId.includes(q);
-      });
-
-      total = matched.length;
-      paginatedData = matched.slice(skip, skip + pageSize).map((job) => ({
-        ...job,
-        customerEmail: safeDecrypt(job.customerEmail),
-        customerWhatsApp: safeDecrypt(job.customerWhatsApp),
-      }));
-    } else {
-      const [count, rows] = await Promise.all([
-        prisma.notificationJob.count({ where: baseWhere }),
-        prisma.notificationJob.findMany({
-          where: baseWhere,
-          orderBy: { createdAt: 'desc' },
-          skip,
-          take: pageSize,
-        }),
-      ]);
-
-      total = count;
-      paginatedData = rows.map((job) => ({
-        ...job,
-        customerEmail: safeDecrypt(job.customerEmail),
-        customerWhatsApp: safeDecrypt(job.customerWhatsApp),
-      }));
+    const emailToPhone = new Map<string, string>();
+    const phoneToEmail = new Map<string, string>();
+    for (const reg of allStoreRegs) {
+      const e = safeDecrypt(reg.customerEmail)?.toLowerCase();
+      const p = safeDecrypt(reg.customerWhatsApp);
+      if (e && p) {
+        emailToPhone.set(e, p);
+        phoneToEmail.set(p, e);
+      }
     }
+
+    const candidateItems: any[] = [];
+
+    // 1. Add PreorderRecords (if not filtered to NOTIFY_ME)
+    if (!filters.batch || filters.batch === 'ALL' || filters.batch === 'PRE_ORDER') {
+      for (const po of preorders) {
+        let email = safeDecrypt(po.customerEmail)?.toLowerCase() || null;
+        let phone = safeDecrypt(po.customerPhone) || null;
+        if (email && !phone && emailToPhone.has(email)) phone = emailToPhone.get(email)!;
+        if (phone && !email && phoneToEmail.has(phone)) email = phoneToEmail.get(phone)!;
+
+        candidateItems.push({
+          id: `po_${po.id}`,
+          registrationId: null,
+          shopifyVariantId: po.shopifyVariantId,
+          orderNumber: po.orderNumber || null,
+          orderStatus: po.status || 'UNFULFILLED',
+          customerEmail: email,
+          customerWhatsApp: phone,
+          productTitle: '[Pre-order] Product',
+          variantTitle: null,
+          imageUrl: null,
+          productUrl: null,
+          status: po.status === 'ALLOCATED' ? 'SENT' : 'PENDING',
+          sentAt: po.notifiedAt,
+          createdAt: po.createdAt,
+          cleanVariantId: (po.shopifyVariantId || '').replace(/\D/g, ''),
+          isPreorder: true,
+          sourceType: 'PRE_ORDER',
+          quantity: po.quantity || 1,
+        });
+      }
+    }
+
+    // 2. Add pending NotifyMe registrations (if not filtered to PRE_ORDER)
+    if (!filters.batch || filters.batch === 'ALL' || filters.batch === 'NOTIFY_ME') {
+      for (const r of pendingRegs) {
+        let email = safeDecrypt(r.customerEmail)?.toLowerCase() || null;
+        let phone = safeDecrypt(r.customerWhatsApp) || null;
+        if (email && !phone && emailToPhone.has(email)) phone = emailToPhone.get(email)!;
+        if (phone && !email && phoneToEmail.has(phone)) email = phoneToEmail.get(phone)!;
+
+        candidateItems.push({
+          id: `reg_${r.id}`,
+          registrationId: r.id,
+          shopifyVariantId: r.shopifyVariantId,
+          orderNumber: null,
+          orderStatus: 'WAITLIST',
+          customerEmail: email,
+          customerWhatsApp: phone,
+          productTitle: 'Product',
+          variantTitle: null,
+          imageUrl: null,
+          productUrl: null,
+          status: 'PENDING',
+          sentAt: null,
+          createdAt: r.createdAt,
+          cleanVariantId: (r.shopifyVariantId || '').replace(/\D/g, ''),
+          isPreorder: false,
+          sourceType: 'NOTIFY_ME',
+          quantity: r.requestedQuantity || 1,
+        });
+      }
+    }
+
+    // 3. Add dispatched NotificationJobs
+    for (const job of rawJobs) {
+      const isPo = Boolean(job.productTitle && job.productTitle.startsWith('[Pre-order]'));
+      if (filters.batch && filters.batch !== 'ALL') {
+        if (filters.batch === 'PRE_ORDER' && !isPo) continue;
+        if (filters.batch === 'NOTIFY_ME' && isPo) continue;
+      }
+
+      let email = safeDecrypt(job.customerEmail)?.toLowerCase() || null;
+      let phone = safeDecrypt(job.customerWhatsApp) || null;
+      if (email && !phone && emailToPhone.has(email)) phone = emailToPhone.get(email)!;
+      if (phone && !email && phoneToEmail.has(phone)) email = phoneToEmail.get(phone)!;
+
+      candidateItems.push({
+        id: job.id,
+        registrationId: job.registrationId,
+        shopifyVariantId: job.shopifyVariantId,
+        orderNumber: null,
+        orderStatus: isPo ? 'ALLOCATED' : 'NOTIFIED',
+        customerEmail: email,
+        customerWhatsApp: phone,
+        productTitle: job.productTitle,
+        variantTitle: job.variantTitle,
+        imageUrl: job.imageUrl,
+        productUrl: job.productUrl,
+        status: job.status,
+        sentAt: job.sentAt,
+        createdAt: job.createdAt,
+        cleanVariantId: (job.shopifyVariantId || '').replace(/\D/g, ''),
+        isPreorder: isPo,
+        sourceType: isPo ? 'PRE_ORDER' : 'NOTIFY_ME',
+        quantity: 1,
+      });
+    }
+
+    const mergedJobMap = new Map<string, any>();
+
+    for (const item of candidateItems) {
+      let foundKey: string | null = null;
+      for (const [key, existing] of mergedJobMap.entries()) {
+        // Only merge if variant AND sourceType (Pre-order vs Notify Me) match!
+        if (existing.cleanVariantId === item.cleanVariantId && existing.sourceType === item.sourceType) {
+          if (item.registrationId && existing.registrationId && item.registrationId === existing.registrationId) {
+            foundKey = key;
+            break;
+          }
+          if (item.customerEmail && existing.customerEmail && item.customerEmail === existing.customerEmail) {
+            foundKey = key;
+            break;
+          }
+          if (item.customerWhatsApp && existing.customerWhatsApp && item.customerWhatsApp === existing.customerWhatsApp) {
+            foundKey = key;
+            break;
+          }
+        }
+      }
+
+      if (!foundKey) {
+        mergedJobMap.set(item.id, { ...item });
+      } else {
+        const existing = mergedJobMap.get(foundKey)!;
+        if (!existing.customerEmail && item.customerEmail) existing.customerEmail = item.customerEmail;
+        if (!existing.customerWhatsApp && item.customerWhatsApp) existing.customerWhatsApp = item.customerWhatsApp;
+        if (!existing.orderNumber && item.orderNumber) existing.orderNumber = item.orderNumber;
+        if (item.orderStatus) existing.orderStatus = item.orderStatus;
+        if (item.sentAt && !existing.sentAt) existing.sentAt = item.sentAt;
+        if (item.status === 'SENT') {
+          existing.status = 'SENT';
+          if (item.sentAt) existing.sentAt = item.sentAt;
+        }
+        if (item.quantity && item.quantity > existing.quantity) existing.quantity = item.quantity;
+        if (item.registrationId && !existing.registrationId) existing.registrationId = item.registrationId;
+      }
+    }
+
+    const uniqueJobs = Array.from(mergedJobMap.values());
+
+    const filteredJobs = filters.search
+      ? uniqueJobs.filter((job) => {
+          const q = filters.search!.trim().toLowerCase();
+          const email = (job.customerEmail || '').toLowerCase();
+          const wa = (job.customerWhatsApp || '').toLowerCase();
+          const title = (job.productTitle || '').toLowerCase();
+          const vTitle = (job.variantTitle || '').toLowerCase();
+          const varId = (job.shopifyVariantId || '').toLowerCase();
+          return email.includes(q) || wa.includes(q) || title.includes(q) || vTitle.includes(q) || varId.includes(q);
+        })
+      : uniqueJobs;
+
+    const total = filteredJobs.length;
+    const paginatedData = filteredJobs.slice(skip, skip + pageSize);
+
+    // Enrich rows with Variant SKU, ProductCache image/title, and Quantity
+    const variantIds = Array.from(new Set(paginatedData.map((j) => j.shopifyVariantId).filter(Boolean)));
+    const cleanVarIds = Array.from(new Set(variantIds.map((v) => v.replace(/\D/g, '')).filter(Boolean)));
+    const gVariantIds = Array.from(new Set(cleanVarIds.map((v) => `gid://shopify/ProductVariant/${v}`)));
+    const allVarLookups = [...variantIds, ...cleanVarIds, ...gVariantIds];
+    const paginatedRegIds = Array.from(new Set(paginatedData.map((j) => j.registrationId).filter(Boolean))) as string[];
+
+    const [variantMaps, productCaches, registrations, preorderRecords] = await Promise.all([
+      prisma.variantMap.findMany({
+        where: {
+          storeId,
+          OR: [
+            { shopifyVariantId: { in: allVarLookups } },
+          ],
+        },
+        select: { shopifyVariantId: true, sku: true },
+      }),
+      prisma.productCache.findMany({
+        where: {
+          storeId,
+          OR: [
+            { shopifyVariantId: { in: allVarLookups } },
+          ],
+        },
+        select: { shopifyVariantId: true, sku: true, imageUrl: true, title: true },
+      }),
+      paginatedRegIds.length > 0
+        ? prisma.notifyMeRegistration.findMany({
+            where: { id: { in: paginatedRegIds } },
+            select: { id: true, requestedQuantity: true },
+          })
+        : Promise.resolve([]),
+      prisma.preorderRecord.findMany({
+        where: {
+          storeId,
+          shopifyVariantId: { in: allVarLookups },
+        },
+        select: { shopifyVariantId: true, quantity: true },
+      }),
+    ]);
+
+    const enrichedRows = paginatedData.map((job) => {
+      const cleanVId = job.shopifyVariantId?.replace(/\D/g, '');
+      const gVId = cleanVId ? `gid://shopify/ProductVariant/${cleanVId}` : '';
+      const isPreorder = Boolean(
+        job.sourceType === 'PRE_ORDER' ||
+        job.isPreorder ||
+        (job.productTitle && job.productTitle.startsWith('[Pre-order]'))
+      );
+
+      const vMap = variantMaps.find(
+        (v) =>
+          v.shopifyVariantId === job.shopifyVariantId ||
+          v.shopifyVariantId === cleanVId ||
+          v.shopifyVariantId === gVId
+      );
+      const pCache = productCaches.find(
+        (p) =>
+          p.shopifyVariantId === job.shopifyVariantId ||
+          p.shopifyVariantId === cleanVId ||
+          p.shopifyVariantId === gVId
+      );
+      const reg = registrations.find((r) => r.id === job.registrationId);
+      const poRecord = preorderRecords.find(
+        (p) =>
+          p.shopifyVariantId === job.shopifyVariantId ||
+          p.shopifyVariantId === cleanVId ||
+          p.shopifyVariantId === gVId
+      );
+
+      const sku = vMap?.sku || pCache?.sku || (cleanVId ? `SKU-${cleanVId.slice(-6)}` : '-');
+      const isJobImgPlaceholder = !job.imageUrl || job.imageUrl.includes('1/0890/1234');
+      const imageUrl = (isJobImgPlaceholder && pCache?.imageUrl) ? pCache.imageUrl : (job.imageUrl || pCache?.imageUrl || null);
+
+      let cleanProductTitle = job.productTitle && !job.productTitle.includes('[Pre-order] Product') && !job.productTitle.includes('Product')
+        ? job.productTitle.replace(/^\[Pre-order\]\s*/i, '')
+        : (pCache?.title || 'Cotton T-shirt');
+      let resolvedVariantTitle = job.variantTitle || 'Default Title';
+
+      if (cleanProductTitle.includes(' - ')) {
+        const parts = cleanProductTitle.split(' - ');
+        cleanProductTitle = parts[0].trim();
+        if (resolvedVariantTitle === 'Default Title' || resolvedVariantTitle === 'Default Variant') {
+          resolvedVariantTitle = parts.slice(1).join(' - ').trim();
+        }
+      }
+
+      const quantity = job.quantity || (isPreorder
+        ? (poRecord?.quantity || 1)
+        : (reg?.requestedQuantity || 1));
+
+      return {
+        ...job,
+        customerEmail: safeDecrypt(job.customerEmail),
+        customerWhatsApp: safeDecrypt(job.customerWhatsApp),
+        productTitle: cleanProductTitle,
+        rawProductTitle: job.productTitle,
+        variantTitle: resolvedVariantTitle,
+        imageUrl,
+        sku,
+        quantity,
+        sourceType: isPreorder ? 'PRE_ORDER' : 'NOTIFY_ME',
+        isPreorder,
+      };
+    });
 
     const totalPages = Math.ceil(total / pageSize) || 1;
 
     return {
-      data: paginatedData,
+      data: enrichedRows,
       stats: {
-        totalSubscribers,
-        notificationsSent: totalSent,
-        pending: totalPending,
-        failed: totalFailed,
+        totalSubscribers: uniqueJobs.length,
+        notificationsSent: uniqueJobs.filter((j) => j.status === 'SENT').length,
+        pending: uniqueJobs.filter((j) => j.status === 'PENDING').length,
+        failed: uniqueJobs.filter((j) => j.status === 'FAILED').length,
       },
       pagination: {
         total,
@@ -591,4 +866,165 @@ export class BackInStockService {
 
     return CustomerNotificationService.processPendingJobs(storeId, 1);
   }
+
+  /**
+   * Manually dispatch restock notification email immediately for any queued waitlist or pre-order item.
+   */
+  static async sendManualNotification(storeId: string, itemId: string) {
+    const { EmailNotificationService } = require('@/services/notifications/email-notification-service');
+
+    // Case 1: Notify Me Registration (reg_<uuid>)
+    if (itemId.startsWith('reg_')) {
+      const regId = itemId.replace(/^reg_/, '');
+      const reg = await prisma.notifyMeRegistration.findFirst({
+        where: { id: regId, storeId },
+      });
+      if (!reg) throw new Error('Waitlist registration not found');
+
+      const customerEmail = safeDecrypt(reg.customerEmail);
+      if (!customerEmail) throw new Error('No email found for this registration');
+
+      const cleanVarId = reg.shopifyVariantId.replace(/\D/g, '');
+      const cached = await prisma.productCache.findFirst({
+        where: {
+          storeId,
+          OR: [
+            { shopifyVariantId: reg.shopifyVariantId },
+            { shopifyVariantId: `gid://shopify/ProductVariant/${cleanVarId}` },
+            { shopifyVariantId: cleanVarId },
+          ],
+        },
+      });
+
+      const store = await prisma.store.findUnique({ where: { id: storeId } });
+      const storeName = store?.label || store?.shopDomain || 'Online Store';
+      const cleanProdId = (cached?.shopifyProductId || reg.shopifyProductId || '').replace(/\D/g, '');
+      const productUrl = `https://${store?.shopDomain || 'myshopify.com'}/products/${cleanProdId || 'cotton-t-shirt'}`;
+      const productTitle = cached?.title?.split(' - ')[0] || 'Cotton T-shirt';
+      const variantTitle = cached?.title?.includes(' - ') ? cached.title.split(' - ').slice(1).join(' - ') : undefined;
+      const price = cached?.price ? `₹${cached.price}` : '₹1,240';
+
+      const emailRes = await EmailNotificationService.sendBackInStockEmail({
+        to: customerEmail,
+        productTitle,
+        variantTitle,
+        productUrl,
+        imageUrl: cached?.imageUrl || null,
+        price,
+        storeName,
+      });
+
+      if (!emailRes.success) {
+        throw new Error(emailRes.error || 'Failed to dispatch email');
+      }
+
+      const now = new Date();
+      await prisma.notifyMeRegistration.update({
+        where: { id: regId },
+        data: {
+          status: NotifyMeStatus.NOTIFIED,
+          notifiedAt: now,
+        },
+      });
+
+      await prisma.notificationJob.create({
+        data: {
+          registrationId: reg.id,
+          storeId,
+          shopifyVariantId: reg.shopifyVariantId,
+          customerEmail: reg.customerEmail,
+          channel: NotificationChannel.EMAIL,
+          productTitle,
+          variantTitle: variantTitle || null,
+          imageUrl: cached?.imageUrl || null,
+          productUrl,
+          status: NotificationJobStatus.SENT,
+          sentAt: now,
+          attempts: 1,
+        },
+      });
+
+      return { success: true, message: 'Back in Stock email dispatched successfully', sentAt: now };
+    }
+
+    // Case 2: Pre-order Record (po_<uuid>)
+    if (itemId.startsWith('po_')) {
+      const poId = itemId.replace(/^po_/, '');
+      const po = await prisma.preorderRecord.findFirst({
+        where: { id: poId, storeId },
+      });
+      if (!po) throw new Error('Pre-order record not found');
+
+      const customerEmail = safeDecrypt(po.customerEmail);
+      if (!customerEmail) throw new Error('No email found for this pre-order');
+
+      const cleanVarId = po.shopifyVariantId.replace(/\D/g, '');
+      const cached = await prisma.productCache.findFirst({
+        where: {
+          storeId,
+          OR: [
+            { shopifyVariantId: po.shopifyVariantId },
+            { shopifyVariantId: `gid://shopify/ProductVariant/${cleanVarId}` },
+            { shopifyVariantId: cleanVarId },
+          ],
+        },
+      });
+
+      const store = await prisma.store.findUnique({ where: { id: storeId } });
+      const storeName = store?.label || store?.shopDomain || 'Online Store';
+      const cleanProdId = (cached?.shopifyProductId || '').replace(/\D/g, '');
+      const productUrl = `https://${store?.shopDomain || 'myshopify.com'}/products/${cleanProdId || 'cotton-t-shirt'}`;
+      const productTitle = cached?.title?.split(' - ')[0] || 'Cotton T-shirt';
+      const variantTitle = cached?.title?.includes(' - ') ? cached.title.split(' - ').slice(1).join(' - ') : undefined;
+      const price = cached?.price ? `₹${cached.price}` : '₹1,240';
+      const customerName = safeDecrypt(po.customerName);
+
+      const emailRes = await EmailNotificationService.sendPreorderInStockEmail({
+        to: customerEmail,
+        customerName: customerName || undefined,
+        orderNumber: po.orderNumber,
+        productTitle,
+        variantTitle,
+        productUrl,
+        imageUrl: cached?.imageUrl || null,
+        price,
+        storeName,
+      });
+
+      if (!emailRes.success) {
+        throw new Error(emailRes.error || 'Failed to dispatch email');
+      }
+
+      const now = new Date();
+      await prisma.preorderRecord.update({
+        where: { id: poId },
+        data: {
+          status: 'ALLOCATED',
+          notifiedAt: now,
+        },
+      });
+
+      await prisma.notificationJob.create({
+        data: {
+          storeId,
+          shopifyVariantId: po.shopifyVariantId,
+          customerEmail: po.customerEmail,
+          channel: NotificationChannel.EMAIL,
+          productTitle: `[Pre-order] ${productTitle}`,
+          variantTitle: variantTitle || null,
+          imageUrl: cached?.imageUrl || null,
+          productUrl,
+          status: NotificationJobStatus.SENT,
+          sentAt: now,
+          attempts: 1,
+        },
+      });
+
+      return { success: true, message: 'Pre-order restock email dispatched successfully', sentAt: now };
+    }
+
+    // Case 3: Standard NotificationJob
+    return this.retryJob(storeId, itemId);
+  }
 }
+

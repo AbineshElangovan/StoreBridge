@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     const collectionFilter = searchParams.get('collection') || 'all';
     const tab = searchParams.get('tab') || 'best-sellers';
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
-    const limit = Math.max(1, parseInt(searchParams.get('limit') || '15', 10));
+    const limit = Math.max(1, parseInt(searchParams.get('limit') || '10', 10));
 
     const dateThreshold = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000);
 

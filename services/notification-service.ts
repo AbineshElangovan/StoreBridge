@@ -227,7 +227,7 @@ export async function getNotifications(recipientStoreId: string, options: Notifi
     search, 
     storeIdFilter, 
     page = 1,
-    limit = 15 
+    limit = 10 
   } = options;
 
   const pageNum = Math.max(1, page);

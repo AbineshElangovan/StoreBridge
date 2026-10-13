@@ -60,7 +60,7 @@ export default function InsightsPage() {
   const [data, setData] = useState<any[]>([]);
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 15,
+    limit: 10,
     totalCount: 0,
     totalPages: 1
   });
@@ -75,7 +75,7 @@ export default function InsightsPage() {
       query.set('collection', selectedCollection);
       query.set('tab', activeTab);
       query.set('page', String(page));
-      query.set('limit', '15');
+      query.set('limit', '10');
 
       const res = await shopifyFetch(`/api/insights?${query.toString()}`);
       if (res.ok) {

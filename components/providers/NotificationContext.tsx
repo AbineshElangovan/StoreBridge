@@ -113,7 +113,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
     const handleCountChanged = (e: any) => {
       if (typeof e.detail === 'number') {
-        setUnreadCount(e.detail);
+        queueMicrotask(() => {
+          setUnreadCount(e.detail);
+        });
       }
     };
 

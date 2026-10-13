@@ -157,7 +157,7 @@ export default function ProductsPage() {
                   }))}
                   searchable={false}
                   filterable
-                  itemsPerPage={50}
+                  itemsPerPage={10}
                   filterKey="stockLevel"
                   filterOptions={[
                     { label: 'All Stock Levels', value: 'ALL' },
@@ -210,7 +210,7 @@ export default function ProductsPage() {
                         }))}
                         searchable={false}
                         filterable
-                        itemsPerPage={50}
+                        itemsPerPage={10}
                         filterKey="stockLevel"
                         filterOptions={[
                           { label: 'All Stock Levels', value: 'ALL' },
