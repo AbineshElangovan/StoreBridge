@@ -13,6 +13,8 @@ import {
   SaveButton,
   NotifyMeModalPreview,
 } from '@/components/customer-experience/shared';
+import { StandaloneGuard } from '@/components/ui/StandaloneGuard';
+import { useStoreContext } from '@/components/providers/StoreProvider';
 
 function ProductThumbnail({ src, alt }: { src?: string | null; alt?: string }) {
   const [hasError, setHasError] = useState(false);
@@ -38,6 +40,7 @@ function ProductThumbnail({ src, alt }: { src?: string | null; alt?: string }) {
 }
 
 export default function NotifyMeAdminPage() {
+  const { isStandalone } = useStoreContext();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [tableLoading, setTableLoading] = useState(false);
@@ -108,8 +111,10 @@ export default function NotifyMeAdminPage() {
   }, [statusFilter, search]);
 
   useEffect(() => {
-    loadData(1, statusFilter, search);
-  }, []);
+    if (isStandalone) {
+      loadData(1, statusFilter, search);
+    }
+  }, [isStandalone]);
 
   const handleSaveSettings = async () => {
     if (!notifyEmail) {
@@ -289,7 +294,8 @@ export default function NotifyMeAdminPage() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8">
+    <StandaloneGuard featureName="Notify Me">
+      <div className="p-6 max-w-7xl mx-auto space-y-8">
       {toast && (
         <Toast
           content={toast.message}
@@ -458,5 +464,6 @@ export default function NotifyMeAdminPage() {
         />
       </div>
     </div>
+    </StandaloneGuard>
   );
 }

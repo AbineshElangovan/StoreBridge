@@ -23,7 +23,13 @@ const StatusUpdateSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const { store } = await authenticate(req);
+    const { store, isStandalone } = await authenticate(req);
+    if (!isStandalone) {
+      return NextResponse.json(
+        { success: false, error: 'Notify Me is restricted to Standalone stores.' },
+        { status: 403 }
+      );
+    }
     const searchParams = req.nextUrl.searchParams;
 
     const page = parseInt(searchParams.get('page') || '1', 10);
@@ -59,7 +65,13 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { store } = await authenticate(req);
+    const { store, isStandalone } = await authenticate(req);
+    if (!isStandalone) {
+      return NextResponse.json(
+        { success: false, error: 'Notify Me is restricted to Standalone stores.' },
+        { status: 403 }
+      );
+    }
     const body = await req.json();
 
     const parsed = NotifyMeSettingsSchema.safeParse(body);

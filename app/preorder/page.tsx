@@ -16,8 +16,11 @@ import {
 } from '@/components/customer-experience/shared';
 import { PreorderProductSelector } from '@/components/preorder/PreorderProductSelector';
 import { PreorderCollectionSelector } from '@/components/preorder/PreorderCollectionSelector';
+import { StandaloneGuard } from '@/components/ui/StandaloneGuard';
+import { useStoreContext } from '@/components/providers/StoreProvider';
 
 export default function PreorderAdminPage() {
+  const { isStandalone } = useStoreContext();
   const { currentTheme } = useTheme();
   const primaryColor = currentTheme?.primaryColor || '#047857';
   const accentColor = currentTheme?.accentColor || '#d1fae5';
@@ -50,8 +53,10 @@ export default function PreorderAdminPage() {
   const [calculating, setCalculating] = useState(false);
 
   useEffect(() => {
-    fetchConfig();
-  }, []);
+    if (isStandalone) {
+      fetchConfig();
+    }
+  }, [isStandalone]);
 
   // Fetch pure calculations from backend API whenever discount settings change
   useEffect(() => {
@@ -165,7 +170,8 @@ export default function PreorderAdminPage() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <StandaloneGuard featureName="Pre-order">
+      <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Toast Alert */}
       {toast && (
         <Toast
@@ -601,5 +607,6 @@ export default function PreorderAdminPage() {
         </div>
       </div>
     </div>
+    </StandaloneGuard>
   );
 }

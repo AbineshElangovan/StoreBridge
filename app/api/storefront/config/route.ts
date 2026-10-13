@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { PreorderService } from '@/services/preorder/preorder-service';
 import { NotifyMeService } from '@/services/notify-me/notify-me-service';
+import { isStoreStandalone } from '@/lib/shopify/authenticate';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,6 +60,16 @@ export async function GET(req: NextRequest) {
         { success: false, error: 'Store not found or inactive' },
         { status: 404, headers: corsHeaders(origin) }
       );
+    }
+
+    const isStandalone = await isStoreStandalone(store.id);
+    if (!isStandalone) {
+      return NextResponse.json({
+        success: true,
+        preorder: { enabled: false },
+        notifyMe: { enabled: false },
+        variantsInventory: {},
+      }, { headers: corsHeaders(origin) });
     }
 
     const cleanPid = productId

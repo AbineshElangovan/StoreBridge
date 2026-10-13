@@ -14,6 +14,8 @@ import {
   StoreIcon,
   CartIcon,
 } from '@shopify/polaris-icons';
+import { StandaloneGuard } from '@/components/ui/StandaloneGuard';
+import { useStoreContext } from '@/components/providers/StoreProvider';
 
 function ProductThumbnail({ src, alt }: { src?: string | null; alt?: string }) {
   const [hasError, setHasError] = useState(false);
@@ -39,6 +41,7 @@ function ProductThumbnail({ src, alt }: { src?: string | null; alt?: string }) {
 }
 
 export default function BackInStockAdminPage() {
+  const { isStandalone } = useStoreContext();
   const [loading, setLoading] = useState(true);
   const [tableLoading, setTableLoading] = useState(false);
   const [retryingId, setRetryingId] = useState<string | null>(null);
@@ -114,17 +117,19 @@ export default function BackInStockAdminPage() {
   }, [statusFilter, search, batchFilter]);
 
   useEffect(() => {
-    loadData(1, statusFilter, search, batchFilter);
-    shopifyFetch('/api/stores?active=false')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.stores && data.stores.length > 0) {
-          setStores(data.stores);
-          setSelectedStoreId(data.stores[0].id);
-        }
-      })
-      .catch(() => {});
-  }, []);
+    if (isStandalone) {
+      loadData(1, statusFilter, search, batchFilter);
+      shopifyFetch('/api/stores?active=false')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.stores && data.stores.length > 0) {
+            setStores(data.stores);
+            setSelectedStoreId(data.stores[0].id);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isStandalone]);
 
   const activeStore = stores.find((s) => s.id === selectedStoreId) || stores[0] || null;
   const previewStoreName = activeStore ? (activeStore.label || activeStore.shopDomain) : 'ESHAN Chennai Store';
@@ -381,7 +386,8 @@ export default function BackInStockAdminPage() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8">
+    <StandaloneGuard featureName="Back in Stock">
+      <div className="p-6 max-w-7xl mx-auto space-y-8">
       {toast && (
         <Toast
           content={toast.message}
@@ -697,5 +703,6 @@ export default function BackInStockAdminPage() {
         />
       </div>
     </div>
+    </StandaloneGuard>
   );
 }

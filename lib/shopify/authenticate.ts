@@ -4,6 +4,31 @@ import { prisma } from "@/lib/db/prisma";
 
 export class AuthError extends Error { }
 
+/**
+ * Helper to determine if a store is standalone.
+ * A store is Standalone if:
+ * 1. It is NOT marked as a Master store (`!store.isMaster`)
+ * 2. It has NO incoming or outgoing connections in `StoreConnection`
+ */
+export async function isStoreStandalone(storeId: string): Promise<boolean> {
+  const store = await prisma.store.findUnique({
+    where: { id: storeId },
+    select: { id: true, isMaster: true },
+  });
+  if (!store || store.isMaster) {
+    return false;
+  }
+  const connectionCount = await (prisma as any).storeConnection.count({
+    where: {
+      OR: [
+        { sourceStoreId: storeId },
+        { targetStoreId: storeId },
+      ],
+    },
+  });
+  return connectionCount === 0;
+}
+
 export async function authenticate(req: NextRequest) {
   // Extract requested shop domain from headers, URL searchParams, referer, or cookies
   let requestedShop = 
@@ -74,11 +99,13 @@ export async function authenticate(req: NextRequest) {
                   }
                 });
                 if (isConnected || targetStore.id === sessionStore.id) {
+                  const targetStandalone = await isStoreStandalone(targetStore.id);
                   return {
                     shop: targetStore.shopDomain,
                     store: targetStore,
                     sessionStore,
-                    isMasterSession: true
+                    isMasterSession: true,
+                    isStandalone: targetStandalone,
                   };
                 }
               }
@@ -87,16 +114,19 @@ export async function authenticate(req: NextRequest) {
               shop: sessionStore.shopDomain,
               store: sessionStore,
               sessionStore,
-              isMasterSession: true
+              isMasterSession: true,
+              isStandalone: false,
             };
           } else {
             // CONNECTED STORE SESSION:
             // Strictly restricted to this store ONLY! Cannot switch to any other store.
+            const standalone = await isStoreStandalone(sessionStore.id);
             return {
               shop: sessionStore.shopDomain,
               store: sessionStore,
               sessionStore,
-              isMasterSession: false
+              isMasterSession: false,
+              isStandalone: standalone,
             };
           }
         }
@@ -121,11 +151,13 @@ export async function authenticate(req: NextRequest) {
             }
           });
           if (isConnected || targetStore.id === master.id) {
+            const targetStandalone = await isStoreStandalone(targetStore.id);
             return {
               shop: targetStore.shopDomain,
               store: targetStore,
               sessionStore: master,
-              isMasterSession: true
+              isMasterSession: true,
+              isStandalone: targetStandalone,
             };
           }
         }
@@ -134,7 +166,8 @@ export async function authenticate(req: NextRequest) {
         shop: master.shopDomain,
         store: master,
         sessionStore: master,
-        isMasterSession: true
+        isMasterSession: true,
+        isStandalone: false,
       };
     }
   }
@@ -160,11 +193,13 @@ export async function authenticate(req: NextRequest) {
   }
 
   if (store && store.isActive) {
+    const standalone = await isStoreStandalone(store.id);
     return {
       shop: store.shopDomain,
       store,
       sessionStore: store,
-      isMasterSession: Boolean(store.isMaster)
+      isMasterSession: Boolean(store.isMaster),
+      isStandalone: standalone,
     };
   }
 
