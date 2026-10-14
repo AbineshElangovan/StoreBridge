@@ -189,45 +189,38 @@ export default function BackInStockAdminPage() {
       title: 'Product & SKU',
       key: 'productInfo',
       type: 'react_node',
-      width: '26%',
+      width: '28%',
     },
     {
       title: 'Restock Type',
       key: 'sourceTypeBadge',
       type: 'react_node',
-      width: '12%',
+      width: '14%',
     },
     {
       title: 'Quantity',
       key: 'quantityBadge',
       type: 'react_node',
-      width: '8%',
+      width: '10%',
     },
     {
       title: 'Customer Recipient',
       key: 'recipient',
       type: 'react_node',
-      width: '20%',
+      width: '22%',
     },
     {
       title: 'Registration Date',
       key: 'registrationDate',
       type: 'react_node',
-      width: '12%',
-      align: 'center',
-    },
-    {
-      title: 'Status',
-      key: 'notificationStatus',
-      type: 'react_node',
-      width: '12%',
+      width: '13%',
       align: 'center',
     },
     {
       title: 'Order / Action Status',
       key: 'orderStatusBadge',
       type: 'react_node',
-      width: '12%',
+      width: '13%',
       align: 'center',
     },
   ];
@@ -387,7 +380,7 @@ export default function BackInStockAdminPage() {
 
   return (
     <StandaloneGuard featureName="Back in Stock">
-      <div className="p-6 max-w-7xl mx-auto space-y-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden space-y-8">
       {toast && (
         <Toast
           content={toast.message}
@@ -397,11 +390,11 @@ export default function BackInStockAdminPage() {
       )}
 
       {/* Page Title */}
-      <div className="pb-2 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-gray-200">
         <div>
-          <h1 className="text-2xl font-black text-gray-900 tracking-tight">Back in Stock Monitor</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Real-time restock triggers and priority customer notification dispatch logs. Pre-orders are fulfilled first, followed by Notify Me waitlist subscribers.
+          <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Back in Stock Monitor</h1>
+          <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
+            Track real-time restock alerts and customer notification logs.
           </p>
         </div>
       </div>
@@ -630,78 +623,32 @@ export default function BackInStockAdminPage() {
       </div>
 
       {/* Activity / Notification History Table */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
-        <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h3 className="text-lg font-bold text-gray-900">Recent Restock Notifications</h3>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Automated restock alerts dispatched when product inventory transitions from 0 to positive. Showing 10 records per page.
-            </p>
-          </div>
-
-          {/* Restock Type Tabs: All, Notify Me, Pre-order */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => handleBatchChange('ALL')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                batchFilter === 'ALL'
-                  ? 'bg-gray-900 text-white shadow-2xs'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              All Restocks
-            </button>
-            <button
-              type="button"
-              onClick={() => handleBatchChange('NOTIFY_ME')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                batchFilter === 'NOTIFY_ME'
-                  ? 'bg-sky-600 text-white shadow-2xs'
-                  : 'bg-sky-50 text-sky-800 hover:bg-sky-100 border border-sky-200'
-              }`}
-            >
-              Notify Me Waitlist
-            </button>
-            <button
-              type="button"
-              onClick={() => handleBatchChange('PRE_ORDER')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                batchFilter === 'PRE_ORDER'
-                  ? 'bg-purple-600 text-white shadow-2xs'
-                  : 'bg-purple-50 text-purple-800 hover:bg-purple-100 border border-purple-200'
-              }`}
-            >
-              Pre-order Commitments
-            </button>
-          </div>
-        </div>
-
-        <Table
-          columns={columns}
-          items={formattedItems}
-          loading={tableLoading}
-          serverSide={true}
-          totalItems={totalItems}
-          page={page}
-          totalPages={totalPages}
-          onPageChange={handlePageChange}
-          searchable={true}
-          searchValue={search}
-          onSearchChange={handleSearchChange}
-          filterable={true}
-          filterValue={statusFilter}
-          onFilterChange={handleStatusChange}
-          filterOptions={[
-            { label: 'All Statuses', value: 'ALL' },
-            { label: 'Sent', value: 'SENT' },
-            { label: 'Pending', value: 'PENDING' },
-            { label: 'Processing', value: 'PROCESSING' },
-            { label: 'Failed', value: 'FAILED' },
-          ]}
-          itemsPerPage={10}
-        />
-      </div>
+      <Table
+        title="Recent Restock Notifications"
+        columns={columns}
+        items={formattedItems}
+        loading={tableLoading}
+        serverSide={true}
+        totalItems={totalItems}
+        page={page}
+        totalPages={totalPages}
+        onPageChange={handlePageChange}
+        searchable={true}
+        searchKey="productTitle"
+        searchValue={search}
+        onSearchChange={handleSearchChange}
+        filterable={true}
+        filterKey="sourceType"
+        filterValue={batchFilter}
+        onFilterChange={(val) => handleBatchChange(val as any)}
+        filterOptions={[
+          { label: 'All Restocks', value: 'ALL' },
+          { label: 'Notify Me Waitlist', value: 'NOTIFY_ME' },
+          { label: 'Pre-order Commitments', value: 'PRE_ORDER' },
+        ]}
+        itemsPerPage={10}
+        paginate={true}
+      />
     </div>
     </StandaloneGuard>
   );

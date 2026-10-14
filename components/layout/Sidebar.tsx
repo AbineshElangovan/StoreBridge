@@ -186,7 +186,7 @@ export function Sidebar() {
           const isConnectedStore = !isMasterStore && !isStandalone;
 
           let roleLabel = isStandalone 
-            ? 'STANDALONE STORE' 
+            ? null 
             : (isMasterStore ? 'MASTER STORE' : 'CONNECTED STORE');
 
           return (
@@ -207,7 +207,7 @@ export function Sidebar() {
                       className="bg-transparent text-xs sm:text-sm font-bold border-none outline-none focus:ring-0 cursor-pointer w-full pr-1 truncate text-gray-900"
                     >
                       {activeStores.map((s) => {
-                        const tag = s.isMaster ? '(Master)' : (s.isStandalone ? '(Standalone)' : '(Connected)');
+                        const tag = s.isMaster ? '(Master)' : (s.isStandalone ? '' : '(Connected)');
                         return (
                           <option key={s.id} value={s.shopDomain} className="bg-white text-gray-900 font-semibold py-1">
                             {s.label || s.shopDomain} {tag}
@@ -215,9 +215,11 @@ export function Sidebar() {
                         );
                       })}
                     </select>
-                    <span className="text-[10px] font-extrabold mt-0.5 tracking-wider uppercase text-[var(--color-primary)] block">
-                      {roleLabel}
-                    </span>
+                    {roleLabel && (
+                      <span className="text-[10px] font-extrabold mt-0.5 tracking-wider uppercase text-[var(--color-primary)] block">
+                        {roleLabel}
+                      </span>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -233,9 +235,11 @@ export function Sidebar() {
                     <span className="text-xs sm:text-sm font-bold truncate text-gray-900 block">
                       {loading ? 'Loading...' : (currentStore?.label || currentStore?.shopDomain || 'ESHAN Store')}
                     </span>
-                    <span className="text-[10px] font-extrabold mt-0.5 tracking-wider uppercase text-[var(--color-primary)] block">
-                      {roleLabel}
-                    </span>
+                    {roleLabel && (
+                      <span className="text-[10px] font-extrabold mt-0.5 tracking-wider uppercase text-[var(--color-primary)] block">
+                        {roleLabel}
+                      </span>
+                    )}
                   </div>
                 </div>
               )}

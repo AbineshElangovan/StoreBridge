@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import { Loading } from '@/components/common/Loading';
 import { Toast } from '@/components/common/Toast';
-import { StatusBadge } from '@/components/ui/StatusBadge';
+import { Table, ColumnConfig } from '@/components/common/Table';
 import { useTheme } from '@/components/providers/ThemeContext';
 import {
   SettingsCard,
@@ -45,6 +45,13 @@ export default function PreorderAdminPage() {
   );
   const [maxQuantity, setMaxQuantity] = useState<string>('');
 
+  // Payment Options State (Full Payment vs Half Payment)
+  const [paymentType, setPaymentType] = useState<'FULL' | 'HALF'>('HALF');
+  const [allowHalfPayment, setAllowHalfPayment] = useState(true);
+  const [allowFullPayment, setAllowFullPayment] = useState(true);
+  const [defaultPaymentOption, setDefaultPaymentOption] = useState<'HALF' | 'FULL'>('HALF');
+  const [showSavings, setShowSavings] = useState(true);
+
   // Offer / Discount State
   const [discountType, setDiscountType] = useState<'none' | 'percentage' | 'fixed'>('none');
   const [discountValue, setDiscountValue] = useState<string>('0');
@@ -52,9 +59,20 @@ export default function PreorderAdminPage() {
   const [sample100, setSample100] = useState<any>(null);
   const [calculating, setCalculating] = useState(false);
 
+  // Pre-order Orders Records State
+  const [records, setRecords] = useState<any[]>([]);
+  const [recordsLoading, setRecordsLoading] = useState(false);
+  const [recordsPage, setRecordsPage] = useState(1);
+  const [recordsTotalPages, setRecordsTotalPages] = useState(1);
+  const [recordsTotal, setRecordsTotal] = useState(0);
+  const [recordsSearch, setRecordsSearch] = useState('');
+  const [recordsStatus, setRecordsStatus] = useState('ALL');
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+
   useEffect(() => {
     if (isStandalone) {
       fetchConfig();
+      fetchRecords(1, '', 'ALL');
     }
   }, [isStandalone]);
 
@@ -86,6 +104,90 @@ export default function PreorderAdminPage() {
     };
   }, [discountType, discountValue]);
 
+  // Debounced search for Pre-order orders
+  useEffect(() => {
+    if (!isStandalone) return;
+    const timer = setTimeout(() => {
+      fetchRecords(1, recordsSearch, recordsStatus);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [recordsSearch, recordsStatus]);
+
+  const fetchRecords = async (page = recordsPage, search = recordsSearch, status = recordsStatus) => {
+    try {
+      setRecordsLoading(true);
+      const params = new URLSearchParams({
+        type: 'records',
+        page: String(page),
+        pageSize: '10',
+        search: search.trim(),
+        paymentStatus: status,
+      });
+      const res = await shopifyFetch(`/api/preorder?${params.toString()}`);
+      const data = await res.json();
+      if (data.success) {
+        setRecords(data.data || []);
+        if (data.pagination) {
+          setRecordsTotal(data.pagination.total || 0);
+          setRecordsTotalPages(data.pagination.totalPages || 1);
+          setRecordsPage(data.pagination.page || page);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch preorder records:', err);
+    } finally {
+      setRecordsLoading(false);
+    }
+  };
+
+  const handleGetPaymentLink = async (recordId: string) => {
+    try {
+      setActionLoadingId(recordId);
+      const res = await shopifyFetch(`/api/preorder/records/${recordId}/payment-link`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (data.success && data.paymentLink) {
+        if (navigator.clipboard) {
+          await navigator.clipboard.writeText(data.paymentLink);
+          setToast({ message: 'Draft order invoice payment link copied to clipboard!', type: 'success' });
+        } else {
+          prompt('Copy customer payment link:', data.paymentLink);
+        }
+        fetchRecords();
+      } else {
+        setToast({ message: data.message || data.error || 'Failed to generate payment link', type: 'error' });
+      }
+    } catch (err: any) {
+      setToast({ message: err.message || 'Error generating payment link', type: 'error' });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleConfirmPayment = async (recordId: string, orderNumber: string) => {
+    if (!window.confirm(`Confirm full remaining payment received for Order #${orderNumber}? This will mark the order as Fully Paid and set remaining balance to ₹0.`)) {
+      return;
+    }
+    try {
+      setActionLoadingId(recordId);
+      const res = await shopifyFetch(`/api/preorder/records/${recordId}/confirm-payment`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (data.success) {
+        setToast({ message: `Order #${orderNumber} marked as Fully Paid!`, type: 'success' });
+        fetchRecords();
+      } else {
+        setToast({ message: data.error || 'Failed to confirm payment', type: 'error' });
+      }
+    } catch (err: any) {
+      setToast({ message: err.message || 'Error confirming payment', type: 'error' });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   const fetchConfig = async () => {
     try {
       setLoading(true);
@@ -105,6 +207,11 @@ export default function PreorderAdminPage() {
         setSelectionMode(data.config.selectionMode || 'ALL_PRODUCTS');
         setSelectedProductIds(data.config.selectedProductIds || []);
         setSelectedCollectionIds(data.config.selectedCollectionIds || []);
+        const isHalf = data.config.allowHalfPayment !== undefined ? data.config.allowHalfPayment : true;
+        setAllowHalfPayment(isHalf);
+        setAllowFullPayment(!isHalf);
+        setPaymentType(isHalf ? 'HALF' : 'FULL');
+        setDefaultPaymentOption(isHalf ? 'HALF' : 'FULL');
         if (data.calculation) {
           setCalculation(data.calculation);
         }
@@ -116,6 +223,19 @@ export default function PreorderAdminPage() {
       setToast({ message: 'Failed to load pre-order settings', type: 'error' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePaymentTypeChange = (val: 'FULL' | 'HALF') => {
+    setPaymentType(val);
+    if (val === 'HALF') {
+      setAllowHalfPayment(true);
+      setAllowFullPayment(false);
+      setDefaultPaymentOption('HALF');
+    } else {
+      setAllowHalfPayment(false);
+      setAllowFullPayment(true);
+      setDefaultPaymentOption('FULL');
     }
   };
 
@@ -138,6 +258,9 @@ export default function PreorderAdminPage() {
         selectionMode,
         selectedProductIds,
         selectedCollectionIds,
+        allowHalfPayment: paymentType === 'HALF',
+        allowFullPayment: paymentType === 'FULL',
+        defaultPaymentOption: paymentType,
       };
 
       const res = await shopifyFetch('/api/preorder', {
@@ -171,7 +294,7 @@ export default function PreorderAdminPage() {
 
   return (
     <StandaloneGuard featureName="Pre-order">
-      <div className="p-6 max-w-7xl mx-auto space-y-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden space-y-8">
       {/* Toast Alert */}
       {toast && (
         <Toast
@@ -182,16 +305,10 @@ export default function PreorderAdminPage() {
       )}
 
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-gray-200">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-gray-200">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-black text-gray-900 tracking-tight">Pre-order</h1>
-            <StatusBadge
-              status={enabled ? 'success' : 'default'}
-              label={enabled ? 'ACTIVE' : 'DISABLED'}
-            />
-          </div>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Pre-order</h1>
+          <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
             Allow customers to pre-order items when stock drops to or below the configured inventory threshold.
           </p>
         </div>
@@ -421,10 +538,10 @@ export default function PreorderAdminPage() {
             </div>
           </SettingsCard>
 
-          {/* Pre-order Offer / Discount Card (Single-line Radio Options) */}
+          {/* Pre-order Offer & Payment Settings Card (Matches Design) */}
           <SettingsCard
-            title="Pre-order Offer & Discount"
-            description="Give special promotional pricing to motivate shoppers to pre-order out-of-stock products."
+            title="Payment & Discount Settings"
+            description="Configure payment options, upfront deposits, and promotional discounts for pre-orders."
             badge={
               discountType !== 'none' && calculation?.offerBadge ? (
                 <span
@@ -440,110 +557,179 @@ export default function PreorderAdminPage() {
               ) : undefined
             }
           >
-            <div className="space-y-4">
-              {/* Single line radio buttons: None, Percentage, Fixed Price */}
-              <div className="flex flex-wrap items-center gap-7 pt-1">
-                <label className="inline-flex items-center gap-2 cursor-pointer text-sm font-semibold text-gray-800 hover:text-gray-900 transition-colors">
-                  <input
-                    type="radio"
-                    name="preorderDiscountType"
-                    value="none"
-                    checked={discountType === 'none'}
-                    onChange={() => {
-                      setDiscountType('none');
-                      setDiscountValue('0');
-                    }}
-                    style={{ accentColor: primaryColor }}
-                    className="h-4 w-4 cursor-pointer"
-                  />
-                  <span style={{ color: discountType === 'none' ? primaryColor : undefined, fontWeight: discountType === 'none' ? 700 : 600 }}>
-                    None
-                  </span>
+            <div className="space-y-6">
+              {/* 1. Payment type Dropdown */}
+              <div>
+                <label className="block text-sm font-bold text-gray-900 mb-3">
+                  Payment type
                 </label>
+                <div className="relative">
+                  <select
+                    value={paymentType}
+                    onChange={(e) => handlePaymentTypeChange(e.target.value as 'FULL' | 'HALF')}
+                    className="w-full appearance-none px-4 py-3 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-xl shadow-2xs focus:border-gray-900 focus:ring-1 focus:ring-gray-900 outline-none pr-10 cursor-pointer transition-colors hover:border-gray-400"
+                  >
+                    <option value="FULL">Full payment</option>
+                    <option value="HALF">Half payment</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
+                    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-3 font-normal leading-relaxed">
+                  {paymentType === 'FULL'
+                    ? 'Customers will pay full price at checkout.'
+                    : 'Customers will pay 50% deposit at checkout and remaining later.'}
+                </p>
+              </div>
 
-                <label className="inline-flex items-center gap-2 cursor-pointer text-sm font-semibold text-gray-800 hover:text-gray-900 transition-colors">
-                  <input
-                    type="radio"
-                    name="preorderDiscountType"
-                    value="percentage"
-                    checked={discountType === 'percentage'}
-                    onChange={() => {
-                      setDiscountType('percentage');
-                      if (discountValue === '0' || !discountValue) setDiscountValue('10');
-                    }}
-                    style={{ accentColor: primaryColor }}
-                    className="h-4 w-4 cursor-pointer"
-                  />
-                  <span style={{ color: discountType === 'percentage' ? primaryColor : undefined, fontWeight: discountType === 'percentage' ? 700 : 600 }}>
-                    Percentage (%)
-                  </span>
+              {/* 2. Discount on total price */}
+              <div className="pt-6 border-t border-gray-100">
+                <label className="block text-sm font-bold text-gray-900 mb-3">
+                  Discount on total price
                 </label>
+                <div className="flex flex-wrap items-center gap-7">
+                  <label className="inline-flex items-center gap-2 cursor-pointer text-sm font-semibold text-gray-800 hover:text-gray-900 transition-colors">
+                    <input
+                      type="radio"
+                      name="preorderDiscountType"
+                      value="none"
+                      checked={discountType === 'none'}
+                      onChange={() => {
+                        setDiscountType('none');
+                        setDiscountValue('0');
+                      }}
+                      style={{ accentColor: primaryColor }}
+                      className="h-4 w-4 cursor-pointer"
+                    />
+                    <span>None</span>
+                  </label>
 
-                <label className="inline-flex items-center gap-2 cursor-pointer text-sm font-semibold text-gray-800 hover:text-gray-900 transition-colors">
+                  <label className="inline-flex items-center gap-2 cursor-pointer text-sm font-semibold text-gray-800 hover:text-gray-900 transition-colors">
+                    <input
+                      type="radio"
+                      name="preorderDiscountType"
+                      value="percentage"
+                      checked={discountType === 'percentage'}
+                      onChange={() => {
+                        setDiscountType('percentage');
+                        if (discountValue === '0' || !discountValue) setDiscountValue('10');
+                      }}
+                      style={{ accentColor: primaryColor }}
+                      className="h-4 w-4 cursor-pointer"
+                    />
+                    <span>Percent</span>
+                  </label>
+
+                  <label className="inline-flex items-center gap-2 cursor-pointer text-sm font-semibold text-gray-800 hover:text-gray-900 transition-colors">
+                    <input
+                      type="radio"
+                      name="preorderDiscountType"
+                      value="fixed"
+                      checked={discountType === 'fixed'}
+                      onChange={() => {
+                        setDiscountType('fixed');
+                        if (discountValue === '0' || !discountValue) setDiscountValue('10');
+                      }}
+                      style={{ accentColor: primaryColor }}
+                      className="h-4 w-4 cursor-pointer"
+                    />
+                    <span>Amount</span>
+                  </label>
+                </div>
+
+                {/* Percentage input */}
+                {discountType === 'percentage' && (
+                  <div className="max-w-xs mt-3 animate-fadeIn">
+                    <label className="block text-xs font-bold text-gray-700 mb-1">
+                      Discount Percentage (%)
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={discountValue}
+                        onChange={(e) => setDiscountValue(e.target.value)}
+                        placeholder="10"
+                        style={{ borderColor: primaryColor }}
+                        className="w-full px-3.5 py-2 text-sm font-semibold text-gray-900 bg-white border rounded-lg shadow-2xs outline-none pr-8 focus:ring-1"
+                      />
+                      <span className="absolute right-3 top-2 text-sm font-bold pointer-events-none" style={{ color: primaryColor }}>%</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Amount input */}
+                {discountType === 'fixed' && (
+                  <div className="max-w-xs mt-3 animate-fadeIn">
+                    <label className="block text-xs font-bold text-gray-700 mb-1">
+                      Discount Amount (₹)
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-sm font-bold pointer-events-none" style={{ color: primaryColor }}>₹</span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={discountValue}
+                        onChange={(e) => setDiscountValue(e.target.value)}
+                        placeholder="10"
+                        style={{ borderColor: primaryColor }}
+                        className="w-full pl-8 pr-3.5 py-2 text-sm font-semibold text-gray-900 bg-white border rounded-lg shadow-2xs outline-none focus:ring-1"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 3. Display Settings */}
+              <div className="pt-6 border-t border-gray-100">
+                <label className="block text-sm font-bold text-gray-900 mb-3">
+                  Display
+                </label>
+                <label className="inline-flex items-center gap-2.5 cursor-pointer text-sm font-semibold text-gray-800 hover:text-gray-900 transition-colors">
                   <input
-                    type="radio"
-                    name="preorderDiscountType"
-                    value="fixed"
-                    checked={discountType === 'fixed'}
-                    onChange={() => {
-                      setDiscountType('fixed');
-                      if (discountValue === '0' || !discountValue) setDiscountValue('10');
-                    }}
+                    type="checkbox"
+                    checked={showSavings}
+                    onChange={(e) => setShowSavings(e.target.checked)}
                     style={{ accentColor: primaryColor }}
-                    className="h-4 w-4 cursor-pointer"
+                    className="h-4 w-4 rounded cursor-pointer"
                   />
-                  <span style={{ color: discountType === 'fixed' ? primaryColor : undefined, fontWeight: discountType === 'fixed' ? 700 : 600 }}>
-                    Fixed Price (₹)
-                  </span>
+                  <span>Show payment &amp; discount savings</span>
                 </label>
               </div>
 
-              {/* Single input box for Percentage */}
-              {discountType === 'percentage' && (
-                <div className="max-w-xs pt-1 animate-fadeIn">
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                    Discount Percentage (%)
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="number"
-                      min={1}
-                      max={100}
-                      value={discountValue}
-                      onChange={(e) => setDiscountValue(e.target.value)}
-                      placeholder="10"
-                      style={{
-                        borderColor: primaryColor,
-                      }}
-                      className="w-full px-3.5 py-2 text-sm font-semibold text-gray-900 bg-white border rounded-lg shadow-2xs outline-none pr-8 focus:ring-1"
-                    />
-                    <span className="absolute right-3 top-2 text-sm font-bold pointer-events-none" style={{ color: primaryColor }}>%</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Single input box for Fixed Price */}
-              {discountType === 'fixed' && (
-                <div className="max-w-xs pt-1 animate-fadeIn">
-                  <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                    Fixed Discount Amount (₹)
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2 text-sm font-bold pointer-events-none" style={{ color: primaryColor }}>₹</span>
-                    <input
-                      type="number"
-                      min={1}
-                      value={discountValue}
-                      onChange={(e) => setDiscountValue(e.target.value)}
-                      placeholder="10"
-                      style={{
-                        borderColor: primaryColor,
-                      }}
-                      className="w-full pl-8 pr-3.5 py-2 text-sm font-semibold text-gray-900 bg-white border rounded-lg shadow-2xs outline-none focus:ring-1"
-                    />
-                  </div>
-                </div>
-              )}
+              {/* Card Footer with Direct Save Button */}
+              <div className="pt-5 border-t border-gray-100 flex items-center justify-between">
+                <span className="text-xs text-gray-500 font-medium">
+                  {paymentType === 'HALF'
+                    ? 'Half payment (50% deposit) active'
+                    : 'Full payment (100%) active'}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving}
+                  style={{ backgroundColor: primaryColor }}
+                  className="px-4 py-2 text-xs font-bold text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
+                >
+                  {saving ? (
+                    <>
+                      <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                      Save Payment &amp; Discount
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </SettingsCard>
 
@@ -578,6 +764,23 @@ export default function PreorderAdminPage() {
             />
           </SettingsCard>
 
+        </div>
+
+        {/* Right Column: Live Storefront Preview (5 cols) */}
+        <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-6">
+          <PreviewCard
+            enabled={enabled}
+            customerMessage={customerMessage}
+            shippingMessage={shippingMessage}
+            fulfillmentMessage={fulfillmentMessage}
+            notifyMeEnabled={true}
+            allowHalfPayment={allowHalfPayment}
+            allowFullPayment={allowFullPayment}
+            defaultPaymentOption={defaultPaymentOption}
+            showSavings={showSavings}
+            calculation={calculation}
+          />
+
           {/* Integration & Theme App Extension Guide */}
           <div className="bg-sky-50 border border-sky-200 rounded-2xl p-5 text-sky-950 space-y-2">
             <div className="flex items-center gap-2">
@@ -593,18 +796,223 @@ export default function PreorderAdminPage() {
             </p>
           </div>
         </div>
+      </div>
 
-        {/* Right Column: Live Storefront Preview (5 cols) */}
-        <div className="lg:col-span-5">
-          <PreviewCard
-            enabled={enabled}
-            customerMessage={customerMessage}
-            shippingMessage={shippingMessage}
-            fulfillmentMessage={fulfillmentMessage}
-            notifyMeEnabled={true}
-            calculation={calculation}
-          />
+      {/* Pre-order Orders Management Section */}
+      <div className="mt-12 pt-8 border-t border-gray-200 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight m-0">Pre-order Orders</h2>
+            <p className="text-xs sm:text-sm text-slate-500 mt-1 m-0">
+              Track initial deposits, outstanding customer balances, and collect remaining payments.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => fetchRecords(recordsPage, recordsSearch, recordsStatus)}
+            disabled={recordsLoading}
+            className="self-start sm:self-auto px-3.5 py-1.5 text-xs font-bold text-slate-700 bg-white border border-gray-300 rounded-lg shadow-2xs hover:bg-gray-50 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+          >
+            <svg
+              className={`w-3.5 h-3.5 ${recordsLoading ? 'animate-spin text-emerald-600' : 'text-slate-500'}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Refresh Orders
+          </button>
         </div>
+
+        <Table
+          title="Pre-order Management"
+          headerColor={primaryColor}
+          columns={[
+            { key: 'orderRef', title: 'Order Ref', type: 'react_node', width: '12%' },
+            { key: 'product', title: 'Product & Variant', type: 'react_node', width: '22%' },
+            { key: 'customer', title: 'Customer', type: 'react_node', width: '18%' },
+            { key: 'totalAmount', title: 'Total', type: 'react_node', width: '10%' },
+            { key: 'depositAmount', title: 'Initial Paid', type: 'react_node', width: '10%' },
+            { key: 'remainingBalance', title: 'Remaining', type: 'react_node', width: '10%' },
+            { key: 'paymentOption', title: 'Payment Plan', type: 'react_node', width: '14%' },
+            { key: 'paymentStatus', title: 'Status', type: 'react_node', width: '12%' },
+            { key: 'actions', title: 'Actions', type: 'react_node', width: '16%' },
+          ]}
+          items={records.map((record) => {
+            const isPartiallyPaid = record.paymentStatus === 'PARTIALLY_PAID' || record.remainingBalance > 0;
+            const isPaid = record.paymentStatus === 'PAID' && record.remainingBalance <= 0;
+            const curr = record.currency || 'INR';
+            const currSym = curr === 'INR' ? '₹' : curr === 'USD' ? '$' : `${curr} `;
+
+            const cleanOrderNumber = record.orderNumber
+              ? (record.orderNumber.startsWith('#') ? record.orderNumber : `#${record.orderNumber}`)
+              : '—';
+
+            return {
+              id: record.id,
+              orderNumber: record.orderNumber || '',
+              rawPaymentStatus: record.paymentStatus || '',
+              orderRef: (
+                <div className="flex flex-col">
+                  <span className="font-bold text-slate-900 text-xs">{cleanOrderNumber}</span>
+                  <span className="text-[10px] text-gray-400">
+                    {record.createdAt ? new Date(record.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                  </span>
+                </div>
+              ),
+              product: (
+                <div className="flex flex-col max-w-[200px]">
+                  <span className="font-semibold text-slate-900 text-xs truncate" title={record.productTitle || 'Pre-order Item'}>
+                    {record.productTitle || 'Pre-order Item'}
+                  </span>
+                  {record.variantTitle && (
+                    <span className="text-[11px] text-gray-500 truncate" title={record.variantTitle}>
+                      {record.variantTitle}
+                    </span>
+                  )}
+                </div>
+              ),
+              customer: (
+                <div className="flex flex-col max-w-[170px]">
+                  <span className="text-xs font-medium text-slate-800 truncate" title={record.customerName || 'Customer'}>
+                    {record.customerName && !record.customerName.includes(':')
+                      ? record.customerName
+                      : (record.customerEmail ? record.customerEmail.split('@')[0] : 'Customer')}
+                  </span>
+                  {record.customerEmail && (
+                    <span className="text-[11px] text-gray-400 truncate" title={record.customerEmail}>
+                      {record.customerEmail}
+                    </span>
+                  )}
+                </div>
+              ),
+              totalAmount: (
+                <span className="text-xs font-bold text-slate-900">
+                  {currSym}{(record.totalAmount || 0).toFixed(2)}
+                </span>
+              ),
+              depositAmount: (
+                <span className="text-xs font-semibold text-emerald-700">
+                  {currSym}{(record.depositAmount || 0).toFixed(2)}
+                </span>
+              ),
+              remainingBalance: (
+                <div>
+                  {record.remainingBalance > 0 ? (
+                    <span className="inline-flex items-center gap-1 text-xs font-extrabold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                      {currSym}{(record.remainingBalance || 0).toFixed(2)}
+                    </span>
+                  ) : (
+                    <span className="text-xs font-medium text-emerald-700">
+                      {currSym}0.00
+                    </span>
+                  )}
+                </div>
+              ),
+              paymentOption: (
+                <span
+                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                    record.paymentOption === 'HALF'
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  }`}
+                >
+                  {record.paymentOption === 'HALF' ? 'Half (50%)' : 'Full (100%)'}
+                </span>
+              ),
+              paymentStatus: (
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                    isPaid
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : isPartiallyPaid
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-gray-100 text-gray-800'
+                  }`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      isPaid ? 'bg-emerald-600' : isPartiallyPaid ? 'bg-amber-600' : 'bg-gray-500'
+                    }`}
+                  />
+                  {isPaid ? 'Fully Paid' : isPartiallyPaid ? 'Partially Paid' : record.paymentStatus || 'Pending'}
+                </span>
+              ),
+              actions: (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {isPartiallyPaid && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleGetPaymentLink(record.id)}
+                        disabled={actionLoadingId === record.id}
+                        className="px-2 py-1 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-colors cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                        title="Generate / copy Shopify invoice link for the remaining balance"
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                        {actionLoadingId === record.id ? 'Loading...' : 'Payment Link'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleConfirmPayment(record.id, record.orderNumber)}
+                        disabled={actionLoadingId === record.id}
+                        className="px-2 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md transition-colors cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                        title="Mark remaining balance as confirmed & paid"
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Mark Paid
+                      </button>
+                    </>
+                  )}
+                  {isPaid && (
+                    <span className="text-[11px] font-medium text-emerald-600 flex items-center gap-1">
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      Completed
+                    </span>
+                  )}
+                </div>
+              ),
+            };
+          })}
+          loading={recordsLoading}
+          searchable={true}
+          searchKey="orderNumber"
+          filterable={true}
+          filterKey="paymentStatus"
+          filterOptions={[
+            { label: 'All Statuses', value: 'ALL' },
+            { label: 'Partially Paid', value: 'PARTIALLY_PAID' },
+            { label: 'Fully Paid', value: 'PAID' },
+            { label: 'Pending', value: 'PENDING' },
+          ]}
+          serverSide={true}
+          searchValue={recordsSearch}
+          onSearchChange={(val) => {
+            setRecordsSearch(val);
+          }}
+          filterValue={recordsStatus}
+          onFilterChange={(val) => {
+            setRecordsStatus(val);
+            setRecordsPage(1);
+            fetchRecords(1, recordsSearch, val);
+          }}
+          totalItems={recordsTotal}
+          page={recordsPage}
+          totalPages={recordsTotalPages}
+          onPageChange={(p) => {
+            setRecordsPage(p);
+            fetchRecords(p, recordsSearch, recordsStatus);
+          }}
+          itemsPerPage={10}
+          paginate={true}
+        />
       </div>
     </div>
     </StandaloneGuard>

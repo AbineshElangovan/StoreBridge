@@ -38,6 +38,11 @@ export interface TableProps {
   onSearchChange?: (value: string) => void;
   filterValue?: string;
   onFilterChange?: (value: string) => void;
+  secondaryFilterable?: boolean;
+  secondaryFilterValue?: string;
+  secondaryFilterOptions?: { label: string; value: string }[];
+  onSecondaryFilterChange?: (value: string) => void;
+  extraControls?: React.ReactNode;
   itemsPerPage?: number;
   onRowClick?: (item: any) => void;
 }
@@ -148,6 +153,11 @@ export function Table({
   onSearchChange,
   filterValue: controlledFilterValue,
   onFilterChange,
+  secondaryFilterable = false,
+  secondaryFilterValue,
+  secondaryFilterOptions,
+  onSecondaryFilterChange,
+  extraControls,
   itemsPerPage = 10,
   onRowClick,
 }: TableProps) {
@@ -269,7 +279,16 @@ export function Table({
                 />
               </div>
             )}
-            {filterable && filterKey && (
+            {secondaryFilterable && secondaryFilterOptions && (
+              <div className="w-full sm:w-auto sm:min-w-[170px]">
+                <CustomSelect
+                  options={secondaryFilterOptions}
+                  value={secondaryFilterValue || 'ALL'}
+                  onChange={(value) => onSecondaryFilterChange?.(value)}
+                />
+              </div>
+            )}
+            {filterable && (filterKey || serverSide) && (
               <div className="w-full sm:w-auto sm:min-w-[160px]">
                 <CustomSelect
                   options={filterOptions}
@@ -278,7 +297,8 @@ export function Table({
                 />
               </div>
             )}
-            {(query || currentFilterValue !== 'ALL') && (
+            {extraControls}
+            {(query || currentFilterValue !== 'ALL' || (secondaryFilterable && secondaryFilterValue && secondaryFilterValue !== 'ALL')) && (
               <span className="text-xs text-gray-400 self-end sm:self-center shrink-0">
                 {serverSide ? (totalItems ?? items.length) : filteredItems.length} result{((serverSide ? (totalItems ?? items.length) : filteredItems.length) !== 1) ? 's' : ''}
               </span>

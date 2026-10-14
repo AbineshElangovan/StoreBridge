@@ -483,11 +483,147 @@ export class BackInStockService {
   }
 
   /**
+   * Automatically syncs live unfulfilled pre-orders from Shopify GraphQL into PreorderRecord.
+   * Runs transparently and non-blocking in getNotificationHistory.
+   */
+  static async syncLivePreordersFromShopify(storeId: string) {
+    try {
+      const store = await prisma.store.findUnique({
+        where: { id: storeId },
+        select: { shopDomain: true, accessToken: true },
+      });
+      if (!store?.shopDomain || !store.accessToken) return;
+
+      const { getAdminClient } = require('@/lib/shopify/admin');
+      const client = await getAdminClient(store.shopDomain);
+
+      const query = `
+        query getRecentPreorderOrders {
+          orders(first: 25, reverse: true) {
+            edges {
+              node {
+                id
+                name
+                email
+                phone
+                createdAt
+                displayFulfillmentStatus
+                customer {
+                  firstName
+                  lastName
+                  email
+                  phone
+                }
+                lineItems(first: 20) {
+                  edges {
+                    node {
+                      variant {
+                        id
+                        title
+                      }
+                      title
+                      quantity
+                      customAttributes {
+                        key
+                        value
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const response: any = await client.request(query);
+      const orders = response?.data?.orders?.edges || [];
+
+      for (const edge of orders) {
+        const order = edge.node;
+        const lineItems = order.lineItems?.edges || [];
+
+        for (const lineEdge of lineItems) {
+          const item = lineEdge.node;
+          const attrs = item.customAttributes || [];
+          const isPreorder = attrs.some((a: any) => {
+            const k = (a.key || '').toLowerCase();
+            const v = String(a.value || '').toLowerCase();
+            return k === '_preorder' || k.includes('preorder') || v === 'true';
+          }) || item.title?.toLowerCase().includes('pre-order');
+
+          if (!isPreorder || !item.variant?.id) continue;
+
+          const cleanVariantId = String(item.variant.id).replace(/\D/g, '');
+          const customerName = [order.customer?.firstName, order.customer?.lastName].filter(Boolean).join(' ').trim() || null;
+          const customerEmail = order.email || order.customer?.email || null;
+          const customerPhone = order.phone || order.customer?.phone || null;
+
+          let paymentOption = 'FULL';
+          let totalAmount = 0;
+          let depositAmount = 0;
+          let remainingBalance = 0;
+
+          for (const attr of attrs) {
+            const k = (attr.key || '').toLowerCase();
+            const v = String(attr.value || '').trim();
+            if (k === '_paymentoption' && v.toUpperCase().includes('HALF')) paymentOption = 'HALF';
+            if (k === '_totalamount' && !isNaN(parseFloat(v))) totalAmount = parseFloat(v);
+            if (k === '_depositamount' && !isNaN(parseFloat(v))) depositAmount = parseFloat(v);
+            if (k === '_remainingamount' && !isNaN(parseFloat(v))) remainingBalance = parseFloat(v);
+          }
+
+          await (prisma as any).preorderRecord.upsert({
+            where: {
+              storeId_shopifyOrderId_shopifyVariantId: {
+                storeId,
+                shopifyOrderId: order.id,
+                shopifyVariantId: cleanVariantId,
+              },
+            },
+            create: {
+              storeId,
+              shopifyOrderId: order.id,
+              orderNumber: order.name || order.id,
+              shopifyVariantId: cleanVariantId,
+              customerName: customerName ? safeEncrypt(customerName) : null,
+              customerEmail: customerEmail ? safeEncrypt(customerEmail) : null,
+              customerPhone: customerPhone ? safeEncrypt(customerPhone) : null,
+              quantity: item.quantity || 1,
+              whatsappOptIn: false,
+              status: order.displayFulfillmentStatus || 'UNFULFILLED',
+              productTitle: item.title,
+              variantTitle: item.variant?.title || null,
+              paymentOption,
+              totalAmount,
+              depositAmount,
+              remainingBalance,
+              paymentStatus: paymentOption === 'HALF' ? 'PARTIALLY_PAID' : 'PAID',
+              currency: 'INR',
+            },
+            update: {
+              orderNumber: order.name || order.id,
+              status: order.displayFulfillmentStatus || 'UNFULFILLED',
+            },
+          });
+        }
+      }
+    } catch (_) {
+      // Non-blocking: fails gracefully if token is awaiting re-auth
+    }
+  }
+
+  /**
    * Paginated notification history for StoreBridge Admin /back-in-stock
    * Default: 10 records per page server-side.
    */
   static async getNotificationHistory(storeId: string, filters: NotificationHistoryFilters = {}) {
     if (!storeId) throw new Error('storeId is required');
+
+    // Attempt automatic background sync of live Shopify pre-orders
+    try {
+      await this.syncLivePreordersFromShopify(storeId);
+    } catch (_) {}
 
     const page = Math.max(1, filters.page || 1);
     const pageSize = Math.max(1, Math.min(100, filters.pageSize || 10));

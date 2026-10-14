@@ -6,12 +6,8 @@ import { useStoreContext } from '@/components/providers/StoreProvider';
 export function StoreRoleBadge() {
   const { currentStore, isMaster, isStandalone, loading } = useStoreContext();
 
-  if (loading) {
-    return (
-      <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-extrabold bg-gray-200 text-gray-700 uppercase tracking-wider shadow-2xs">
-        Loading...
-      </span>
-    );
+  if (loading || isStandalone) {
+    return null;
   }
 
   const storeName = currentStore?.label || currentStore?.shopDomain || 'Store';
@@ -23,22 +19,6 @@ export function StoreRoleBadge() {
           <path d="M12 2L22 7L12 12L2 7L12 2ZM12 14.5L20 10.5L22 11.5L12 16.5L2 11.5L4 10.5L12 14.5ZM12 19L20 15L22 16L12 21L2 16L4 15L12 19Z"/>
         </svg>
         <span>MASTER</span>
-        <span className="opacity-80 font-semibold text-[11px]">• {storeName}</span>
-      </span>
-    );
-  }
-
-  if (isStandalone) {
-    return (
-      <span
-        className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-extrabold uppercase tracking-wider shadow-2xs transition-all"
-        style={{
-          backgroundColor: 'var(--theme-surface-2, #1e293b)',
-          color: 'var(--theme-text-muted, #cbd5e1)',
-          border: '1px solid var(--theme-border, #334155)',
-        }}
-      >
-        <span>STANDALONE</span>
         <span className="opacity-80 font-semibold text-[11px]">• {storeName}</span>
       </span>
     );

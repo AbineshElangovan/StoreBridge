@@ -10,6 +10,10 @@ export interface PreorderPreviewProps {
   shippingMessage: string;
   fulfillmentMessage: string;
   notifyMeEnabled?: boolean;
+  allowHalfPayment?: boolean;
+  allowFullPayment?: boolean;
+  defaultPaymentOption?: 'HALF' | 'FULL';
+  showSavings?: boolean;
   calculation?: {
     originalPrice: number;
     discountType: 'none' | 'percentage' | 'fixed';
@@ -30,6 +34,10 @@ export function PreviewCard({
   shippingMessage,
   fulfillmentMessage,
   notifyMeEnabled = true,
+  allowHalfPayment = true,
+  allowFullPayment = true,
+  defaultPaymentOption = 'HALF',
+  showSavings = true,
   calculation,
 }: PreorderPreviewProps) {
   const { currentTheme } = useTheme();
@@ -40,8 +48,13 @@ export function PreviewCard({
   const [selectedVariant, setSelectedVariant] = useState<'L' | 'M' | 'S'>('L');
   const [selectorType, setSelectorType] = useState<'dropdown' | 'buttons'>('dropdown');
 
+  const isHalfPayment = Boolean(allowHalfPayment);
+  const basePrice = calculation && typeof calculation.finalPrice === 'number' ? calculation.finalPrice : 1240;
+  const originalPrice = calculation && typeof calculation.originalPrice === 'number' && calculation.originalPrice > 0 ? calculation.originalPrice : 1240;
+  const payableAmount = isHalfPayment ? basePrice / 2 : basePrice;
+
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden sticky top-6">
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
       {/* Browser mockup header */}
       <div className="bg-gray-100 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
@@ -196,11 +209,39 @@ export function PreviewCard({
         {/* Price */}
         <div className="pt-1 border-t border-gray-100">
           <div className="flex items-baseline gap-2 flex-wrap">
-            {calculation && calculation.discountType !== 'none' && calculation.discountAmount > 0 && selectedVariant === 'L' ? (
+            {isHalfPayment && selectedVariant === 'L' ? (
+              <>
+                <span className="text-2xl font-black text-gray-900">
+                  Rs. {payableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                <span className="text-sm font-semibold text-gray-400 line-through">
+                  Rs. {originalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                {showSavings && (
+                  <span
+                    className="text-[11px] font-black px-2 py-0.5 rounded-full transition-colors"
+                    style={{
+                      backgroundColor: accentColor,
+                      color: primaryColor,
+                      border: `1px solid ${primaryColor}40`,
+                    }}
+                  >
+                    50% DEPOSIT
+                  </span>
+                )}
+                {showSavings && calculation && calculation.discountType !== 'none' && calculation.discountAmount > 0 && calculation.offerBadge && (
+                  <span
+                    className="text-[11px] font-black px-2 py-0.5 rounded-full transition-colors bg-amber-100 text-amber-900 border border-amber-300"
+                  >
+                    {calculation.offerBadge}
+                  </span>
+                )}
+              </>
+            ) : calculation && calculation.discountType !== 'none' && calculation.discountAmount > 0 && selectedVariant === 'L' ? (
               <>
                 <span className="text-2xl font-black text-gray-900">{calculation.formattedFinalPrice}</span>
                 <span className="text-sm font-semibold text-gray-400 line-through">{calculation.formattedOriginalPrice}</span>
-                {calculation.offerBadge && (
+                {showSavings && calculation.offerBadge && (
                   <span
                     className="text-[11px] font-black px-2 py-0.5 rounded-full transition-colors"
                     style={{
@@ -214,17 +255,26 @@ export function PreviewCard({
                 )}
               </>
             ) : (
-              <span className="text-2xl font-black text-gray-900">Rs. 1,240.00</span>
+              <span className="text-2xl font-black text-gray-900">
+                Rs. {payableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
             )}
           </div>
-          {calculation && calculation.discountType !== 'none' && calculation.discountAmount > 0 && selectedVariant === 'L' && calculation.savingsText && (
+          {showSavings && isHalfPayment && selectedVariant === 'L' ? (
+            <p
+              className="text-xs font-bold tracking-tight mt-1 transition-colors"
+              style={{ color: primaryColor }}
+            >
+              Pay Rs. {payableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} today (50% deposit) • Rs. {payableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} balance due upon restock
+            </p>
+          ) : showSavings && calculation && calculation.discountType !== 'none' && calculation.discountAmount > 0 && selectedVariant === 'L' && calculation.savingsText ? (
             <p
               className="text-xs font-black tracking-tight mt-1 transition-colors"
               style={{ color: primaryColor }}
             >
               {calculation.savingsText}
             </p>
-          )}
+          ) : null}
         </div>
 
         {/* Purchase option */}
@@ -291,7 +341,11 @@ export function PreviewCard({
                 style={{ backgroundColor: darkColor || primaryColor }}
                 className="w-full py-3.5 px-4 rounded-xl text-white font-bold text-sm shadow-md transition-all hover:brightness-110 active:scale-[0.99] flex items-center justify-center gap-2"
               >
-                <span>Pre Order</span>
+                <span>
+                  {isHalfPayment
+                    ? `Pre Order (Pay ₹${payableAmount.toFixed(2)} Deposit)`
+                    : `Pre Order (Pay ₹${payableAmount.toFixed(2)})`}
+                </span>
               </button>
 
               {/* Fulfillment Message */}

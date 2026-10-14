@@ -59,7 +59,10 @@
         "We will fulfill the item as soon as it becomes available",
       maxQuantity: null,
       discountType: 'none',
-      discountValue: 0
+      discountValue: 0,
+      allowHalfPayment: true,
+      allowFullPayment: true,
+      defaultPaymentOption: 'HALF'
     },
 
     notifyMe: {
@@ -126,6 +129,24 @@
     const match = String(rawStr).replace(/^[^\d]+/, '').replace(/,/g, '').match(/\d+(\.\d+)?/);
     return match ? parseFloat(match[0]) : 0;
   }
+
+  function getCurrencyPrefix() {
+    if (window.Shopify && window.Shopify.currency && window.Shopify.currency.active) {
+      if (window.Shopify.currency.active === 'USD') return '$';
+      if (window.Shopify.currency.active === 'INR') return 'Rs. ';
+    }
+    return 'Rs. ';
+  }
+
+  function formatMoney(amount) {
+    const num = Number(amount || 0);
+    const formatted = num.toLocaleString('en-IN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+    return `${getCurrencyPrefix()}${formatted}`;
+  }
+
 
   // ============================================================
   // ROOT ELEMENT
@@ -703,6 +724,14 @@
           : `Save Rs. ${discountAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
       }
 
+      const paymentPlan = window.__STOREBRIDGE_SELECTED_PLAN__ || (config.preorder.allowHalfPayment !== false ? 'HALF' : 'FULL');
+      const isHalf = paymentPlan === 'HALF';
+      const baseProductPrice = (hasOffer && numPrice > 0)
+        ? Math.max(0, numPrice - (config.preorder.discountType === 'percentage' ? (numPrice * Number(config.preorder.discountValue)) / 100 : Number(config.preorder.discountValue)))
+        : numPrice;
+      const initialDue = isHalf ? Math.round((baseProductPrice / 2) * 100) / 100 : baseProductPrice;
+      const remainingDue = isHalf ? Math.round((baseProductPrice - initialDue) * 100) / 100 : 0;
+
       const response = await fetch(addUrl, {
         method: 'POST',
 
@@ -720,6 +749,14 @@
               properties: {
                 _preorder: 'true',
                 'Pre-order': 'Pre-order Item',
+                'Payment Option': isHalf ? 'Half Payment (50% Deposit)' : 'Full Payment (100%)',
+                _paymentOption: isHalf ? 'HALF' : 'FULL',
+                'Total Product Price': `Rs. ${baseProductPrice.toFixed(2)}`,
+                _totalAmount: baseProductPrice.toFixed(2),
+                'Initial Amount Paid': `Rs. ${initialDue.toFixed(2)}`,
+                _depositAmount: initialDue.toFixed(2),
+                'Remaining Balance Due': `Rs. ${remainingDue.toFixed(2)}`,
+                _remainingAmount: remainingDue.toFixed(2),
                 'Pre-order Note':
                   config.preorder.fulfillmentMessage ||
                   'This is a pre-order item fulfilled when stock arrives.',
@@ -753,7 +790,22 @@
       }
 
       button.innerHTML =
-        '✓ Added! Redirecting...';
+        'Added! Redirecting...';
+
+      try {
+        const pendingItem = {
+          variantId: String(variantId),
+          quantity: finalQuantity,
+          productTitle: selVariant?.product?.title || document.querySelector('.product__title, h1')?.textContent?.trim() || 'Pre-order Item',
+          variantTitle: selVariant?.title || null,
+          paymentOption: isHalf ? 'HALF' : 'FULL',
+          totalAmount: Math.round(baseProductPrice * finalQuantity * 100) / 100,
+          depositAmount: Math.round(initialDue * finalQuantity * 100) / 100,
+          remainingBalance: Math.round(remainingDue * finalQuantity * 100) / 100,
+          timestamp: Date.now()
+        };
+        localStorage.setItem('storebridge_pending_preorder', JSON.stringify(pendingItem));
+      } catch (e) {}
 
       window.location.href = cartUrl;
     } catch (error) {
@@ -798,6 +850,54 @@
     container.className =
       'storebridge-wrapper';
 
+    // Calculate product price from variant or DOM
+    const rawPrice = variant?.price;
+    let numPrice = 0;
+    if (typeof rawPrice === 'number') {
+      numPrice = rawPrice / 100;
+    } else if (typeof rawPrice === 'string' && rawPrice.trim()) {
+      numPrice = parseCurrencyAmount(rawPrice);
+    }
+    if (numPrice <= 0) {
+      const domPriceText =
+        document.querySelector('.price__regular .price-item--regular, .price-item--regular, .price, .product__price')?.textContent || '';
+      numPrice = parseCurrencyAmount(domPriceText);
+      if (numPrice <= 0) numPrice = 500;
+    }
+
+    const hasOffer =
+      config.preorder &&
+      config.preorder.discountType &&
+      config.preorder.discountType !== 'none' &&
+      Number(config.preorder.discountValue) > 0;
+
+    let finalPrice = numPrice;
+    if (hasOffer) {
+      const discountAmt = config.preorder.discountType === 'percentage'
+        ? (numPrice * Number(config.preorder.discountValue)) / 100
+        : Number(config.preorder.discountValue);
+      finalPrice = Math.max(0, numPrice - discountAmt);
+    }
+
+    const allowHalf = (config && config.preorder) ? config.preorder.allowHalfPayment !== false : true;
+    const allowFull = (config && config.preorder) ? config.preorder.allowFullPayment !== false : true;
+    let defaultPlan = (config && config.preorder && config.preorder.defaultPaymentOption) || 'HALF';
+    if (!allowHalf && allowFull) defaultPlan = 'FULL';
+    if (allowHalf && !allowFull) defaultPlan = 'HALF';
+
+    let currentPlan = window.__STOREBRIDGE_SELECTED_PLAN__ || defaultPlan;
+    if (currentPlan === 'HALF' && !allowHalf) currentPlan = 'FULL';
+    if (currentPlan === 'FULL' && !allowFull) currentPlan = 'HALF';
+    window.__STOREBRIDGE_SELECTED_PLAN__ = currentPlan;
+
+    const halfInitial = Math.round((finalPrice / 2) * 100) / 100;
+    const halfRemaining = Math.round((finalPrice - halfInitial) * 100) / 100;
+    const fullInitial = finalPrice;
+    const fullRemaining = 0;
+
+    const dueNow = currentPlan === 'HALF' ? halfInitial : fullInitial;
+    const dueLater = currentPlan === 'HALF' ? halfRemaining : fullRemaining;
+
     container.innerHTML = `
       <div class="storebridge-info-card">
 
@@ -832,9 +932,7 @@
         </div>
 
         ${
-          config.preorder.discountType &&
-          config.preorder.discountType !== 'none' &&
-          Number(config.preorder.discountValue) > 0
+          hasOffer
             ? `
               <div style="margin-top: 8px; padding: 6px 10px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; font-size: 11px; font-weight: 700; color: #065f46; display: flex; align-items: center; justify-content: space-between;">
                 <span>Special Pre-order Offer:</span>
@@ -851,6 +949,81 @@
         }
 
       </div>
+
+      <!-- Payment Options & Deposit Breakdown Block -->
+      ${(allowHalf && !allowFull) ? `
+        <div class="storebridge-breakdown-card" style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 12px; padding: 12px 14px; font-size: 12px; display: flex; flex-direction: column; gap: 6px; margin: 12px 0;">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #bbf7d0; padding-bottom: 6px;">
+            <span style="font-weight: 800; color: #166534; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #22c55e;"></span>
+              Pre-order Payment Plan
+            </span>
+            <span style="background: #22c55e; color: #ffffff; padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: 800; text-transform: uppercase;">50% Deposit</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; color: #475569; font-size: 12px; margin-top: 2px;">
+            <span>Total Product Price:</span>
+            <span style="font-weight: 700; color: #0f172a;">${formatMoney(finalPrice)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; color: #15803d; font-weight: 800; font-size: 13px;">
+            <span>Due Today (50% Deposit):</span>
+            <span>${formatMoney(halfInitial)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; color: #b45309; font-weight: 600; font-size: 11px;">
+            <span>Remaining Balance:</span>
+            <span>${formatMoney(halfRemaining)} (Due upon restock)</span>
+          </div>
+        </div>
+      ` : (allowHalf && allowFull) ? `
+        <div class="storebridge-payment-options-box" style="margin: 12px 0; display: flex; flex-direction: column; gap: 8px;">
+          <div style="font-size: 11px; font-weight: 800; color: #374151; text-transform: uppercase; letter-spacing: 0.04em;">
+            Payment Options
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <label class="storebridge-pay-plan-card" style="display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1.5px solid ${currentPlan === 'HALF' ? '#047857' : '#e5e7eb'}; background: ${currentPlan === 'HALF' ? '#f0fdf4' : '#ffffff'}; border-radius: 10px; cursor: pointer; transition: all 0.15s;">
+              <input type="radio" name="storebridge_pay_plan" value="HALF" ${currentPlan === 'HALF' ? 'checked' : ''} style="margin-top: 3px; accent-color: #047857;" />
+              <div style="flex: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                  <span style="font-size: 13px; font-weight: 700; color: #111827;">Half Payment (50% Deposit)</span>
+                  <span style="font-size: 13px; font-weight: 800; color: #047857;">Pay ${formatMoney(halfInitial)}</span>
+                </div>
+                <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">
+                  ${formatMoney(halfRemaining)} balance due when item is ready to ship
+                </div>
+              </div>
+            </label>
+
+            <label class="storebridge-pay-plan-card" style="display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1.5px solid ${currentPlan === 'FULL' ? '#047857' : '#e5e7eb'}; background: ${currentPlan === 'FULL' ? '#f0fdf4' : '#ffffff'}; border-radius: 10px; cursor: pointer; transition: all 0.15s;">
+              <input type="radio" name="storebridge_pay_plan" value="FULL" ${currentPlan === 'FULL' ? 'checked' : ''} style="margin-top: 3px; accent-color: #047857;" />
+              <div style="flex: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                  <span style="font-size: 13px; font-weight: 700; color: #111827;">Full Payment (100%)</span>
+                  <span style="font-size: 13px; font-weight: 800; color: #111827;">Pay ${formatMoney(fullInitial)}</span>
+                </div>
+                <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">
+                  Pay in full today • Zero remaining balance
+                </div>
+              </div>
+            </label>
+          </div>
+
+          <!-- Price & Payment Breakdown -->
+          <div class="storebridge-breakdown-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; margin-top: 2px;">
+            <div style="display: flex; justify-content: space-between; color: #475569;">
+              <span>Total Product Price:</span>
+              <span id="storebridge-total-display" style="font-weight: 700; color: #0f172a;">${formatMoney(finalPrice)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; color: #047857; font-weight: 700;">
+              <span id="storebridge-due-label">Due Today (${currentPlan === 'HALF' ? '50% Initial Payment' : 'Full Payment'}):</span>
+              <span id="storebridge-due-display">${formatMoney(dueNow)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; color: ${currentPlan === 'HALF' ? '#d97706' : '#94a3b8'}; font-weight: 600;">
+              <span>Remaining Balance:</span>
+              <span id="storebridge-remaining-display">${formatMoney(dueLater)} ${currentPlan === 'HALF' ? '(Due upon restock)' : ''}</span>
+            </div>
+          </div>
+        </div>
+      ` : ''}
 
       <p class="storebridge-supporting-msg">
         Don't miss out - Grab yours now before we sell out again!
@@ -902,10 +1075,19 @@
       container
     );
 
-    const preorderButton =
-      container.querySelector(
-        '[data-storebridge-action="preorder"]'
-      );
+    // Attach dynamic listeners for payment option toggling
+    const planInputs = container.querySelectorAll('input[name="storebridge_pay_plan"]');
+    const preorderButton = container.querySelector('[data-storebridge-action="preorder"]');
+
+    planInputs.forEach((input) => {
+      input.addEventListener('change', (e) => {
+        const val = e.target.value;
+        window.__STOREBRIDGE_SELECTED_PLAN__ = val;
+
+        // Re-render UI to update cards, breakdown, and button label cleanly
+        renderPreorderUI(form, nativeButton, variant);
+      });
+    });
 
     preorderButton?.addEventListener(
       'click',
@@ -2856,22 +3038,6 @@
     );
   }
 
-  function getCurrencyPrefix() {
-    if (window.Shopify && window.Shopify.currency && window.Shopify.currency.active) {
-      if (window.Shopify.currency.active === 'USD') return '$';
-      if (window.Shopify.currency.active === 'INR') return 'Rs. ';
-    }
-    return 'Rs. ';
-  }
-
-  function formatMoney(amount) {
-    const num = Number(amount || 0);
-    const formatted = num.toLocaleString('en-IN', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
-    return `${getCurrencyPrefix()}${formatted}`;
-  }
 
   function parseOffer(value) {
     if (!value) return { type: 'none', value: 0 };
@@ -2959,43 +3125,153 @@
   let enhanceTimeout = null;
   let cachedRemoteCartConfig = null;
   let lastCartUpdateTimestamp = 0;
+  const pendingQtyDebounceTimers = new Map();
 
-  async function updateItemQuantity(itemKey, newQuantity, lineIndex) {
-    if (isCartUpdating) return;
-    isCartUpdating = true;
-    lastCartUpdateTimestamp = Date.now();
+  function updateCartTotalsInPlace(root) {
+    if (!root) root = document.getElementById('storebridge-cart-page');
+    if (!root) return;
 
-    const safetyTimer = setTimeout(() => {
-      isCartUpdating = false;
-    }, 3500);
-
-    // Visual feedback: find card by data-key or data-line
-    const cards = Array.from(document.querySelectorAll('.storebridge-cart-item-card'));
-    const card = cards.find((c) =>
-      (itemKey && c.getAttribute('data-key') === String(itemKey)) ||
-      (lineIndex && c.getAttribute('data-line') === String(lineIndex))
-    );
-    if (card) {
-      card.classList.add('storebridge-item-loading');
+    const cards = Array.from(root.querySelectorAll('.storebridge-cart-item-card'));
+    if (cards.length === 0) {
+      root.innerHTML = `
+        <div class="storebridge-cart-header">
+          <h1 class="storebridge-cart-title">Cart</h1>
+        </div>
+        <div class="storebridge-cart-empty">
+          <h2>Your cart is empty</h2>
+          <p style="color: #64748b; font-size: 15px; margin: 0 0 24px 0;">Your pre-order cart is currently empty.</p>
+          <a href="/collections/all" class="storebridge-continue-shopping-btn">Continue shopping</a>
+        </div>
+      `;
+      return;
     }
 
-    const targetQty = Math.max(0, parseInt(newQuantity, 10));
+    let totalOriginalSum = 0;
+    let totalDiscountSum = 0;
+    let totalFinalSum = 0;
+    let totalDueNowSum = 0;
+    let totalDueLaterSum = 0;
+    let totalItemCount = 0;
+    let preorderItemCount = 0;
+    let hasHalfPayment = false;
 
-    // Optimistic UI updates
-    if (card) {
-      if (targetQty === 0) {
-        card.style.opacity = '0.35';
-      } else {
-        const qtySpan = card.querySelector('.storebridge-qty-value');
-        if (qtySpan) qtySpan.textContent = String(targetQty);
-        card.querySelectorAll('.storebridge-qty-btn').forEach((b) => b.setAttribute('data-qty', String(targetQty)));
+    cards.forEach((card) => {
+      const qtySpan = card.querySelector('.storebridge-qty-value');
+      const qty = Math.max(0, parseInt(qtySpan?.textContent || '1', 10));
+      const unitPrice = parseFloat(card.getAttribute('data-unit-price') || '0');
+      const unitDiscount = parseFloat(card.getAttribute('data-unit-discount') || '0');
+      const unitFinal = parseFloat(card.getAttribute('data-unit-final') || String(unitPrice - unitDiscount));
+      const isPreorder = card.getAttribute('data-is-preorder') === '1';
+      const isHalf = card.getAttribute('data-is-half') === '1';
+
+      const unitDueNow = isHalf ? Math.round((unitFinal / 2) * 100) / 100 : unitFinal;
+      const unitDueLater = isHalf ? Math.round((unitFinal - unitDueNow) * 100) / 100 : 0;
+
+      if (isPreorder) preorderItemCount += qty;
+      if (isHalf) hasHalfPayment = true;
+      totalItemCount += qty;
+
+      const lineOriginal = unitPrice * qty;
+      const lineDiscount = unitDiscount * qty;
+      const lineFinal = unitFinal * qty;
+      const lineDueNow = unitDueNow * qty;
+      const lineDueLater = unitDueLater * qty;
+
+      totalOriginalSum += lineOriginal;
+      totalDiscountSum += lineDiscount;
+      totalFinalSum += lineFinal;
+      totalDueNowSum += lineDueNow;
+      totalDueLaterSum += lineDueLater;
+
+      // Update line prices in card
+      const finalPriceEl = card.querySelector('.storebridge-line-final-price');
+      if (finalPriceEl) finalPriceEl.textContent = formatMoney(isHalf ? lineDueNow : lineFinal);
+
+      const origPriceEl = card.querySelector('.storebridge-line-original-price');
+      if (origPriceEl) {
+        if (isHalf) {
+          origPriceEl.textContent = `Total: ${formatMoney(lineFinal)}`;
+          origPriceEl.style.display = '';
+        } else if (unitDiscount > 0) {
+          origPriceEl.textContent = formatMoney(lineOriginal);
+          origPriceEl.style.display = '';
+        } else {
+          origPriceEl.style.display = 'none';
+        }
+      }
+
+      // Update button data-qty
+      card.querySelectorAll('.storebridge-qty-btn').forEach((btn) => {
+        btn.setAttribute('data-qty', String(qty));
+      });
+    });
+
+    // Update Header Badge
+    const countBadge = root.querySelector('.storebridge-cart-count-badge');
+    if (countBadge) countBadge.textContent = String(totalItemCount);
+
+    // Update Summary Original Price row
+    const origLabel = root.querySelector('.storebridge-summary-row-label');
+    if (origLabel && origLabel.textContent.includes('Original Price')) {
+      origLabel.textContent = `Original Price (${totalItemCount} item${totalItemCount > 1 ? 's' : ''})`;
+    }
+    const origValue = root.querySelector('.storebridge-summary-orig-val, .storebridge-summary-rows .storebridge-summary-row-value');
+    if (origValue) origValue.textContent = formatMoney(totalOriginalSum);
+
+    // Update Discount Savings row
+    const savingsValue = root.querySelector('.storebridge-summary-row-value.storebridge-savings-red, .storebridge-savings-red');
+    if (savingsValue) {
+      savingsValue.textContent = `- ${formatMoney(totalDiscountSum)}`;
+      const discountRow = savingsValue.closest('.storebridge-summary-row');
+      if (discountRow) {
+        discountRow.style.display = totalDiscountSum > 0 ? '' : 'none';
       }
     }
 
+    // Update Half Payment specific rows if present
+    const totalValEl = root.querySelector('.storebridge-summary-val-total');
+    if (totalValEl) totalValEl.textContent = formatMoney(totalFinalSum);
+
+    const depositValEl = root.querySelector('.storebridge-summary-val-deposit');
+    if (depositValEl) depositValEl.textContent = formatMoney(totalDueNowSum);
+
+    const remainingValEl = root.querySelector('.storebridge-summary-val-remaining');
+    if (remainingValEl) remainingValEl.textContent = formatMoney(totalDueLaterSum);
+
+    // Update Total Box
+    const totalBoxValue = root.querySelector('.storebridge-total-box-value, .storebridge-total-value');
+    if (totalBoxValue) totalBoxValue.textContent = formatMoney(hasHalfPayment ? totalDueNowSum : totalFinalSum);
+
+    const totalBoxLabel = root.querySelector('.storebridge-total-box-label, .storebridge-total-label');
+    if (totalBoxLabel) {
+      if (hasHalfPayment) {
+        totalBoxLabel.textContent = 'Pre-order Total (Due Today)';
+      } else {
+        totalBoxLabel.textContent = (preorderItemCount === totalItemCount) ? 'Pre-order Total' : 'Order Total';
+      }
+    }
+  }
+
+  function queueQuantityUpdate(itemKey, targetQty, lineIndex) {
+    lastCartUpdateTimestamp = Date.now();
+    const mapKey = itemKey ? String(itemKey) : String(lineIndex);
+
+    if (pendingQtyDebounceTimers.has(mapKey)) {
+      clearTimeout(pendingQtyDebounceTimers.get(mapKey));
+    }
+
+    const timer = setTimeout(async () => {
+      pendingQtyDebounceTimers.delete(mapKey);
+      await sendCartQuantityChange(itemKey, targetQty, lineIndex);
+    }, 280);
+
+    pendingQtyDebounceTimers.set(mapKey, timer);
+  }
+
+  async function sendCartQuantityChange(itemKey, targetQty, lineIndex) {
+    lastCartUpdateTimestamp = Date.now();
     try {
       const rootPath = window.Shopify?.routes?.root || '/';
-
-      // Always prioritize 1-based line number if available (Shopify standard for cart line items)
       const primaryPayload = (lineIndex !== null && lineIndex !== undefined && String(lineIndex).trim() !== '') ? {
         line: parseInt(lineIndex, 10),
         quantity: targetQty
@@ -3013,7 +3289,6 @@
         body: JSON.stringify(primaryPayload)
       });
 
-      // If primary payload failed, fallback to alternate parameter
       if (!res.ok) {
         const altPayload = primaryPayload.line ? {
           id: String(itemKey),
@@ -3024,7 +3299,6 @@
         } : null);
 
         if (altPayload) {
-          log('[StoreBridge:CartChange] Retrying with fallback payload:', altPayload);
           res = await fetch(`${rootPath}cart/change.js`, {
             method: 'POST',
             headers: {
@@ -3038,35 +3312,19 @@
 
       if (res.ok) {
         const updatedCart = await res.json();
-
-        // Update server cart element if present
         const serverCartEl = document.getElementById('storebridge-server-cart');
         if (serverCartEl) {
           try {
             serverCartEl.textContent = JSON.stringify(updatedCart);
           } catch (e) {}
         }
-
-        renderStoreBridgeCart(updatedCart);
-
-        document.dispatchEvent(new CustomEvent('cart:updated', { detail: updatedCart }));
-        document.dispatchEvent(new CustomEvent('cart-update', { detail: updatedCart }));
-        window.dispatchEvent(new CustomEvent('cart:refreshed', { detail: updatedCart }));
-      } else {
-        console.warn('[StoreBridge:CartChange] change.js returned error status:', res.status);
-        await enhanceCartPage();
+        if (!updatedCart.items || updatedCart.items.length === 0) {
+          const root = document.getElementById('storebridge-cart-page');
+          if (root) updateCartTotalsInPlace(root);
+        }
       }
     } catch (err) {
       console.error('[StoreBridge:CartChange]', err);
-      await enhanceCartPage();
-    } finally {
-      clearTimeout(safetyTimer);
-      if (card) {
-        card.classList.remove('storebridge-item-loading');
-        card.style.opacity = '';
-        card.style.pointerEvents = '';
-      }
-      isCartUpdating = false;
     }
   }
 
@@ -3223,6 +3481,8 @@
     let totalOriginalSum = 0;
     let totalDiscountSum = 0;
     let totalFinalSum = 0;
+    let totalDueNowSum = 0;
+    let totalDueLaterSum = 0;
     let totalItemCount = 0;
     let preorderItemCount = 0;
     const detectedOffers = [];
@@ -3307,21 +3567,57 @@
       const lineDiscount = unitDiscount * qty;
       const lineFinal = finalUnitPrice * qty;
 
+      // Detect Half Payment Option
+      const itemPaymentOption = (
+        getItemProperty(item, '_paymentOption') ||
+        getItemProperty(item, 'Payment Option') ||
+        ''
+      ).toUpperCase();
+
+      let isHalf = false;
+      if (itemPaymentOption.includes('HALF') || itemPaymentOption.includes('50%')) {
+        isHalf = true;
+      } else if (itemPaymentOption.includes('FULL') || itemPaymentOption.includes('100%')) {
+        isHalf = false;
+      } else {
+        const configAllowHalf = cachedRemoteCartConfig?.preorder?.allowHalfPayment !== false;
+        const configAllowFull = cachedRemoteCartConfig?.preorder?.allowFullPayment !== false;
+        if (configAllowHalf && !configAllowFull) {
+          isHalf = true;
+        } else if (!configAllowHalf && configAllowFull) {
+          isHalf = false;
+        } else if (cachedRemoteCartConfig?.preorder?.defaultPaymentOption === 'HALF') {
+          isHalf = true;
+        }
+      }
+
+      const unitDueNow = isHalf ? Math.round((finalUnitPrice / 2) * 100) / 100 : finalUnitPrice;
+      const unitDueLater = isHalf ? Math.round((finalUnitPrice - unitDueNow) * 100) / 100 : 0;
+      const lineDueNow = unitDueNow * qty;
+      const lineDueLater = unitDueLater * qty;
+
       totalOriginalSum += lineOriginal;
       totalDiscountSum += lineDiscount;
       totalFinalSum += lineFinal;
+      totalDueNowSum += lineDueNow;
+      totalDueLaterSum += lineDueLater;
 
       return {
         item,
         index,
         isPreorder: true,
+        isHalf,
         qty,
         unitPrice,
         unitDiscount,
         finalUnitPrice,
+        unitDueNow,
+        unitDueLater,
         lineOriginal,
         lineDiscount,
         lineFinal,
+        lineDueNow,
+        lineDueLater,
         offer
       };
     });
@@ -3351,17 +3647,22 @@
       const lineIndex = p.index + 1;
       const itemKey = item.key || String(item.id);
 
+      const isHalf = Boolean(p.isHalf);
       let badgeClass = 'storebridge-badge-none';
-      let badgeText = 'PRE-ORDER';
+      let badgeText = isHalf ? 'PRE-ORDER • 50% DEPOSIT' : 'PRE-ORDER';
       let savingsText = '';
 
       if (p.offer.type === 'percentage' && p.offer.value > 0) {
         badgeClass = 'storebridge-badge-percentage';
-        badgeText = `PRE-ORDER • ${p.offer.value}% OFF`;
+        badgeText = isHalf
+          ? `PRE-ORDER • ${p.offer.value}% OFF • 50% DEPOSIT`
+          : `PRE-ORDER • ${p.offer.value}% OFF`;
         savingsText = `Save ${formatMoney(p.unitDiscount)} (${p.offer.value}%)`;
       } else if (p.offer.type === 'fixed' && p.offer.value > 0) {
         badgeClass = 'storebridge-badge-fixed';
-        badgeText = `PRE-ORDER • ${formatMoney(p.offer.value).replace('.00', '')} OFF`;
+        badgeText = isHalf
+          ? `PRE-ORDER • ${formatMoney(p.offer.value).replace('.00', '')} OFF • 50% DEPOSIT`
+          : `PRE-ORDER • ${formatMoney(p.offer.value).replace('.00', '')} OFF`;
         savingsText = `Save ${formatMoney(p.unitDiscount)}`;
       }
 
@@ -3373,7 +3674,7 @@
       const variantText = item.variant_title && item.variant_title !== 'Default Title' ? item.variant_title : '';
 
       return `
-        <div class="storebridge-cart-item-card" data-key="${escapeHtml(itemKey)}" data-line="${lineIndex}">
+        <div class="storebridge-cart-item-card" data-key="${escapeHtml(itemKey)}" data-line="${lineIndex}" data-unit-price="${p.unitPrice}" data-unit-discount="${p.unitDiscount}" data-unit-final="${p.finalUnitPrice}" data-unit-due-now="${p.unitDueNow}" data-unit-due-later="${p.unitDueLater}" data-is-half="${isHalf ? '1' : '0'}" data-is-preorder="${isPreorder ? '1' : '0'}">
           <div class="storebridge-cart-item-image-wrapper">
             <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(item.product_title || item.title)}" class="storebridge-cart-item-image" loading="lazy" />
           </div>
@@ -3397,8 +3698,9 @@
                 </button>
 
                 <div class="storebridge-cart-item-line-price">
-                  <div class="storebridge-line-final-price">${formatMoney(p.lineFinal)}</div>
-                  ${hasOffer ? `<div class="storebridge-line-original-price">${formatMoney(p.lineOriginal)}</div>` : ''}
+                  <div class="storebridge-line-final-price">${formatMoney(isHalf ? p.lineDueNow : p.lineFinal)}</div>
+                  ${isHalf ? `<div style="font-size: 11px; font-weight: 700; color: #047857;">Deposit Due Today</div>` : ''}
+                  ${(hasOffer || isHalf) ? `<div class="storebridge-line-original-price" style="${isHalf ? 'text-decoration: none; color: #64748b; font-size: 11px;' : ''}">${isHalf ? `Total: ${formatMoney(p.lineFinal)}` : formatMoney(p.lineOriginal)}</div>` : ''}
                 </div>
               </div>
             </div>
@@ -3412,7 +3714,17 @@
 
                 <div class="storebridge-cart-item-prices">
                   ${hasOffer ? `<div class="storebridge-unit-original-price">${formatMoney(p.unitPrice)}</div>` : ''}
-                  <div class="storebridge-unit-final-price">${formatMoney(p.finalUnitPrice)}</div>
+                  ${isHalf ? `
+                    <div class="storebridge-unit-final-price" style="display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;">
+                      <span style="font-size: 16px; font-weight: 800; color: #047857;">${formatMoney(p.unitDueNow)}</span>
+                      <span style="font-size: 11px; font-weight: 700; color: #065f46; background: #ecfdf5; padding: 2px 7px; border-radius: 6px; border: 1px solid #a7f3d0;">50% Deposit Due Today</span>
+                    </div>
+                    <div style="font-size: 12px; color: #475569; font-weight: 600; margin-top: 3px;">
+                      Total: ${formatMoney(p.finalUnitPrice)} • Remaining: <strong style="color: #b45309;">${formatMoney(p.unitDueLater)}</strong> due upon restock
+                    </div>
+                  ` : `
+                    <div class="storebridge-unit-final-price">${formatMoney(p.finalUnitPrice)}</div>
+                  `}
                   ${hasOffer ? `<div class="storebridge-unit-savings">${escapeHtml(savingsText)}</div>` : ''}
                 </div>
 
@@ -3472,24 +3784,47 @@
               <div id="storebridge-discount-message" class="storebridge-discount-message" style="display: none;"></div>
             </div>
 
-            <div class="storebridge-summary-rows">
-              <div class="storebridge-summary-row">
-                <span class="storebridge-summary-row-label">Original Price (${totalItemCount} item${totalItemCount > 1 ? 's' : ''})</span>
-                <span class="storebridge-summary-row-value">${formatMoney(totalOriginalSum)}</span>
-              </div>
+            ${(() => {
+              const hasAnyHalf = processedItems.some(p => p.isPreorder && p.isHalf);
+              return `
+                <div class="storebridge-summary-rows">
+                  <div class="storebridge-summary-row">
+                    <span class="storebridge-summary-row-label">Original Price (${totalItemCount} item${totalItemCount > 1 ? 's' : ''})</span>
+                    <span class="storebridge-summary-row-value storebridge-summary-orig-val">${formatMoney(totalOriginalSum)}</span>
+                  </div>
 
-              ${totalDiscountSum > 0 ? `
-                <div class="storebridge-summary-row">
-                  <span class="storebridge-summary-row-label">${escapeHtml(summaryOfferLabel)}</span>
-                  <span class="storebridge-summary-row-value storebridge-savings-red">- ${formatMoney(totalDiscountSum)}</span>
+                  ${totalDiscountSum > 0 ? `
+                    <div class="storebridge-summary-row">
+                      <span class="storebridge-summary-row-label">${escapeHtml(summaryOfferLabel)}</span>
+                      <span class="storebridge-summary-row-value storebridge-savings-red">- ${formatMoney(totalDiscountSum)}</span>
+                    </div>
+                  ` : ''}
+
+                  ${hasAnyHalf ? `
+                    <div class="storebridge-summary-row" style="border-top: 1px dashed #e2e8f0; padding-top: 8px; margin-top: 4px;">
+                      <span class="storebridge-summary-row-label" style="font-weight: 600; color: #475569;">Total Pre-order Value</span>
+                      <span class="storebridge-summary-row-value storebridge-summary-val-total" style="font-weight: 700; color: #0f172a;">${formatMoney(totalFinalSum)}</span>
+                    </div>
+
+                    <div class="storebridge-summary-row" style="background: #ecfdf5; margin: 4px -6px; padding: 6px 6px; border-radius: 8px; border: 1px solid #a7f3d0;">
+                      <span class="storebridge-summary-row-label" style="font-weight: 800; color: #065f46;">50% Deposit (Due Today)</span>
+                      <span class="storebridge-summary-row-value storebridge-summary-val-deposit" style="font-weight: 900; color: #047857;">${formatMoney(totalDueNowSum)}</span>
+                    </div>
+
+                    <div class="storebridge-summary-row" style="margin: 3px 0 6px 0;">
+                      <span class="storebridge-summary-row-label" style="font-weight: 600; color: #b45309; font-size: 12px;">Remaining Balance</span>
+                      <span class="storebridge-summary-row-value storebridge-summary-val-remaining" style="font-weight: 700; color: #b45309;">${formatMoney(totalDueLaterSum)}</span>
+                    </div>
+                    <p style="font-size: 11px; color: #94a3b8; margin: 0 0 10px 0; line-height: 1.3;">Remaining balance is due upon restock before fulfillment.</p>
+                  ` : ''}
                 </div>
-              ` : ''}
-            </div>
 
-            <div class="storebridge-total-highlight-box storebridge-summary-total-box" style="background: #fff4e5 !important; border: 1.5px solid #fed7aa !important; border-radius: 12px !important; padding: 16px 20px !important; display: flex !important; justify-content: space-between !important; align-items: center !important; margin-bottom: 14px !important; box-sizing: border-box !important;">
-              <span class="storebridge-total-label storebridge-total-box-label" style="font-size: 16px !important; font-weight: 800 !important; color: #0f172a !important;">${escapeHtml(totalHeading)}</span>
-              <span class="storebridge-total-value storebridge-total-box-value" style="font-size: 22px !important; font-weight: 900 !important; color: #0f172a !important; letter-spacing: -0.015em !important;">${formatMoney(totalFinalSum)}</span>
-            </div>
+                <div class="storebridge-total-highlight-box storebridge-summary-total-box" style="background: #fff4e5 !important; border: 1.5px solid #fed7aa !important; border-radius: 12px !important; padding: 16px 20px !important; display: flex !important; justify-content: space-between !important; align-items: center !important; margin-bottom: 14px !important; box-sizing: border-box !important;">
+                  <span class="storebridge-total-label storebridge-total-box-label" style="font-size: 16px !important; font-weight: 800 !important; color: #0f172a !important;">${escapeHtml(hasAnyHalf ? 'Pre-order Total (Due Today)' : totalHeading)}</span>
+                  <span class="storebridge-total-value storebridge-total-box-value" style="font-size: 22px !important; font-weight: 900 !important; color: #0f172a !important; letter-spacing: -0.015em !important;">${formatMoney(hasAnyHalf ? totalDueNowSum : totalFinalSum)}</span>
+                </div>
+              `;
+            })()}
 
             <div class="storebridge-summary-divider"></div>
 
@@ -3519,7 +3854,16 @@
           const card = deleteBtn.closest('.storebridge-cart-item-card');
           const key = deleteBtn.getAttribute('data-key') || card?.getAttribute('data-key');
           const line = deleteBtn.getAttribute('data-line') || card?.getAttribute('data-line');
-          updateItemQuantity(key, 0, line);
+          if (card) {
+            card.style.transition = 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)';
+            card.style.opacity = '0';
+            card.style.transform = 'scale(0.96)';
+            setTimeout(() => {
+              card.remove();
+              updateCartTotalsInPlace(root);
+            }, 200);
+          }
+          queueQuantityUpdate(key, 0, line);
           return;
         }
 
@@ -3532,8 +3876,25 @@
           const key = minusBtn.getAttribute('data-key') || card?.getAttribute('data-key');
           const line = minusBtn.getAttribute('data-line') || card?.getAttribute('data-line');
           const qtySpan = card?.querySelector('.storebridge-qty-value') || minusBtn.parentElement?.querySelector('.storebridge-qty-value');
-          const curQty = parseInt(minusBtn.getAttribute('data-qty') || qtySpan?.textContent || '1', 10);
-          updateItemQuantity(key, Math.max(0, curQty - 1), line);
+          const curQty = parseInt(qtySpan?.textContent || minusBtn.getAttribute('data-qty') || '1', 10);
+          const nextQty = Math.max(0, curQty - 1);
+
+          if (nextQty === 0) {
+            if (card) {
+              card.style.transition = 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)';
+              card.style.opacity = '0';
+              card.style.transform = 'scale(0.96)';
+              setTimeout(() => {
+                card.remove();
+                updateCartTotalsInPlace(root);
+              }, 200);
+            }
+            queueQuantityUpdate(key, 0, line);
+          } else {
+            if (qtySpan) qtySpan.textContent = String(nextQty);
+            updateCartTotalsInPlace(root);
+            queueQuantityUpdate(key, nextQty, line);
+          }
           return;
         }
 
@@ -3546,8 +3907,12 @@
           const key = plusBtn.getAttribute('data-key') || card?.getAttribute('data-key');
           const line = plusBtn.getAttribute('data-line') || card?.getAttribute('data-line');
           const qtySpan = card?.querySelector('.storebridge-qty-value') || plusBtn.parentElement?.querySelector('.storebridge-qty-value');
-          const curQty = parseInt(plusBtn.getAttribute('data-qty') || qtySpan?.textContent || '1', 10);
-          updateItemQuantity(key, curQty + 1, line);
+          const curQty = parseInt(qtySpan?.textContent || plusBtn.getAttribute('data-qty') || '1', 10);
+          const nextQty = curQty + 1;
+
+          if (qtySpan) qtySpan.textContent = String(nextQty);
+          updateCartTotalsInPlace(root);
+          queueQuantityUpdate(key, nextQty, line);
           return;
         }
 
@@ -3586,6 +3951,26 @@
         const checkoutBtn = e.target.closest('#storebridge-checkout-action-btn');
         if (checkoutBtn) {
           e.preventDefault();
+          const cards = Array.from(root.querySelectorAll('.storebridge-cart-item-card'));
+          const hasHalf = cards.some(c => c.getAttribute('data-is-half') === '1');
+
+          if (hasHalf) {
+            const offers = root._currentDetectedOffers || [];
+            let offerPct = 0;
+            if (offers.length > 0 && offers[0].type === 'percentage') {
+              offerPct = Math.round(Number(offers[0].value));
+            } else if (cachedRemoteCartConfig?.preorder?.discountType === 'percentage') {
+              offerPct = Math.round(Number(cachedRemoteCartConfig.preorder.discountValue || 0));
+            }
+
+            const halfCode = offerPct > 0
+              ? `PREORDER-HALF-${offerPct}PCT`
+              : (cachedRemoteCartConfig?.preorder?.depositDiscountCode || 'PREORDER-HALF-DEPOSIT');
+
+            window.location.href = `/discount/${encodeURIComponent(halfCode)}?redirect=/checkout`;
+            return;
+          }
+
           let codeToApply = activeDiscountCode;
           const offers = root._currentDetectedOffers || [];
           if (!codeToApply && offers.length > 0) {
@@ -3622,7 +4007,7 @@
 
   async function enhanceCartPage() {
     if (isEnhancingCart || isCartUpdating || !isCartPage()) return;
-    if (Date.now() - lastCartUpdateTimestamp < 1200) return;
+    if (Date.now() - lastCartUpdateTimestamp < 4000) return;
 
     try {
       isEnhancingCart = true;
@@ -3690,6 +4075,7 @@
 
     const cartObserver = new MutationObserver((mutations) => {
       if (!isCartPage()) return;
+      if (Date.now() - lastCartUpdateTimestamp < 4000) return;
       const isInternalMutation = mutations.every((m) => {
         const t = m.target;
         return (
@@ -3710,15 +4096,11 @@
 
     document.addEventListener('change', (e) => {
       if (isCartPage() && e.target && e.target.closest('form[action*="/cart"], .cart-item, quantity-input')) {
+        if (e.target.closest('#storebridge-cart-page')) return;
+        if (Date.now() - lastCartUpdateTimestamp < 4000) return;
         debouncedEnhanceCart();
-        setTimeout(debouncedEnhanceCart, 250);
-        setTimeout(debouncedEnhanceCart, 600);
       }
     });
-
-    document.addEventListener('cart:updated', debouncedEnhanceCart);
-    document.addEventListener('cart-update', debouncedEnhanceCart);
-    window.addEventListener('cart:refreshed', debouncedEnhanceCart);
   }
 
 
@@ -3789,8 +4171,108 @@
       return;
     }
 
+    // ORDER CONFIRMATION / THANK YOU PAGE: Record completed pre-order
+    if (isOrderConfirmationPage()) {
+      log('Running Order Confirmation / Thank You logic');
+      ensureConfig();
+      recordCompletedPreorder();
+      return;
+    }
+
     // OTHER PAGES
     log('No StoreBridge page-specific functionality required.');
+  }
+
+  function isOrderConfirmationPage() {
+    const p = window.location.pathname.toLowerCase();
+    return (
+      p.includes('thank_you') ||
+      p.includes('/orders/') ||
+      p.includes('order-status') ||
+      Boolean(window.Shopify?.checkout) ||
+      document.querySelector('.os-order-number, [data-order-status]') !== null
+    );
+  }
+
+  async function recordCompletedPreorder() {
+    try {
+      const checkout = window.Shopify?.checkout;
+      let orderId = checkout?.order_id ? String(checkout.order_id) : '';
+      let orderNumber = checkout?.order_name || '';
+      let email = checkout?.email || '';
+      let name = '';
+      if (checkout?.shipping_address) {
+        name = `${checkout.shipping_address.first_name || ''} ${checkout.shipping_address.last_name || ''}`.trim();
+      }
+
+      if (!orderNumber) {
+        const orderEl = document.querySelector('.os-order-number, .order-number, [data-order-number]');
+        if (orderEl) orderNumber = orderEl.textContent.trim();
+      }
+      if (!orderNumber) {
+        const match = document.body.innerText.match(/Order\s+(#\d+)/i);
+        if (match) orderNumber = match[1];
+      }
+
+      if (!email) {
+        const emailEl = document.querySelector('.os-step__description, [data-customer-email]');
+        if (emailEl) email = emailEl.textContent.trim();
+      }
+
+      const pendingStr = localStorage.getItem('storebridge_pending_preorder');
+      if (!pendingStr && (!checkout?.line_items || checkout.line_items.length === 0)) {
+        return;
+      }
+
+      const pending = pendingStr ? JSON.parse(pendingStr) : null;
+      if (!orderNumber && pending?.timestamp && Date.now() - pending.timestamp < 3600000) {
+        orderNumber = `#${Math.floor(Date.now() / 1000)}`;
+      }
+
+      if (!orderNumber) return;
+
+      const recordedKey = `storebridge_recorded_${orderNumber}`;
+      if (sessionStorage.getItem(recordedKey)) return;
+      sessionStorage.setItem(recordedKey, 'true');
+
+      const apiUrl = config.apiUrl || 'https://dz50mdfc-3000.inc1.devtunnels.ms';
+      const shop = config.shop || window.Shopify?.shop || 'eshan-inventory-solutions.myshopify.com';
+
+      const payload = {
+        shop,
+        orderId: orderId || orderNumber,
+        orderNumber,
+        variantId: pending?.variantId || (checkout?.line_items?.[0]?.variant_id ? String(checkout.line_items[0].variant_id) : '49066316955867'),
+        customerName: name || null,
+        customerEmail: email || null,
+        customerPhone: checkout?.phone || null,
+        quantity: pending?.quantity || 1,
+        productTitle: pending?.productTitle || 'Pre-order Item',
+        variantTitle: pending?.variantTitle || null,
+        paymentOption: pending?.paymentOption || 'HALF',
+        totalAmount: pending?.totalAmount || 0,
+        depositAmount: pending?.depositAmount || 0,
+        remainingBalance: pending?.remainingBalance || 0,
+        paymentStatus: pending?.paymentOption === 'HALF' ? 'PARTIALLY_PAID' : 'PAID',
+        currency: 'INR'
+      };
+
+      await fetch(`${apiUrl}/api/storefront/record-preorder`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Shop-Domain': shop,
+          'X-Tunnel-Skip-Anti-Phishing-Page': '1',
+          Accept: 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      localStorage.removeItem('storebridge_pending_preorder');
+      log('Successfully recorded pre-order for order', orderNumber);
+    } catch (e) {
+      console.warn('[StoreBridge:RecordPreorder] Failed:', e);
+    }
   }
 
   start();

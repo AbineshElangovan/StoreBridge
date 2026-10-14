@@ -5,7 +5,6 @@ import { shopifyFetch } from '@/lib/shopify/Client';
 import { Loading } from '@/components/common/Loading';
 import { Toast } from '@/components/common/Toast';
 import { Table, ColumnConfig } from '@/components/common/Table';
-import { StatusBadge } from '@/components/ui/StatusBadge';
 import {
   SettingsCard,
   SettingsToggle,
@@ -295,7 +294,7 @@ export default function NotifyMeAdminPage() {
 
   return (
     <StandaloneGuard featureName="Notify Me">
-      <div className="p-6 max-w-7xl mx-auto space-y-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden space-y-8">
       {toast && (
         <Toast
           content={toast.message}
@@ -305,16 +304,10 @@ export default function NotifyMeAdminPage() {
       )}
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-gray-200">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-gray-200">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-black text-gray-900 tracking-tight">Notify Me</h1>
-            <StatusBadge
-              status={enabled ? 'success' : 'default'}
-              label={enabled ? 'ACTIVE' : 'DISABLED'}
-            />
-          </div>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Notify Me</h1>
+          <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
             Capture interested buyers with an out-of-stock waitlist modal on your storefront product pages.
           </p>
         </div>

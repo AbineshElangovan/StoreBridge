@@ -11,6 +11,10 @@ export interface SendEmailParams {
   customerName?: string | null;
   orderNumber?: string | null;
   subject?: string | null;
+  paymentOption?: string | null;
+  depositAmount?: number | null;
+  remainingBalance?: number | null;
+  totalAmount?: number | null;
 }
 
 export interface NotificationResult {
@@ -797,6 +801,29 @@ export class EmailNotificationService {
                     <strong>Status:</strong> <span style="color:#d97706;font-weight:bold;">Confirmed &bull; Awaiting Restock</span>
                   </td>
                 </tr>
+                ${params.paymentOption === 'HALF' ? `
+                <tr>
+                  <td style="font-size:14px;color:#374151;padding:4px 0;">
+                    <strong>Payment Plan:</strong> <span style="color:#059669;font-weight:bold;">Half Payment (50% Deposit)</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="font-size:14px;color:#374151;padding:4px 0;">
+                    <strong>Deposit Paid:</strong> ₹${Number(params.depositAmount || 0).toFixed(2)}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="font-size:14px;color:#374151;padding:4px 0;">
+                    <strong>Remaining Due:</strong> <span style="color:#b45309;font-weight:bold;">₹${Number(params.remainingBalance || 0).toFixed(2)} (Due upon restock)</span>
+                  </td>
+                </tr>
+                ` : `
+                <tr>
+                  <td style="font-size:14px;color:#374151;padding:4px 0;">
+                    <strong>Payment:</strong> <span style="color:#059669;font-weight:bold;">Full Payment (100% Paid)</span>
+                  </td>
+                </tr>
+                `}
               </table>
 
               ${safeImageUrl ? `

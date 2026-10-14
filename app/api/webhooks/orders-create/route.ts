@@ -70,13 +70,86 @@ export async function POST(req: NextRequest) {
       const itemTitle = item.title || 'Product';
       const variantTitle = item.variant_title || null;
       const quantity = Math.max(1, Number(item.quantity) || 1);
+      const itemPrice = Number(item.price) || 0;
       const price = item.price ? `₹${item.price}` : null;
 
-      console.log(`[Webhook:orders/create] Detected Pre-order item: Order: ${orderNumber} | Variant: ${cleanVariantId} | Customer: ${customerEmail}`);
+      // Extract payment option & amounts from custom line item properties
+      let paymentOption = 'FULL';
+      let propTotal: number | null = null;
+      let propDeposit: number | null = null;
+      let propRemaining: number | null = null;
+
+      for (const p of properties) {
+        const k = (p.name || p.key || '').toLowerCase();
+        const v = String(p.value || '').trim();
+        if (k === '_paymentoption' || k === 'payment option') {
+          if (v.toUpperCase().includes('HALF') || v.includes('50%')) {
+            paymentOption = 'HALF';
+          } else if (v.toUpperCase().includes('FULL') || v.includes('100%')) {
+            paymentOption = 'FULL';
+          }
+        }
+        if (k === '_totalamount' && !isNaN(parseFloat(v))) propTotal = parseFloat(v);
+        if (k === '_depositamount' && !isNaN(parseFloat(v))) propDeposit = parseFloat(v);
+        if (k === '_remainingamount' && !isNaN(parseFloat(v))) propRemaining = parseFloat(v);
+      }
+
+      let totalAmount = 0;
+      let depositAmount = 0;
+      let remainingBalance = 0;
+
+      if (paymentOption === 'HALF') {
+        const unitTotal = propTotal && propTotal > 0 ? propTotal : (itemPrice > 0 ? itemPrice * 2 : 500);
+        totalAmount = Math.round(unitTotal * quantity * 100) / 100;
+        const unitDeposit = propDeposit && propDeposit > 0 ? propDeposit : (unitTotal / 2);
+        depositAmount = Math.round(unitDeposit * quantity * 100) / 100;
+        remainingBalance = Math.max(0, Math.round((totalAmount - depositAmount) * 100) / 100);
+      } else {
+        const unitTotal = propTotal && propTotal > 0 ? propTotal : itemPrice;
+        totalAmount = Math.round(unitTotal * quantity * 100) / 100;
+        depositAmount = totalAmount;
+        remainingBalance = 0;
+      }
+
+      // Determine initial payment status strictly using Shopify source of truth
+      const finStatus = (order.financial_status || '').toLowerCase();
+      let calculatedPaymentStatus = 'PENDING';
+      if (paymentOption === 'HALF') {
+        // Half-payment orders must remain PARTIALLY_PAID until remaining balance is collected
+        calculatedPaymentStatus = finStatus === 'voided' ? 'CANCELLED'
+          : finStatus === 'refunded' ? 'REFUNDED'
+          : 'PARTIALLY_PAID';
+      } else {
+        calculatedPaymentStatus = finStatus === 'paid' ? 'PAID'
+          : finStatus === 'voided' ? 'CANCELLED'
+          : finStatus === 'refunded' ? 'REFUNDED'
+          : 'PENDING';
+      }
+
+      // Check existing record to avoid duplicate or overwriting confirmed payments
+      const existingRecord = await (prisma as any).preorderRecord.findFirst({
+        where: {
+          storeId: store.id,
+          shopifyOrderId: orderId,
+          shopifyVariantId: cleanVariantId,
+        },
+      });
+
+      // Preserve PAID if already confirmed
+      const finalPaymentStatus = existingRecord?.paymentStatus === 'PAID'
+        ? 'PAID'
+        : calculatedPaymentStatus;
+
+      const finalDepositAmount = finalPaymentStatus === 'PAID' ? totalAmount : depositAmount;
+      const finalRemainingBalance = finalPaymentStatus === 'PAID' ? 0 : remainingBalance;
+
+      const paymentLink = order.order_status_url || order.invoice_url || `https://${cleanShop}/account/orders`;
+
+      console.log(`[Webhook:orders/create] Pre-order: ${orderNumber} | Variant: ${cleanVariantId} | Option: ${paymentOption} | Total: ${totalAmount} | Deposit: ${finalDepositAmount} | Due: ${finalRemainingBalance} | Status: ${finalPaymentStatus}`);
 
       // 1. Save PreorderRecord in DB with encrypted sensitive customer details
       try {
-        await prisma.preorderRecord.upsert({
+        await (prisma as any).preorderRecord.upsert({
           where: {
             storeId_shopifyOrderId_shopifyVariantId: {
               storeId: store.id,
@@ -89,19 +162,37 @@ export async function POST(req: NextRequest) {
             shopifyOrderId: orderId,
             orderNumber,
             shopifyVariantId: cleanVariantId,
+            productTitle: itemTitle,
+            variantTitle: variantTitle,
             customerName: safeEncrypt(customerName),
             customerEmail: safeEncrypt(customerEmail),
             customerPhone: safeEncrypt(customerPhone),
             quantity,
             whatsappOptIn: false,
             status: 'UNFULFILLED',
+            paymentOption,
+            totalAmount,
+            depositAmount: finalDepositAmount,
+            remainingBalance: finalRemainingBalance,
+            paymentStatus: finalPaymentStatus,
+            paymentLink,
+            currency: order.currency || 'INR',
           },
           update: {
             orderNumber,
+            productTitle: itemTitle,
+            variantTitle: variantTitle,
             customerName: safeEncrypt(customerName),
             customerEmail: safeEncrypt(customerEmail),
             customerPhone: safeEncrypt(customerPhone),
             quantity,
+            paymentOption,
+            totalAmount,
+            depositAmount: finalDepositAmount,
+            remainingBalance: finalRemainingBalance,
+            paymentStatus: finalPaymentStatus,
+            paymentLink,
+            currency: order.currency || 'INR',
           },
         });
 
@@ -110,8 +201,8 @@ export async function POST(req: NextRequest) {
           data: {
             recipientStoreId: store.id,
             type: 'OUT_OF_STOCK',
-            title: 'New Pre-order Received',
-            message: `${customerEmail || customerName || 'Customer'} pre-ordered ${quantity} unit(s) of ${itemTitle} (${orderNumber})`,
+            title: `New Pre-order Received (${paymentOption === 'HALF' ? 'Half Payment' : 'Full Payment'})`,
+            message: `${customerEmail || customerName || 'Customer'} pre-ordered ${quantity}x ${itemTitle} (${orderNumber}). Paid: ₹${finalDepositAmount.toFixed(2)}${finalRemainingBalance > 0 ? `, Remaining: ₹${finalRemainingBalance.toFixed(2)}` : ''}`,
             productId: String(item.product_id || ''),
             productTitle: itemTitle,
             sourceStoreId: store.id,
@@ -145,10 +236,14 @@ export async function POST(req: NextRequest) {
             variantTitle,
             orderNumber,
             customerName,
-            price,
+            price: `₹${finalDepositAmount.toFixed(2)}`,
             imageUrl: itemImageUrl,
             storeName: storeDisplayName,
             productUrl: `https://${store.shopDomain}`,
+            paymentOption,
+            depositAmount: finalDepositAmount,
+            remainingBalance: finalRemainingBalance,
+            totalAmount,
           });
 
           // Log notification job in DB

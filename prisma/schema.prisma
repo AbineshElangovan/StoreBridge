@@ -552,6 +552,9 @@ model PreorderConfig {
   selectionMode      String   @default("ALL_PRODUCTS")
   selectedProductIds String[] @default([])
   selectedCollectionIds String[] @default([])
+  allowHalfPayment   Boolean  @default(true)
+  allowFullPayment   Boolean  @default(true)
+  defaultPaymentOption String @default("HALF")
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -669,6 +672,16 @@ model PreorderRecord {
   whatsappOptIn    Boolean   @default(false)
   status           String    @default("UNFULFILLED")
   notifiedAt       DateTime?
+  productTitle     String?
+  variantTitle     String?
+  paymentOption    String    @default("FULL")
+  totalAmount      Float     @default(0)
+  depositAmount    Float     @default(0)
+  remainingBalance Float     @default(0)
+  paymentStatus    String    @default("PENDING")
+  paymentLink      String?
+  finalPaymentDate DateTime?
+  currency         String    @default("INR")
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -678,6 +691,8 @@ model PreorderRecord {
   @@index([storeId])
   @@index([shopifyVariantId])
   @@index([status])
+  @@index([paymentStatus])
+  @@index([paymentOption])
   @@map("preorder_records")
 }
 

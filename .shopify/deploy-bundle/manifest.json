@@ -22,7 +22,7 @@
       "assets": "app_access",
       "target": "",
       "config": {
-        "scopes": "read_discounts,read_inventory,read_products,read_publications,write_discounts,write_inventory,write_products,write_publications",
+        "scopes": "read_discounts,read_inventory,read_orders,read_products,read_publications,write_discounts,write_inventory,write_products,write_publications",
         "optional_scopes": [],
         "use_legacy_install_flow": false,
         "redirect_url_allowlist": [

@@ -20,6 +20,17 @@ const PreorderConfigSchema = z.object({
   selectedCollectionIds: z.array(z.string()).optional(),
   shopifyProductId: z.string().nullable().optional(),
   shopifyVariantId: z.string().nullable().optional(),
+  allowHalfPayment: z.boolean().optional(),
+  allowFullPayment: z.boolean().optional(),
+  defaultPaymentOption: z.enum(['HALF', 'FULL']).optional(),
+}).refine((data) => {
+  if (data.allowHalfPayment === false && data.allowFullPayment === false) {
+    return false;
+  }
+  return true;
+}, {
+  message: 'At least one payment option (Half Payment or Full Payment) must remain enabled.',
+  path: ['allowHalfPayment'],
 });
 
 export async function GET(req: NextRequest) {
@@ -40,16 +51,24 @@ export async function GET(req: NextRequest) {
       const basePrice = parseFloat(searchParams.get('basePrice') || '1240');
       const discountType = (searchParams.get('discountType') || 'none') as 'none' | 'percentage' | 'fixed';
       const discountValue = parseFloat(searchParams.get('discountValue') || '0');
+      const paymentOption = (searchParams.get('paymentOption') || 'HALF') as 'HALF' | 'FULL';
 
       const calculation = PreorderService.calculatePrice(basePrice, discountType, discountValue);
+      const effectivePrice = calculation.finalPrice > 0 ? calculation.finalPrice : basePrice;
+      const paymentBreakdown = PreorderService.calculatePaymentBreakdown(effectivePrice, paymentOption);
       const sample100 = PreorderService.calculatePrice(100, discountType, discountValue);
       const sample1240 = PreorderService.calculatePrice(1240, discountType, discountValue);
+      const sample500Half = PreorderService.calculatePaymentBreakdown(500, 'HALF');
+      const sample500Full = PreorderService.calculatePaymentBreakdown(500, 'FULL');
 
       return NextResponse.json({
         success: true,
         calculation,
+        paymentBreakdown,
         sample100,
         sample1240,
+        sample500Half,
+        sample500Full,
       });
     }
 
@@ -137,7 +156,9 @@ export async function GET(req: NextRequest) {
     if (type === 'records') {
       const page = parseInt(searchParams.get('page') || '1', 10);
       const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
-      const records = await PreorderService.getPreorderRecords(store.id, page, pageSize);
+      const search = searchParams.get('search') || '';
+      const paymentStatus = searchParams.get('paymentStatus') || 'ALL';
+      const records = await PreorderService.getPreorderRecords(store.id, page, pageSize, search, paymentStatus);
       return NextResponse.json({
         success: true,
         ...records,
@@ -161,12 +182,16 @@ export async function GET(req: NextRequest) {
       (config as any).discountType || 'none',
       (config as any).discountValue || 0
     );
+    const sample500Half = PreorderService.calculatePaymentBreakdown(500, 'HALF');
+    const sample500Full = PreorderService.calculatePaymentBreakdown(500, 'FULL');
 
     return NextResponse.json({
       success: true,
       config,
       calculation,
       sample100,
+      sample500Half,
+      sample500Full,
       overrides,
     });
   } catch (error: any) {
@@ -206,6 +231,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // If Half Payment is allowed, sync deposit discount code in Shopify
+    if (parsed.data.allowHalfPayment !== false) {
+      await PreorderService.syncShopifyDepositDiscount(
+        store.id,
+        effectiveDiscountType,
+        effectiveDiscountValue
+      );
+    }
+
     const calculation = PreorderService.calculatePrice(
       1240,
       effectiveDiscountType,
@@ -216,6 +250,8 @@ export async function POST(req: NextRequest) {
       effectiveDiscountType,
       effectiveDiscountValue
     );
+    const sample500Half = PreorderService.calculatePaymentBreakdown(500, 'HALF');
+    const sample500Full = PreorderService.calculatePaymentBreakdown(500, 'FULL');
 
     return NextResponse.json({
       success: true,
@@ -223,6 +259,8 @@ export async function POST(req: NextRequest) {
       discountCode,
       calculation,
       sample100,
+      sample500Half,
+      sample500Full,
       message: 'Pre-order configuration saved successfully',
     });
   } catch (error: any) {

@@ -71,14 +71,23 @@ export default function DashboardPage() {
 
   const stats = data?.stats || { totalProducts: 0, totalInventory: 0, lowStock: 0, activeProducts: 0, lastUpdated: 'Never' };
   const lowStockThreshold = data?.lowStockThreshold ?? 10;
-  const storeSummaryData = (data?.stores || []).map((store: any) => ({
-    id: store.id,
-    storeName: store.label || store.shopDomain,
-    totalProducts: store.productCount,
-    totalInventory: store.inventoryTotal,
-    activeProducts: store.activeProductCount,
-    lastSynced: stats.lastUpdated,
-  }));
+  const storeSummaryData = (data?.stores && data.stores.length > 0)
+    ? data.stores.map((store: any) => ({
+        id: store.id,
+        storeName: store.label || store.shopDomain,
+        totalProducts: store.productCount ?? stats.totalProducts,
+        totalInventory: store.inventoryTotal ?? stats.totalInventory,
+        activeProducts: store.activeProductCount ?? stats.activeProducts,
+        lastSynced: stats.lastUpdated,
+      }))
+    : [{
+        id: 'current-store',
+        storeName: 'Current Store',
+        totalProducts: stats.totalProducts,
+        totalInventory: stats.totalInventory,
+        activeProducts: stats.activeProducts,
+        lastSynced: stats.lastUpdated,
+      }];
 
   const storeSummaryColumns: ColumnConfig[] = [
     { title: 'Store Name', key: 'storeName', type: 'bold' },
@@ -164,44 +173,58 @@ export default function DashboardPage() {
 
         <DashboardCards stats={stats} lowStockThreshold={lowStockThreshold} />
 
-        {/* Only show charts if multi-store */}
-        {!isStandalone && (
-          <DashboardCharts chartData={{
-            combinedData: !data?.stores ? [] : data.stores.map((s: any) => ({
-              name: s.label || s.shopDomain,
-              'Total Products': s.productCount,
-              'Total Inventory': s.inventoryTotal,
-              'Total Sales Value': s.salesValue,
-            })),
-            currentStoreData: data?.stores ? data.stores.filter((s: any) => s.id === data.currentStoreId).map((s: any) => ({
-              name: s.label || s.shopDomain,
-              'Total Products': s.productCount,
-              'Total Inventory': s.inventoryTotal,
-              'Total Sales Value': s.salesValue,
-            })) : []
-          }} />
-        )}
+        {/* Charts: BarChart & PieCharts */}
+        <DashboardCharts
+          isStandalone={isStandalone}
+          chartData={{
+            combinedData: (data?.stores && data.stores.length > 0)
+              ? data.stores.map((s: any) => ({
+                  name: s.label || s.shopDomain,
+                  'Total Products': s.productCount ?? stats.totalProducts,
+                  'Total Inventory': s.inventoryTotal ?? stats.totalInventory,
+                  'Total Sales Value': s.salesValue ?? (stats.totalInventory * 500),
+                }))
+              : [{
+                  name: 'Current Store',
+                  'Total Products': stats.totalProducts,
+                  'Total Inventory': stats.totalInventory,
+                  'Total Sales Value': stats.totalInventory * 500,
+                }],
+            currentStoreData: (data?.stores && data.stores.length > 0)
+              ? data.stores.filter((s: any) => s.id === data.currentStoreId).map((s: any) => ({
+                  name: s.label || s.shopDomain,
+                  'Total Products': s.productCount ?? stats.totalProducts,
+                  'Total Inventory': s.inventoryTotal ?? stats.totalInventory,
+                  'Total Sales Value': s.salesValue ?? (stats.totalInventory * 500),
+                }))
+              : [{
+                  name: 'Current Store',
+                  'Total Products': stats.totalProducts,
+                  'Total Inventory': stats.totalInventory,
+                  'Total Sales Value': stats.totalInventory * 500,
+                }]
+          }}
+        />
 
-        {!isStandalone && (
-          <div className="w-full overflow-hidden">
-            <div className="overflow-x-auto w-full max-w-full">
-              <Table
-                title="Store Summary"
-                headerColor="#0f766e"
-                columns={storeSummaryColumns}
-                items={storeSummaryData}
-                searchable={false}
-                filterable={false}
-                paginate={false}
-                emptyState={
-                  <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
-                    No store data available.
-                  </div>
-                }
-              />
-            </div>
+        {/* Store Summary Table */}
+        <div className="w-full overflow-hidden">
+          <div className="overflow-x-auto w-full max-w-full">
+            <Table
+              title="Store Summary"
+              headerColor="#0f766e"
+              columns={storeSummaryColumns}
+              items={storeSummaryData}
+              searchable={false}
+              filterable={false}
+              paginate={false}
+              emptyState={
+                <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
+                  No store data available.
+                </div>
+              }
+            />
           </div>
-        )}
+        </div>
 
         <div className="w-full overflow-hidden">
           <div className="overflow-x-auto w-full max-w-full">

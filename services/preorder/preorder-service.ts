@@ -14,6 +14,9 @@ export interface PreorderConfigInput {
   selectedCollectionIds?: string[];
   shopifyProductId?: string | null;
   shopifyVariantId?: string | null;
+  allowHalfPayment?: boolean;
+  allowFullPayment?: boolean;
+  defaultPaymentOption?: 'HALF' | 'FULL';
 }
 
 export interface PreorderPriceCalculation {
@@ -41,6 +44,9 @@ export const DEFAULT_PREORDER_CONFIG = {
   selectionMode: 'ALL_PRODUCTS' as 'ALL_PRODUCTS' | 'SPECIFIC_PRODUCTS' | 'COLLECTIONS',
   selectedProductIds: [] as string[],
   selectedCollectionIds: [] as string[],
+  allowHalfPayment: true,
+  allowFullPayment: true,
+  defaultPaymentOption: 'HALF' as 'HALF' | 'FULL',
 };
 
 export class PreorderService {
@@ -171,7 +177,7 @@ export class PreorderService {
       // Ensure fields are populated from raw query if needed
       try {
         const rows: any[] = await prisma.$queryRawUnsafe(
-          'SELECT "discountType", "discountValue", "selectionMode", "selectedProductIds", "selectedCollectionIds" FROM "preorder_configs" WHERE "id" = $1 LIMIT 1',
+          'SELECT "discountType", "discountValue", "selectionMode", "selectedProductIds", "selectedCollectionIds", "allowHalfPayment", "allowFullPayment", "defaultPaymentOption" FROM "preorder_configs" WHERE "id" = $1 LIMIT 1',
           config.id
         );
         if (rows && rows[0]) {
@@ -180,6 +186,9 @@ export class PreorderService {
           (config as any).selectionMode = rows[0].selectionMode || 'ALL_PRODUCTS';
           (config as any).selectedProductIds = rows[0].selectedProductIds || [];
           (config as any).selectedCollectionIds = rows[0].selectedCollectionIds || [];
+          (config as any).allowHalfPayment = rows[0].allowHalfPayment !== undefined && rows[0].allowHalfPayment !== null ? rows[0].allowHalfPayment : DEFAULT_PREORDER_CONFIG.allowHalfPayment;
+          (config as any).allowFullPayment = rows[0].allowFullPayment !== undefined && rows[0].allowFullPayment !== null ? rows[0].allowFullPayment : DEFAULT_PREORDER_CONFIG.allowFullPayment;
+          (config as any).defaultPaymentOption = rows[0].defaultPaymentOption || DEFAULT_PREORDER_CONFIG.defaultPaymentOption;
         }
       } catch (e) {
         console.warn('[PreorderService] Fallback raw query error:', e);
@@ -219,10 +228,13 @@ export class PreorderService {
     const sm = data.shippingMessage !== undefined ? data.shippingMessage.trim() : (existing?.shippingMessage ?? DEFAULT_PREORDER_CONFIG.shippingMessage);
     const fm = data.fulfillmentMessage !== undefined ? data.fulfillmentMessage.trim() : (existing?.fulfillmentMessage ?? DEFAULT_PREORDER_CONFIG.fulfillmentMessage);
     const mq = data.maxQuantity !== undefined ? data.maxQuantity : (existing?.maxQuantity ?? DEFAULT_PREORDER_CONFIG.maxQuantity);
+    const allowHalf = data.allowHalfPayment !== undefined ? data.allowHalfPayment : ((existing as any)?.allowHalfPayment ?? DEFAULT_PREORDER_CONFIG.allowHalfPayment);
+    const allowFull = data.allowFullPayment !== undefined ? data.allowFullPayment : ((existing as any)?.allowFullPayment ?? DEFAULT_PREORDER_CONFIG.allowFullPayment);
+    const defaultOption = data.defaultPaymentOption || (existing as any)?.defaultPaymentOption || DEFAULT_PREORDER_CONFIG.defaultPaymentOption;
 
     if (existing) {
       try {
-        return await prisma.preorderConfig.update({
+        return await (prisma as any).preorderConfig.update({
           where: { id: existing.id },
           data: {
             enabled: en,
@@ -236,12 +248,15 @@ export class PreorderService {
             selectionMode: selMode,
             selectedProductIds: selProdIds,
             selectedCollectionIds: selCollIds,
-          } as any,
+            allowHalfPayment: allowHalf,
+            allowFullPayment: allowFull,
+            defaultPaymentOption: defaultOption,
+          },
         });
       } catch (err: any) {
         await prisma.$executeRawUnsafe(
-          `UPDATE "preorder_configs" SET "enabled" = $1, "inventoryThreshold" = $2, "customerMessage" = $3, "shippingMessage" = $4, "fulfillmentMessage" = $5, "maxQuantity" = $6, "discountType" = $7, "discountValue" = $8, "selectionMode" = $9, "selectedProductIds" = $10, "selectedCollectionIds" = $11, "updatedAt" = NOW() WHERE "id" = $12`,
-          en, th, cm, sm, fm, mq, dType, dVal, selMode, selProdIds, selCollIds, existing.id
+          `UPDATE "preorder_configs" SET "enabled" = $1, "inventoryThreshold" = $2, "customerMessage" = $3, "shippingMessage" = $4, "fulfillmentMessage" = $5, "maxQuantity" = $6, "discountType" = $7, "discountValue" = $8, "selectionMode" = $9, "selectedProductIds" = $10, "selectedCollectionIds" = $11, "allowHalfPayment" = $12, "allowFullPayment" = $13, "defaultPaymentOption" = $14, "updatedAt" = NOW() WHERE "id" = $15`,
+          en, th, cm, sm, fm, mq, dType, dVal, selMode, selProdIds, selCollIds, allowHalf, allowFull, defaultOption, existing.id
         );
 
         return {
@@ -257,12 +272,15 @@ export class PreorderService {
           selectionMode: selMode,
           selectedProductIds: selProdIds,
           selectedCollectionIds: selCollIds,
+          allowHalfPayment: allowHalf,
+          allowFullPayment: allowFull,
+          defaultPaymentOption: defaultOption,
         };
       }
     }
 
     try {
-      return await prisma.preorderConfig.create({
+      return await (prisma as any).preorderConfig.create({
         data: {
           storeId,
           shopifyProductId: productId,
@@ -278,13 +296,16 @@ export class PreorderService {
           selectionMode: selMode,
           selectedProductIds: selProdIds,
           selectedCollectionIds: selCollIds,
-        } as any,
+          allowHalfPayment: allowHalf,
+          allowFullPayment: allowFull,
+          defaultPaymentOption: defaultOption,
+        },
       });
     } catch (err: any) {
       const id = crypto.randomUUID();
       await prisma.$executeRawUnsafe(
-        `INSERT INTO "preorder_configs" ("id", "storeId", "shopifyProductId", "shopifyVariantId", "enabled", "inventoryThreshold", "customerMessage", "shippingMessage", "fulfillmentMessage", "maxQuantity", "discountType", "discountValue", "selectionMode", "selectedProductIds", "selectedCollectionIds", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())`,
-        id, storeId, productId, variantId, en, th, cm, sm, fm, mq, dType, dVal, selMode, selProdIds, selCollIds
+        `INSERT INTO "preorder_configs" ("id", "storeId", "shopifyProductId", "shopifyVariantId", "enabled", "inventoryThreshold", "customerMessage", "shippingMessage", "fulfillmentMessage", "maxQuantity", "discountType", "discountValue", "selectionMode", "selectedProductIds", "selectedCollectionIds", "allowHalfPayment", "allowFullPayment", "defaultPaymentOption", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW(), NOW())`,
+        id, storeId, productId, variantId, en, th, cm, sm, fm, mq, dType, dVal, selMode, selProdIds, selCollIds, allowHalf, allowFull, defaultOption
       );
 
       return {
@@ -303,6 +324,9 @@ export class PreorderService {
         selectionMode: selMode,
         selectedProductIds: selProdIds,
         selectedCollectionIds: selCollIds,
+        allowHalfPayment: allowHalf,
+        allowFullPayment: allowFull,
+        defaultPaymentOption: defaultOption,
       };
     }
   }
@@ -378,23 +402,77 @@ export class PreorderService {
   }
 
   /**
-   * Get paginated pre-order customer orders with safe decryption of sensitive consumer data.
+   * Currency-safe calculation of payment breakdown for Full vs Half Payment.
+   * Handles rounding accurately: initialPayment + remainingBalance === totalAmount.
    */
-  static async getPreorderRecords(storeId: string, page = 1, pageSize = 10) {
+  static calculatePaymentBreakdown(
+    productPrice: number,
+    paymentOption: 'HALF' | 'FULL' = 'HALF',
+    currencySymbol: string = '₹'
+  ) {
+    const totalAmount = Math.max(0, Math.round(Number(productPrice) * 100) / 100);
+    let initialPayment = totalAmount;
+    let remainingBalance = 0;
+
+    if (paymentOption === 'HALF') {
+      // 50% calculation: round initial payment to 2 decimal places
+      initialPayment = Math.round((totalAmount / 2) * 100) / 100;
+      // Remaining is strictly totalAmount - initialPayment to prevent rounding discrepancies
+      remainingBalance = Math.round((totalAmount - initialPayment) * 100) / 100;
+    }
+
+    const formatCurrency = (val: number) =>
+      `${currencySymbol}${val.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    return {
+      totalAmount,
+      initialPayment,
+      remainingBalance,
+      paymentOption,
+      formattedTotal: formatCurrency(totalAmount),
+      formattedInitial: formatCurrency(initialPayment),
+      formattedRemaining: formatCurrency(remainingBalance),
+    };
+  }
+
+  /**
+   * Get paginated pre-order customer orders with safe decryption of sensitive consumer data.
+   * Supports filtering by search (order number, product title, email) and payment status.
+   */
+  static async getPreorderRecords(
+    storeId: string,
+    page = 1,
+    pageSize = 10,
+    search = '',
+    paymentStatus = 'ALL'
+  ) {
     const { safeDecrypt } = require('@/lib/utils/encryption');
     const skip = (Math.max(1, page) - 1) * pageSize;
 
+    const where: any = { storeId };
+    if (paymentStatus && paymentStatus !== 'ALL') {
+      where.paymentStatus = paymentStatus;
+    }
+    if (search && search.trim()) {
+      const q = search.trim();
+      where.OR = [
+        { orderNumber: { contains: q, mode: 'insensitive' } },
+        { productTitle: { contains: q, mode: 'insensitive' } },
+        { variantTitle: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+
     const [total, records] = await Promise.all([
-      prisma.preorderRecord.count({ where: { storeId } }),
-      prisma.preorderRecord.findMany({
-        where: { storeId },
+      (prisma as any).preorderRecord.count({ where }),
+      (prisma as any).preorderRecord.findMany({
+        where,
         orderBy: { createdAt: 'desc' },
         skip,
         take: pageSize,
       }),
     ]);
 
-    const decryptedRecords = records.map((r) => ({
+    const decryptedRecords = records.map((r: any) => ({
       ...r,
       customerName: safeDecrypt(r.customerName),
       customerEmail: safeDecrypt(r.customerEmail),
@@ -411,6 +489,141 @@ export class PreorderService {
         hasNext: page < Math.ceil(total / pageSize),
         hasPrev: page > 1,
       },
+    };
+  }
+
+  /**
+   * Mark remaining balance as paid for a Pre-order record.
+   * Updates balance to 0 and marks paymentStatus to PAID.
+   */
+  static async confirmRemainingPayment(recordId: string, storeId: string) {
+    const record = await (prisma as any).preorderRecord.findFirst({
+      where: { id: recordId, storeId },
+    });
+    if (!record) {
+      throw new Error('Pre-order record not found');
+    }
+
+    const updated = await (prisma as any).preorderRecord.update({
+      where: { id: recordId },
+      data: {
+        depositAmount: record.totalAmount || record.depositAmount,
+        remainingBalance: 0,
+        paymentStatus: 'PAID',
+        finalPaymentDate: new Date(),
+      },
+    });
+
+    // Create in-app merchant notification
+    try {
+      await prisma.notification.create({
+        data: {
+          recipientStoreId: storeId,
+          type: 'INVENTORY_UPDATE',
+          title: 'Pre-order Fully Paid',
+          message: `Remaining balance for Order ${record.orderNumber} was confirmed. Status updated to Fully Paid.`,
+          productId: record.shopifyVariantId,
+          productTitle: record.productTitle || 'Pre-order Item',
+          sourceStoreId: storeId,
+          isRead: false,
+        },
+      });
+    } catch {}
+
+    return updated;
+  }
+
+  /**
+   * Generate or retrieve a supported Shopify Draft Order invoice payment link
+   * for the customer to pay their remaining balance.
+   */
+  static async generateRemainingPaymentLink(recordId: string, storeId: string) {
+    const record = await (prisma as any).preorderRecord.findFirst({
+      where: { id: recordId, storeId },
+    });
+    if (!record) {
+      throw new Error('Pre-order record not found');
+    }
+
+    if (record.paymentStatus === 'PAID' || record.remainingBalance <= 0) {
+      return {
+        success: true,
+        paymentLink: null,
+        message: 'Order is already fully paid.',
+      };
+    }
+
+    if (record.paymentLink) {
+      return {
+        success: true,
+        paymentLink: record.paymentLink,
+        message: 'Payment link retrieved.',
+      };
+    }
+
+    const store = await prisma.store.findUnique({
+      where: { id: storeId },
+      select: { shopDomain: true },
+    });
+
+    if (!store?.shopDomain) {
+      throw new Error('Store not found');
+    }
+
+    let invoiceUrl = `https://${store.shopDomain}/account/orders`;
+
+    try {
+      const { getAdminClient } = require('@/lib/shopify/admin');
+      const client = await getAdminClient(store.shopDomain);
+
+      const mutation = `
+        mutation draftOrderCreate($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder {
+              id
+              invoiceUrl
+              status
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `;
+
+      const variables = {
+        input: {
+          note: `Pre-order Remaining Balance for Order ${record.orderNumber}`,
+          lineItems: [
+            {
+              title: `Remaining Balance: ${record.productTitle || 'Pre-order Product'} (${record.orderNumber})`,
+              originalUnitPrice: record.remainingBalance.toFixed(2),
+              quantity: 1,
+            },
+          ],
+          tags: ['preorder-balance', `order-${record.orderNumber}`],
+        },
+      };
+
+      const response: any = await client.request(mutation, { variables });
+      const draft = response.data?.draftOrderCreate?.draftOrder;
+      if (draft?.invoiceUrl) {
+        invoiceUrl = draft.invoiceUrl;
+      }
+    } catch (err: any) {
+      console.warn('[PreorderService:generatePaymentLink] Draft order creation fallback:', err.message);
+    }
+
+    await (prisma as any).preorderRecord.update({
+      where: { id: recordId },
+      data: { paymentLink: invoiceUrl },
+    });
+
+    return {
+      success: true,
+      paymentLink: invoiceUrl,
+      message: 'Payment link generated successfully.',
     };
   }
 
@@ -531,6 +744,115 @@ export class PreorderService {
     }
 
     return discountCode;
+  }
+
+  /**
+   * Synchronize deposit discount code in Shopify Admin for Half Payment orders.
+   * If a pre-order offer is active (e.g. 10% OFF), combines the offer with the 50% deposit
+   * so the customer sees both the offer and deposit clearly at checkout, paying the exact deposit.
+   */
+  static async syncShopifyDepositDiscount(
+    storeId: string,
+    discountType: string = 'none',
+    discountValue: number = 0
+  ): Promise<string> {
+    const isOfferActive = discountType === 'percentage' && Number(discountValue) > 0;
+    const cleanPct = isOfferActive ? Math.round(Number(discountValue)) : 0;
+
+    // Combined discount calculation:
+    // e.g. 10% offer on Rs. 1,240 = Rs. 1,116.
+    // 50% deposit of Rs. 1,116 = Rs. 558 due today.
+    // Total discount from original: (1,240 - 558) / 1,240 = 55% OFF.
+    // Formula: 1 - (1 - discount% / 100) * 0.5
+    const effectivePct = isOfferActive
+      ? Math.round((1 - (1 - cleanPct / 100) * 0.5) * 1000) / 1000
+      : 0.5;
+
+    const depositCode = isOfferActive
+      ? `PREORDER-HALF-${cleanPct}PCT`
+      : 'PREORDER-HALF-DEPOSIT';
+
+    const title = isOfferActive
+      ? `StoreBridge Pre-order (${cleanPct}% Offer + 50% Deposit)`
+      : 'StoreBridge Pre-order (50% Initial Deposit)';
+
+    const store = await prisma.store.findUnique({
+      where: { id: storeId },
+      select: { shopDomain: true },
+    });
+
+    if (!store?.shopDomain) return depositCode;
+
+    try {
+      const { getAdminClient } = require('@/lib/shopify/admin');
+      const client = await getAdminClient(store.shopDomain);
+
+      const mutation = `
+        mutation discountCodeBasicCreate($basicCodeDiscount: DiscountCodeBasicInput!) {
+          discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
+            codeDiscountNode { id }
+            userErrors { field code message }
+          }
+        }
+      `;
+
+      // 1. Create/Sync primary deposit discount (with offer if active)
+      const variables = {
+        basicCodeDiscount: {
+          title,
+          code: depositCode,
+          startsAt: new Date(Date.now() - 60000).toISOString(),
+          customerSelection: { all: true },
+          customerGets: {
+            value: { percentage: effectivePct },
+            items: { all: true },
+          },
+          appliesOncePerCustomer: false,
+        },
+      };
+
+      const response: any = await client.request(mutation, { variables });
+      const userErrors = response.data?.discountCodeBasicCreate?.userErrors || [];
+      if (userErrors.length === 0) {
+        console.log(`[PreorderService:syncDepositDiscount] Active code: ${depositCode} (${Math.round(effectivePct * 100)}%)`);
+      } else {
+        const isTaken = userErrors.some(
+          (e: any) =>
+            e.code === 'TAKEN' ||
+            e.message?.toLowerCase().includes('taken') ||
+            e.message?.toLowerCase().includes('already exists')
+        );
+        if (isTaken) {
+          console.log(`[PreorderService:syncDepositDiscount] Discount ${depositCode} already exists in Shopify. Active.`);
+        } else {
+          console.warn('[PreorderService:syncDepositDiscount] Shopify returned userErrors:', userErrors);
+        }
+      }
+
+      // 2. Also ensure standard fallback code PREORDER-HALF-DEPOSIT exists
+      if (depositCode !== 'PREORDER-HALF-DEPOSIT') {
+        try {
+          const fallbackVariables = {
+            basicCodeDiscount: {
+              title: 'StoreBridge Pre-order (50% Initial Deposit)',
+              code: 'PREORDER-HALF-DEPOSIT',
+              startsAt: new Date(Date.now() - 60000).toISOString(),
+              customerSelection: { all: true },
+              customerGets: {
+                value: { percentage: 0.5 },
+                items: { all: true },
+              },
+              appliesOncePerCustomer: false,
+            },
+          };
+          await client.request(mutation, { variables: fallbackVariables });
+        } catch (_) {}
+      }
+    } catch (err: any) {
+      console.warn('[PreorderService:syncDepositDiscount] Note creating deposit code:', err.message);
+    }
+
+    return depositCode;
   }
 }
 

@@ -217,6 +217,12 @@ export async function GET(req: NextRequest) {
           discountType,
           discountValue,
           discountCode,
+          depositDiscountCode: (discountType === 'percentage' && discountValue > 0)
+            ? `PREORDER-HALF-${Math.round(discountValue)}PCT`
+            : 'PREORDER-HALF-DEPOSIT',
+          allowHalfPayment: (preorderConfig as any).allowHalfPayment !== false,
+          allowFullPayment: (preorderConfig as any).allowFullPayment !== false,
+          defaultPaymentOption: (preorderConfig as any).defaultPaymentOption || 'HALF',
           pricing: PreorderService.calculatePrice(
             parseFloat(searchParams.get('price') || searchParams.get('variantPrice') || '0'),
             discountType,

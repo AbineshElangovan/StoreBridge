@@ -15,6 +15,7 @@ export interface DashboardChartsProps {
     combinedData: StoreChartEntry[];
     currentStoreData: StoreChartEntry[];
   };
+  isStandalone?: boolean;
 }
 
 // Distinct, vibrant, high-contrast palette for multi-store comparison
@@ -29,7 +30,7 @@ const STORE_COLORS = [
   '#8b5cf6', // 8. Vivid Violet
 ];
 
-export function DashboardCharts({ chartData }: DashboardChartsProps) {
+export function DashboardCharts({ chartData, isStandalone }: DashboardChartsProps) {
   const { combinedData, currentStoreData } = chartData;
 
   // Use combinedData to show relative share of each store across the network
@@ -52,13 +53,15 @@ export function DashboardCharts({ chartData }: DashboardChartsProps) {
     color: s.color,
   }));
 
+  const isSingle = isStandalone || storesForShare.length <= 1;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
       {/* Row 1 – Products (Electric Blue) vs Inventory (Warm Amber) grouped bar chart */}
       <BarChart
-        title="Inventory Comparison Chart"
-        subtitle="Store Comparison — Products & Inventory"
+        title={isSingle ? "Store Inventory Overview" : "Inventory Comparison Chart"}
+        subtitle={isSingle ? "Products & Inventory breakdown" : "Store Comparison — Products & Inventory"}
         data={combinedData}
         xKey="name"
         bars={[
@@ -67,31 +70,20 @@ export function DashboardCharts({ chartData }: DashboardChartsProps) {
         ]}
       />
 
-      {/* Row 2 – Sales Value bar (Emerald Green) + two multi-colored pie charts */}
+      {/* Row 2 – Two multi-colored pie charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5 w-full min-w-0">
-        <div className="col-span-1 md:col-span-2 min-w-0 overflow-hidden">
-          <BarChart
-            title="Sales Value — Store Comparison"
-            subtitle="Estimated revenue across connected stores"
-            data={storesForShareWithColors}
-            xKey="name"
-            bars={[
-              { key: 'Total Sales Value', color: '#10b981', name: 'Sales Value' },
-            ]}
-          />
-        </div>
         <div className="col-span-1 md:col-span-1 min-w-0 overflow-hidden">
           <PieChart
-            title="Sales Share %"
-            subtitle="Store sales distribution across network"
+            title={isSingle ? "Sales Value Share" : "Sales Share %"}
+            subtitle={isSingle ? "Inventory sales value contribution" : "Store sales distribution across network"}
             data={salesPieData}
             unit="₹"
           />
         </div>
         <div className="col-span-1 md:col-span-1 min-w-0 overflow-hidden">
           <PieChart
-            title="Products Share %"
-            subtitle="Product catalog distribution across stores"
+            title={isSingle ? "Product Catalog Share" : "Products Share %"}
+            subtitle={isSingle ? "Active catalog breakdown" : "Product catalog distribution across stores"}
             data={productsPieData}
           />
         </div>
