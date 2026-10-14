@@ -16,6 +16,7 @@ import {
 } from '@shopify/polaris-icons';
 import { StandaloneGuard } from '@/components/ui/StandaloneGuard';
 import { useStoreContext } from '@/components/providers/StoreProvider';
+import { EmailTemplateCustomizer } from '@/components/customer-experience/shared';
 
 function ProductThumbnail({ src, alt }: { src?: string | null; alt?: string }) {
   const [hasError, setHasError] = useState(false);
@@ -442,185 +443,13 @@ export default function BackInStockAdminPage() {
         </div>
       </div>
 
-      {/* Collapsible Notification Template Preview */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-2xs overflow-hidden transition-all">
-        <div className="p-4 sm:px-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center text-gray-700 border border-gray-200 shrink-0">
-              <div className="w-4 h-4">
-                <Icon source={EmailIcon} />
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-bold text-gray-900 tracking-tight">Email Notification Template</h2>
-                <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                  Automated
-                </span>
-              </div>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Preview the customer alert layout sent for product restocks and pre-order arrivals.
-              </p>
-            </div>
-          </div>
+      {/* Interactive Email Template Customizer & Live Preview */}
+      <EmailTemplateCustomizer
+        storeName={previewStoreName}
+        productUrl={previewStoreProductUrl}
+        onSave={() => setToast({ message: 'Email template customized and saved successfully!', type: 'success' })}
+      />
 
-          <div className="flex items-center gap-2 self-start sm:self-auto">
-            {showEmailPreview && (
-              <>
-                {/* Template Type Tabs */}
-                <div className="inline-flex p-0.5 bg-gray-100 rounded-lg border border-gray-200 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setPreviewTab('notify_me')}
-                    className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
-                      previewTab === 'notify_me'
-                        ? 'bg-white text-gray-900 shadow-2xs'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    Notify Me
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewTab('preorder')}
-                    className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
-                      previewTab === 'preorder'
-                        ? 'bg-white text-purple-900 shadow-2xs'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    Pre-order
-                  </button>
-                </div>
-
-                {/* Store Switcher */}
-                <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1 shadow-2xs text-xs">
-                  <span className="text-gray-400 font-medium">Store:</span>
-                  <select
-                    aria-label="Preview Store"
-                    value={selectedStoreId}
-                    onChange={(e) => setSelectedStoreId(e.target.value)}
-                    className="font-bold text-gray-900 bg-transparent outline-none cursor-pointer max-w-[140px] truncate"
-                  >
-                    {stores.length > 0 ? (
-                      stores.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.label || s.shopDomain}
-                        </option>
-                      ))
-                    ) : (
-                      <option value="default">ESHAN Chennai Store</option>
-                    )}
-                  </select>
-                </div>
-              </>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setShowEmailPreview(!showEmailPreview)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer shadow-2xs shrink-0 ${
-                showEmailPreview
-                  ? 'bg-gray-900 text-white border border-gray-900 hover:bg-black'
-                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 hover:text-gray-900'
-              }`}
-            >
-              <span>{showEmailPreview ? 'Hide Preview' : 'Preview Email Template'}</span>
-              <span className={showEmailPreview ? 'text-gray-300 text-[10px]' : 'text-gray-500 text-[10px]'}>
-                {showEmailPreview ? '▲' : '▼'}
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {/* COMPACT TEMPLATE PREVIEW CONTENT (COLLAPSIBLE) */}
-        {showEmailPreview && (
-          <div className="p-4 sm:p-6 bg-gray-50/70 border-t border-gray-100">
-            <div className="max-w-lg mx-auto bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden text-center">
-              {/* Header */}
-              <div className="bg-gray-900 text-white px-4 py-2.5 flex items-center justify-between text-xs">
-                <span className="font-extrabold tracking-tight truncate">{previewStoreName}</span>
-                <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">OFFICIAL STORE</span>
-              </div>
-
-              {/* Status Banner */}
-              <div
-                className={`${
-                  previewTab === 'preorder' ? 'bg-purple-700' : 'bg-emerald-600'
-                } text-white text-[11px] font-bold py-1.5 px-3 flex items-center justify-center gap-1.5`}
-              >
-                <span>
-                  {previewTab === 'preorder'
-                    ? 'Pre-order Allocated • Ready for Fulfillment'
-                    : 'Back in Stock • Available Now'}
-                </span>
-              </div>
-
-              {/* Compact Body */}
-              <div className="p-5 space-y-3.5">
-                <div>
-                  <h3 className="text-base font-extrabold text-gray-900">
-                    {previewTab === 'preorder'
-                      ? 'Your Pre-ordered Item is Ready'
-                      : 'Cotton T-shirt is Back in Stock!'}
-                  </h3>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {previewTab === 'preorder'
-                      ? `Stock has arrived at ${previewStoreName}. Preparing fulfillment.`
-                      : `The item you requested at ${previewStoreName} is available now.`}
-                  </p>
-                </div>
-
-                {/* Compact Product Box */}
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 max-w-sm mx-auto flex items-center gap-3 text-left">
-                  <div className="w-16 h-16 bg-white rounded-md border border-gray-200 flex items-center justify-center p-1 shrink-0 overflow-hidden">
-                    <img
-                      src="https://cdn.shopify.com/s/files/1/0836/6748/4891/files/cotton-t-shirt_924bced9-4b4d-4e4f-9f3b-b554623c9e69.png?v=1790857896"
-                      alt="Cotton T-shirt"
-                      className="max-h-full max-w-full object-contain"
-                    />
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <h4 className="text-xs font-bold text-gray-900 truncate">Cotton T-shirt</h4>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className="text-[10px] font-semibold text-gray-600 bg-gray-200 px-1.5 py-0.5 rounded">
-                        White / M
-                      </span>
-                      <span className="text-[10px] font-bold text-gray-900">
-                        ₹1,240
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-emerald-600 font-semibold mt-1">
-                      {previewTab === 'preorder' ? 'Reserved & in stock' : 'Ready to order'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* CTA Button */}
-                <div className="pt-1">
-                  <a
-                    href={previewStoreProductUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-1.5 py-2 px-5 bg-gray-900 hover:bg-black text-white font-bold text-xs rounded-lg shadow-sm transition-all"
-                  >
-                    <div className="w-3.5 h-3.5">
-                      <Icon source={CartIcon} />
-                    </div>
-                    <span>{previewTab === 'preorder' ? 'View Order Status →' : 'Shop Now →'}</span>
-                  </a>
-                </div>
-
-                {/* Footer */}
-                <p className="text-[10px] text-gray-400 pt-2 border-t border-gray-100">
-                  © {new Date().getFullYear()} {previewStoreName} • Sent automatically via StoreBridge
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
 
       {/* Activity / Notification History Table */}
       <Table

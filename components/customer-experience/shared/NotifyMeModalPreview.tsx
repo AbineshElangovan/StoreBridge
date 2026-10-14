@@ -60,7 +60,7 @@ export function NotifyMeModalPreview({
               </div>
 
               <div>
-                <h4 className="text-lg font-bold text-gray-900">Notify me</h4>
+                <h4 className="text-lg font-bold text-gray-900">Back in stock</h4>
                 <p className="text-xs text-gray-500 mt-1 leading-relaxed">
                   {popupMessage || 'Get notified when this item is back in stock.'}
                 </p>

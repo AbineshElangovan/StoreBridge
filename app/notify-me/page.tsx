@@ -11,6 +11,7 @@ import {
   SettingsInput,
   SaveButton,
   NotifyMeModalPreview,
+  EmailTemplateCustomizer,
 } from '@/components/customer-experience/shared';
 import { StandaloneGuard } from '@/components/ui/StandaloneGuard';
 import { useStoreContext } from '@/components/providers/StoreProvider';
@@ -117,7 +118,7 @@ export default function NotifyMeAdminPage() {
 
   const handleSaveSettings = async () => {
     if (!notifyEmail) {
-      setToast({ message: 'Email restock notifications must be enabled.', type: 'error' });
+      setToast({ message: 'Email back in stock notifications must be enabled.', type: 'error' });
       return;
     }
 
@@ -295,168 +296,158 @@ export default function NotifyMeAdminPage() {
   return (
     <StandaloneGuard featureName="Notify Me">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden space-y-8">
-      {toast && (
-        <Toast
-          content={toast.message}
-          error={toast.type === 'error'}
-          onDismiss={() => setToast(null)}
-        />
-      )}
+        {toast && (
+          <Toast
+            content={toast.message}
+            error={toast.type === 'error'}
+            onDismiss={() => setToast(null)}
+          />
+        )}
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-gray-200">
-        <div>
-          <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Notify Me</h1>
-          <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
-            Capture interested buyers with an out-of-stock waitlist modal on your storefront product pages.
-          </p>
-        </div>
-
-        <SaveButton
-          onClick={handleSaveSettings}
-          loading={saving}
-          label="Save Settings"
-        />
-      </div>
-
-      {/* Quick Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs">
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Waitlist Registrations</p>
-          <p className="text-2xl font-black text-gray-900 mt-1">{stats.totalSubscribers}</p>
-        </div>
-        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs">
-          <p className="text-xs font-bold text-amber-600 uppercase tracking-wider">Pending Notifications</p>
-          <p className="text-2xl font-black text-amber-900 mt-1">{stats.pending}</p>
-        </div>
-        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs">
-          <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Restock Alerts Sent</p>
-          <p className="text-2xl font-black text-emerald-900 mt-1">{stats.notified}</p>
-        </div>
-      </div>
-
-      {/* Settings & Live Modal Preview (2 cols) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Settings column */}
-        <div className="lg:col-span-7 space-y-6">
-          <SettingsCard
-            title="Notification Rules & Channels"
-            description="Enable customer signup options for out-of-stock products."
-          >
-            <SettingsToggle
-              label="Enable Notify Me Button & Modal"
-              description="Displays 'Notify me' button when inventory is at or below threshold."
-              checked={enabled}
-              onChange={setEnabled}
-            />
-
-            <div className="pt-3 border-t border-gray-100 space-y-3">
-              <label className="text-sm font-bold text-gray-900 block">Lead Collection & Restock Alerts</label>
-              <div className="space-y-2">
-                <SettingsToggle
-                  label="Email Restock Alerts (Required)"
-                  description="Sends restock email notifications when out-of-stock items are replenished."
-                  checked={notifyEmail}
-                  onChange={setNotifyEmail}
-                />
-                <SettingsToggle
-                  label="Collect Phone Number (Contact)"
-                  description="Displays an optional phone number field in the modal to capture customer contact details."
-                  checked={notifyWhatsApp}
-                  onChange={setNotifyWhatsApp}
-                />
-              </div>
-            </div>
-          </SettingsCard>
-
-          <SettingsCard
-            title="Modal Text Customization"
-            description="Customize the copy customers see inside the subscription popup."
-          >
-            <SettingsInput
-              label="Popup Headline Message"
-              value={popupMessage}
-              onChange={setPopupMessage}
-              placeholder="Get notified when this item is back in stock."
-            />
-            <SettingsInput
-              label="Button Text"
-              value={buttonText}
-              onChange={setButtonText}
-              placeholder="Notify me when available"
-            />
-            <SettingsInput
-              label="Success Confirmation Message"
-              value={successMessage}
-              onChange={setSuccessMessage}
-              placeholder="You're on the list!"
-            />
-          </SettingsCard>
-
-          <SettingsCard
-            title="Restock Email Template"
-            description="Configure the email subject sent to customers when this product is replenished."
-          >
-            <SettingsInput
-              label="Email Notification Subject"
-              value={emailSubject}
-              onChange={setEmailSubject}
-              placeholder="Good news! {{product_title}} is back in stock"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Tip: Use <code className="bg-gray-100 text-gray-800 px-1 py-0.5 rounded font-mono text-[11px]">&#123;&#123;product_title&#125;&#125;</code> to insert the product title dynamically.
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-gray-200">
+          <div>
+            <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Notify Me</h1>
+            <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
+              Capture interested buyers with an out-of-stock waitlist modal on your storefront product pages.
             </p>
-          </SettingsCard>
-        </div>
+          </div>
 
-        {/* Modal preview column */}
-        <div className="lg:col-span-5">
-          <NotifyMeModalPreview
-            popupMessage={popupMessage}
-            buttonText={buttonText}
-            successMessage={successMessage}
-            notifyEmail={notifyEmail}
-            notifyWhatsApp={notifyWhatsApp}
+          <SaveButton
+            onClick={handleSaveSettings}
+            loading={saving}
+            label="Save Settings"
           />
         </div>
-      </div>
 
-      {/* Customer Registrations Table */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
-        <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h3 className="text-lg font-bold text-gray-900">Waitlist Registrations</h3>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Customers waiting for items to be restocked. Status remains <strong>PENDING</strong> until the variant inventory is refilled and restock alerts are dispatched. Showing 10 records per page.
-            </p>
+        {/* Quick Stats Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Waitlist Registrations</p>
+            <p className="text-2xl font-black text-gray-900 mt-1">{stats.totalSubscribers}</p>
+          </div>
+          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs">
+            <p className="text-xs font-bold text-amber-600 uppercase tracking-wider">Pending Notifications</p>
+            <p className="text-2xl font-black text-amber-900 mt-1">{stats.pending}</p>
+          </div>
+          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs">
+            <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Back in Stock Alerts Sent</p>
+            <p className="text-2xl font-black text-emerald-900 mt-1">{stats.notified}</p>
           </div>
         </div>
 
-        <Table
-          columns={columns}
-          items={formattedItems}
-          loading={tableLoading}
-          serverSide={true}
-          totalItems={totalItems}
-          page={page}
-          totalPages={totalPages}
-          onPageChange={handlePageChange}
-          searchable={true}
-          searchValue={search}
-          onSearchChange={handleSearchChange}
-          filterable={true}
-          filterValue={statusFilter}
-          onFilterChange={handleStatusChange}
-          filterOptions={[
-            { label: 'All Statuses', value: 'ALL' },
-            { label: 'Pending (Waiting)', value: 'PENDING' },
-            { label: 'Notified (Alerted)', value: 'NOTIFIED' },
-            { label: 'Cancelled', value: 'CANCELLED' },
-          ]}
-          itemsPerPage={10}
+        {/* Settings & Live Modal Preview (2 cols) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* Settings column */}
+          <div className="lg:col-span-7 space-y-6">
+            <SettingsCard
+              title="Notification Rules & Channels"
+              description="Enable customer signup options for out-of-stock products."
+            >
+              <SettingsToggle
+                label="Enable Notify Me Button & Modal"
+                description="Displays 'Notify me' button when inventory is at or below threshold."
+                checked={enabled}
+                onChange={setEnabled}
+              />
+
+              <div className="pt-3 border-t border-gray-100 space-y-3">
+                <label className="text-sm font-bold text-gray-900 block">Lead Collection & Back in Stock Alerts</label>
+                <div className="space-y-2">
+                  <SettingsToggle
+                    label="Email Back in Stock Alerts (Required)"
+                    description="Sends back in stock email notifications when out-of-stock items are replenished."
+                    checked={notifyEmail}
+                    onChange={setNotifyEmail}
+                  />
+                  <SettingsToggle
+                    label="Collect Phone Number (Contact)"
+                    description="Displays an optional phone number field in the modal to capture customer contact details."
+                    checked={notifyWhatsApp}
+                    onChange={setNotifyWhatsApp}
+                  />
+                </div>
+              </div>
+            </SettingsCard>
+
+            <SettingsCard
+              title="Modal Text Customization"
+              description="Customize the copy customers see inside the subscription popup."
+            >
+              <SettingsInput
+                label="Popup Headline Message"
+                value={popupMessage}
+                onChange={setPopupMessage}
+                placeholder="Get notified when this item is back in stock."
+              />
+              <SettingsInput
+                label="Button Text"
+                value={buttonText}
+                onChange={setButtonText}
+                placeholder="Notify me when available"
+              />
+              <SettingsInput
+                label="Success Confirmation Message"
+                value={successMessage}
+                onChange={setSuccessMessage}
+                placeholder="You're on the list!"
+              />
+            </SettingsCard>
+          </div>
+
+          {/* Modal preview column */}
+          <div className="lg:col-span-5">
+            <NotifyMeModalPreview
+              popupMessage={popupMessage}
+              buttonText={buttonText}
+              successMessage={successMessage}
+              notifyEmail={notifyEmail}
+              notifyWhatsApp={notifyWhatsApp}
+            />
+          </div>
+        </div>
+
+        {/* Customer Restock Email Customizer & Live Email Preview */}
+        <EmailTemplateCustomizer
+          onSave={() => setToast({ message: 'Email template customized and saved successfully!', type: 'success' })}
         />
+
+        {/* Customer Registrations Table */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
+          <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Waitlist Registrations</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Customers waiting for items to be back in stock. Status remains <strong>PENDING</strong> until the variant inventory is refilled and back in stock alerts are dispatched. Showing 10 records per page.
+              </p>
+            </div>
+          </div>
+
+          <Table
+            columns={columns}
+            items={formattedItems}
+            loading={tableLoading}
+            serverSide={true}
+            totalItems={totalItems}
+            page={page}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+            searchable={true}
+            searchValue={search}
+            onSearchChange={handleSearchChange}
+            filterable={true}
+            filterValue={statusFilter}
+            onFilterChange={handleStatusChange}
+            filterOptions={[
+              { label: 'All Statuses', value: 'ALL' },
+              { label: 'Pending (Waiting)', value: 'PENDING' },
+              { label: 'Notified (Alerted)', value: 'NOTIFIED' },
+              { label: 'Cancelled', value: 'CANCELLED' },
+            ]}
+            itemsPerPage={10}
+          />
+        </div>
       </div>
-    </div>
     </StandaloneGuard>
   );
 }

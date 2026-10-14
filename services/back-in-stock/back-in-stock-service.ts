@@ -506,6 +506,9 @@ export class BackInStockService {
                 name
                 email
                 phone
+                shippingAddress {
+                  phone
+                }
                 createdAt
                 displayFulfillmentStatus
                 customer {
@@ -557,7 +560,7 @@ export class BackInStockService {
           const cleanVariantId = String(item.variant.id).replace(/\D/g, '');
           const customerName = [order.customer?.firstName, order.customer?.lastName].filter(Boolean).join(' ').trim() || null;
           const customerEmail = order.email || order.customer?.email || null;
-          const customerPhone = order.phone || order.customer?.phone || null;
+          const customerPhone = order.phone || order.customer?.phone || order.shippingAddress?.phone || null;
 
           let paymentOption = 'FULL';
           let totalAmount = 0;
@@ -603,6 +606,7 @@ export class BackInStockService {
             },
             update: {
               orderNumber: order.name || order.id,
+              customerPhone: customerPhone ? safeEncrypt(customerPhone) : undefined,
               status: order.displayFulfillmentStatus || 'UNFULFILLED',
             },
           });

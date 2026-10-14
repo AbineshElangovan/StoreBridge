@@ -5,3 +5,4 @@ export * from './SettingsTextarea';
 export * from './SaveButton';
 export * from './PreviewCard';
 export * from './NotifyMeModalPreview';
+export * from './EmailTemplateCustomizer';

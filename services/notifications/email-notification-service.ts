@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { EmailTemplateStore } from './email-template-store';
 
 export interface SendEmailParams {
   to: string;
@@ -287,8 +288,12 @@ export class EmailNotificationService {
     const fallbackUrl = productUrl || '#';
     const displayPrice = price ? (price.startsWith('₹') || price.startsWith('Rs') || price.startsWith('$') ? price : `₹${price}`) : '₹1,240';
     const safeImageUrl = await resolveLiveImageUrl(imageUrl);
+    const greetingName = params.customerName && params.customerName.trim() ? params.customerName.trim() : null;
+    const orderDisplay = params.orderNumber ? (params.orderNumber.startsWith('#') ? params.orderNumber : `#${params.orderNumber}`) : null;
 
-    let emailSubject = params.subject?.trim();
+    const tmpl = EmailTemplateStore.getTemplates().notify_me;
+
+    let emailSubject = params.subject?.trim() || tmpl.subject?.trim();
     if (emailSubject) {
       emailSubject = emailSubject
         .replace(/\{\{product_title\}\}/gi, fullTitle)
@@ -301,6 +306,16 @@ export class EmailNotificationService {
     }
 
     const subject = emailSubject;
+
+    const bannerColor = tmpl.bannerColor || '#059669';
+    const bannerText = tmpl.bannerText || 'Back in Stock • Available Now';
+    const headline = tmpl.headline ? tmpl.headline.replace(/\{\{product_title\}\}/gi, fullTitle) : `${fullTitle} is Back in Stock`;
+    const bodyMessage = tmpl.bodyMessage
+      ? tmpl.bodyMessage.replace(/\{\{store_name\}\}/gi, storeDisplayName).replace(/\{\{product_title\}\}/gi, fullTitle)
+      : 'The item you were waiting for is available again.';
+    const rawBtn = (tmpl.buttonText || 'Shop Now').replace(/\s*[→➔➜>]\s*$/g, '').trim();
+    const buttonLabel = `${rawBtn} &rarr;`;
+    const buttonColor = tmpl.buttonColor || '#111827';
 
     const plainText = [
       `Hello,`,
@@ -350,12 +365,22 @@ export class EmailNotificationService {
           <!-- Body Content -->
           <tr>
             <td style="padding:32px 24px;text-align:center;">
-              <div style="background-color:#e0e7ff;border:1px solid #c7d2fe;color:#3730a3;font-size:12px;font-weight:700;padding:6px 14px;border-radius:20px;display:inline-block;margin-bottom:14px;letter-spacing:0.02em;">
-                Back in Stock
+              <div style="background-color:${bannerColor};color:#ffffff;font-size:12px;font-weight:700;padding:6px 16px;border-radius:20px;display:inline-block;margin-bottom:14px;letter-spacing:0.02em;">
+                ${bannerText}
               </div>
-              <h1 style="margin:0 0 10px;font-size:22px;font-weight:800;color:#111827;line-height:1.3;">${fullTitle} is Back in Stock</h1>
-              <p style="margin:0 0 24px;font-size:15px;color:#4b5563;line-height:1.5;">
-                The item you were waiting for is available again.
+              <h1 style="margin:0 0 10px;font-size:22px;font-weight:800;color:#111827;line-height:1.3;">${headline}</h1>
+              ${greetingName ? `
+              <p style="margin:0 0 8px;font-size:15px;color:#111827;font-weight:600;">
+                Hi ${greetingName},
+              </p>
+              ` : ''}
+              ${orderDisplay ? `
+              <div style="font-size:13px;color:#4b5563;margin-bottom:12px;">
+                <strong>Order Number:</strong> <span style="color:#059669;font-weight:bold;">${orderDisplay}</span>
+              </div>
+              ` : ''}
+              <p style="margin:0 0 20px;font-size:15px;color:#4b5563;line-height:1.5;">
+                ${bodyMessage}
               </p>
 
               <!-- Product Card -->
@@ -394,8 +419,8 @@ export class EmailNotificationService {
                 </tr>
                 <tr>
                   <td align="center" style="padding-bottom:14px;">
-                    <a href="${fallbackUrl}" target="_blank" style="display:inline-block;background-color:#111827;color:#ffffff;text-decoration:none;font-size:15px;font-weight:bold;padding:14px 36px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
-                      View Product
+                    <a href="${fallbackUrl}" target="_blank" style="display:inline-block;background-color:${buttonColor};color:#ffffff;text-decoration:none;font-size:15px;font-weight:bold;padding:14px 36px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
+                      ${buttonLabel}
                     </a>
                   </td>
                 </tr>
@@ -594,7 +619,31 @@ export class EmailNotificationService {
     const greetingName = customerName && customerName.trim() ? customerName.trim() : 'Customer';
     const orderDisplay = orderNumber ? (orderNumber.startsWith('#') ? orderNumber : `#${orderNumber}`) : '#1234';
 
-    const subject = `Pre-order Ready: ${fullTitle} - ${storeDisplayName}`;
+    const preorderTmpl = EmailTemplateStore.getTemplates().preorder;
+
+    let emailSubjectPre = params.subject?.trim() || preorderTmpl.subject?.trim();
+    if (emailSubjectPre) {
+      emailSubjectPre = emailSubjectPre
+        .replace(/\{\{product_title\}\}/gi, fullTitle)
+        .replace(/\{\{product\}\}/gi, fullTitle)
+        .replace(/\{\{store_name\}\}/gi, storeDisplayName)
+        .replace(/\{\{store\}\}/gi, storeDisplayName)
+        .replace(/["']/g, '');
+    } else {
+      emailSubjectPre = `Pre-order Ready: ${fullTitle} - ${storeDisplayName}`;
+    }
+
+    const subject = emailSubjectPre;
+
+    const preorderBannerColor = preorderTmpl.bannerColor || '#7c3aed';
+    const preorderBannerText = preorderTmpl.bannerText || 'PRE-ORDER ALLOCATED • READY FOR FULFILLMENT';
+    const preorderHeadline = preorderTmpl.headline ? preorderTmpl.headline.replace(/\{\{product_title\}\}/gi, fullTitle) : 'Good News! Your Pre-order Is Ready for Fulfillment';
+    const preorderBodyMessage = preorderTmpl.bodyMessage
+      ? preorderTmpl.bodyMessage.replace(/\{\{store_name\}\}/gi, storeDisplayName).replace(/\{\{product_title\}\}/gi, fullTitle)
+      : 'The product you pre-ordered is back in stock, and we are preparing to fulfill your order.';
+    const rawPreorderBtn = (preorderTmpl.buttonText || 'View Order Status').replace(/\s*[→➔➜>]\s*$/g, '').trim();
+    const preorderButtonLabel = `${rawPreorderBtn} &rarr;`;
+    const preorderButtonColor = preorderTmpl.buttonColor || '#111827';
 
     const html = `
 <!DOCTYPE html>
@@ -627,16 +676,15 @@ export class EmailNotificationService {
           <!-- Body Content -->
           <tr>
             <td style="padding:32px 24px;text-align:left;">
-              <div style="background-color:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;font-size:13px;font-weight:bold;padding:8px 16px;border-radius:8px;display:inline-block;margin-bottom:16px;">
-                PRE-ORDER ALLOCATED &bull; READY FOR FULFILLMENT
+              <div style="background-color:${preorderBannerColor};color:#ffffff;font-size:12px;font-weight:bold;padding:8px 16px;border-radius:8px;display:inline-block;margin-bottom:16px;">
+                ${preorderBannerText}
               </div>
-              <h1 style="margin:0 0 14px;font-size:22px;font-weight:800;color:#111827;line-height:1.3;">Good News! Your Pre-order Is Ready for Fulfillment</h1>
+              <h1 style="margin:0 0 14px;font-size:22px;font-weight:800;color:#111827;line-height:1.3;">${preorderHeadline}</h1>
               <p style="margin:0 0 12px;font-size:15px;color:#111827;font-weight:600;">
                 Hi ${greetingName},
               </p>
               <p style="margin:0 0 16px;font-size:14px;color:#4b5563;line-height:1.6;">
-                Great news!<br/>
-                The product you pre-ordered is back in stock, and we are preparing to fulfill your order.
+                ${preorderBodyMessage}
               </p>
 
               <!-- Order & Product Details -->
@@ -680,8 +728,8 @@ export class EmailNotificationService {
                 </tr>
                 <tr>
                   <td align="center" style="padding-top:16px;padding-bottom:10px;">
-                    <a href="${fallbackUrl}" target="_blank" style="display:inline-block;background-color:#2563eb;color:#ffffff;text-decoration:none;font-size:14px;font-weight:bold;padding:12px 32px;border-radius:8px;box-shadow:0 2px 8px rgba(37,99,235,0.25);">
-                      View Product Details
+                    <a href="${fallbackUrl}" target="_blank" style="display:inline-block;background-color:${preorderButtonColor};color:#ffffff;text-decoration:none;font-size:14px;font-weight:bold;padding:12px 32px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.15);">
+                      ${preorderButtonLabel}
                     </a>
                   </td>
                 </tr>
