@@ -95,11 +95,11 @@ export default function SettingsPage() {
         if (typeof s.notifySyncFailure === 'boolean') setNotifySyncFailure(s.notifySyncFailure);
         if (typeof s.notifyStoreUpdate === 'boolean') setNotifyStoreUpdate(s.notifyStoreUpdate);
 
-        if ([5, 10, 20].includes(threshVal)) {
+        if ([10, 20].includes(threshVal)) {
           setThreshold(threshVal.toString());
         } else {
           setThreshold('custom');
-          setCustomThreshold(threshVal.toString());
+          setCustomThreshold(threshVal ? Math.max(1, threshVal).toString() : '15');
         }
       }
     } catch (err) {
@@ -281,8 +281,11 @@ export default function SettingsPage() {
     setSaveSuccess(false);
     try {
       const finalThreshold = threshold === 'custom'
-        ? parseInt(customThreshold, 10) || 15
-        : parseInt(threshold, 10);
+        ? Math.max(1, parseInt(customThreshold, 10) || 1)
+        : Math.max(1, parseInt(threshold, 10) || 10);
+      if (threshold === 'custom') {
+        setCustomThreshold(String(finalThreshold));
+      }
 
       // Save threshold, autoSync, dataRetention, and notification settings
       const settingsRes = await shopifyFetch('/api/settings', {
@@ -503,8 +506,24 @@ export default function SettingsPage() {
                       type="number"
                       label="Custom Threshold Value"
                       labelHidden
+                      min={1}
+                      step={1}
                       value={customThreshold}
-                      onChange={(val) => setCustomThreshold(val)}
+                      onChange={(val) => {
+                        if (val === '') {
+                          setCustomThreshold('');
+                          return;
+                        }
+                        const cleanVal = val.replace(/^0+(?=\d)/, '');
+                        const num = parseInt(cleanVal, 10);
+                        if (isNaN(num)) return;
+                        setCustomThreshold(String(Math.max(1, num)));
+                      }}
+                      onBlur={() => {
+                        if (!customThreshold || parseInt(customThreshold, 10) < 1) {
+                          setCustomThreshold('1');
+                        }
+                      }}
                       autoComplete="off"
                     />
                   </div>
