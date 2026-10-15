@@ -12,7 +12,7 @@ import {
 } from '../graphql';
 import { syncProductCollectionsByTags } from '../collection-sync';
 
-import { withLock, acquireSyncLock, hasSyncLock, releaseSyncLock } from '../locks';
+import { withLock, acquireSyncLock, hasSyncLock, releaseSyncLock, acquireRichSyncLock } from '../locks';
 import { calculateAdjustedPrice } from '../pricing';
 import { fetchDefaultLocation, publishProductToAllChannels, findTargetProductBySku } from '../api-helpers';
 import { updateLocalProductCache } from '../../product-cache';
@@ -487,6 +487,7 @@ export async function processProductUpdate(shopDomain: string, payload: any, web
               }
               if (targetLocationId) {
                 try {
+                  acquireRichSyncLock(targetStore.shopDomain, variant.inventoryItem.id, initialQuantity, 'INVENTORY_SYNC', 60000);
                   await setInventoryQuantity(targetStore.shopDomain, variant.inventoryItem.id, targetLocationId, initialQuantity);
                   console.log(`[ProductSync:Update] Set initial inventory of ${initialQuantity} for new SKU ${sku} in ${targetStore.shopDomain}`);
                   inventoryQuantity = initialQuantity;

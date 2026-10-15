@@ -12,7 +12,7 @@ import {
 } from '../graphql';
 import { syncProductCollectionsByTags } from '../collection-sync';
 
-import { withLock, acquireSyncLock, hasSyncLock, releaseSyncLock } from '../locks';
+import { withLock, acquireSyncLock, hasSyncLock, releaseSyncLock, acquireRichSyncLock } from '../locks';
 import { calculateAdjustedPrice } from '../pricing';
 import { fetchDefaultLocation, publishProductToAllChannels, findTargetProductBySku } from '../api-helpers';
 import { updateLocalProductCache } from '../../product-cache';
@@ -335,8 +335,67 @@ export async function processProductCreate(shopDomain: string, payload: any, web
           const sourceVariant = payload.variants?.find((v: any) => v.sku?.trim() === sku);
           const initialQuantity = sourceVariant?.inventory_quantity ?? 0;
 
+          const imageUrl = payload.image?.src || payload.images?.[0]?.src || null;
+          const variantTitle = variant.title && variant.title !== "Default Title" ? `${createdProduct.title} - ${variant.title}` : createdProduct.title;
+
+          // 1. First record the ProductCache with initialQuantity
+          await prisma.productCache.upsert({
+            where: {
+              storeId_shopifyVariantId: {
+                storeId: targetStore.id,
+                shopifyVariantId: variant.id,
+              },
+            },
+            update: {
+              sku,
+              title: variantTitle,
+              shopifyProductId: createdProduct.id,
+              inventoryQuantity: initialQuantity,
+              price: parseFloat(variant.price || "0"),
+              imageUrl,
+              tags: payload.tags || null,
+            },
+            create: {
+              storeId: targetStore.id,
+              shopifyProductId: createdProduct.id,
+              shopifyVariantId: variant.id,
+              sku,
+              title: variantTitle,
+              inventoryQuantity: initialQuantity,
+              price: parseFloat(variant.price || "0"),
+              imageUrl,
+              tags: payload.tags || null,
+            },
+          });
+
+          // 2. Map the VariantMap so inventory item is immediately known
+          await prisma.variantMap.upsert({
+            where: {
+              storeId_shopifyVariantId: {
+                storeId: targetStore.id,
+                shopifyVariantId: variant.id,
+              },
+            },
+            update: {
+              sku,
+              shopifyProductId: createdProduct.id,
+              inventoryItemId: variant.inventoryItem?.id || "",
+              locationId: targetLocationId,
+            },
+            create: {
+              storeId: targetStore.id,
+              sku,
+              shopifyProductId: createdProduct.id,
+              shopifyVariantId: variant.id,
+              inventoryItemId: variant.inventoryItem?.id || "",
+              locationId: targetLocationId,
+            },
+          });
+
+          // 3. Acquire rich sync lock and set initial inventory in Shopify
           if (initialQuantity > 0 && variant.inventoryItem?.id) {
             try {
+              acquireRichSyncLock(targetStore.shopDomain, variant.inventoryItem.id, initialQuantity, 'INVENTORY_SYNC', 60000);
               await setInventoryQuantity(targetStore.shopDomain, variant.inventoryItem.id, targetLocationId, initialQuantity);
               console.log(`[ProductSync:Create] Set initial inventory of ${initialQuantity} for SKU ${sku} in ${targetStore.shopDomain}`);
 
@@ -363,61 +422,6 @@ export async function processProductCreate(shopDomain: string, payload: any, web
               });
             }
           }
-
-          const imageUrl = payload.image?.src || payload.images?.[0]?.src || null;
-
-          const variantTitle = variant.title && variant.title !== "Default Title" ? `${createdProduct.title} - ${variant.title}` : createdProduct.title;
-
-          await prisma.productCache.upsert({
-            where: {
-              storeId_shopifyVariantId: {
-                storeId: targetStore.id,
-                shopifyVariantId: variant.id,
-              },
-            },
-            update: {
-              sku,
-              title: variantTitle,
-              shopifyProductId: createdProduct.id,
-              price: parseFloat(variant.price || "0"),
-              imageUrl,
-              tags: payload.tags || null,
-            },
-            create: {
-              storeId: targetStore.id,
-              shopifyProductId: createdProduct.id,
-              shopifyVariantId: variant.id,
-              sku,
-              title: variantTitle,
-              inventoryQuantity: initialQuantity,
-              price: parseFloat(variant.price || "0"),
-              imageUrl,
-              tags: payload.tags || null,
-            },
-          });
-
-          await prisma.variantMap.upsert({
-            where: {
-              storeId_shopifyVariantId: {
-                storeId: targetStore.id,
-                shopifyVariantId: variant.id,
-              },
-            },
-            update: {
-              sku,
-              shopifyProductId: createdProduct.id,
-              inventoryItemId: variant.inventoryItem?.id || "",
-              locationId: targetLocationId,
-            },
-            create: {
-              storeId: targetStore.id,
-              sku,
-              shopifyProductId: createdProduct.id,
-              shopifyVariantId: variant.id,
-              inventoryItemId: variant.inventoryItem?.id || "",
-              locationId: targetLocationId,
-            },
-          });
 
           // SYNC IDENTITY
           if (sourceVariant) {

@@ -76,23 +76,39 @@ function DefaultEmptyState() {
 }
 
 /* ── Search input ── */
-function SearchInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
+function SearchInput({ value, onChange, placeholder, accentColor }: { value: string; onChange: (v: string) => void; placeholder: string; accentColor?: string }) {
+  const [isFocused, setIsFocused] = useState(false);
   return (
     <div className="relative flex-1 min-w-[180px]">
-      <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <svg
+        className="absolute left-2.5 top-1/2 -translate-y-1/2 transition-colors"
+        style={{ color: isFocused && accentColor ? accentColor : '#9ca3af' }}
+        width="16"
+        height="16"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
         <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
       </svg>
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
         placeholder={placeholder}
-        className="w-full pl-8.5 pr-8 py-2 border border-gray-300 rounded-lg text-[13px] outline-none transition-colors bg-white box-border focus:border-indigo-500"
+        style={{
+          borderColor: isFocused && accentColor ? accentColor : '#d1d5db',
+          boxShadow: isFocused && accentColor ? `0 0 0 2px ${accentColor}25` : undefined,
+        }}
+        className="w-full pl-8.5 pr-8 py-2 border rounded-lg text-[13px] outline-none transition-all bg-white box-border text-gray-700"
       />
       {value && (
         <button
           onClick={() => onChange('')}
-          className="absolute right-2 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer text-gray-400 p-0.5 leading-none flex items-center justify-center"
+          className="absolute right-2 top-1/2 -translate-y-1/2 bg-transparent border-none cursor-pointer text-gray-400 hover:text-gray-600 p-0.5 leading-none flex items-center justify-center"
           title="Clear search"
         >
           <span className="w-3.5 h-3.5 flex items-center">
@@ -162,9 +178,7 @@ export function Table({
   onRowClick,
 }: TableProps) {
   const { currentTheme } = useTheme();
-  const effectiveHeaderColor = (!headerColor || headerColor === '#4f46e5' || headerColor === '#0db69d')
-    ? (currentTheme?.primaryColor || '#0db69d')
-    : headerColor;
+  const effectiveHeaderColor = headerColor || '#6366f1';
 
   const [localQuery, setLocalQuery] = useState('');
   const [localFilterValue, setLocalFilterValue] = useState('ALL');
@@ -253,11 +267,11 @@ export function Table({
   };
 
   return (
-    <div className="w-full bg-white/90 backdrop-blur-md rounded-xl border border-gray-200/80 shadow-2xs overflow-hidden">
+    <div className="w-full bg-white/90 backdrop-blur-md rounded-xl border border-gray-200/80 shadow-2xs relative">
 
       {/* ── Table Header / Toolbar ── */}
       {(title || searchable || filterable) && !loading && (
-        <div className="p-3 sm:p-4 px-4 sm:px-5 border-b border-gray-100 bg-white/40 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="p-3 sm:p-4 px-4 sm:px-5 border-b border-gray-100 bg-white/40 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 rounded-t-xl">
           
           {/* Left Side: Title */}
           <div className="flex items-center gap-3">
@@ -276,6 +290,7 @@ export function Table({
                   value={query}
                   onChange={setQuery}
                   placeholder={`Search ${title?.replace(/[^a-zA-Z ]/g, '').trim() || 'records'}…`}
+                  accentColor={effectiveHeaderColor}
                 />
               </div>
             )}
@@ -285,6 +300,7 @@ export function Table({
                   options={secondaryFilterOptions}
                   value={secondaryFilterValue || 'ALL'}
                   onChange={(value) => onSecondaryFilterChange?.(value)}
+                  accentColor={effectiveHeaderColor}
                 />
               </div>
             )}
@@ -294,6 +310,7 @@ export function Table({
                   options={filterOptions}
                   value={currentFilterValue}
                   onChange={(value) => handleFilterChange(value)}
+                  accentColor={effectiveHeaderColor}
                 />
               </div>
             )}

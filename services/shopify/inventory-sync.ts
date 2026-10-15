@@ -2,7 +2,7 @@ import { prisma } from '@/lib/db/prisma';
 import { createSyncLog } from '@/lib/shopify/sync-log';
 import { setInventoryQuantity, adjustInventoryQuantity } from '@/lib/shopify/inventory';
 import { syncLock } from '@/lib/shopify/sync-lock';
-import { acquireRichSyncLock } from '@/services/shopify/locks';
+import { acquireRichSyncLock, hasRichSyncLock, releaseRichSyncLock } from '@/services/shopify/locks';
 import { getAdminClient } from '@/lib/shopify/admin';
 import { createNotification } from '@/services/notification-service';
 
@@ -50,6 +50,14 @@ export async function processInventoryUpdate(
     const gidInventoryItemId = inventoryItemIdStr.includes('gid://')
       ? inventoryItemIdStr
       : `gid://shopify/InventoryItem/${inventoryItemIdStr}`;
+
+    // Check rich sync lock to ignore echo updates caused by StoreBridge
+    if (hasRichSyncLock(shopDomain, gidInventoryItemId, availableQuantity) || hasRichSyncLock(shopDomain, inventoryItemIdStr, availableQuantity)) {
+      console.log(`[SyncService:Echo] Ignored rich sync lock echo for ${shopDomain} item ${inventoryItemId} with qty ${availableQuantity}`);
+      releaseRichSyncLock(shopDomain, gidInventoryItemId, availableQuantity);
+      releaseRichSyncLock(shopDomain, inventoryItemIdStr, availableQuantity);
+      return;
+    }
 
     let sourceVariantMap = null;
     let retries = 0;
@@ -138,6 +146,15 @@ export async function processInventoryUpdate(
       });
       allowedTargetStoreIds = connections.map(c => c.targetStoreId);
     } else {
+      // CRITICAL MULTI-STORE RULE:
+      // Connected sub-stores ONLY propagate inventory REDUCTIONS (delta < 0, e.g. customer orders/sales) back to Master!
+      // Sub-stores MUST NEVER push inventory INCREASES (delta > 0) to Master or network!
+      // Master is the single author of inventory additions.
+      if (delta > 0) {
+        console.log(`[SyncService:Safety] Sub-store ${shopDomain} reported positive delta (+${delta}). Sub-stores cannot increase Master inventory. Skipping upstream sync.`);
+        return;
+      }
+
       const masterConn = await prisma.storeConnection.findFirst({
         where: { targetStoreId: sourceStore.id }
       });

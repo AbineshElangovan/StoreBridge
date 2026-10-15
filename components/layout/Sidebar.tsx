@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
@@ -56,25 +56,38 @@ export function Sidebar() {
   } = useStoreContext();
 
   const { unreadCount } = useNotifications();
+  const [storeMenuOpen, setStoreMenuOpen] = useState(false);
+  const storeDropdownRef = useRef<HTMLDivElement>(null);
 
-  const handleStoreSwitch = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    if (!canSwitchStores) return;
-    const selectedShop = e.target.value;
-    if (selectedShop) {
-      try {
-        localStorage.setItem('storebridge_active_shop', selectedShop);
-      } catch (err) {}
-      const url = new URL(window.location.href);
-      url.searchParams.set('shop', selectedShop);
-      const masterDomain = sessionShopDomain || sessionStore?.shopDomain;
-      if (masterDomain && isMasterSession) {
-        url.searchParams.set('master_shop', masterDomain);
-        try {
-          localStorage.setItem('storebridge_master_shop', masterDomain);
-        } catch (err) {}
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (storeDropdownRef.current && !storeDropdownRef.current.contains(event.target as Node)) {
+        setStoreMenuOpen(false);
       }
-      window.location.href = url.toString();
     }
+    if (storeMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [storeMenuOpen]);
+
+  const switchStore = (selectedShop: string) => {
+    if (!canSwitchStores || !selectedShop) return;
+    try {
+      localStorage.setItem('storebridge_active_shop', selectedShop);
+    } catch (err) {}
+    const url = new URL(window.location.href);
+    url.searchParams.set('shop', selectedShop);
+    const masterDomain = sessionShopDomain || sessionStore?.shopDomain;
+    if (masterDomain && isMasterSession) {
+      url.searchParams.set('master_shop', masterDomain);
+      try {
+        localStorage.setItem('storebridge_master_shop', masterDomain);
+      } catch (err) {}
+    }
+    window.location.href = url.toString();
   };
 
   const createHref = (basePath: string) => {
@@ -180,7 +193,7 @@ export function Sidebar() {
       </Link>
 
       {/* Store Role Indicator Card */}
-      <div className="px-4 py-4 shrink-0">
+      <div className="px-4 py-4 shrink-0 relative z-30">
         {(() => {
           const isMasterStore = currentStore?.isMaster;
           const isConnectedStore = !isMasterStore && !isStandalone;
@@ -190,53 +203,138 @@ export function Sidebar() {
             : (isMasterStore ? 'MASTER STORE' : 'CONNECTED STORE');
 
           return (
-            <div className="px-3.5 py-2.5 rounded-xl border border-[var(--theme-border-accent)] bg-white/85 shadow-2xs flex flex-col relative transition-all duration-200">
+            <div 
+              ref={storeDropdownRef}
+              className="px-3.5 py-2.5 rounded-xl border border-[var(--theme-border-accent)] bg-white/90 shadow-2xs flex flex-col relative transition-all duration-200"
+            >
               {canSwitchStores ? (
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <StoreLogo 
-                    shopDomain={currentStore?.shopDomain} 
-                    label={currentStore?.label} 
-                    isMaster={currentStore?.isMaster} 
-                    isStandalone={isStandalone} 
-                    size="sm" 
-                  />
-                  <div className="min-w-0 flex-1">
-                    <select
-                      value={currentStore?.shopDomain || ''}
-                      onChange={handleStoreSwitch}
-                      className="bg-transparent text-xs sm:text-sm font-bold border-none outline-none focus:ring-0 cursor-pointer w-full pr-1 truncate text-gray-900"
+                <div className="relative min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setStoreMenuOpen(!storeMenuOpen)}
+                    className="flex items-start gap-2.5 w-full text-left cursor-pointer group focus:outline-none"
+                  >
+                    <div className="pt-0.5 shrink-0">
+                      <StoreLogo 
+                        shopDomain={currentStore?.shopDomain} 
+                        label={currentStore?.label} 
+                        isMaster={currentStore?.isMaster} 
+                        isStandalone={isStandalone} 
+                        size="sm" 
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-1.5">
+                        <span className="text-xs sm:text-sm font-bold text-gray-900 group-hover:text-[var(--color-primary)] transition-colors leading-snug break-words">
+                          {currentStore?.label || currentStore?.shopDomain || 'Select Store'}
+                        </span>
+                        <svg
+                          className={`w-3.5 h-3.5 text-gray-400 group-hover:text-[var(--color-primary)] transition-transform duration-200 shrink-0 mt-0.5 ${
+                            storeMenuOpen ? 'rotate-180 text-[var(--color-primary)]' : ''
+                          }`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                      {roleLabel && (
+                        <span className="text-[10px] font-extrabold mt-1 tracking-wider uppercase text-[var(--color-primary)] block">
+                          {roleLabel}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Custom Purple Floating Dropdown Menu - Aligned 100% to Card Width, Full Name Visible */}
+                  {storeMenuOpen && (
+                    <div 
+                      className="absolute left-0 right-0 w-full top-full mt-2 rounded-xl border border-[var(--theme-border-accent)]/80 shadow-2xl py-1.5 z-50 overflow-hidden ring-1 ring-black/10 animate-in fade-in-50 zoom-in-95 duration-150"
+                      style={{ backgroundColor: '#ffffff', opacity: 1 }}
                     >
-                      {activeStores.map((s) => {
-                        const tag = s.isMaster ? '(Master)' : (s.isStandalone ? '' : '(Connected)');
-                        return (
-                          <option key={s.id} value={s.shopDomain} className="bg-white text-gray-900 font-semibold py-1">
-                            {s.label || s.shopDomain} {tag}
-                          </option>
-                        );
-                      })}
-                    </select>
-                    {roleLabel && (
-                      <span className="text-[10px] font-extrabold mt-0.5 tracking-wider uppercase text-[var(--color-primary)] block">
-                        {roleLabel}
-                      </span>
-                    )}
-                  </div>
+                      <div className="px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-gray-400 border-b border-gray-100 flex items-center justify-between bg-white">
+                        <span>Switch Store</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)]"></span>
+                      </div>
+                      <div className="max-h-72 overflow-y-auto py-1 bg-white divide-y divide-gray-50">
+                        {activeStores.map((s) => {
+                          const isSelected = s.shopDomain === currentStore?.shopDomain;
+                          return (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => {
+                                setStoreMenuOpen(false);
+                                if (!isSelected) {
+                                  switchStore(s.shopDomain);
+                                }
+                              }}
+                              className={`w-full px-3 py-2 text-left flex items-start justify-between gap-2 text-xs transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-[var(--color-primary-light)]/80 text-[var(--color-primary-dark)] font-bold border-l-4 border-[var(--color-primary)] shadow-2xs'
+                                  : 'text-gray-800 hover:bg-[var(--color-primary-light)]/40 hover:text-[var(--color-primary)]'
+                              }`}
+                              style={{ backgroundColor: isSelected ? undefined : '#ffffff' }}
+                            >
+                              <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                                <div className="pt-0.5 shrink-0">
+                                  <StoreLogo 
+                                    shopDomain={s.shopDomain} 
+                                    label={s.label} 
+                                    isMaster={s.isMaster} 
+                                    isStandalone={s.isStandalone} 
+                                    size="sm" 
+                                  />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <span className="font-bold text-gray-900 leading-snug break-words block">
+                                    {s.label || s.shopDomain}
+                                  </span>
+                                  <div className="flex items-center gap-1.5 mt-1">
+                                    {s.isMaster ? (
+                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-[var(--color-primary-light)] text-[var(--color-primary-dark)] border border-[var(--color-primary)]/40 shrink-0">
+                                        Master
+                                      </span>
+                                    ) : !s.isStandalone ? (
+                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold text-gray-600 bg-gray-100 border border-gray-200 shrink-0">
+                                        Connected
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              </div>
+                              {isSelected && (
+                                <div className="pt-0.5 shrink-0 ml-1">
+                                  <svg className="w-4 h-4 text-[var(--color-primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <StoreLogo 
-                    shopDomain={currentStore?.shopDomain} 
-                    label={currentStore?.label} 
-                    isMaster={currentStore?.isMaster} 
-                    isStandalone={isStandalone} 
-                    size="sm" 
-                  />
+                <div className="flex items-start gap-2.5 min-w-0">
+                  <div className="pt-0.5 shrink-0">
+                    <StoreLogo 
+                      shopDomain={currentStore?.shopDomain} 
+                      label={currentStore?.label} 
+                      isMaster={currentStore?.isMaster} 
+                      isStandalone={isStandalone} 
+                      size="sm" 
+                    />
+                  </div>
                   <div className="min-w-0 flex-1">
-                    <span className="text-xs sm:text-sm font-bold truncate text-gray-900 block">
+                    <span className="text-xs sm:text-sm font-bold text-gray-900 block leading-snug break-words">
                       {loading ? 'Loading...' : (currentStore?.label || currentStore?.shopDomain || 'ESHAN Store')}
                     </span>
                     {roleLabel && (
-                      <span className="text-[10px] font-extrabold mt-0.5 tracking-wider uppercase text-[var(--color-primary)] block">
+                      <span className="text-[10px] font-extrabold mt-1 tracking-wider uppercase text-[var(--color-primary)] block">
                         {roleLabel}
                       </span>
                     )}

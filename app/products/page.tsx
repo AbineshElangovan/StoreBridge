@@ -74,7 +74,6 @@ export default function ProductsPage() {
     { title: 'Image', key: 'imageUrls', type: 'image' },
     { title: 'Product Name', key: 'title_node', type: 'react_node' },
     { title: 'SKU', key: 'sku' },
-    { title: 'Store', key: 'store' },
     { title: 'Price', key: 'priceText', type: 'bold' },
     { title: 'Stock Qty', key: 'inventoryQuantity', type: 'bold' },
     {
@@ -136,9 +135,8 @@ export default function ProductsPage() {
         <div className="flex flex-col gap-8 min-w-0 w-full">
           <DashboardCards stats={{ ...stats, lastUpdated: 'Just now' }} lowStockThreshold={data?.lowStockThreshold ?? 15} />
           {searchQuery.trim() !== '' ? (
-            <div className="w-full overflow-hidden rounded-xl border border-gray-100 shadow-sm">
-              <div className="overflow-x-auto w-full max-w-full">
-                <Table
+            <div className="w-full relative">
+              <Table
                   key="search-results"
                   title="Search Results"
                   headerColor="#6366f1"
@@ -148,7 +146,7 @@ export default function ProductsPage() {
                     title_node: (
                       <Link
                         href={getProductUrl(item)}
-                        className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
+                        className="font-bold text-gray-900 hover:text-[#6366f1] hover:underline cursor-pointer transition-colors"
                       >
                         {item.title}
                       </Link>
@@ -172,7 +170,6 @@ export default function ProductsPage() {
                     </div>
                   }
                 />
-              </div>
             </div>
           ) : loading ? (
             <div className="w-full h-64 flex flex-col items-center justify-center bg-white rounded-xl border border-gray-100 shadow-sm gap-4">
@@ -180,7 +177,7 @@ export default function ProductsPage() {
               <p className="text-sm text-gray-400 font-medium">Loading products...</p>
             </div>
           ) : Object.keys(groupedProducts).length > 0 ? (() => {
-            const colors = ['#6366f1', '#0f766e', '#7c3aed', '#db2777', '#ea580c', '#0891b2'];
+            const colors = ['#6366f1', '#7c3aed', '#8b5cf6', '#6366f1', '#7c3aed', '#8b5cf6'];
             return Object.entries(groupedProducts)
               .sort((a, b) => {
                 if (a[0] === 'Uncategorized') return 1;
@@ -190,42 +187,40 @@ export default function ProductsPage() {
               .map(([collectionName, items], index) => {
                 const filteredItems = filterProducts(items as any[]);
                 return (
-                  <div key={collectionName} className="w-full overflow-hidden rounded-xl border border-gray-100 shadow-sm mb-6">
-                    <div className="overflow-x-auto w-full max-w-full">
-                      <Table
-                        title={collectionName}
-                        headerColor={collectionName === 'Uncategorized' ? '#475569' : colors[index % colors.length]}
-                        columns={columns}
-                        items={filteredItems.map(item => ({
-                          ...item,
-                          title_node: (
-                            <Link
-                              href={getProductUrl(item)}
-                              className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
-                            >
-                              {item.title}
-                            </Link>
-                          ),
-                          updatedDate: <LocalizedDate date={item.updatedDate || item.updatedAt} format="datetime" />
-                        }))}
-                        searchable={false}
-                        filterable
-                        itemsPerPage={10}
-                        filterKey="stockLevel"
-                        filterOptions={[
-                          { label: 'All Stock Levels', value: 'ALL' },
-                          { label: 'Healthy', value: 'Healthy' },
-                          { label: 'Low', value: 'Low' },
-                          { label: 'Critical', value: 'Critical' },
-                          { label: 'Out of Stock', value: 'Out of Stock' },
-                        ]}
-                        emptyState={
-                          <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
-                            No products found in this collection.
-                          </div>
-                        }
-                      />
-                    </div>
+                  <div key={collectionName} className="w-full relative mb-6">
+                    <Table
+                      title={collectionName}
+                      headerColor={collectionName === 'Uncategorized' ? '#475569' : colors[index % colors.length]}
+                      columns={columns}
+                      items={filteredItems.map(item => ({
+                        ...item,
+                        title_node: (
+                          <Link
+                            href={getProductUrl(item)}
+                            className="font-bold text-gray-900 hover:text-[#6366f1] hover:underline cursor-pointer transition-colors"
+                          >
+                            {item.title}
+                          </Link>
+                        ),
+                        updatedDate: <LocalizedDate date={item.updatedDate || item.updatedAt} format="datetime" />
+                      }))}
+                      searchable={false}
+                      filterable
+                      itemsPerPage={10}
+                      filterKey="stockLevel"
+                      filterOptions={[
+                        { label: 'All Stock Levels', value: 'ALL' },
+                        { label: 'Healthy', value: 'Healthy' },
+                        { label: 'Low', value: 'Low' },
+                        { label: 'Critical', value: 'Critical' },
+                        { label: 'Out of Stock', value: 'Out of Stock' },
+                      ]}
+                      emptyState={
+                        <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
+                          No products found in this collection.
+                        </div>
+                      }
+                    />
                   </div>
                 );
               });

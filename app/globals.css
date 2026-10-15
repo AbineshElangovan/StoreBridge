@@ -445,8 +445,8 @@ body,
 /* 2. Show Theme-Colored Scrollbar ONLY when actively scrolling */
 html[data-scrolling="true"],
 body[data-scrolling="true"],
-*[data-scrolling="true"],
-*.sb-scrolling {
+*:not(.custom-dropdown-scrollbar)[data-scrolling="true"],
+*:not(.custom-dropdown-scrollbar).sb-scrolling {
   scrollbar-color: var(--color-primary, #047857) transparent !important;
 }
 
@@ -491,10 +491,10 @@ body::-webkit-scrollbar-thumb {
 }
 
 /* ONLY when actively scrolling, thumb takes theme color */
-[data-scrolling="true"]::-webkit-scrollbar-thumb,
-*[data-scrolling="true"]::-webkit-scrollbar-thumb,
-.sb-scrolling::-webkit-scrollbar-thumb,
-*.sb-scrolling::-webkit-scrollbar-thumb,
+[data-scrolling="true"]:not(.custom-dropdown-scrollbar)::-webkit-scrollbar-thumb,
+*:not(.custom-dropdown-scrollbar)[data-scrolling="true"]::-webkit-scrollbar-thumb,
+.sb-scrolling:not(.custom-dropdown-scrollbar)::-webkit-scrollbar-thumb,
+*:not(.custom-dropdown-scrollbar).sb-scrolling::-webkit-scrollbar-thumb,
 html[data-scrolling="true"]::-webkit-scrollbar-thumb,
 body[data-scrolling="true"]::-webkit-scrollbar-thumb {
   background-color: var(--color-primary, #047857) !important;
@@ -511,8 +511,8 @@ body[data-scrolling="true"]::-webkit-scrollbar-thumb {
 [data-theme="sapphire"].sb-scrolling {
   scrollbar-color: #0284c7 transparent !important;
 }
-[data-theme="sky_azure"] *[data-scrolling="true"]::-webkit-scrollbar-thumb,
-[data-theme="sapphire"] *[data-scrolling="true"]::-webkit-scrollbar-thumb,
+[data-theme="sky_azure"] *:not(.custom-dropdown-scrollbar)[data-scrolling="true"]::-webkit-scrollbar-thumb,
+[data-theme="sapphire"] *:not(.custom-dropdown-scrollbar)[data-scrolling="true"]::-webkit-scrollbar-thumb,
 [data-theme="sky_azure"].sb-scrolling::-webkit-scrollbar-thumb,
 [data-theme="sapphire"].sb-scrolling::-webkit-scrollbar-thumb,
 html[data-theme="sky_azure"] [data-scrolling="true"]::-webkit-scrollbar-thumb,
@@ -535,8 +535,8 @@ html[data-theme="sapphire"] [data-scrolling="true"]::-webkit-scrollbar-thumb {
 [data-theme="emerald"].sb-scrolling {
   scrollbar-color: #047857 transparent !important;
 }
-[data-theme="emerald_forest"] *[data-scrolling="true"]::-webkit-scrollbar-thumb,
-[data-theme="emerald"] *[data-scrolling="true"]::-webkit-scrollbar-thumb,
+[data-theme="emerald_forest"] *:not(.custom-dropdown-scrollbar)[data-scrolling="true"]::-webkit-scrollbar-thumb,
+[data-theme="emerald"] *:not(.custom-dropdown-scrollbar)[data-scrolling="true"]::-webkit-scrollbar-thumb,
 [data-theme="emerald_forest"].sb-scrolling::-webkit-scrollbar-thumb,
 [data-theme="emerald"].sb-scrolling::-webkit-scrollbar-thumb,
 html[data-theme="emerald_forest"] [data-scrolling="true"]::-webkit-scrollbar-thumb,
@@ -557,7 +557,7 @@ html[data-theme="emerald"] [data-scrolling="true"]::-webkit-scrollbar-thumb {
 [data-theme="crimson_ruby"].sb-scrolling {
   scrollbar-color: #991b1b transparent !important;
 }
-[data-theme="crimson_ruby"] *[data-scrolling="true"]::-webkit-scrollbar-thumb,
+[data-theme="crimson_ruby"] *:not(.custom-dropdown-scrollbar)[data-scrolling="true"]::-webkit-scrollbar-thumb,
 [data-theme="crimson_ruby"].sb-scrolling::-webkit-scrollbar-thumb,
 html[data-theme="crimson_ruby"] [data-scrolling="true"]::-webkit-scrollbar-thumb {
   background-color: #991b1b !important;
@@ -574,8 +574,8 @@ html[data-theme="crimson_ruby"] [data-scrolling="true"]::-webkit-scrollbar-thumb
 [data-theme="violet"].sb-scrolling {
   scrollbar-color: #6b21a8 transparent !important;
 }
-[data-theme="lavender"] *[data-scrolling="true"]::-webkit-scrollbar-thumb,
-[data-theme="violet"] *[data-scrolling="true"]::-webkit-scrollbar-thumb,
+[data-theme="lavender"] *:not(.custom-dropdown-scrollbar)[data-scrolling="true"]::-webkit-scrollbar-thumb,
+[data-theme="violet"] *:not(.custom-dropdown-scrollbar)[data-scrolling="true"]::-webkit-scrollbar-thumb,
 [data-theme="lavender"].sb-scrolling::-webkit-scrollbar-thumb,
 [data-theme="violet"].sb-scrolling::-webkit-scrollbar-thumb,
 html[data-theme="lavender"] [data-scrolling="true"]::-webkit-scrollbar-thumb,
@@ -596,7 +596,7 @@ html[data-theme="violet"] [data-scrolling="true"]::-webkit-scrollbar-thumb {
 [data-theme="sand"].sb-scrolling {
   scrollbar-color: #000000 transparent !important;
 }
-[data-theme="sand"] *[data-scrolling="true"]::-webkit-scrollbar-thumb,
+[data-theme="sand"] *:not(.custom-dropdown-scrollbar)[data-scrolling="true"]::-webkit-scrollbar-thumb,
 [data-theme="sand"].sb-scrolling::-webkit-scrollbar-thumb,
 html[data-theme="sand"] [data-scrolling="true"]::-webkit-scrollbar-thumb {
   background-color: #000000 !important;
@@ -647,4 +647,86 @@ html[data-theme="sand"] [data-scrolling="true"]::-webkit-scrollbar-thumb {
   font-weight: 700 !important;
   border-color: #1e293b !important;
 }
+
+/* Custom Form & Select Theme Accent Styling */
+select:focus {
+  outline: none !important;
+  border-color: var(--color-primary) !important;
+}
+
+select option:checked,
+select option:hover {
+  background-color: var(--color-primary-light, #f3e8ff) !important;
+  color: var(--color-primary-dark, #581c87) !important;
+}
+
+/* Custom Dropdown Scrollbar - Table Purple Color Only */
+.custom-dropdown-scrollbar,
+.custom-dropdown-scrollbar[data-scrolling="true"],
+*[data-scrolling="true"].custom-dropdown-scrollbar,
+[data-theme] .custom-dropdown-scrollbar,
+[data-theme] .custom-dropdown-scrollbar[data-scrolling="true"],
+[data-theme] *[data-scrolling="true"].custom-dropdown-scrollbar {
+  overflow-y: auto !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: var(--dropdown-accent, #6366f1) #f1f5f9 !important;
+}
+
+.custom-dropdown-scrollbar::-webkit-scrollbar,
+.custom-dropdown-scrollbar[data-scrolling="true"]::-webkit-scrollbar,
+*[data-scrolling="true"].custom-dropdown-scrollbar::-webkit-scrollbar,
+[data-theme] .custom-dropdown-scrollbar::-webkit-scrollbar,
+[data-theme] .custom-dropdown-scrollbar[data-scrolling="true"]::-webkit-scrollbar,
+[data-theme] *[data-scrolling="true"].custom-dropdown-scrollbar::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+}
+
+.custom-dropdown-scrollbar::-webkit-scrollbar-track,
+.custom-dropdown-scrollbar[data-scrolling="true"]::-webkit-scrollbar-track,
+*[data-scrolling="true"].custom-dropdown-scrollbar::-webkit-scrollbar-track,
+[data-theme] .custom-dropdown-scrollbar::-webkit-scrollbar-track,
+[data-theme] .custom-dropdown-scrollbar[data-scrolling="true"]::-webkit-scrollbar-track,
+[data-theme] *[data-scrolling="true"].custom-dropdown-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9 !important;
+  border-radius: 4px !important;
+}
+
+.custom-dropdown-scrollbar::-webkit-scrollbar-button,
+.custom-dropdown-scrollbar[data-scrolling="true"]::-webkit-scrollbar-button,
+*[data-scrolling="true"].custom-dropdown-scrollbar::-webkit-scrollbar-button,
+[data-theme] .custom-dropdown-scrollbar::-webkit-scrollbar-button,
+[data-theme] .custom-dropdown-scrollbar[data-scrolling="true"]::-webkit-scrollbar-button,
+[data-theme] *[data-scrolling="true"].custom-dropdown-scrollbar::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.custom-dropdown-scrollbar::-webkit-scrollbar-thumb,
+.custom-dropdown-scrollbar[data-scrolling="true"]::-webkit-scrollbar-thumb,
+*[data-scrolling="true"].custom-dropdown-scrollbar::-webkit-scrollbar-thumb,
+.custom-dropdown-scrollbar.sb-scrolling::-webkit-scrollbar-thumb,
+[data-theme] .custom-dropdown-scrollbar::-webkit-scrollbar-thumb,
+[data-theme] .custom-dropdown-scrollbar[data-scrolling="true"]::-webkit-scrollbar-thumb,
+[data-theme] *[data-scrolling="true"].custom-dropdown-scrollbar::-webkit-scrollbar-thumb,
+[data-theme] .custom-dropdown-scrollbar.sb-scrolling::-webkit-scrollbar-thumb {
+  background: var(--dropdown-accent, #6366f1) !important;
+  background-color: var(--dropdown-accent, #6366f1) !important;
+  border-radius: 4px !important;
+  opacity: 1 !important;
+}
+
+.custom-dropdown-scrollbar::-webkit-scrollbar-thumb:hover,
+.custom-dropdown-scrollbar::-webkit-scrollbar-thumb:active,
+.custom-dropdown-scrollbar.is-scrolling::-webkit-scrollbar-thumb,
+.custom-dropdown-scrollbar[data-scrolling="true"]::-webkit-scrollbar-thumb:hover,
+.custom-dropdown-scrollbar[data-scrolling="true"]::-webkit-scrollbar-thumb:active,
+[data-theme] .custom-dropdown-scrollbar::-webkit-scrollbar-thumb:hover,
+[data-theme] .custom-dropdown-scrollbar::-webkit-scrollbar-thumb:active {
+  background: var(--dropdown-accent, #6366f1) !important;
+  background-color: var(--dropdown-accent, #6366f1) !important;
+  filter: brightness(0.9) !important;
+}
+
 

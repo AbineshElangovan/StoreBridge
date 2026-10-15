@@ -5,14 +5,11 @@ import {
   Card,
   BlockStack,
   InlineStack,
-  ButtonGroup,
-  Button,
-  TextField,
   Select,
   Box,
   Text,
 } from '@shopify/polaris';
-import { SearchIcon, DeleteIcon, CheckIcon } from '@shopify/polaris-icons';
+import { RefreshIcon, DeleteIcon, CheckIcon } from '@shopify/polaris-icons';
 
 interface NotificationFiltersProps {
   typeFilter: string;
@@ -22,8 +19,8 @@ interface NotificationFiltersProps {
   storeFilter: string;
   onStoreChange: (storeId: string) => void;
   storeOptions: { label: string; value: string }[];
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
+  onRefresh: () => void;
+  isRefreshing?: boolean;
   unreadCount: number;
   totalCount: number;
   onMarkAllRead: () => void;
@@ -38,8 +35,8 @@ export function NotificationFilters({
   storeFilter,
   onStoreChange,
   storeOptions,
-  searchQuery,
-  onSearchChange,
+  onRefresh,
+  isRefreshing = false,
   unreadCount,
   totalCount,
   onMarkAllRead,
@@ -61,11 +58,11 @@ export function NotificationFilters({
   return (
     <Card>
       <BlockStack gap="300">
-        {/* Main Controls Row: Types Dropdown, Store Dropdown, Status Buttons, & Search */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          {/* Dropdowns & Status Segmented Buttons */}
+        {/* Main Controls Row: Left (Dropdowns), Center (Status Pills), Right (Refresh Button) */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* 1. Left: Types & Stores Dropdowns */}
           <div className="flex flex-wrap items-center gap-2.5">
-            {/* 1. Types Dropdown */}
+            {/* Types Dropdown */}
             <div className="min-w-[160px]">
               <Select
                 label=""
@@ -76,7 +73,7 @@ export function NotificationFilters({
               />
             </div>
 
-            {/* 2. Stores Dropdown */}
+            {/* Stores Dropdown (Master Store) */}
             {storeOptions.length > 1 && (
               <div className="min-w-[160px]">
                 <Select
@@ -88,9 +85,11 @@ export function NotificationFilters({
                 />
               </div>
             )}
+          </div>
 
-            {/* 3. Status Segmented Buttons: [All] [Unread] [Read] */}
-            <div className="inline-flex rounded-lg p-0.5 bg-gray-100 border border-gray-200">
+          {/* 2. Center: Status Segmented Buttons [All] [Unread] [Read] */}
+          <div className="flex items-center justify-center sm:flex-1">
+            <div className="inline-flex rounded-lg p-0.5 bg-slate-100 border border-slate-200 shadow-2xs">
               <button
                 type="button"
                 onClick={() => {
@@ -98,8 +97,8 @@ export function NotificationFilters({
                 }}
                 className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                   statusFilter === 'all'
-                    ? 'bg-[#0db69d] text-white shadow-xs'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-[var(--color-primary-dark,#082f49)] text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                 }`}
               >
                 {`All (${totalCount})`}
@@ -111,8 +110,8 @@ export function NotificationFilters({
                 }}
                 className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                   statusFilter === 'unread'
-                    ? 'bg-[#0db69d] text-white shadow-xs'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-[var(--color-primary-dark,#082f49)] text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                 }`}
               >
                 {unreadCount > 0 ? `Unread (${unreadCount})` : 'Unread'}
@@ -124,8 +123,8 @@ export function NotificationFilters({
                 }}
                 className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                   statusFilter === 'read'
-                    ? 'bg-[#0db69d] text-white shadow-xs'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-[var(--color-primary-dark,#082f49)] text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                 }`}
               >
                 Read
@@ -133,19 +132,19 @@ export function NotificationFilters({
             </div>
           </div>
 
-          {/* Search Box */}
-          <div className="w-full lg:w-72">
-            <TextField
-              label="Search notifications"
-              labelHidden
-              value={searchQuery}
-              onChange={onSearchChange}
-              prefix={<SearchIcon />}
-              placeholder="Search notifications..."
-              autoComplete="off"
-              clearButton
-              onClearButtonClick={() => onSearchChange('')}
-            />
+          {/* 3. Right: Refresh Button (Theme Dark) */}
+          <div className="flex items-center justify-end">
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-[var(--color-primary-dark,#082f49)] hover:opacity-90 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+            >
+              <div style={{ width: 14, height: 14 }} className={`flex items-center justify-center text-white fill-white [&_svg]:fill-white [&_path]:fill-white ${isRefreshing ? 'animate-spin' : ''}`}>
+                <RefreshIcon />
+              </div>
+              <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+            </button>
           </div>
         </div>
 
@@ -161,7 +160,7 @@ export function NotificationFilters({
                 <button
                   type="button"
                   onClick={onMarkAllRead}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#0db69d] hover:bg-[#0b9c86] transition-colors shadow-2xs cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[var(--color-primary-dark,#082f49)] hover:opacity-90 transition-colors shadow-2xs cursor-pointer"
                 >
                   <div style={{ width: 14, height: 14 }}>
                     <CheckIcon />

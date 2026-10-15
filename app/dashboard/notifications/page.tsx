@@ -16,7 +16,7 @@ import {
   Button,
   Icon,
 } from '@shopify/polaris';
-import { SettingsIcon, RefreshIcon } from '@shopify/polaris-icons';
+import { SettingsIcon } from '@shopify/polaris-icons';
 import { Pagination } from '@/components/common/Pagination';
 import { Toast } from '@/components/common/Toast';
 import { ConfirmToast } from '@/components/ui/ConfirmToast';
@@ -50,8 +50,6 @@ export default function NotificationsPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'unread' | 'read'>('all');
   const [storeFilter, setStoreFilter] = useState('ALL');
   const [storeOptions, setStoreOptions] = useState<StoreOption[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   // Modals & Dialogs
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
@@ -71,15 +69,6 @@ export default function NotificationsPage() {
   });
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [prefsSuccess, setPrefsSuccess] = useState(false);
-
-  // Debounce search query
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-      setPage(1);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
 
   // Fetch store options - only if current store is Master
   useEffect(() => {
@@ -150,7 +139,6 @@ export default function NotificationsPage() {
       if (typeFilter && typeFilter !== 'ALL') params.append('type', typeFilter);
       if (statusFilter && statusFilter !== 'all') params.append('status', statusFilter);
       if (storeFilter && storeFilter !== 'ALL') params.append('storeId', storeFilter);
-      if (debouncedSearch.trim() !== '') params.append('search', debouncedSearch.trim());
 
       const res = await shopifyFetch(`/api/notifications?${params.toString()}`);
       if (res.ok) {
@@ -174,7 +162,7 @@ export default function NotificationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, typeFilter, statusFilter, storeFilter, debouncedSearch, activeShopDomain]);
+  }, [page, typeFilter, statusFilter, storeFilter, activeShopDomain]);
 
   const isLocalActionRef = React.useRef(false);
 
@@ -349,17 +337,6 @@ export default function NotificationsPage() {
         <div className="flex items-center gap-2.5">
           <button
             type="button"
-            onClick={loadNotifications}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-[var(--color-primary-dark,#022c22)] bg-[var(--color-primary-light,#d1fae5)]/60 hover:bg-[var(--color-primary-light,#d1fae5)] border border-[var(--border-color,#34d399)]/50 transition-colors cursor-pointer shadow-2xs"
-          >
-            <div style={{ width: 14, height: 14 }}>
-              <RefreshIcon />
-            </div>
-            Refresh
-          </button>
-
-          <button
-            type="button"
             onClick={() => setIsPreferencesOpen(true)}
             className="notification-pref-btn inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-[var(--color-primary,#047857)] hover:bg-[var(--color-primary-dark,#022c22)] transition-colors cursor-pointer shadow-xs"
           >
@@ -418,8 +395,8 @@ export default function NotificationsPage() {
               setPage(1);
             }}
             storeOptions={storeOptions}
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
+            onRefresh={loadNotifications}
+            isRefreshing={loading}
             unreadCount={unreadCount}
             totalCount={totalCount}
             onMarkAllRead={handleMarkAllRead}
@@ -440,8 +417,8 @@ export default function NotificationsPage() {
                 image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
               >
                 <p>
-                  {searchQuery || typeFilter !== 'ALL' || statusFilter !== 'all'
-                    ? 'Try adjusting your filters or search query.'
+                  {typeFilter !== 'ALL' || statusFilter !== 'all' || storeFilter !== 'ALL'
+                    ? 'Try adjusting your filters.'
                     : 'You are all caught up! No notifications right now.'}
                 </p>
               </EmptyState>

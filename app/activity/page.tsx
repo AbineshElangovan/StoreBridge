@@ -309,15 +309,30 @@ export default function ActivityPage() {
       const tableColumn = ["Date & Time", "Event", "Title", "SKU", "Store", "Description"];
       const tableRows: any[] = [];
 
+      const sanitizeForPdf = (val: string | null | undefined): string => {
+        if (!val) return '—';
+        return String(val)
+          .replace(/₹/g, 'Rs. ')
+          .replace(/[→➔➜➝➞]/g, ' -> ')
+          .replace(/[←]/g, ' <- ')
+          .replace(/[\u2018\u2019]/g, "'")
+          .replace(/[\u201C\u201D]/g, '"')
+          .replace(/[\u2013\u2014]/g, '-')
+          .replace(/\u00A0/g, ' ')
+          .replace(/[^\x00-\x7F]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      };
+
       exportActivities.forEach((item: any) => {
         const { date, time } = formatDateParts(item.createdAt);
         const dateFormatted = time ? `${date}\n${time}` : (date || "—");
-        const event = getEventTitle(item.eventType);
-        const title = (item.productTitle || "—").replace(/₹/g, 'Rs. ');
-        const sku = item.sku || "—";
-        const store = (item.store?.label || item.store?.shopDomain || "Unknown Store").replace(/₹/g, 'Rs. ');
+        const event = sanitizeForPdf(getEventTitle(item.eventType));
+        const title = sanitizeForPdf(item.productTitle);
+        const sku = sanitizeForPdf(item.sku);
+        const store = sanitizeForPdf(item.store?.label || item.store?.shopDomain || "Unknown Store");
         const rawDesc = item.description || "Product details updated in catalog";
-        const desc = rawDesc.replace(/₹/g, 'Rs. ').replace(/\u00A0/g, ' ').trim();
+        const desc = sanitizeForPdf(rawDesc);
 
         tableRows.push([dateFormatted, event, title, sku, store, desc]);
       });
@@ -326,13 +341,13 @@ export default function ActivityPage() {
         head: [tableColumn],
         body: tableRows,
         startY: 25,
-        margin: { left: 14, right: 14, bottom: 14 },
+        margin: { left: 12, right: 12, bottom: 12 },
         theme: 'grid',
-        tableWidth: 269, // Exact printable width in landscape A4 (297 - 28 = 269mm)
+        tableWidth: 'auto',
         styles: {
           font: 'helvetica',
           fontSize: 8,
-          cellPadding: { top: 2.5, right: 3, bottom: 2.5, left: 3 },
+          cellPadding: { top: 2.5, right: 2.5, bottom: 2.5, left: 2.5 },
           valign: 'middle',
           overflow: 'linebreak',
           textColor: [30, 41, 59],
@@ -340,7 +355,7 @@ export default function ActivityPage() {
           lineColor: [226, 232, 240]
         },
         headStyles: {
-          fillColor: [13, 182, 157], // #0db69d StoreBridge Teal
+          fillColor: [99, 102, 241], // #6366f1 Purple Table Header
           textColor: [255, 255, 255],
           fontStyle: 'bold',
           fontSize: 8.5,
@@ -350,10 +365,10 @@ export default function ActivityPage() {
         columnStyles: {
           0: { cellWidth: 28, halign: 'left' }, // Date & Time
           1: { cellWidth: 32, fontStyle: 'bold' }, // Event
-          2: { cellWidth: 50, overflow: 'linebreak' }, // Title
-          3: { cellWidth: 36, overflow: 'linebreak' }, // SKU
+          2: { cellWidth: 48, overflow: 'linebreak' }, // Title
+          3: { cellWidth: 34, overflow: 'linebreak' }, // SKU
           4: { cellWidth: 36, overflow: 'linebreak' }, // Store
-          5: { cellWidth: 87, overflow: 'linebreak' } // Description: cleanly contained within the cell box
+          5: { cellWidth: 'auto', overflow: 'linebreak' } // Description: cleanly auto-fits and wraps inside cell box
         },
         alternateRowStyles: {
           fillColor: [248, 250, 252]
@@ -387,7 +402,7 @@ export default function ActivityPage() {
             <button
               onClick={exportToPDF}
               disabled={isExporting}
-              className="flex items-center gap-2 bg-[#0db69d] hover:bg-[#0b9c86] text-white px-4 py-2 rounded-lg font-semibold text-sm transition-all shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 bg-[#6366f1] hover:bg-[#4f46e5] text-white px-4 py-2 rounded-lg font-semibold text-sm transition-all shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -492,7 +507,7 @@ export default function ActivityPage() {
               <div className="hidden md:block w-full overflow-x-auto">
                 <table className="w-full text-left border-collapse table-auto">
                   <thead>
-                    <tr className="bg-[var(--color-primary,#0db69d)] text-white text-[11px] font-extrabold uppercase tracking-wider select-none">
+                    <tr className="bg-[#6366f1] text-white text-[11px] font-extrabold uppercase tracking-wider select-none">
                       <th className="py-3 px-3.5 w-[13%]">Date & Time</th>
                       <th className="py-3 px-3.5 w-[14%]">Event</th>
                       <th className="py-3 px-3.5 w-[22%]">Title</th>

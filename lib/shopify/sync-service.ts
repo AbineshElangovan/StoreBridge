@@ -320,6 +320,11 @@ export async function processInventoryUpdate(
       return;
     }
 
+    if (!sourceStore.isMaster && delta > 0) {
+      console.log(`[SyncService:Safety] Sub-store ${shopDomain} reported positive delta (+${delta}). Sub-stores cannot increase Master inventory. Skipping target replication.`);
+      return;
+    }
+
     if (!sku) {
       console.log(`[SyncService] Variant ${shopifyVariantId} has no SKU. Skipping target replication.`);
       return;

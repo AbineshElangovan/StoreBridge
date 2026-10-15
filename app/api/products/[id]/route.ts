@@ -180,7 +180,17 @@ export async function GET(
       storeAvailabilityMap.set(s.id, { totalQty: 0, lowStockThreshold: s.lowStockThreshold || 15 });
     });
 
+    // Deduplicate by storeId and unique variant to prevent duplicate cache entries from double-counting
+    const uniqueStoreVariants = new Map<string, typeof allStoreProducts[0]>();
     allStoreProducts.forEach(p => {
+      const uniqueKey = `${p.storeId}:${p.shopifyVariantId || p.sku || p.id}`;
+      const existing = uniqueStoreVariants.get(uniqueKey);
+      if (!existing || new Date(p.updatedAt).getTime() > new Date(existing.updatedAt).getTime()) {
+        uniqueStoreVariants.set(uniqueKey, p);
+      }
+    });
+
+    uniqueStoreVariants.forEach(p => {
       const existing = storeAvailabilityMap.get(p.storeId);
       if (existing) {
         existing.totalQty += p.inventoryQuantity;

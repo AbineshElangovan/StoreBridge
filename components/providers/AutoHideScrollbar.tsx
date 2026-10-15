@@ -71,6 +71,9 @@ export function AutoHideScrollbar() {
         scheduleHide(document.documentElement);
         return;
       } else if (target instanceof HTMLElement) {
+        if (target.closest('.custom-dropdown-scrollbar') || target.classList.contains('custom-dropdown-scrollbar')) {
+          return;
+        }
         el = target;
       }
 
