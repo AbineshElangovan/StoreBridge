@@ -13,8 +13,8 @@ export interface ProductVariantItem {
   shopifyVariantId: string;
   variantName: string;
   sku: string;
-  price: number;
-  quantity: number;
+  price: number | string;
+  quantity: number | string;
   status: string;
 }
 
@@ -46,17 +46,32 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
     const sanitized = val.replace(/[^0-9.]/g, '');
     const parts = sanitized.split('.');
     const cleanStr = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : sanitized;
-    setVariantList(prev => prev.map(v => v.id === variantId ? { ...v, price: cleanStr as any } : v));
+    setVariantList(prev => prev.map(v => v.id === variantId ? { ...v, price: cleanStr } : v));
     setModifiedIds(prev => new Set(prev).add(variantId));
+  };
+
+  const handlePriceBlur = (variantId: string) => {
+    setVariantList(prev => prev.map(v => {
+      if (v.id !== variantId) return v;
+      const num = v.price === '' ? 0 : Math.max(0, parseFloat(String(v.price)) || 0);
+      return { ...v, price: num };
+    }));
   };
 
   const handleQuantityChange = (variantId: string, val: string) => {
     setSaveError(null);
     const onlyDigits = val.replace(/[^\d]/g, '');
     const cleanStr = onlyDigits.replace(/^0+(?=\d)/, '');
-    const num = cleanStr === '' ? 0 : Math.max(0, parseInt(cleanStr, 10) || 0);
-    setVariantList(prev => prev.map(v => v.id === variantId ? { ...v, quantity: num } : v));
+    setVariantList(prev => prev.map(v => v.id === variantId ? { ...v, quantity: cleanStr } : v));
     setModifiedIds(prev => new Set(prev).add(variantId));
+  };
+
+  const handleQuantityBlur = (variantId: string) => {
+    setVariantList(prev => prev.map(v => {
+      if (v.id !== variantId) return v;
+      const num = v.quantity === '' ? 0 : Math.max(0, parseInt(String(v.quantity), 10) || 0);
+      return { ...v, quantity: num };
+    }));
   };
 
   const saveAllModified = async () => {
@@ -236,10 +251,12 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
                           <input
                             type="text"
                             inputMode="decimal"
-                            value={v.price === 0 ? '0' : String(v.price).replace(/^0+(?=\d)/, '')}
-                            onChange={(e) => handlePriceChange(v.id, e.target.value)}
-                            className="w-32 sm:w-36 pl-9 pr-2.5 py-1.5 text-center bg-white border border-gray-300 rounded-xl text-xs font-extrabold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0db69d]/20 focus:border-[#0db69d] shadow-2xs transition-colors"
+                            value={v.price === '' ? '' : v.price ?? ''}
                             placeholder="0"
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => handlePriceChange(v.id, e.target.value)}
+                            onBlur={() => handlePriceBlur(v.id)}
+                            className="w-32 sm:w-36 pl-9 pr-2.5 py-1.5 text-center bg-white border border-gray-300 rounded-xl text-xs font-extrabold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0db69d]/20 focus:border-[#0db69d] shadow-2xs transition-colors"
                           />
                         </div>
                       </div>
@@ -250,19 +267,22 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
                           type="text"
                           inputMode="numeric"
                           pattern="[0-9]*"
-                          value={v.quantity <= 0 ? '0' : String(v.quantity).replace(/^0+(?=\d)/, '')}
+                          value={v.quantity === '' ? '' : v.quantity ?? ''}
+                          placeholder="0"
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) => handleQuantityChange(v.id, e.target.value)}
+                          onBlur={() => handleQuantityBlur(v.id)}
                           className="w-20 text-center bg-white border border-gray-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#0db69d]/20 focus:border-[#0db69d] shadow-2xs transition-colors"
                         />
                       </div>
                     </td>
                     <td className="py-3.5 px-3 text-center">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                        v.quantity > 0
+                        Number(v.quantity) > 0
                           ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                           : 'bg-red-100 text-red-800 border border-red-200'
                       }`}>
-                        {v.quantity > 0 ? 'Active' : 'Out of stock'}
+                        {Number(v.quantity) > 0 ? 'Active' : 'Out of stock'}
                       </span>
                     </td>
                     <td className="py-3.5 px-3 text-center">

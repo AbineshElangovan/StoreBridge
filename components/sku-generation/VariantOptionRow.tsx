@@ -29,7 +29,6 @@ export function VariantOptionRow({
   disabled,
 }: VariantOptionRowProps) {
   const [newValueInput, setNewValueInput] = useState("");
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const [isColorModalOpen, setIsColorModalOpen] = useState(false);
 
   const optNameLower = option.name.trim().toLowerCase();
@@ -101,90 +100,37 @@ export function VariantOptionRow({
   const isNameEmpty = !option.name || option.name.trim().length === 0;
   const isValuesEmpty = !option.values || option.values.length === 0;
 
-  if (isCollapsed) {
-    return (
-      <div className="p-3.5 bg-white border border-gray-200 rounded-xl shadow-2xs flex items-center justify-between hover:border-teal-300 transition-all">
-        <div className="flex items-center gap-3">
-          <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 8zm0 6a2 2 0 10.001 4.001A2 2 0 007 14zm6-12a2 2 0 10.001 4.001A2 2 0 0013 2zm0 6a2 2 0 10.001 4.001A2 2 0 0013 8zm0 6a2 2 0 10.001 4.001A2 2 0 0013 14z" />
-          </svg>
-          <div>
-            <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-              {isColorOption ? (
-                <svg className="w-4 h-4 text-[#0db69d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-                </svg>
-              ) : (
-                <svg className="w-3.5 h-3.5 text-[#0db69d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h10M7 12h10m-7 5h7" />
-                </svg>
-              )}
-              <span>{option.name || `Option #${index + 1}`}</span>
-            </h4>
-            <div className="flex flex-wrap items-center gap-1.5 mt-1">
-              {option.values.length > 0 ? (
-                option.values.map((val, idx) => (
-                  <span
-                    key={idx}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 text-2xs font-semibold bg-gray-100 text-gray-700 rounded-md border border-gray-200"
-                  >
-                    {isColorOption && <ColorSwatchIcon colorName={val} size="sm" />}
-                    <span>{val}</span>
-                  </span>
-                ))
-              ) : (
-                <span className="text-xs text-gray-400 font-medium">No values selected</span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => setIsCollapsed(false)}
-            className="px-3 py-1 text-xs font-semibold text-teal-700 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 cursor-pointer"
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => onRemoveOption(index)}
-            className="px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
-          >
-            Delete
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div
       className={`p-4 sm:p-5 bg-white border rounded-xl shadow-2xs space-y-4 transition-all relative ${
-        isNameEmpty || isValuesEmpty ? "border-red-200 bg-red-50/10" : "border-gray-200 hover:border-teal-200"
+        isNameEmpty ? "border-red-200 bg-red-50/10" : "border-gray-200 hover:border-teal-200"
       }`}
     >
       {/* CARD HEADER */}
       <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-        <div className="flex items-center gap-2 flex-1 max-w-sm">
-          {isColorOption ? (
-            <svg className="w-4 h-4 text-[#0db69d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-            </svg>
-          ) : (
-            <svg className="w-4 h-4 text-[#0db69d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h10M7 12h10m-7 5h7" />
-            </svg>
-          )}
-          <input
-            type="text"
-            placeholder="Option Name (e.g. Color, Size, Age, Custom...)"
-            value={option.name}
-            onChange={(e) => onChangeOptionName(index, e.target.value)}
-            disabled={disabled}
-            className="w-full px-3 py-1.5 text-sm font-extrabold text-gray-900 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0db69d] focus:border-[#0db69d]"
-          />
+        <div className="flex items-center gap-2.5 flex-1 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-teal-50 border border-teal-200/80 flex items-center justify-center text-[#0db69d] shrink-0 shadow-2xs">
+            {isColorOption ? (
+              <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+              </svg>
+            ) : (
+              <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h10M7 12h10m-7 5h7" />
+              </svg>
+            )}
+          </div>
+
+          <h3
+            className="font-heading text-lg sm:text-xl font-black text-slate-900 tracking-tight m-0 select-none"
+            style={{
+              fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+              fontWeight: 900,
+              letterSpacing: "-0.03em",
+            }}
+          >
+            {option.name || `Option #${index + 1}`}
+          </h3>
         </div>
 
         <div className="flex items-center gap-2">
@@ -193,12 +139,12 @@ export function VariantOptionRow({
               type="button"
               onClick={() => setIsColorModalOpen(true)}
               disabled={disabled}
-              className="px-3.5 py-1.5 text-xs font-extrabold text-white bg-[#0db69d] hover:bg-[#0a9984] rounded-lg transition-all shadow-2xs cursor-pointer flex items-center gap-1.5"
+              className="px-3 py-1.5 text-xs font-extrabold text-[#0db69d] bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-all shadow-2xs cursor-pointer flex items-center gap-1.5"
             >
-              <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5 text-[#0db69d]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
               </svg>
-              <span>Open Color Swatches</span>
+              <span>Color Swatches</span>
             </button>
           )}
 
@@ -206,17 +152,9 @@ export function VariantOptionRow({
             type="button"
             onClick={() => onRemoveOption(index)}
             disabled={disabled}
-            className="px-3 py-1.5 text-xs font-semibold text-red-700 bg-white border border-gray-300 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+            className="px-3 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
           >
             Delete
-          </button>
-          <button
-            type="button"
-            onClick={() => setIsCollapsed(true)}
-            disabled={disabled || isNameEmpty || isValuesEmpty}
-            className="px-4 py-1.5 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer disabled:opacity-40"
-          >
-            Done
           </button>
         </div>
       </div>

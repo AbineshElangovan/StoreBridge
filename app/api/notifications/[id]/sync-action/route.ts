@@ -61,7 +61,7 @@ export async function POST(
     let successMessage = 'Product change synced successfully';
 
     if (syncAction === 'UPDATE' && payload) {
-      const { price, quantity, sku, variantId, productId } = payload;
+      const { price, quantity, sku, variantId, productId, isPriceChanged, isQuantityChanged, isSkuChanged } = payload;
 
       // Find matching variant/product in this store's cache
       let targetProduct = await prisma.productCache.findFirst({
@@ -84,8 +84,11 @@ export async function POST(
           ? targetProduct.shopifyProductId
           : `gid://shopify/Product/${targetProduct.shopifyProductId}`;
 
-        // A. Update price on Shopify if price provided
-        if (typeof price === 'number' && price >= 0) {
+        const updateData: any = {};
+
+        // A. Update price on Shopify ONLY if price was actually modified
+        const shouldUpdatePrice = isPriceChanged !== undefined ? isPriceChanged : (typeof price === 'number' && price >= 0);
+        if (shouldUpdatePrice && typeof price === 'number' && price >= 0) {
           await client.request(`
             mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
               productVariantsBulkUpdate(productId: $productId, variants: $variants) {
@@ -99,10 +102,13 @@ export async function POST(
               variants: [{ id: formattedVarGid, price: price.toString() }],
             },
           });
+          updateData.price = price;
+          updateData.basePrice = price;
         }
 
-        // B. Update stock on Shopify if quantity provided
-        if (typeof quantity === 'number' && quantity >= 0) {
+        // B. Update stock on Shopify ONLY if inventory quantity was actually modified
+        const shouldUpdateQuantity = isQuantityChanged !== undefined ? isQuantityChanged : (typeof quantity === 'number' && quantity >= 0);
+        if (shouldUpdateQuantity && typeof quantity === 'number' && quantity >= 0) {
           const locationId = await fetchDefaultLocation(store.shopDomain);
           const variantMap = await prisma.variantMap.findFirst({
             where: { storeId: store.id, shopifyVariantId: targetProduct.shopifyVariantId },
@@ -123,22 +129,39 @@ export async function POST(
           if (inventoryItemId && locationId) {
             await setInventoryQuantity(store.shopDomain, inventoryItemId, locationId, quantity);
           }
-        }
-
-        // C. Update local product cache for this store
-        const updateData: any = {};
-        if (typeof price === 'number') {
-          updateData.price = price;
-          updateData.basePrice = price;
-        }
-        if (typeof quantity === 'number') {
           updateData.inventoryQuantity = quantity;
         }
 
-        await prisma.productCache.update({
-          where: { id: targetProduct.id },
-          data: updateData,
-        });
+        // C. Update SKU on Shopify and local cache if SKU changed
+        const shouldUpdateSku = isSkuChanged && typeof sku === 'string' && sku.trim() !== '' && sku.trim() !== targetProduct.sku;
+        if (shouldUpdateSku) {
+          await client.request(`
+            mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+              productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+                userErrors { field message }
+              }
+            }
+          `, {
+            variables: {
+              productId: formattedProdGid,
+              variants: [{ id: formattedVarGid, inventoryItem: { sku: sku.trim() } }],
+            },
+          }).catch(err => console.warn('[Sync Action API] SKU update warning:', err.message));
+
+          updateData.sku = sku.trim();
+          await prisma.variantMap.updateMany({
+            where: { storeId: store.id, shopifyVariantId: targetProduct.shopifyVariantId },
+            data: { sku: sku.trim() }
+          }).catch(() => {});
+        }
+
+        // D. Update local product cache for this store only with changed fields
+        if (Object.keys(updateData).length > 0) {
+          await prisma.productCache.update({
+            where: { id: targetProduct.id },
+            data: updateData,
+          });
+        }
 
         // D. Create Activity Log
         await prisma.activityLog.create({

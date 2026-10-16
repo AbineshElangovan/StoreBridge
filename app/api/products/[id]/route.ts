@@ -643,12 +643,19 @@ export async function PATCH(
 
         for (const targetStore of targetStores) {
           try {
+            // Build accurate summary of what actually changed
+            const changeParts: string[] = [];
+            if (isSkuChanged) changeParts.push(`SKU: ${updatedVariant.sku}`);
+            if (isPriceChanged) changeParts.push(`Price: ₹${price}`);
+            if (isQuantityChanged) changeParts.push(`Stock: ${quantity}`);
+            const changeSummary = changeParts.length > 0 ? ` (${changeParts.join(', ')})` : '';
+
             // Create Sync Request Notification for Connected Store Inbox
             await createNotification({
               recipientStoreId: targetStore.id,
               type: 'SYNC_UPDATE',
               title: 'Sync Request: Product Update',
-              message: `Master store updated "${updatedVariant.title || updatedVariant.sku}" (Price: ₹${isPriceChanged ? price : updatedVariant.price}, Stock: ${isQuantityChanged ? quantity : updatedVariant.inventoryQuantity}). Sync this update to your store?`,
+              message: `Master store updated "${updatedVariant.title || updatedVariant.sku}"${changeSummary}. Sync this update to your store?`,
               sourceStoreId: productStore.id,
               targetStoreId: targetStore.id,
               productId: variantRecord.shopifyProductId,
@@ -661,8 +668,11 @@ export async function PATCH(
                   productId: variantRecord.shopifyProductId,
                   variantId: variantRecord.shopifyVariantId || variantRecord.id,
                   sku: updatedVariant.sku,
-                  price: isPriceChanged ? price : updatedVariant.price,
-                  quantity: isQuantityChanged ? quantity : updatedVariant.inventoryQuantity,
+                  isSkuChanged: Boolean(isSkuChanged),
+                  price: isPriceChanged ? price : undefined,
+                  isPriceChanged: Boolean(isPriceChanged),
+                  quantity: isQuantityChanged ? quantity : undefined,
+                  isQuantityChanged: Boolean(isQuantityChanged),
                   title: updatedVariant.title
                 }
               }

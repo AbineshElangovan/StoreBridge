@@ -1,6 +1,11 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap');
 @import '@shopify/polaris/build/esm/styles.css';
 @import 'tailwindcss';
+
+.font-heading {
+  font-family: 'Plus Jakarta Sans', var(--font-inter, sans-serif);
+  letter-spacing: -0.025em;
+}
 
 /* ==========================================================================
    4K Light Wallpaper Studio Themes (Deeper, Richer Saturated Tones)

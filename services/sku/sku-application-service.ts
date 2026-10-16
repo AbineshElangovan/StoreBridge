@@ -2,7 +2,8 @@ import { prisma } from "@/lib/db/prisma";
 import { getAdminClient } from "@/lib/shopify/admin";
 import { createNotification } from "@/services/notification-service";
 import { calculateAdjustedPrice } from "@/services/shopify/pricing";
-import { publishProductToAllChannels } from "@/services/shopify/api-helpers";
+import { publishProductToAllChannels, fetchDefaultLocation } from "@/services/shopify/api-helpers";
+import { setInventoryQuantity } from "@/lib/shopify/inventory";
 import { generateSkuPreview } from "./sku-preview-service";
 import { VariantOptionInput } from "./variant-combinations";
 
@@ -185,6 +186,9 @@ export async function applySkuGeneration(
                   id
                   sku
                   title
+                  inventoryItem {
+                    id
+                  }
                 }
               }
             }
@@ -216,6 +220,8 @@ export async function applySkuGeneration(
     } else {
       shopifyMessage = `Successfully updated and synchronized variants with Shopify.`;
       const edges = response?.data?.productSet?.product?.variants?.edges || [];
+      const defaultLoc = await fetchDefaultLocation(store.shopDomain).catch(() => null);
+
       for (const edge of edges) {
         const node = edge.node;
         if (node?.sku) {
@@ -223,6 +229,21 @@ export async function applySkuGeneration(
         }
         if (node?.title) {
           shopifyVariantMap.set(node.title.toLowerCase(), node.id);
+        }
+
+        // Set live inventory on Shopify if preserved stock or custom stock > 0
+        if (defaultLoc && node?.inventoryItem?.id) {
+          const itemMatch = preview.items.find(
+            (it) =>
+              (it.generatedSku && node.sku && it.generatedSku.toLowerCase() === node.sku.toLowerCase()) ||
+              (it.title && node.title && it.title.toLowerCase() === node.title.toLowerCase())
+          );
+          const targetQty = customQuantity !== undefined ? customQuantity : itemMatch?.inventoryQuantity || 0;
+          if (targetQty > 0) {
+            await setInventoryQuantity(store.shopDomain, node.inventoryItem.id, defaultLoc, targetQty).catch((e) =>
+              console.warn(`[SKU Application Service] Inventory set notice for variant ${node.sku || node.id}:`, e.message)
+            );
+          }
         }
       }
 
@@ -277,7 +298,12 @@ export async function applySkuGeneration(
           `gid://shopify/ProductVariant/generated-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
 
         const price = customPrice !== undefined ? customPrice : item.price || product.price || 0;
-        const qty = customQuantity !== undefined ? customQuantity : item.inventoryQuantity || product.inventoryQuantity || 0;
+        const qty =
+          customQuantity !== undefined
+            ? customQuantity
+            : typeof item.inventoryQuantity === "number"
+            ? item.inventoryQuantity
+            : (product.inventoryQuantity || 0);
 
         // Preserve product title and append variant options at the backside:
         // Format: "<Product Title> - <Option1> / <Option2>" (e.g. "Premium Running Shoes - US 10 / Gray")
@@ -458,6 +484,9 @@ export async function applySkuGeneration(
                             id
                             sku
                             title
+                            inventoryItem {
+                              id
+                            }
                           }
                         }
                       }
@@ -480,10 +509,24 @@ export async function applySkuGeneration(
               targetShopifyTitle = tResponse?.data?.productSet?.product?.title || tResponse?.productSet?.product?.title || null;
 
               const tEdges = tResponse?.data?.productSet?.product?.variants?.edges || [];
+              const targetLoc = await fetchDefaultLocation(targetStore.shopDomain).catch(() => null);
+
               for (const edge of tEdges) {
                 const node = edge.node;
                 if (node?.sku) targetShopifyVariantMap.set(node.sku.toLowerCase(), node.id);
                 if (node?.title) targetShopifyVariantMap.set(node.title.toLowerCase(), node.id);
+
+                if (targetLoc && node?.inventoryItem?.id) {
+                  const itemMatch = preview.items.find(
+                    (it) =>
+                      (it.generatedSku && node.sku && it.generatedSku.toLowerCase() === node.sku.toLowerCase()) ||
+                      (it.title && node.title && it.title.toLowerCase() === node.title.toLowerCase())
+                  );
+                  const targetQty = itemMatch?.inventoryQuantity || 0;
+                  if (targetQty > 0) {
+                    await setInventoryQuantity(targetStore.shopDomain, node.inventoryItem.id, targetLoc, targetQty).catch(() => {});
+                  }
+                }
               }
 
               // Automatically publish target product to Online Store and all channels

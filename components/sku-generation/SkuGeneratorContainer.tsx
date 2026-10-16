@@ -33,6 +33,44 @@ export function SkuGeneratorContainer() {
     }
   }, [selectedProduct]);
 
+  // Dynamically update SKU preview table whenever variant options change
+  useEffect(() => {
+    if (!selectedProduct || !options || options.length === 0) {
+      setPreviewData(null);
+      return;
+    }
+    const hasValues = options.some((o) => o.values && o.values.length > 0);
+    if (!hasValues) {
+      setPreviewData(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setIsGenerating(true);
+        const res = await shopifyFetch("/api/sku-generation/preview", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            shopifyProductId: selectedProduct.shopifyProductId,
+            options,
+          }),
+        });
+
+        const data: SkuPreviewResponse = await res.json();
+        if (data.success) {
+          setPreviewData(data);
+        }
+      } catch (err) {
+        console.warn("[SKU Generator] Live preview update error:", err);
+      } finally {
+        setIsGenerating(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [options, selectedProduct]);
+
   useEffect(() => {
     if (toast) {
       const timer = setTimeout(() => setToast(null), 4000);
