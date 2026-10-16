@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
         safetyStockDays: (currentStore as any).safetyStockDays ?? 3
       };
 
-      const historyDays = cfg.salesHistoryPeriodDays || 30;
+      const historyDays = Math.max(90, cfg.salesHistoryPeriodDays || 90);
       const historyCutoff = new Date(Date.now() - historyDays * 24 * 60 * 60 * 1000);
 
       const salesLogs = await prisma.activityLog.findMany({
@@ -115,10 +115,15 @@ export async function GET(req: NextRequest) {
 
       const prodSales = new Map<string, number>();
       salesLogs.forEach((log: any) => {
-        const titleKey = log.productTitle?.trim() || log.sku?.trim();
-        if (!titleKey) return;
-        const currentQty = prodSales.get(titleKey) || 0;
-        prodSales.set(titleKey, currentQty + (log.quantity || 1));
+        const qty = log.quantity || 1;
+        if (log.productTitle) {
+          const tKey = log.productTitle.trim();
+          prodSales.set(tKey, (prodSales.get(tKey) || 0) + qty);
+        }
+        if (log.sku) {
+          const sKey = `sku:${log.sku.trim()}`;
+          prodSales.set(sKey, (prodSales.get(sKey) || 0) + qty);
+        }
       });
 
       storeSalesMap.set(storeId, prodSales);
@@ -129,22 +134,20 @@ export async function GET(req: NextRequest) {
       storeId: { in: targetStoreIds }
     };
 
-    if (selectedCollection && selectedCollection !== 'all' && selectedCollection !== 'All collections') {
-      const collectionRecords = await prisma.collection.findMany({
+    const isCollectionFiltered = selectedCollection && selectedCollection !== 'all' && selectedCollection !== 'All collections';
+
+    if (isCollectionFiltered) {
+      const matchingCaches = await prisma.productCache.findMany({
         where: {
           storeId: { in: targetStoreIds },
-          title: { equals: selectedCollection, mode: 'insensitive' }
+          OR: [
+            { collections: { some: { collection: { title: { equals: selectedCollection, mode: 'insensitive' } } } } },
+            { tags: { contains: selectedCollection, mode: 'insensitive' } }
+          ]
         },
-        include: {
-          products: {
-            select: { productCacheId: true }
-          }
-        }
+        select: { id: true }
       });
-      const cacheIds = collectionRecords.flatMap((c: any) => c.products.map((p: any) => p.productCacheId));
-      if (cacheIds.length > 0) {
-        productWhereClause.id = { in: cacheIds };
-      }
+      productWhereClause.id = { in: matchingCaches.map(c => c.id) };
     }
 
     const rawProducts = await prisma.productCache.findMany({
@@ -238,17 +241,20 @@ export async function GET(req: NextRequest) {
         safetyStockDays: (currentStore as any).safetyStockDays ?? 3
       };
 
-      const salesHistoryDays = cfg.salesHistoryPeriodDays || 30;
+      const salesHistoryDays = Math.max(90, cfg.salesHistoryPeriodDays || 90);
       const forecastDays = overrideForecastDays || cfg.forecastPeriodDays || 7;
       const highRiskDays = cfg.supplierLeadTimeDays || 10;
       const leadTimeDays = highRiskDays;
       const safetyDays = cfg.safetyStockDays || 3;
 
       const salesMapForStore = storeSalesMap.get(storeId);
-      const unitsSoldInHistory = salesMapForStore?.get(titleKey) || 0;
+      const titleSales = p.title ? salesMapForStore?.get(p.title.trim()) : 0;
+      const skuSales = p.sku ? salesMapForStore?.get(`sku:${p.sku.trim()}`) : 0;
+      const unitsSoldInHistory = (titleSales && titleSales > 0) ? titleSales : (skuSales || titleSales || 0);
       const avgDailySales = unitsSoldInHistory / salesHistoryDays;
 
       const currentStock = Math.max(0, p.inventoryQuantity || 0);
+      const lowStockThreshold = (storeObj as any)?.lowStockThreshold ?? 10;
 
       let expectedStockoutDays: number | null = null;
       if (avgDailySales > 0 && currentStock > 0) {
@@ -259,8 +265,20 @@ export async function GET(req: NextRequest) {
       const replenishDays = overrideReplenishDays || leadTimeDays;
       const leadTimeDemand = avgDailySales * replenishDays;
       const safetyStockDemand = avgDailySales * safetyDays;
-      const requiredStock = Math.ceil(leadTimeDemand + safetyStockDemand);
-      const recommendedReplenishment = Math.max(0, Math.ceil(requiredStock - currentStock));
+      let requiredStock = Math.ceil(leadTimeDemand + safetyStockDemand);
+      let recommendedReplenishment = Math.max(0, Math.ceil(requiredStock - currentStock));
+
+      // If product is Out of Stock or below lowStockThreshold, ensure proactive replenishment recommendation
+      if (currentStock === 0) {
+        requiredStock = Math.max(requiredStock, lowStockThreshold);
+        recommendedReplenishment = Math.max(recommendedReplenishment, lowStockThreshold);
+      } else if (currentStock <= lowStockThreshold && recommendedReplenishment === 0) {
+        const minRestock = Math.max(0, lowStockThreshold - currentStock);
+        if (minRestock > 0) {
+          requiredStock = Math.max(requiredStock, lowStockThreshold);
+          recommendedReplenishment = minRestock;
+        }
+      }
 
       // Deterministic Risk Assignment: Only High Risk, Low Risk, and No Demand
       let risk: 'OUT_OF_STOCK' | 'HIGH' | 'LOW' | 'NO_DEMAND' = 'LOW';
@@ -359,8 +377,19 @@ export async function GET(req: NextRequest) {
             sb.expectedStockoutDays = null;
           }
           const replenishDays = overrideReplenishDays || leadTimeDays;
+          const lowStockThreshold = (storeObj as any)?.lowStockThreshold ?? 10;
           sb.requiredStock = Math.ceil((sb.avgDailySales * replenishDays) + (sb.avgDailySales * safetyDays));
           sb.recommendedReplenishment = Math.max(0, Math.ceil(sb.requiredStock - sb.currentStock));
+          if (sb.currentStock === 0) {
+            sb.requiredStock = Math.max(sb.requiredStock, lowStockThreshold);
+            sb.recommendedReplenishment = Math.max(sb.recommendedReplenishment, lowStockThreshold);
+          } else if (sb.currentStock <= lowStockThreshold && sb.recommendedReplenishment === 0) {
+            const minRestock = Math.max(0, lowStockThreshold - sb.currentStock);
+            if (minRestock > 0) {
+              sb.requiredStock = Math.max(sb.requiredStock, lowStockThreshold);
+              sb.recommendedReplenishment = minRestock;
+            }
+          }
           sb.replenishDays = replenishDays;
           const highRiskDays = cfg.supplierLeadTimeDays || 10;
           if (sb.currentStock === 0) {
@@ -395,8 +424,19 @@ export async function GET(req: NextRequest) {
         }
 
         const replenishDays = overrideReplenishDays || leadTimeDays;
+        const lowStockThreshold = (storeObj as any)?.lowStockThreshold ?? 10;
         existing.requiredStock = Math.ceil((existing.avgDailySales * replenishDays) + (existing.avgDailySales * safetyDays));
         existing.recommendedReplenishment = Math.max(0, Math.ceil(existing.requiredStock - existing.currentStock));
+        if (existing.currentStock === 0) {
+          existing.requiredStock = Math.max(existing.requiredStock, lowStockThreshold);
+          existing.recommendedReplenishment = Math.max(existing.recommendedReplenishment, lowStockThreshold);
+        } else if (existing.currentStock <= lowStockThreshold && existing.recommendedReplenishment === 0) {
+          const minRestock = Math.max(0, lowStockThreshold - existing.currentStock);
+          if (minRestock > 0) {
+            existing.requiredStock = Math.max(existing.requiredStock, lowStockThreshold);
+            existing.recommendedReplenishment = minRestock;
+          }
+        }
         existing.replenishDays = replenishDays;
 
         const highRiskDays = cfg.supplierLeadTimeDays || 10;

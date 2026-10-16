@@ -257,6 +257,8 @@ export async function DELETE(req: NextRequest) {
         where: { id: store.id },
         data: { isMaster: false }
       });
+      await prisma.variantMap.deleteMany({ where: { storeId: store.id } });
+      await prisma.productMapping.deleteMany({ where: { storeId: store.id } });
       console.log(`[Connections API] Store ${store.shopDomain} has no remaining connections. Reverted to Standalone.`);
     }
 
@@ -275,6 +277,8 @@ export async function DELETE(req: NextRequest) {
         where: { id: targetStoreId },
         data: { isMaster: false }
       });
+      await prisma.variantMap.deleteMany({ where: { storeId: targetStoreId } });
+      await prisma.productMapping.deleteMany({ where: { storeId: targetStoreId } });
       console.log(`[Connections API] Target store ${targetStoreId} has no remaining connections. Reverted to Standalone.`);
     }
 

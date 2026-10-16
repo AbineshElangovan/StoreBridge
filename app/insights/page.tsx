@@ -100,6 +100,15 @@ export default function InsightsPage() {
                 setSelectedStore('all');
               }
             }
+
+            if (json.filters.collections && selectedCollection !== 'all') {
+              const exists = json.filters.collections.some(
+                (c: string) => c.toLowerCase() === selectedCollection.toLowerCase()
+              );
+              if (!exists) {
+                setSelectedCollection('all');
+              }
+            }
           }
           setData(json.data || []);
           if (json.pagination) setPagination(json.pagination);

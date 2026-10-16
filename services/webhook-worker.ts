@@ -831,21 +831,31 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
     }
 
     // Create notification for Product Deleted
-    if (!store.isMaster) {
+    if (!store.isMaster && !isStandalone) {
       const masterStore = await prisma.store.findFirst({
         where: { isMaster: true, isActive: true }
       });
-      if (masterStore) {
-        await createNotification({
-          recipientStoreId: masterStore.id,
-          type: 'CONNECTED_STORE_UPDATE',
-          title: 'Connected Store Product Deleted',
-          message: `${store.label || store.shopDomain} deleted product "${productTitle}"`,
-          productId: String(payload.id),
-          productTitle: productTitle,
-          sourceStoreId: store.id,
-          targetStoreId: masterStore.id,
+      if (masterStore && masterStore.id !== store.id) {
+        const isConnected = await prisma.storeConnection.findFirst({
+          where: {
+            OR: [
+              { sourceStoreId: store.id, targetStoreId: masterStore.id },
+              { sourceStoreId: masterStore.id, targetStoreId: store.id },
+            ],
+          },
         });
+        if (isConnected) {
+          await createNotification({
+            recipientStoreId: masterStore.id,
+            type: 'CONNECTED_STORE_UPDATE',
+            title: 'Connected Store Product Deleted',
+            message: `${store.label || store.shopDomain} deleted product "${productTitle}"`,
+            productId: String(payload.id),
+            productTitle: productTitle,
+            sourceStoreId: store.id,
+            targetStoreId: masterStore.id,
+          });
+        }
       }
     } else {
       await createNotification({

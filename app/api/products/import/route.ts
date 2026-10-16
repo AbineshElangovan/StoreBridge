@@ -354,7 +354,7 @@ export async function POST(req: NextRequest) {
         if (successCount > 0 && failedCount === 0) {
           await createNotification({
             recipientStoreId: targetStore.id,
-            type: 'SYNC_UPDATE',
+            type: 'IMPORT_COMPLETED',
             title: 'Import Completed',
             message: `Successfully imported ${successCount} products from ${filename || 'CSV'}`,
             sourceStoreId: targetStore.id,

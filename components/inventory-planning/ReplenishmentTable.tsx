@@ -8,6 +8,7 @@ interface ReplenishmentTableProps {
   loading: boolean;
   page: number;
   totalPages: number;
+  totalItems?: number;
   onPageChange: (newPage: number) => void;
 }
 
@@ -16,6 +17,7 @@ export function ReplenishmentTable({
   loading,
   page,
   totalPages,
+  totalItems,
   onPageChange
 }: ReplenishmentTableProps) {
   const columns: ColumnConfig[] = [
@@ -81,7 +83,7 @@ export function ReplenishmentTable({
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden w-full max-w-full">
       <Table
-        title="Replenishment Orders"
+        title={totalItems !== undefined && totalItems > 0 ? `Replenishment Orders (${totalItems})` : 'Replenishment Orders'}
         headerColor="#0db69d"
         columns={columns}
         items={formattedItems}
@@ -90,6 +92,7 @@ export function ReplenishmentTable({
         filterable={false}
         paginate={true}
         serverSide={true}
+        totalItems={totalItems}
         page={page}
         totalPages={totalPages}
         onPageChange={onPageChange}

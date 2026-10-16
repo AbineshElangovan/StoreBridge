@@ -44,6 +44,14 @@ export async function PUT(req: NextRequest) {
         }
       });
 
+      // Purge stale network mappings for this standalone store
+      await tx.variantMap.deleteMany({
+        where: { storeId }
+      });
+      await tx.productMapping.deleteMany({
+        where: { storeId }
+      });
+
       // Update the store to no longer be master
       await tx.store.update({
         where: { id: storeId },

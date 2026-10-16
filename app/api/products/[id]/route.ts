@@ -583,20 +583,30 @@ export async function PATCH(
           where: { isMaster: true, isActive: true }
         });
         if (masterStore && masterStore.id !== productStore.id) {
-          const detailMsg = isPriceChanged
-            ? `${storeLabel} updated ${updatedVariant.title || updatedVariant.sku} price to ₹${price}`
-            : `${storeLabel} updated ${updatedVariant.title || updatedVariant.sku} stock to ${quantity}`;
-
-          await createNotification({
-            recipientStoreId: masterStore.id,
-            type: 'CONNECTED_STORE_UPDATE',
-            title: 'Connected Store Update',
-            message: detailMsg,
-            productId: variantRecord.shopifyProductId,
-            productTitle: updatedVariant.title || 'Product Variant',
-            sourceStoreId: productStore.id,
-            targetStoreId: masterStore.id
+          const isConnected = await prisma.storeConnection.findFirst({
+            where: {
+              OR: [
+                { sourceStoreId: productStore.id, targetStoreId: masterStore.id },
+                { sourceStoreId: masterStore.id, targetStoreId: productStore.id },
+              ],
+            },
           });
+          if (isConnected) {
+            const detailMsg = isPriceChanged
+              ? `${storeLabel} updated ${updatedVariant.title || updatedVariant.sku} price to ₹${price}`
+              : `${storeLabel} updated ${updatedVariant.title || updatedVariant.sku} stock to ${quantity}`;
+
+            await createNotification({
+              recipientStoreId: masterStore.id,
+              type: 'CONNECTED_STORE_UPDATE',
+              title: 'Connected Store Update',
+              message: detailMsg,
+              productId: variantRecord.shopifyProductId,
+              productTitle: updatedVariant.title || 'Product Variant',
+              sourceStoreId: productStore.id,
+              targetStoreId: masterStore.id
+            });
+          }
         }
       }
     } catch (logErr: any) {
@@ -1154,16 +1164,26 @@ export async function DELETE(
             where: { isMaster: true, isActive: true }
           });
           if (masterStore && masterStore.id !== productStore.id) {
-            await createNotification({
-              recipientStoreId: masterStore.id,
-              type: "CONNECTED_STORE_UPDATE",
-              title: "Connected Store Variant Deleted",
-              message: `${storeLabel} deleted variant "${cleanVariantTitle}"`,
-              productId: shopifyProductId,
-              productTitle: cleanVariantTitle,
-              sourceStoreId: productStore.id,
-              targetStoreId: masterStore.id
+            const isConnected = await prisma.storeConnection.findFirst({
+              where: {
+                OR: [
+                  { sourceStoreId: productStore.id, targetStoreId: masterStore.id },
+                  { sourceStoreId: masterStore.id, targetStoreId: productStore.id },
+                ],
+              },
             });
+            if (isConnected) {
+              await createNotification({
+                recipientStoreId: masterStore.id,
+                type: "CONNECTED_STORE_UPDATE",
+                title: "Connected Store Variant Deleted",
+                message: `${storeLabel} deleted variant "${cleanVariantTitle}"`,
+                productId: shopifyProductId,
+                productTitle: cleanVariantTitle,
+                sourceStoreId: productStore.id,
+                targetStoreId: masterStore.id
+              });
+            }
           }
         }
       } catch (logErr: any) {
@@ -1548,16 +1568,26 @@ export async function DELETE(
           where: { isMaster: true, isActive: true }
         });
         if (masterStore && masterStore.id !== productStore.id) {
-          await createNotification({
-            recipientStoreId: masterStore.id,
-            type: "CONNECTED_STORE_UPDATE",
-            title: "Connected Store Product Deleted",
-            message: `${storeLabel} deleted product "${cleanTitle}"`,
-            productId: shopifyProductId,
-            productTitle: cleanTitle,
-            sourceStoreId: productStore.id,
-            targetStoreId: masterStore.id
+          const isConnected = await prisma.storeConnection.findFirst({
+            where: {
+              OR: [
+                { sourceStoreId: productStore.id, targetStoreId: masterStore.id },
+                { sourceStoreId: masterStore.id, targetStoreId: productStore.id },
+              ],
+            },
           });
+          if (isConnected) {
+            await createNotification({
+              recipientStoreId: masterStore.id,
+              type: "CONNECTED_STORE_UPDATE",
+              title: "Connected Store Product Deleted",
+              message: `${storeLabel} deleted product "${cleanTitle}"`,
+              productId: shopifyProductId,
+              productTitle: cleanTitle,
+              sourceStoreId: productStore.id,
+              targetStoreId: masterStore.id
+            });
+          }
         }
       }
     } catch (logErr: any) {

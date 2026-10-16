@@ -86,13 +86,45 @@ export async function GET(req: NextRequest) {
           }
         ];
 
-    // 2. Fetch distinct collections for authorized stores
+    // 2. Fetch distinct collections for target stores
     const collectionsDb = await prisma.collection.findMany({
-      where: { storeId: { in: authorizedStoreIds } },
+      where: { storeId: { in: targetStoreIds } },
       select: { title: true },
-      distinct: ['title']
+      distinct: ['title'],
+      orderBy: { title: 'asc' }
     });
     const collectionList = ['All collections', ...collectionsDb.map(c => c.title)];
+
+    const isCollectionFiltered = collectionFilter !== 'all' && collectionFilter !== 'All collections';
+
+    // Find products belonging to the selected collection (via CollectionProduct relation or tags)
+    let matchingProductCacheIds: string[] = [];
+    let matchingTitles: string[] = [];
+    let matchingSkus: string[] = [];
+    let matchingProductIds: string[] = [];
+
+    if (isCollectionFiltered) {
+      const matchingCaches = await prisma.productCache.findMany({
+        where: {
+          storeId: { in: targetStoreIds },
+          OR: [
+            { collections: { some: { collection: { title: { equals: collectionFilter, mode: 'insensitive' } } } } },
+            { tags: { contains: collectionFilter, mode: 'insensitive' } }
+          ]
+        },
+        select: {
+          id: true,
+          title: true,
+          sku: true,
+          shopifyProductId: true
+        }
+      });
+
+      matchingProductCacheIds = matchingCaches.map(c => c.id);
+      matchingTitles = Array.from(new Set(matchingCaches.map(c => c.title.trim()).filter(Boolean)));
+      matchingSkus = Array.from(new Set(matchingCaches.map(c => c.sku?.trim()).filter(Boolean) as string[]));
+      matchingProductIds = Array.from(new Set(matchingCaches.map(c => c.shopifyProductId.trim()).filter(Boolean)));
+    }
 
     // 3. Fetch sales activity logs for target stores
     const activityWhere: any = {
@@ -101,8 +133,21 @@ export async function GET(req: NextRequest) {
       createdAt: { gte: dateThreshold }
     };
 
-    if (collectionFilter !== 'all' && collectionFilter !== 'All collections') {
-      activityWhere.collection = { equals: collectionFilter, mode: 'insensitive' };
+    if (isCollectionFiltered) {
+      const rawProductIds = matchingProductIds.map(p => p.replace('gid://shopify/Product/', ''));
+      const orConditions: any[] = [
+        { collection: { equals: collectionFilter, mode: 'insensitive' } }
+      ];
+      if (matchingTitles.length > 0) {
+        orConditions.push({ productTitle: { in: matchingTitles } });
+      }
+      if (matchingSkus.length > 0) {
+        orConditions.push({ sku: { in: matchingSkus } });
+      }
+      if (matchingProductIds.length > 0) {
+        orConditions.push({ productId: { in: [...matchingProductIds, ...rawProductIds] } });
+      }
+      activityWhere.OR = orConditions;
     }
 
     const salesLogs = await prisma.activityLog.findMany({
@@ -110,6 +155,7 @@ export async function GET(req: NextRequest) {
       select: {
         storeId: true,
         sku: true,
+        productId: true,
         productTitle: true,
         quantity: true,
         amount: true,
@@ -118,14 +164,33 @@ export async function GET(req: NextRequest) {
     });
 
     // Fetch last sold date per product across all time history
+    const historyWhere: any = {
+      storeId: { in: targetStoreIds },
+      eventType: 'SOLD'
+    };
+    if (isCollectionFiltered) {
+      const rawProductIds = matchingProductIds.map(p => p.replace('gid://shopify/Product/', ''));
+      const orConditions: any[] = [
+        { collection: { equals: collectionFilter, mode: 'insensitive' } }
+      ];
+      if (matchingTitles.length > 0) {
+        orConditions.push({ productTitle: { in: matchingTitles } });
+      }
+      if (matchingSkus.length > 0) {
+        orConditions.push({ sku: { in: matchingSkus } });
+      }
+      if (matchingProductIds.length > 0) {
+        orConditions.push({ productId: { in: [...matchingProductIds, ...rawProductIds] } });
+      }
+      historyWhere.OR = orConditions;
+    }
+
     const allSalesHistory = await prisma.activityLog.findMany({
-      where: {
-        storeId: { in: targetStoreIds },
-        eventType: 'SOLD'
-      },
+      where: historyWhere,
       select: {
         storeId: true,
         sku: true,
+        productId: true,
         productTitle: true,
         createdAt: true
       },
@@ -134,11 +199,20 @@ export async function GET(req: NextRequest) {
 
     const lastSoldMap = new Map<string, Date>();
     allSalesHistory.forEach(log => {
-      const titleKey = log.productTitle?.trim() || log.sku?.trim();
-      if (titleKey && log.storeId) {
-        const comboKey = `${log.storeId}:${titleKey}`;
-        if (!lastSoldMap.has(comboKey)) {
-          lastSoldMap.set(comboKey, log.createdAt);
+      const titleKey = log.productTitle?.trim();
+      const skuKey = log.sku?.trim();
+      if (log.storeId) {
+        if (titleKey) {
+          const comboKey = `${log.storeId}:${titleKey}`;
+          if (!lastSoldMap.has(comboKey)) {
+            lastSoldMap.set(comboKey, log.createdAt);
+          }
+        }
+        if (skuKey) {
+          const comboSkuKey = `${log.storeId}:sku:${skuKey}`;
+          if (!lastSoldMap.has(comboSkuKey)) {
+            lastSoldMap.set(comboSkuKey, log.createdAt);
+          }
         }
       }
     });
@@ -147,15 +221,28 @@ export async function GET(req: NextRequest) {
 
     // Aggregate sales metrics per store and product
     const salesByTitleMap = new Map<string, { unitsSold: number; revenue: number }>();
+    const salesBySkuMap = new Map<string, { unitsSold: number; revenue: number }>();
+
     salesLogs.forEach(log => {
       if (log.eventType === 'SOLD') {
         const qty = Math.max(0, log.quantity || 0);
         const amt = Math.max(0, log.amount || 0);
-        const titleKey = log.productTitle?.trim() || log.sku?.trim();
+        const titleKey = log.productTitle?.trim();
+        const skuKey = log.sku?.trim();
+
         if (titleKey && log.storeId) {
           const mapKey = isAllStores ? titleKey : `${log.storeId}:${titleKey}`;
           const existing = salesByTitleMap.get(mapKey) || { unitsSold: 0, revenue: 0 };
           salesByTitleMap.set(mapKey, {
+            unitsSold: existing.unitsSold + qty,
+            revenue: existing.revenue + amt
+          });
+        }
+
+        if (skuKey && log.storeId) {
+          const mapSkuKey = isAllStores ? skuKey : `${log.storeId}:sku:${skuKey}`;
+          const existing = salesBySkuMap.get(mapSkuKey) || { unitsSold: 0, revenue: 0 };
+          salesBySkuMap.set(mapSkuKey, {
             unitsSold: existing.unitsSold + qty,
             revenue: existing.revenue + amt
           });
@@ -168,22 +255,8 @@ export async function GET(req: NextRequest) {
       storeId: { in: targetStoreIds }
     };
 
-    if (collectionFilter !== 'all' && collectionFilter !== 'All collections') {
-      const collectionRecords = await prisma.collection.findMany({
-        where: {
-          storeId: { in: targetStoreIds },
-          title: { equals: collectionFilter, mode: 'insensitive' }
-        },
-        include: {
-          products: {
-            select: { productCacheId: true }
-          }
-        }
-      });
-      const cacheIds = collectionRecords.flatMap(c => c.products.map(p => p.productCacheId));
-      if (cacheIds.length > 0) {
-        productWhere.id = { in: cacheIds };
-      }
+    if (isCollectionFiltered) {
+      productWhere.id = { in: matchingProductCacheIds };
     }
 
     const rawProducts = await prisma.productCache.findMany({
@@ -220,6 +293,8 @@ export async function GET(req: NextRequest) {
       const titleKey = p.title?.trim() || p.sku?.trim();
       if (!titleKey) return;
 
+      const pTitle = p.title?.trim();
+      const pSku = p.sku?.trim();
       const mapKey = isAllStores ? titleKey : `${p.storeId}:${titleKey}`;
       const storeObj = p.store || storeMap.get(p.storeId);
       const dbConfig = storeConfigMap.get(p.storeId);
@@ -228,11 +303,20 @@ export async function GET(req: NextRequest) {
       const deadStockDays = (storeObj as any)?.deadStockDays ?? dbConfig?.deadStockDays ?? (currentStore.deadStockDays || 90);
       const lowStockThreshold = storeObj?.lowStockThreshold ?? 10;
 
-      const sales = salesByTitleMap.get(mapKey) || { unitsSold: 0, revenue: 0 };
+      const titleMapKey = isAllStores ? pTitle : (pTitle ? `${p.storeId}:${pTitle}` : null);
+      const skuMapKey = isAllStores ? pSku : (pSku ? `${p.storeId}:sku:${pSku}` : null);
+      const titleSales = titleMapKey ? salesByTitleMap.get(titleMapKey) : null;
+      const skuSales = skuMapKey ? salesBySkuMap.get(skuMapKey) : null;
+      const sales = (titleSales && titleSales.unitsSold > 0)
+        ? titleSales
+        : (skuSales || titleSales || { unitsSold: 0, revenue: 0 });
+
       const currentStock = Math.max(0, p.inventoryQuantity || 0);
       const storeName = p.store?.label || p.store?.shopDomain || 'Store';
 
-      const lastSoldDate = lastSoldMap.get(`${p.storeId}:${titleKey}`);
+      const lastSoldDate = (pTitle ? lastSoldMap.get(`${p.storeId}:${pTitle}`) : null)
+        || (pSku ? lastSoldMap.get(`${p.storeId}:sku:${pSku}`) : null)
+        || lastSoldMap.get(`${p.storeId}:${titleKey}`);
       const daysWithoutSale = lastSoldDate
         ? Math.floor((Date.now() - new Date(lastSoldDate).getTime()) / (1000 * 60 * 60 * 24))
         : Math.floor((Date.now() - new Date(p.createdAt).getTime()) / (1000 * 60 * 60 * 24));
@@ -356,8 +440,21 @@ export async function GET(req: NextRequest) {
         if (log.eventType === 'SOLD') {
           const stats = storeStatsMap.get(log.storeId);
           if (stats) {
-            stats.unitsSold += Math.max(0, log.quantity || 0);
-            stats.revenue += Math.max(0, log.amount || 0);
+            const qty = Math.max(0, log.quantity || 0);
+            stats.unitsSold += qty;
+            if (log.amount && log.amount > 0) {
+              stats.revenue += log.amount;
+            } else {
+              const titleKey = log.productTitle?.trim();
+              const skuKey = log.sku?.trim();
+              const matchedProd = rawProducts.find(p =>
+                p.storeId === log.storeId && (
+                  (titleKey && p.title?.trim() === titleKey) ||
+                  (skuKey && p.sku?.trim() === skuKey)
+                )
+              );
+              stats.revenue += qty * (matchedProd?.price || 0);
+            }
           }
         }
       });

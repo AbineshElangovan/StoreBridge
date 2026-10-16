@@ -19,7 +19,7 @@ export default function InventoryPlanningPage() {
 
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedStore, setSelectedStore] = useState<string>('all');
-  const [selectedCollection, setSelectedCollection] = useState<string>('All collections');
+  const [selectedCollection, setSelectedCollection] = useState<string>('all');
   const [selectedForecastDays, setSelectedForecastDays] = useState<string>('');
   const [selectedReplenishDays, setSelectedReplenishDays] = useState<string>('7');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -115,6 +115,15 @@ export default function InventoryPlanningPage() {
                 setSelectedStore('all');
               }
             }
+
+            if (json.filters.collections && selectedCollection !== 'all') {
+              const exists = json.filters.collections.some(
+                (c: string) => c.toLowerCase() === selectedCollection.toLowerCase()
+              );
+              if (!exists) {
+                setSelectedCollection('all');
+              }
+            }
           }
 
           setData(json.data || []);
@@ -183,7 +192,6 @@ export default function InventoryPlanningPage() {
       <PlanningTabs
         activeTab={activeTab}
         onTabChange={handleTabChange}
-        replenishmentCount={stats.replenishmentNeeded}
       />
 
       {/* Reusable Filters directly under Nav Bar */}
@@ -230,6 +238,7 @@ export default function InventoryPlanningPage() {
           loading={loading}
           page={page}
           totalPages={pagination.totalPages}
+          totalItems={pagination.totalCount}
           onPageChange={setPage}
         />
       )}

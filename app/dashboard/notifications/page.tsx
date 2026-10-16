@@ -138,7 +138,7 @@ export default function NotificationsPage() {
       if (activeShopDomain) params.append('shop', activeShopDomain);
       if (typeFilter && typeFilter !== 'ALL') params.append('type', typeFilter);
       if (statusFilter && statusFilter !== 'all') params.append('status', statusFilter);
-      if (storeFilter && storeFilter !== 'ALL') params.append('storeId', storeFilter);
+      if (storeFilter) params.append('storeId', storeFilter);
 
       const res = await shopifyFetch(`/api/notifications?${params.toString()}`);
       if (res.ok) {

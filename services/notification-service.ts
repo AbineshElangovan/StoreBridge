@@ -96,6 +96,7 @@ export async function createNotification(params: CreateNotificationParams) {
           if (settings.notifyPriceUpdate === false) return null;
           break;
         case 'SYNC_UPDATE':
+        case 'IMPORT_COMPLETED':
           if (settings.notifySyncUpdate === false) return null;
           break;
         case 'SYNC_FAILURE':
@@ -118,9 +119,26 @@ export async function createNotification(params: CreateNotificationParams) {
     const isStandalone = !store.isMaster && connectionCount === 0;
 
     // Standalone stores cannot receive CONNECTED_STORE_UPDATE
-    if (isStandalone && type === 'CONNECTED_STORE_UPDATE') {
-      console.log(`[NotificationService] Standalone store ${store.id} cannot receive CONNECTED_STORE_UPDATE. Skipping.`);
-      return null;
+    if (type === 'CONNECTED_STORE_UPDATE') {
+      if (isStandalone) {
+        console.log(`[NotificationService] Standalone store ${store.id} cannot receive CONNECTED_STORE_UPDATE. Skipping.`);
+        return null;
+      }
+      // Ensure sourceStoreId and recipientStoreId have an active store connection
+      if (sourceStoreId && sourceStoreId !== recipientStoreId) {
+        const isConnected = await prisma.storeConnection.findFirst({
+          where: {
+            OR: [
+              { sourceStoreId: sourceStoreId, targetStoreId: recipientStoreId },
+              { sourceStoreId: recipientStoreId, targetStoreId: sourceStoreId },
+            ],
+          },
+        });
+        if (!isConnected) {
+          console.log(`[NotificationService] Suppressing CONNECTED_STORE_UPDATE: Store ${sourceStoreId} is not connected to recipient ${recipientStoreId}. Skipping.`);
+          return null;
+        }
+      }
     }
 
     // 4. Anti-Spam De-duplication for ALL notification types (1 minute window for exact message, 10 min for product)
@@ -288,6 +306,25 @@ export async function getNotifications(recipientStoreId: string, options: Notifi
   if (type && type !== 'ALL') {
     if (type === 'LOW_STOCK') {
       andConditions.push({ type: { in: ['LOW_STOCK', 'STOCKOUT_RISK'] } });
+    } else if (type === 'IMPORT_COMPLETED') {
+      andConditions.push({
+        OR: [
+          { type: 'IMPORT_COMPLETED' },
+          {
+            AND: [
+              { type: 'SYNC_UPDATE' },
+              { title: { contains: 'Import', mode: 'insensitive' } },
+            ],
+          },
+        ],
+      });
+    } else if (type === 'SYNC_UPDATE') {
+      andConditions.push({
+        type: 'SYNC_UPDATE',
+        NOT: {
+          title: { contains: 'Import', mode: 'insensitive' },
+        },
+      });
     } else {
       andConditions.push({ type: type as NotificationType });
     }

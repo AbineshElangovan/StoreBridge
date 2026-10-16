@@ -92,6 +92,13 @@ function getTypeBadge(type: string, title?: string, message?: string): {
       iconSource: ProductIcon,
     };
   }
+  if (type === 'IMPORT_COMPLETED' || combined.includes('import completed')) {
+    return {
+      label: 'Import Completed',
+      tone: 'success',
+      iconSource: RefreshIcon,
+    };
+  }
   switch (type) {
     case 'OUT_OF_STOCK':
       return { label: 'Out of Stock', tone: 'critical', iconSource: AlertCircleIcon };
@@ -102,10 +109,12 @@ function getTypeBadge(type: string, title?: string, message?: string): {
       return { label: 'Price Update', tone: 'success', iconSource: CartIcon };
     case 'INVENTORY_UPDATE':
       return { label: 'Inventory Update', tone: 'warning', iconSource: OrderIcon };
+    case 'IMPORT_COMPLETED':
+      return { label: 'Import Completed', tone: 'success', iconSource: RefreshIcon };
     case 'SYNC_UPDATE':
       return { label: 'Sync Request', tone: 'info', iconSource: RefreshIcon };
     case 'SYNC_FAILURE':
-      return { label: 'Sync Failure', tone: 'critical', iconSource: AlertCircleIcon };
+      return { label: combined.includes('import') ? 'Import Failed' : 'Sync Failure', tone: 'critical', iconSource: AlertCircleIcon };
     case 'CONNECTED_STORE_UPDATE':
       return { label: 'Connected Store', tone: 'attention', iconSource: StoreIcon };
     default:

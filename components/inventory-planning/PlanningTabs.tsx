@@ -15,7 +15,7 @@ export function PlanningTabs({ activeTab, onTabChange, replenishmentCount = 0 }:
   const tabs = [
     { id: 'stock-risk' as PlanningTabId, label: 'Stock Risk' },
     { id: 'forecast' as PlanningTabId, label: 'Forecast' },
-    { id: 'replenishment' as PlanningTabId, label: 'Replenishment', badge: replenishmentCount },
+    { id: 'replenishment' as PlanningTabId, label: 'Replenishment' },
   ];
 
   return <PageTabs tabs={tabs} activeTab={activeTab} onTabChange={onTabChange} />;

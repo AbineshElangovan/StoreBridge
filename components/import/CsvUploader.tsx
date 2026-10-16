@@ -22,9 +22,10 @@ export function CsvUploader({ file, isValidating, onFileSelect, onValidate, onDi
 
   const handleDownloadSampleCsv = (e: React.MouseEvent) => {
     e.preventDefault();
-    const csvContent = `Title,Description,Price,Inventory tracked,Available,Option1 Name,Option1 Value,Option2 Name,Option2 Value,Option3 Name,Option3 Value,SKU,Vendor,Type,Tags,Status,collection
-Baggy Denim pant,"<p>Baggy Pant</p>",799.00,Yes,10,Color,Beige,Size,Medium,,,,"ESHAN Coimbatore Store",Trousers in Pants,Pants,ACTIVE,PANTS
-Ceramic Tea Mug,"<p>High-quality ceramic mug perfect for your morning coffee.</p>",125.00,Yes,100,,,,,,,,StoreBridge,Home,Accessories,ACTIVE,MENS ACCESSORIES
+    const csvContent = `Title,Description,Price,Inventory tracked,Available,Option1 Name,Option1 Value,Option2 Name,Option2 Value,Option3 Name,Option3 Value,SKU,Vendor,Tags,Status,collection
+Stainless Steel Water Bottle,<p>Durable stainless steel water bottle for daily use.</p>,349,Yes,10,Color,Beige,,,,,,ESHAN Coimbatore Store,Accessories,ACTIVE,MENS ACCESSORIES
+Classic Cotton T-Shirt,<p>Comfortable cotton T-shirt for everyday wear.</p>,499,Yes,10,Color,Blue,Size,M,,,,StoreBridge,T-shirts,ACTIVE,T-SHIRTS
+Slim Fit Jeans,<p>Stylish slim-fit denim jeans suitable for casual wear.</p>,999,Yes,10,Color,Black,Size,L,,,,ESHAN Chennai Store,PANTS,ACTIVE,PANTS
 `;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -46,17 +47,17 @@ Ceramic Tea Mug,"<p>High-quality ceramic mug perfect for your morning coffee.</p
           </svg>
         </div>
         <h3 className="text-base font-semibold text-gray-900 mb-1">
-          {file ? file.name : 'Drop your products CSV here'}
+          {file ? file.name : 'Drop your products CSV or Excel file here'}
         </h3>
         <p className="text-sm text-gray-500 mb-6">
-          or click to browse · max 50 MB
+          or click to browse · .csv, .xlsx, .xls · max 50 MB
         </p>
         
         <label className="cursor-pointer bg-white px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">
           Browse files
           <input 
             type="file" 
-            accept=".csv" 
+            accept=".csv, .xlsx, .xls, text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" 
             className="hidden" 
             onChange={handleFileChange} 
           />

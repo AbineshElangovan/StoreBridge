@@ -44,46 +44,57 @@ export function ImportTab() {
     }
   };
 
-  const handleValidate = () => {
+  const parseUploadedFile = async (uploadedFile: File): Promise<any[]> => {
+    const isExcel = uploadedFile.name.endsWith('.xlsx') || uploadedFile.name.endsWith('.xls');
+    if (isExcel) {
+      const XLSX = await import('xlsx');
+      const buffer = await uploadedFile.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: 'array' });
+      const firstSheetName = wb.SheetNames[0];
+      const worksheet = wb.Sheets[firstSheetName];
+      return XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+    } else {
+      return new Promise<any[]>((resolve, reject) => {
+        Papa.parse(uploadedFile, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => resolve(results.data),
+          error: (err) => reject(err),
+        });
+      });
+    }
+  };
+
+  const handleValidate = async () => {
     if (!file) return;
     setImportState('VALIDATING');
     
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: async (results) => {
-        const parsedRows = results.data;
-        setRows(parsedRows);
+    try {
+      const parsedRows = await parseUploadedFile(file);
+      setRows(parsedRows);
 
-        try {
-          const res = await shopifyFetch('/api/products/import', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ rows: parsedRows, action: 'validate' })
-          });
-          const data = await res.json();
-          
-          if (!data.success && data.errors) {
-            setValidationErrors(data.errors);
-            setImportState('PREVIEW');
-          } else if (data.success) {
-            setPreviewProducts(data.products);
-            setValidationErrors([]);
-            setImportState('PREVIEW');
-          } else {
-             setValidationErrors([{row: 0, error: data.error || "Unknown API error"}]);
-             setImportState('PREVIEW');
-          }
-        } catch (err: any) {
-          setValidationErrors([{row: 0, error: err.message || "Network error validating CSV"}]);
-          setImportState('PREVIEW');
-        }
-      },
-      error: (error) => {
-        setValidationErrors([{row: 0, error: error.message}]);
+      const res = await shopifyFetch('/api/products/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: parsedRows, action: 'validate' })
+      });
+      const data = await res.json();
+      
+      if (!data.success && data.errors) {
+        setValidationErrors(data.errors);
         setImportState('PREVIEW');
+      } else if (data.success) {
+        setPreviewProducts(data.products);
+        setValidationErrors([]);
+        setImportState('PREVIEW');
+      } else {
+         setValidationErrors([{row: 0, error: data.error || "Unknown API error"}]);
+         setImportState('PREVIEW');
       }
-    });
+    } catch (err: any) {
+      setValidationErrors([{row: 0, error: err.message || "Error validating file"}]);
+      setImportState('PREVIEW');
+    }
   };
 
   const handleImport = async () => {
@@ -105,36 +116,26 @@ export function ImportTab() {
     }
   };
 
-  const handleDirectImport = () => {
+  const handleDirectImport = async () => {
     if (!file) return;
     setImportState('VALIDATING');
     
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: async (results) => {
-        const parsedRows = results.data;
-        setRows(parsedRows);
-        setImportState('IMPORTING');
-        try {
-          const res = await shopifyFetch('/api/products/import', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ rows: parsedRows, action: 'import', filename: file.name })
-          });
-          const data = await res.json();
-          setImportResult(data.result || { error: data.error || "Unknown API error" });
-          setImportState('RESULT');
-        } catch (err: any) {
-          setImportResult({ error: err.message || "Failed to run import" });
-          setImportState('RESULT');
-        }
-      },
-      error: (error) => {
-        setValidationErrors([{row: 0, error: error.message}]);
-        setImportState('PREVIEW');
-      }
-    });
+    try {
+      const parsedRows = await parseUploadedFile(file);
+      setRows(parsedRows);
+      setImportState('IMPORTING');
+      const res = await shopifyFetch('/api/products/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: parsedRows, action: 'import', targetStoreId: selectedStore, filename: file.name })
+      });
+      const data = await res.json();
+      setImportResult(data.result || { error: data.error || "Unknown API error" });
+      setImportState('RESULT');
+    } catch (err: any) {
+      setImportResult({ error: err.message || "Failed to run import" });
+      setImportState('RESULT');
+    }
   };
 
   const reset = () => {

@@ -47,21 +47,30 @@ export async function GET(req: NextRequest) {
     const currentSkus = products.map(p => p.sku).filter(Boolean) as string[];
     
     const connections = await (prisma as any).storeConnection.findMany({
-      where: { sourceStoreId: store.id }
+      where: {
+        OR: [
+          { sourceStoreId: store.id },
+          { targetStoreId: store.id },
+        ],
+      },
     });
-    const authorizedStoreIds = [store.id, ...connections.map((c: any) => c.targetStoreId)];
+    const authorizedStoreIds = [
+      store.id,
+      ...connections.map((c: any) => c.sourceStoreId === store.id ? c.targetStoreId : c.sourceStoreId),
+    ];
 
-    // Look across authorized stores and global catalog for fallback images/collections
+    // Look ONLY across authorized connected stores for fallback images/collections
     const crossStoreProducts = await prisma.productCache.findMany({
       where: {
+        storeId: { in: authorizedStoreIds },
         OR: [
           { sku: { in: currentSkus } },
           { collections: { some: {} } },
           { tags: { not: null } },
-          { imageUrl: { not: null } }
-        ]
+          { imageUrl: { not: null } },
+        ],
       },
-      include: { collections: { include: { collection: true } } }
+      include: { collections: { include: { collection: true } } },
     });
 
     const skuCategories: { [sku: string]: string[] } = {};
