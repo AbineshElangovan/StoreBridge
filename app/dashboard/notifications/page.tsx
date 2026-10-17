@@ -129,8 +129,8 @@ export default function NotificationsPage() {
   const activeShopDomain = currentStore?.shopDomain;
 
   // Load Notifications
-  const loadNotifications = useCallback(async () => {
-    setLoading(true);
+  const loadNotifications = useCallback(async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     try {
       const params = new URLSearchParams();
       params.append('page', page.toString());
@@ -139,6 +139,7 @@ export default function NotificationsPage() {
       if (typeFilter && typeFilter !== 'ALL') params.append('type', typeFilter);
       if (statusFilter && statusFilter !== 'all') params.append('status', statusFilter);
       if (storeFilter) params.append('storeId', storeFilter);
+      params.append('_t', Date.now().toString());
 
       const res = await shopifyFetch(`/api/notifications?${params.toString()}`);
       if (res.ok) {
@@ -153,27 +154,28 @@ export default function NotificationsPage() {
             window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: unread }));
           }, 0);
         }
-      } else {
+      } else if (!isSilent) {
         setNotifications([]);
       }
     } catch (err) {
       console.error('[NotificationsPage] Error loading notifications:', err);
-      setNotifications([]);
+      if (!isSilent) setNotifications([]);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   }, [page, typeFilter, statusFilter, storeFilter, activeShopDomain]);
 
   const isLocalActionRef = React.useRef(false);
 
   useEffect(() => {
-    loadNotifications();
+    loadNotifications(false);
 
     const handleUpdate = () => {
       if (isLocalActionRef.current) return;
-      loadNotifications();
+      loadNotifications(true);
     };
     window.addEventListener('notification-updated', handleUpdate);
+
     return () => {
       window.removeEventListener('notification-updated', handleUpdate);
     };

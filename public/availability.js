@@ -66,7 +66,7 @@
     },
 
     notifyMe: {
-      enabled: true,
+      enabled: false,
       notifyEmail: true,
       notifyWhatsApp: true,
       popupMessage: "Get notified when this item is back in stock.",
@@ -805,6 +805,8 @@
           timestamp: Date.now()
         };
         localStorage.setItem('storebridge_pending_preorder', JSON.stringify(pendingItem));
+
+        log('Pre-order item added to cart and saved to pending preorder in localStorage.');
       } catch (e) {}
 
       window.location.href = cartUrl;
@@ -4105,9 +4107,77 @@
 
 
   
+  async function checkAndEnforceStorefrontRule() {
+    try {
+      const root = getRootElement();
+      const shop = root?.dataset?.shop || window.Shopify?.shop || window.location.hostname;
+      const apiUrl = (root?.dataset?.apiUrl || 'https://dz50mdfc-3000.inc1.devtunnels.ms').replace(/\/+$/, '');
+
+      const res = await fetch(`${apiUrl}/api/storefront/config?shop=${encodeURIComponent(shop)}`, {
+        headers: {
+          'X-Shopify-Shop-Domain': shop,
+          'X-Tunnel-Skip-Anti-Phishing-Page': '1',
+          Accept: 'application/json'
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // If this store is NOT a standalone store, preorder and notifyMe MUST be disabled everywhere
+        if (data.success && data.preorder && data.preorder.enabled === false) {
+          enforceNoPreorderOnStore();
+        }
+      }
+    } catch (e) {
+      // Ignore network errors
+    }
+  }
+
+  function enforceNoPreorderOnStore() {
+    function sanitizeButtons() {
+      const candidates = document.querySelectorAll(
+        'button, a.button, [role="button"], form[action*="/cart/add"] button, .product-form__submit, [name="add"], .card__information button, [class*="card"] button, [class*="product"] button, [class*="product-card"] button'
+      );
+      candidates.forEach((el) => {
+        if (el.closest('[data-storebridge="ui-container"]') || el.hasAttribute('data-storebridge-action')) {
+          return;
+        }
+        const text = (el.textContent || '').trim();
+        const lower = text.toLowerCase();
+        if (lower === 'pre-order' || lower === 'pre order' || lower === 'preorder' || lower.includes('pre-order') || lower.includes('pre order')) {
+          const isSoldOut = el.disabled || el.getAttribute('aria-disabled') === 'true' || el.closest('.sold-out, .card--sold-out, [class*="sold-out"]') !== null;
+          if (isSoldOut) {
+            el.textContent = 'Out of stock';
+          } else {
+            el.textContent = 'Add to cart';
+          }
+        }
+      });
+    }
+
+    sanitizeButtons();
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', sanitizeButtons, { once: true });
+    }
+    setTimeout(sanitizeButtons, 150);
+    setTimeout(sanitizeButtons, 500);
+    setTimeout(sanitizeButtons, 1200);
+
+    if (window.MutationObserver && !window.__sbNonStandaloneObserver) {
+      window.__sbNonStandaloneObserver = true;
+      const observer = new MutationObserver(() => {
+        sanitizeButtons();
+      });
+      observer.observe(document.body || document.documentElement, {
+        childList: true,
+        subtree: true
+      });
+    }
+  }
+
   function start() {
     log('Script loaded on storefront.');
     attachGlobalDelegatedListeners();
+    checkAndEnforceStorefrontRule();
 
     // CART PAGE: Execute immediately without waiting for DOMContentLoaded if possible
     if (isCartPage()) {
@@ -4206,17 +4276,33 @@
       }
 
       if (!orderNumber) {
-        const orderEl = document.querySelector('.os-order-number, .order-number, [data-order-number]');
+        const orderEl = document.querySelector('.os-order-number, .order-number, [data-order-number], .thank-you__order-number, [data-checkout-order-number]');
         if (orderEl) orderNumber = orderEl.textContent.trim();
       }
       if (!orderNumber) {
-        const match = document.body.innerText.match(/Order\s+(#\d+)/i);
+        const match = document.body.innerText.match(/Order\s+(#\d+)/i) || document.body.innerText.match(/Confirmation\s+(#\d+)/i);
         if (match) orderNumber = match[1];
       }
 
+      if (!orderId && window.__st?.oid) {
+        orderId = String(window.__st.oid);
+      }
+      if (!orderNumber && orderId) {
+        orderNumber = `#${orderId}`;
+      }
+      if (!orderNumber && window.__st?.oid) {
+        orderNumber = `#${window.__st.oid}`;
+      }
+
       if (!email) {
-        const emailEl = document.querySelector('.os-step__description, [data-customer-email]');
+        const emailEl = document.querySelector('.os-step__description, [data-customer-email], .thank-you__email');
         if (emailEl) email = emailEl.textContent.trim();
+      }
+      if (!email && window.Shopify?.customer?.email) {
+        email = window.Shopify.customer.email;
+      }
+      if (!name && window.Shopify?.customer?.name) {
+        name = window.Shopify.customer.name;
       }
 
       const pendingStr = localStorage.getItem('storebridge_pending_preorder');
@@ -4225,11 +4311,17 @@
       }
 
       const pending = pendingStr ? JSON.parse(pendingStr) : null;
-      if (!orderNumber && pending?.timestamp && Date.now() - pending.timestamp < 3600000) {
-        orderNumber = `#${Math.floor(Date.now() / 1000)}`;
+      if (!orderNumber) {
+        log('No Shopify order number found yet on confirmation page.');
+        return;
       }
 
-      if (!orderNumber) return;
+      if (!orderNumber.startsWith('#') && /^\d+$/.test(orderNumber)) {
+        orderNumber = `#${orderNumber}`;
+      }
+      if (!orderId) {
+        orderId = `gid://shopify/Order/${orderNumber.replace(/\D/g, '')}`;
+      }
 
       const recordedKey = `storebridge_recorded_${orderNumber}`;
       if (sessionStorage.getItem(recordedKey)) return;

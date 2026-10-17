@@ -88,11 +88,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={inter.className}>
         <ShopifyProvider>
           <StoreProvider>
-            <NotificationProvider>
-              <ThemeProvider>
-                <AutoHideScrollbar />
-                <NavbarTitleProvider>
-                  <ToastProvider>
+            <ToastProvider>
+              <NotificationProvider>
+                <ThemeProvider>
+                  <AutoHideScrollbar />
+                  <NavbarTitleProvider>
                     <ResponsiveLayout sidebar={
                       <Suspense key="sidebar-suspense" fallback={<div className="w-[260px] bg-white border-r h-full animate-pulse" />}>
                         <Sidebar />
@@ -102,10 +102,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                         {children}
                       </TimezoneProvider>
                     </ResponsiveLayout>
-                  </ToastProvider>
-                </NavbarTitleProvider>
-              </ThemeProvider>
-            </NotificationProvider>
+                  </NavbarTitleProvider>
+                </ThemeProvider>
+              </NotificationProvider>
+            </ToastProvider>
           </StoreProvider>
         </ShopifyProvider>
       </body>

@@ -240,6 +240,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Auto-update Shopify inventory policy to CONTINUE for targeted products so cart add succeeds
+    const effectiveSelectedProductIds = (updated as any).selectedProductIds || parsed.data.selectedProductIds || [];
+    await PreorderService.syncInventoryPolicy(store.id, effectiveSelectedProductIds);
+
     const calculation = PreorderService.calculatePrice(
       1240,
       effectiveDiscountType,

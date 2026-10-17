@@ -1,98 +1,69 @@
 /**
- * Dynamic Tag and Collection Normalization Utility.
+ * Generic Category, Tag, and Collection Normalization Utility.
  * 
- * Converts raw tags or collection titles into standardized collection names regardless of:
- * - Casing ("t-shirt", "T-Shirt", "T-SHIRT", "T Shirt")
- * - Spaces/Hyphens ("t-shirts", "tshirts", "t shirts")
- * - Singular / Plural ("shirt" vs "shirts", "pant" vs "pants", "accessory" vs "accessories")
- * - Any new custom tags (automatically capitalized into UPPERCASE)
+ * 100% Dynamic - contains NO hardcoded collection names or tag names.
+ * Operates purely on generic string processing, whitespace trimming,
+ * and dynamic singular/plural stemming.
  */
 
+/**
+ * Normalizes a raw collection title or tag into a clean, standardized uppercase string.
+ * Works dynamically for ANY collection or tag name.
+ */
 export function normalizeTagOrCollection(raw: string): string {
   if (!raw) return '';
   const trimmed = raw.trim();
-  
-  // Normalize string by stripping hyphens, underscores, spaces and converting to lowercase
-  const normalized = trimmed.toLowerCase().replace(/[-_\s]+/g, '');
+  if (!trimmed) return '';
 
-  // 1. T-Shirts: tshirt, tshirts, t-shirt, t-shirts, t shirt, tee, tees
-  if (normalized.startsWith('tshirt') || normalized === 'tee' || normalized === 'tees') {
-    return 'T-SHIRTS';
+  // Collapse multiple whitespace or underscore characters into single spaces
+  const cleaned = trimmed.replace(/[\t\r\n]+/g, ' ').replace(/\s+/g, ' ');
+
+  return cleaned.toUpperCase();
+}
+
+/**
+ * Returns a normalized stem for comparing categories regardless of:
+ * - Casing ("Trousers", "trousers", "TROUSERS")
+ * - Separators ("t-shirts", "t_shirts", "t shirts")
+ * - Singular vs Plural forms dynamically ("trouser" vs "trousers", "box" vs "boxes", "shirt" vs "shirts")
+ */
+export function getCategoryStem(raw: string): string {
+  if (!raw) return '';
+  const cleaned = raw.trim().toLowerCase().replace(/[-_\s]+/g, '');
+  if (!cleaned) return '';
+
+  // Dynamically stem English plural suffixes without hardcoding words
+  // e.g. "watches" -> "watch", "boxes" -> "box", "trousers" -> "trouser", "shirts" -> "shirt"
+  if (cleaned.length > 3 && cleaned.endsWith('ies')) {
+    return cleaned.slice(0, -3) + 'y'; // e.g. "accessories" -> "accessory"
+  }
+  if (cleaned.length > 4 && cleaned.endsWith('es') && /(?:ch|sh|x|s|z)es$/i.test(cleaned)) {
+    return cleaned.slice(0, -2); // e.g. "boxes" -> "box", "watches" -> "watch"
+  }
+  if (cleaned.length > 3 && cleaned.endsWith('s') && !cleaned.endsWith('ss')) {
+    return cleaned.slice(0, -1); // e.g. "trousers" -> "trouser", "shirts" -> "shirt", "pants" -> "pant"
   }
 
-  // 2. Shirts (only exact shirt/shirts, avoiding t-shirt which was caught above)
-  if (normalized === 'shirt' || normalized === 'shirts') {
-    return 'SHIRTS';
-  }
+  return cleaned;
+}
 
-  // 3. Inners: inner, inners, underwear
-  if (normalized === 'inner' || normalized === 'inners' || normalized === 'underwear') {
-    return 'INNERS';
-  }
+/**
+ * Checks whether an input tag/collection matches a target collection title dynamically.
+ * Returns true if exact, case-insensitive, or stemmed representations match.
+ */
+export function isCategoryMatch(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  const cleanA = a.trim().toLowerCase();
+  const cleanB = b.trim().toLowerCase();
 
-  // 4. Pants: pant, pants
-  if (normalized === 'pant' || normalized === 'pants') {
-    return 'PANTS';
-  }
+  // 1. Exact case-insensitive match
+  if (cleanA === cleanB) return true;
 
-  // 5. Trousers: trouser, trousers
-  if (normalized === 'trouser' || normalized === 'trousers') {
-    return 'TROUSERS';
-  }
+  // 2. Stripped separators match ("t-shirts" === "t shirts")
+  const strippedA = cleanA.replace(/[-_\s]+/g, '');
+  const strippedB = cleanB.replace(/[-_\s]+/g, '');
+  if (strippedA === strippedB) return true;
 
-  // 6. Mens Accessories: accessory, accessories, mensaccessories, menaccessories
-  if (
-    normalized.includes('accessori') ||
-    normalized.includes('accessory') ||
-    normalized === 'mensaccessories' ||
-    normalized === 'menaccessories'
-  ) {
-    return 'MENS ACCESSORIES';
-  }
-
-  // 7. Shoes: shoe, shoes, footwear
-  if (normalized === 'shoe' || normalized === 'shoes' || normalized === 'footwear') {
-    return 'SHOES';
-  }
-
-  // 8. Socks: sock, socks
-  if (normalized === 'sock' || normalized === 'socks') {
-    return 'SOCKS';
-  }
-
-  // Exact fallback map for any specific legacy string key
-  const TAG_MAP: Record<string, string> = {
-    'inner': 'INNERS',
-    'inners': 'INNERS',
-    'pant': 'PANTS',
-    'pants': 'PANTS',
-    'shirt': 'SHIRTS',
-    'shirts': 'SHIRTS',
-    'tshirt': 'T-SHIRTS',
-    'tshirts': 'T-SHIRTS',
-    't-shirt': 'T-SHIRTS',
-    't-shirts': 'T-SHIRTS',
-    'accessory': 'MENS ACCESSORIES',
-    'accessories': 'MENS ACCESSORIES',
-    'mens accessories': 'MENS ACCESSORIES',
-    'shoe': 'SHOES',
-    'shoes': 'SHOES',
-    'sock': 'SOCKS',
-    'socks': 'SOCKS',
-    'trouser': 'TROUSERS',
-    'trousers': 'TROUSERS',
-  };
-
-  const lowerRaw = trimmed.toLowerCase();
-  if (TAG_MAP[lowerRaw]) {
-    return TAG_MAP[lowerRaw];
-  }
-
-  // If already uppercase (e.g., custom collection title "CASUAL WEAR"), keep exact title
-  if (trimmed === trimmed.toUpperCase()) {
-    return trimmed;
-  }
-
-  // Default fallback for any other tag: uppercase string (e.g. "Jacket" -> "JACKET")
-  return trimmed.toUpperCase();
+  // 3. Dynamic linguistic stem match ("trouser" === "trousers", "accessory" === "accessories")
+  return getCategoryStem(cleanA) === getCategoryStem(cleanB);
 }

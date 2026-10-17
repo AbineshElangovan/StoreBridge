@@ -118,9 +118,9 @@ export default function PreorderAdminPage() {
     return () => clearTimeout(timer);
   }, [recordsSearch, recordsStatus]);
 
-  const fetchRecords = async (page = recordsPage, search = recordsSearch, status = recordsStatus) => {
+  const fetchRecords = async (page = recordsPage, search = recordsSearch, status = recordsStatus, isSilent = false) => {
     try {
-      setRecordsLoading(true);
+      if (!isSilent) setRecordsLoading(true);
       const params = new URLSearchParams({
         type: 'records',
         page: String(page),
@@ -141,9 +141,28 @@ export default function PreorderAdminPage() {
     } catch (err) {
       console.error('Failed to fetch preorder records:', err);
     } finally {
-      setRecordsLoading(false);
+      if (!isSilent) setRecordsLoading(false);
     }
   };
+
+  // Sync when tab is active and when window regains focus or visibility
+  useEffect(() => {
+    if (!isStandalone || activeTab !== 'orders') return;
+
+    const handleSync = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchRecords(recordsPage, recordsSearch, recordsStatus, true);
+      }
+    };
+
+    window.addEventListener('focus', handleSync);
+    document.addEventListener('visibilitychange', handleSync);
+
+    return () => {
+      window.removeEventListener('focus', handleSync);
+      document.removeEventListener('visibilitychange', handleSync);
+    };
+  }, [isStandalone, activeTab, recordsPage, recordsSearch, recordsStatus]);
 
   const fetchConfig = async () => {
     try {
@@ -828,7 +847,7 @@ export default function PreorderAdminPage() {
               const currSym = curr === 'INR' ? '₹' : curr === 'USD' ? '$' : `${curr} `;
 
               const cleanOrderNumber = record.orderNumber
-                ? (record.orderNumber.startsWith('#') ? record.orderNumber : `#${record.orderNumber}`)
+                ? (record.orderNumber.startsWith('#') || record.orderNumber.startsWith('PRE-') ? record.orderNumber : `#${record.orderNumber}`)
                 : '—';
 
               return {

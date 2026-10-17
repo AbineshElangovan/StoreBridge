@@ -54,6 +54,16 @@ export async function POST(req: NextRequest) {
     }
 
     const data = parsed.data;
+
+    // Reject/ignore premature PRE- temporary tokens from button clicks
+    if (data.orderNumber.startsWith('PRE-')) {
+      console.log(`[Storefront:RecordPreorder] Ignored temporary button token: ${data.orderNumber}`);
+      return NextResponse.json(
+        { success: true, message: 'Temporary token acknowledged. Waiting for completed order.' },
+        { status: 200, headers: corsHeaders(origin) }
+      );
+    }
+
     const cleanShop = data.shop.trim().toLowerCase().replace(/^https?:\/\//, '').split('/')[0];
 
     const store = await prisma.store.findFirst({
@@ -76,6 +86,14 @@ export async function POST(req: NextRequest) {
     const cleanVariantId = data.variantId.replace(/\D/g, '');
     const cleanOrderId = data.orderId || `storefront_${data.orderNumber.replace(/\D/g, '') || Date.now()}`;
 
+    // Standardize pre-order number as PRE-#XXXX with the real Shopify order number
+    const rawNumber = data.orderNumber.trim();
+    let formattedOrderNumber = rawNumber;
+    if (!formattedOrderNumber.toUpperCase().startsWith('PRE-')) {
+      const base = formattedOrderNumber.startsWith('#') ? formattedOrderNumber : `#${formattedOrderNumber}`;
+      formattedOrderNumber = `PRE-${base}`;
+    }
+
     const record = await prisma.preorderRecord.upsert({
       where: {
         storeId_shopifyOrderId_shopifyVariantId: {
@@ -87,7 +105,7 @@ export async function POST(req: NextRequest) {
       create: {
         storeId: store.id,
         shopifyOrderId: cleanOrderId,
-        orderNumber: data.orderNumber,
+        orderNumber: formattedOrderNumber,
         shopifyVariantId: cleanVariantId,
         customerName: data.customerName ? safeEncrypt(data.customerName) : null,
         customerEmail: data.customerEmail ? safeEncrypt(data.customerEmail) : null,
@@ -105,7 +123,7 @@ export async function POST(req: NextRequest) {
         currency: data.currency,
       },
       update: {
-        orderNumber: data.orderNumber,
+        orderNumber: formattedOrderNumber,
         customerName: data.customerName ? safeEncrypt(data.customerName) : null,
         customerEmail: data.customerEmail ? safeEncrypt(data.customerEmail) : null,
         customerPhone: data.customerPhone ? safeEncrypt(data.customerPhone) : null,
@@ -121,7 +139,45 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    console.log(`[Storefront:RecordPreorder] Saved preorder for order ${data.orderNumber} (Variant: ${cleanVariantId})`);
+    console.log(`[Storefront:RecordPreorder] Saved preorder for order ${formattedOrderNumber} (Variant: ${cleanVariantId})`);
+
+    // Dispatch Pre-order confirmation email to customer
+    if (data.customerEmail) {
+      try {
+        const { EmailNotificationService } = require('@/services/notifications/email-notification-service');
+        await EmailNotificationService.sendPreorderConfirmationEmail({
+          to: data.customerEmail,
+          productTitle: data.productTitle || 'Pre-order Item',
+          variantTitle: data.variantTitle || undefined,
+          orderNumber: formattedOrderNumber,
+          customerName: data.customerName || undefined,
+          paymentOption: data.paymentOption,
+          depositAmount: data.depositAmount,
+          remainingBalance: data.remainingBalance,
+          totalAmount: data.totalAmount,
+          storeName: store.label || store.shopDomain,
+          productUrl: `https://${cleanShop}`,
+        });
+      } catch (emErr: any) {
+        console.warn('[Storefront:RecordPreorder:EmailError]', emErr.message);
+      }
+    }
+
+    // Create in-app notification in StoreBridge Dashboard
+    try {
+      await prisma.notification.create({
+        data: {
+          recipientStoreId: store.id,
+          type: 'INVENTORY_UPDATE',
+          title: `New Pre-order: ${formattedOrderNumber}`,
+          message: `${data.customerName || data.customerEmail || 'Customer'} placed a pre-order for ${data.productTitle || 'Product'} (${data.quantity} ${data.quantity === 1 ? 'unit' : 'units'}) - ${formattedOrderNumber}.`,
+          productId: cleanVariantId,
+          productTitle: data.productTitle || 'Pre-order Item',
+          sourceStoreId: store.id,
+          isRead: false,
+        },
+      });
+    } catch (_) {}
 
     return NextResponse.json(
       { success: true, recordId: record.id },

@@ -464,14 +464,15 @@ async function getTargetStoreIds(storeId: string): Promise<string[]> {
 }
 
 /**
- * Mark a single notification as read strictly for the recipient store.
+ * Mark a single notification as read strictly for the recipient store or network stores if master.
  */
 export async function markAsRead(recipientStoreId: string, notificationId: string) {
   try {
+    const targetStoreIds = await getTargetStoreIds(recipientStoreId);
     return await prisma.notification.updateMany({
       where: {
         id: notificationId,
-        recipientStoreId,
+        recipientStoreId: { in: targetStoreIds },
       },
       data: {
         isRead: true,
@@ -488,9 +489,10 @@ export async function markAsRead(recipientStoreId: string, notificationId: strin
  */
 export async function markAllAsRead(recipientStoreId: string) {
   try {
+    const targetStoreIds = await getTargetStoreIds(recipientStoreId);
     return await prisma.notification.updateMany({
       where: {
-        recipientStoreId,
+        recipientStoreId: { in: targetStoreIds },
         isRead: false,
       },
       data: {
@@ -504,14 +506,15 @@ export async function markAllAsRead(recipientStoreId: string) {
 }
 
 /**
- * Delete a single notification strictly for the recipient store.
+ * Delete a single notification strictly for the recipient store or network stores if master.
  */
 export async function deleteNotification(recipientStoreId: string, notificationId: string) {
   try {
+    const targetStoreIds = await getTargetStoreIds(recipientStoreId);
     return await prisma.notification.deleteMany({
       where: {
         id: notificationId,
-        recipientStoreId,
+        recipientStoreId: { in: targetStoreIds },
       },
     });
   } catch (error) {
@@ -525,9 +528,10 @@ export async function deleteNotification(recipientStoreId: string, notificationI
  */
 export async function deleteAllNotifications(recipientStoreId: string) {
   try {
+    const targetStoreIds = await getTargetStoreIds(recipientStoreId);
     return await prisma.notification.deleteMany({
       where: {
-        recipientStoreId,
+        recipientStoreId: { in: targetStoreIds },
       },
     });
   } catch (error) {

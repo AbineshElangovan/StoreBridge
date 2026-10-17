@@ -290,6 +290,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Create in-app notification in StoreBridge Dashboard for new subscribers
+    if (!result.alreadyRegistered) {
+      try {
+        await prisma.notification.create({
+          data: {
+            recipientStoreId: store.id,
+            type: 'INVENTORY_UPDATE',
+            title: `New Restock Subscriber: ${finalProductTitle}`,
+            message: `${email || cleanPhoneLead || 'A customer'} joined the waitlist for ${finalProductTitle}${finalVariantTitle ? ` (${finalVariantTitle})` : ''}.`,
+            productId: shopifyVariantId,
+            productTitle: finalProductTitle,
+            sourceStoreId: store.id,
+            isRead: false,
+          },
+        });
+      } catch (_) {}
+    }
+
     return NextResponse.json(
       {
         success: true,

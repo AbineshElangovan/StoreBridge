@@ -1,8 +1,9 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import { useStoreContext } from '@/components/providers/StoreProvider';
+import { useToast } from '@/components/providers/ToastContext';
 
 export interface NotificationItem {
   id: string;
@@ -29,7 +30,7 @@ interface NotificationContextValue {
   loading: boolean;
   activeFilter: string;
   setActiveFilter: (filter: string) => void;
-  fetchNotifications: (filter?: string) => Promise<void>;
+  fetchNotifications: (filter?: string, isSilent?: boolean) => Promise<void>;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
 }
@@ -49,10 +50,16 @@ export const useNotifications = () => useContext(NotificationContext);
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const { currentStore } = useStoreContext();
+  const { showToast } = useToast();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [activeFilter, setActiveFilter] = useState<string>('ALL');
+
+  // Track discovered notification IDs to detect newly arrived items in real-time
+  const knownNotificationIdsRef = useRef<Set<string>>(new Set());
+  const hasLoadedOnceRef = useRef<boolean>(false);
+  const isInternalFetchRef = useRef<boolean>(false);
 
   // Derive activeShopDomain safely after mount to avoid SSR/render-time window access
   const [activeShopDomain, setActiveShopDomain] = useState<string | null>(
@@ -74,40 +81,91 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   }, [currentStore?.shopDomain]);
 
-  const activeFilterRef = React.useRef(activeFilter);
+  const activeFilterRef = useRef(activeFilter);
   activeFilterRef.current = activeFilter;
 
-  const fetchNotificationsRef = React.useRef<((filter?: string) => Promise<void>) | null>(null);
+  const fetchNotificationsRef = useRef<((filter?: string, isSilent?: boolean) => Promise<void>) | null>(null);
 
-  const fetchNotifications = useCallback(async (filter?: string) => {
+  const fetchNotifications = useCallback(async (filter?: string, isSilent = false) => {
     const targetFilter = filter ?? activeFilterRef.current;
-    setLoading(true);
+    if (!isSilent) {
+      setLoading(true);
+    }
+
     try {
       const typeParam = targetFilter !== 'ALL' ? `&type=${targetFilter}` : '';
       const shopParam = activeShopDomain ? `&shop=${encodeURIComponent(activeShopDomain)}` : '';
-      const res = await shopifyFetch(`/api/notifications?limit=8${typeParam}${shopParam}`);
+      const timestamp = Date.now();
+      const res = await shopifyFetch(`/api/notifications?limit=8${typeParam}${shopParam}&_t=${timestamp}`);
+
       if (res.ok) {
         const json = await res.json();
-        setNotifications(json.notifications || []);
-        setUnreadCount(json.unreadCount || 0);
-      } else {
+        const incomingNotifications: NotificationItem[] = json.notifications || [];
+        const incomingUnreadCount: number = json.unreadCount || 0;
+
+        // Detect newly arrived notifications dynamically
+        if (hasLoadedOnceRef.current) {
+          const known = knownNotificationIdsRef.current;
+          const newlyArrived = incomingNotifications.filter(
+            (n) => !known.has(n.id) && !n.isRead
+          );
+
+          if (newlyArrived.length > 0) {
+            // Alert user dynamically with a clean toast notification
+            if (newlyArrived.length === 1) {
+              const latest = newlyArrived[0];
+              showToast(`🔔 ${latest.title}: ${latest.message}`, false, 5000);
+            } else {
+              showToast(`🔔 ${newlyArrived.length} new notifications received`, false, 5000);
+            }
+
+            // Broadcast to other components (like Notifications Page) so they refresh dynamically
+            if (typeof window !== 'undefined') {
+              isInternalFetchRef.current = true;
+              window.dispatchEvent(
+                new CustomEvent('notification-updated', { detail: { newlyArrived } })
+              );
+              setTimeout(() => {
+                isInternalFetchRef.current = false;
+              }, 100);
+            }
+          }
+        }
+
+        // Register all current IDs
+        incomingNotifications.forEach((n) => knownNotificationIdsRef.current.add(n.id));
+        hasLoadedOnceRef.current = true;
+
+        setNotifications(incomingNotifications);
+        setUnreadCount(incomingUnreadCount);
+
+        // Broadcast count so Bell and Sidebar badges synchronize dynamically
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('notification-count-changed', { detail: incomingUnreadCount })
+          );
+        }
+      } else if (!isSilent) {
         setNotifications([]);
         setUnreadCount(0);
       }
     } catch (err) {
       console.error('[NotificationProvider] Error fetching notifications:', err);
     } finally {
-      setLoading(false);
+      if (!isSilent) {
+        setLoading(false);
+      }
     }
-  }, [activeShopDomain]);
+  }, [activeShopDomain, showToast]);
 
   fetchNotificationsRef.current = fetchNotifications;
 
+  // Initial load or filter change
   useEffect(() => {
-    fetchNotifications(activeFilter);
+    fetchNotifications(activeFilter, false);
   }, [activeFilter, fetchNotifications]);
 
-  // Synchronize unreadCount in real-time across components (Bell icon, Sidebar badge, Notifications page)
+  // Synchronize unreadCount across components (Bell icon, Sidebar badge, Notifications page)
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -119,9 +177,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       }
     };
 
-    const handleNotificationUpdated = () => {
+    const handleNotificationUpdated = (e: any) => {
+      // Don't re-fetch if this event was dispatched by our own polling/SSE
+      if (isInternalFetchRef.current) return;
       if (fetchNotificationsRef.current) {
-        fetchNotificationsRef.current();
+        fetchNotificationsRef.current(undefined, true);
       }
     };
 
@@ -134,14 +194,18 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     };
   }, []);
 
-  // SINGLETON SSE LIFECYCLE: Exactly 1 EventSource connection across the entire application
+  // AUTOMATIC BACKGROUND POLLING & SSE REAL-TIME SYNC
   useEffect(() => {
     let eventSource: EventSource | null = null;
+    let reconnectTimeout: NodeJS.Timeout | null = null;
+    let pollInterval: NodeJS.Timeout | null = null;
     let isDisposed = false;
 
+    // 1. Singleton SSE Setup with Auto-Reconnect
     const setupSSE = () => {
       if (typeof window === 'undefined' || isDisposed) return;
-      if (!activeShopDomain) return; // Prevent connecting before active shop domain is identified
+      if (!activeShopDomain) return;
+
       if (document.hidden) {
         if (eventSource) {
           eventSource.close();
@@ -149,22 +213,34 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         }
         return;
       }
-      if (eventSource) return;
+
+      if (eventSource && eventSource.readyState !== EventSource.CLOSED) return;
 
       try {
         const shopParam = `?shop=${encodeURIComponent(activeShopDomain)}`;
-        eventSource = new EventSource(`/api/notifications/stream${shopParam}`);
+        const es = new EventSource(`/api/notifications/stream${shopParam}`);
+        eventSource = es;
 
-        eventSource.addEventListener('new-notification', () => {
+        es.addEventListener('new-notification', () => {
           if (!isDisposed && fetchNotificationsRef.current) {
-            fetchNotificationsRef.current();
+            // Immediate silent check when stream notifies of a new item
+            fetchNotificationsRef.current(undefined, true);
           }
         });
 
-        eventSource.onerror = () => {
-          if (eventSource) {
-            eventSource.close();
-            eventSource = null;
+        es.onerror = () => {
+          if (es) {
+            es.close();
+            if (eventSource === es) {
+              eventSource = null;
+            }
+          }
+          // Automatically reconnect after 5s if active
+          if (!isDisposed && !reconnectTimeout) {
+            reconnectTimeout = setTimeout(() => {
+              reconnectTimeout = null;
+              setupSSE();
+            }, 5000);
           }
         };
       } catch (err) {
@@ -172,18 +248,59 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       }
     };
 
-    // Stagger SSE connection by 1000ms so initial HTML and API data load first
-    const initTimer = setTimeout(setupSSE, 1000);
-
-    const handleVisibilityChange = () => {
-      setupSSE();
+    // 2. Fallback Polling Loop: Only polls if SSE is not actively connected
+    const startPolling = () => {
+      if (pollInterval) clearInterval(pollInterval);
+      const intervalMs = document.hidden ? 60000 : 45000;
+      pollInterval = setInterval(() => {
+        if (!isDisposed && fetchNotificationsRef.current) {
+          // If SSE connection is open and active, notifications arrive via events — skip HTTP poll
+          if (eventSource && eventSource.readyState === EventSource.OPEN) {
+            return;
+          }
+          fetchNotificationsRef.current(undefined, true);
+        }
+      }, intervalMs);
     };
+
+    // Stagger initial SSE and Polling so initial page load finishes first
+    const initTimer = setTimeout(() => {
+      setupSSE();
+      startPolling();
+    }, 1200);
+
+    // 3. Tab Visibility & Window Focus Listeners: Check immediately when user returns (throttled)
+    let lastFocusCheckTime = 0;
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        const now = Date.now();
+        if (now - lastFocusCheckTime > 15000 && fetchNotificationsRef.current) {
+          lastFocusCheckTime = now;
+          fetchNotificationsRef.current(undefined, true);
+        }
+        setupSSE();
+      }
+      startPolling();
+    };
+
+    const handleFocus = () => {
+      const now = Date.now();
+      if (now - lastFocusCheckTime > 15000 && fetchNotificationsRef.current) {
+        lastFocusCheckTime = now;
+        fetchNotificationsRef.current(undefined, true);
+      }
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
 
     return () => {
       isDisposed = true;
       clearTimeout(initTimer);
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (pollInterval) clearInterval(pollInterval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
       if (eventSource) {
         eventSource.close();
         eventSource = null;
@@ -196,8 +313,20 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
       );
-      setUnreadCount((prev) => Math.max(0, prev - 1));
-      await shopifyFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
+      const nextCount = Math.max(0, unreadCount - 1);
+      setUnreadCount(nextCount);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('notification-count-changed', { detail: nextCount })
+        );
+        isInternalFetchRef.current = true;
+        window.dispatchEvent(new CustomEvent('notification-updated'));
+        setTimeout(() => {
+          isInternalFetchRef.current = false;
+        }, 100);
+      }
+      const shopParam = activeShopDomain ? `?shop=${encodeURIComponent(activeShopDomain)}` : '';
+      await shopifyFetch(`/api/notifications/${id}/read${shopParam}`, { method: 'PUT' });
     } catch (err) {
       console.error('[NotificationProvider] Error marking read:', err);
     }
@@ -207,7 +336,18 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     try {
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
-      await shopifyFetch('/api/notifications', {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('notification-count-changed', { detail: 0 })
+        );
+        isInternalFetchRef.current = true;
+        window.dispatchEvent(new CustomEvent('notification-updated'));
+        setTimeout(() => {
+          isInternalFetchRef.current = false;
+        }, 100);
+      }
+      const shopParam = activeShopDomain ? `?shop=${encodeURIComponent(activeShopDomain)}` : '';
+      await shopifyFetch(`/api/notifications${shopParam}`, {
         method: 'PUT',
         body: JSON.stringify({ action: 'markAllRead' }),
       });

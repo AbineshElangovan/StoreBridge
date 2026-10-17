@@ -276,6 +276,24 @@ export class BackInStockService {
     // 6. Process all pending jobs immediately
     const dispatchResult = await CustomerNotificationService.processPendingJobs(storeId);
 
+    // Create in-app notification in StoreBridge Dashboard if pre-orders were allocated or waitlist notified
+    if (allocatedPreorders.length > 0 || registrationsToNotify.length > 0) {
+      try {
+        await prisma.notification.create({
+          data: {
+            recipientStoreId: storeId,
+            type: 'INVENTORY_UPDATE',
+            title: `Restock Dispatched: ${productTitle}`,
+            message: `Inventory restocked (${available} units available). Allocated ${allocatedPreorders.length} pre-order customer(s) and notified ${registrationsToNotify.length} waitlist subscriber(s).`,
+            productId: cleanVariantId,
+            productTitle: productTitle,
+            sourceStoreId: storeId,
+            isRead: false,
+          },
+        });
+      } catch (_) {}
+    }
+
     return {
       triggered: true,
       committedPreorders,
@@ -576,6 +594,24 @@ export class BackInStockService {
             if (k === '_remainingamount' && !isNaN(parseFloat(v))) remainingBalance = parseFloat(v);
           }
 
+          const existingRecord = await (prisma as any).preorderRecord.findUnique({
+            where: {
+              storeId_shopifyOrderId_shopifyVariantId: {
+                storeId,
+                shopifyOrderId: order.id,
+                shopifyVariantId: cleanVariantId,
+              },
+            },
+            select: { status: true },
+          });
+
+          let targetStatus = order.displayFulfillmentStatus || 'UNFULFILLED';
+          if (order.displayFulfillmentStatus === 'FULFILLED') {
+            targetStatus = 'FULFILLED';
+          } else if (existingRecord?.status === 'ALLOCATED') {
+            targetStatus = 'ALLOCATED';
+          }
+
           await (prisma as any).preorderRecord.upsert({
             where: {
               storeId_shopifyOrderId_shopifyVariantId: {
@@ -607,7 +643,7 @@ export class BackInStockService {
             update: {
               orderNumber: order.name || order.id,
               customerPhone: customerPhone ? safeEncrypt(customerPhone) : undefined,
-              status: order.displayFulfillmentStatus || 'UNFULFILLED',
+              status: targetStatus,
             },
           });
         }
@@ -672,7 +708,7 @@ export class BackInStockService {
       prisma.notifyMeRegistration.count({ where: { storeId } }),
     ]);
 
-    const [rawJobs, preorders, pendingRegs, allStoreRegs] = await Promise.all([
+    const [rawJobs, preorders, allRegs, allStoreRegs] = await Promise.all([
       prisma.notificationJob.findMany({
         where: baseWhere,
         orderBy: { createdAt: 'desc' },
@@ -682,7 +718,7 @@ export class BackInStockService {
         orderBy: { createdAt: 'desc' },
       }),
       prisma.notifyMeRegistration.findMany({
-        where: { storeId, status: 'PENDING' },
+        where: { storeId },
         orderBy: { createdAt: 'desc' },
       }),
       prisma.notifyMeRegistration.findMany({
@@ -712,6 +748,7 @@ export class BackInStockService {
         if (email && !phone && emailToPhone.has(email)) phone = emailToPhone.get(email)!;
         if (phone && !email && phoneToEmail.has(phone)) email = phoneToEmail.get(phone)!;
 
+        const isAllocatedOrFulfilled = po.status === 'ALLOCATED' || po.status === 'FULFILLED';
         candidateItems.push({
           id: `po_${po.id}`,
           registrationId: null,
@@ -720,11 +757,11 @@ export class BackInStockService {
           orderStatus: po.status || 'UNFULFILLED',
           customerEmail: email,
           customerWhatsApp: phone,
-          productTitle: '[Pre-order] Product',
-          variantTitle: null,
+          productTitle: po.productTitle || '[Pre-order] Product',
+          variantTitle: po.variantTitle || null,
           imageUrl: null,
           productUrl: null,
-          status: po.status === 'ALLOCATED' ? 'SENT' : 'PENDING',
+          status: isAllocatedOrFulfilled ? 'SENT' : 'PENDING',
           sentAt: po.notifiedAt,
           createdAt: po.createdAt,
           cleanVariantId: (po.shopifyVariantId || '').replace(/\D/g, ''),
@@ -735,9 +772,9 @@ export class BackInStockService {
       }
     }
 
-    // 2. Add pending NotifyMe registrations (if not filtered to PRE_ORDER)
+    // 2. Add all NotifyMe registrations (if not filtered to PRE_ORDER)
     if (!filters.batch || filters.batch === 'ALL' || filters.batch === 'NOTIFY_ME') {
-      for (const r of pendingRegs) {
+      for (const r of allRegs) {
         let email = safeDecrypt(r.customerEmail)?.toLowerCase() || null;
         let phone = safeDecrypt(r.customerWhatsApp) || null;
         if (email && !phone && emailToPhone.has(email)) phone = emailToPhone.get(email)!;
@@ -755,8 +792,8 @@ export class BackInStockService {
           variantTitle: null,
           imageUrl: null,
           productUrl: null,
-          status: 'PENDING',
-          sentAt: null,
+          status: r.status === 'NOTIFIED' ? 'SENT' : (r.status === 'CANCELLED' ? 'FAILED' : 'PENDING'),
+          sentAt: r.notifiedAt || null,
           createdAt: r.createdAt,
           cleanVariantId: (r.shopifyVariantId || '').replace(/\D/g, ''),
           isPreorder: false,
@@ -806,20 +843,21 @@ export class BackInStockService {
     for (const item of candidateItems) {
       let foundKey: string | null = null;
       for (const [key, existing] of mergedJobMap.entries()) {
-        // Only merge if variant AND sourceType (Pre-order vs Notify Me) match!
-        if (existing.cleanVariantId === item.cleanVariantId && existing.sourceType === item.sourceType) {
-          if (item.registrationId && existing.registrationId && item.registrationId === existing.registrationId) {
-            foundKey = key;
-            break;
-          }
-          if (item.customerEmail && existing.customerEmail && item.customerEmail === existing.customerEmail) {
-            foundKey = key;
-            break;
-          }
-          if (item.customerWhatsApp && existing.customerWhatsApp && item.customerWhatsApp === existing.customerWhatsApp) {
-            foundKey = key;
-            break;
-          }
+        const isSameCustomer = Boolean(
+          (item.customerEmail && existing.customerEmail && item.customerEmail === existing.customerEmail) ||
+          (item.customerWhatsApp && existing.customerWhatsApp && item.customerWhatsApp === existing.customerWhatsApp)
+        );
+        const isSameVariant = Boolean(item.cleanVariantId && existing.cleanVariantId && item.cleanVariantId === existing.cleanVariantId);
+        const isSameReg = Boolean(item.registrationId && existing.registrationId && item.registrationId === existing.registrationId);
+        const isSameProduct = Boolean(
+          item.productTitle && existing.productTitle &&
+          item.productTitle.trim().toLowerCase() === existing.productTitle.trim().toLowerCase()
+        );
+
+        // Merge if exact registration ID matches, OR if same customer & same variant/product
+        if (isSameReg || (isSameCustomer && (isSameVariant || isSameProduct))) {
+          foundKey = key;
+          break;
         }
       }
 
@@ -827,10 +865,17 @@ export class BackInStockService {
         mergedJobMap.set(item.id, { ...item });
       } else {
         const existing = mergedJobMap.get(foundKey)!;
+        // Pre-order commitment ALWAYS supersedes and upgrades Notify Me waitlist
+        if (item.sourceType === 'PRE_ORDER' || existing.sourceType === 'PRE_ORDER') {
+          existing.sourceType = 'PRE_ORDER';
+          existing.isPreorder = true;
+        }
+        if (item.orderNumber) existing.orderNumber = item.orderNumber;
+        if (item.orderStatus && item.orderStatus !== 'WAITLIST') existing.orderStatus = item.orderStatus;
+        if (item.productTitle && !item.productTitle.includes('[Pre-order] Product')) existing.productTitle = item.productTitle;
+        if (item.variantTitle) existing.variantTitle = item.variantTitle;
         if (!existing.customerEmail && item.customerEmail) existing.customerEmail = item.customerEmail;
         if (!existing.customerWhatsApp && item.customerWhatsApp) existing.customerWhatsApp = item.customerWhatsApp;
-        if (!existing.orderNumber && item.orderNumber) existing.orderNumber = item.orderNumber;
-        if (item.orderStatus) existing.orderStatus = item.orderStatus;
         if (item.sentAt && !existing.sentAt) existing.sentAt = item.sentAt;
         if (item.status === 'SENT') {
           existing.status = 'SENT';
@@ -842,18 +887,49 @@ export class BackInStockService {
     }
 
     const uniqueJobs = Array.from(mergedJobMap.values());
+    // Chronological descending sort so latest real-time updates always appear at top
+    uniqueJobs.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
-    const filteredJobs = filters.search
-      ? uniqueJobs.filter((job) => {
-          const q = filters.search!.trim().toLowerCase();
-          const email = (job.customerEmail || '').toLowerCase();
-          const wa = (job.customerWhatsApp || '').toLowerCase();
-          const title = (job.productTitle || '').toLowerCase();
-          const vTitle = (job.variantTitle || '').toLowerCase();
-          const varId = (job.shopifyVariantId || '').toLowerCase();
-          return email.includes(q) || wa.includes(q) || title.includes(q) || vTitle.includes(q) || varId.includes(q);
-        })
-      : uniqueJobs;
+    let filteredJobs = uniqueJobs;
+
+    if (filters.status && filters.status !== 'ALL') {
+      const s = filters.status.toUpperCase();
+      filteredJobs = filteredJobs.filter((job) => {
+        if (s === 'SENT') {
+          return job.status === 'SENT' || job.orderStatus === 'ALLOCATED' || job.orderStatus === 'FULFILLED';
+        }
+        if (s === 'PENDING') {
+          return job.status === 'PENDING' && job.orderStatus !== 'ALLOCATED' && job.orderStatus !== 'FULFILLED';
+        }
+        if (s === 'FAILED') {
+          return job.status === 'FAILED';
+        }
+        if (s === 'ALLOCATED') {
+          return job.orderStatus === 'ALLOCATED';
+        }
+        if (s === 'UNFULFILLED') {
+          return job.orderStatus === 'UNFULFILLED';
+        }
+        if (s === 'FULFILLED') {
+          return job.orderStatus === 'FULFILLED';
+        }
+        return job.status === s || job.orderStatus === s;
+      });
+    }
+
+    if (filters.search) {
+      const q = filters.search.trim().toLowerCase();
+      filteredJobs = filteredJobs.filter((job) => {
+        const email = (job.customerEmail || '').toLowerCase();
+        const wa = (job.customerWhatsApp || '').toLowerCase();
+        const title = (job.productTitle || '').toLowerCase();
+        const vTitle = (job.variantTitle || '').toLowerCase();
+        const varId = (job.shopifyVariantId || '').toLowerCase();
+        const oNum = (job.orderNumber || '').toLowerCase();
+        const sku = (job.sku || '').toLowerCase();
+        return email.includes(q) || wa.includes(q) || title.includes(q) || vTitle.includes(q) || varId.includes(q) || oNum.includes(q) || sku.includes(q);
+      });
+    }
 
     const total = filteredJobs.length;
     const paginatedData = filteredJobs.slice(skip, skip + pageSize);
@@ -970,8 +1046,8 @@ export class BackInStockService {
       data: enrichedRows,
       stats: {
         totalSubscribers: uniqueJobs.length,
-        notificationsSent: uniqueJobs.filter((j) => j.status === 'SENT').length,
-        pending: uniqueJobs.filter((j) => j.status === 'PENDING').length,
+        notificationsSent: uniqueJobs.filter((j) => j.status === 'SENT' || j.orderStatus === 'ALLOCATED' || j.orderStatus === 'FULFILLED').length,
+        pending: uniqueJobs.filter((j) => (j.status === 'PENDING' || !j.status) && j.orderStatus !== 'ALLOCATED' && j.orderStatus !== 'FULFILLED').length,
         failed: uniqueJobs.filter((j) => j.status === 'FAILED').length,
       },
       pagination: {
@@ -1084,6 +1160,21 @@ export class BackInStockService {
         },
       });
 
+      try {
+        await prisma.notification.create({
+          data: {
+            recipientStoreId: storeId,
+            type: 'INVENTORY_UPDATE',
+            title: `Back in Stock Alert Dispatched: ${productTitle}`,
+            message: `Restock email manually sent to ${safeDecrypt(reg.customerEmail) || 'waitlist subscriber'}.`,
+            productId: reg.shopifyVariantId,
+            productTitle,
+            sourceStoreId: storeId,
+            isRead: false,
+          },
+        });
+      } catch (_) {}
+
       return { success: true, message: 'Back in Stock email dispatched successfully', sentAt: now };
     }
 
@@ -1159,6 +1250,21 @@ export class BackInStockService {
           attempts: 1,
         },
       });
+
+      try {
+        await prisma.notification.create({
+          data: {
+            recipientStoreId: storeId,
+            type: 'INVENTORY_UPDATE',
+            title: `Pre-order Restock Email Sent: ${po.orderNumber}`,
+            message: `In-stock ready email dispatched to ${customerName || customerEmail} for pre-order ${po.orderNumber}.`,
+            productId: po.shopifyVariantId,
+            productTitle,
+            sourceStoreId: storeId,
+            isRead: false,
+          },
+        });
+      } catch (_) {}
 
       return { success: true, message: 'Pre-order restock email dispatched successfully', sentAt: now };
     }

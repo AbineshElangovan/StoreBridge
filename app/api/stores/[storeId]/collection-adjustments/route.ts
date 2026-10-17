@@ -109,23 +109,50 @@ export async function PUT(
     await prisma.$transaction(async (tx) => {
       for (const adj of adjustments) {
         const { collectionId, enabled, adjustmentType, adjustmentValue } = adj;
+        const parsedVal = parseFloat(adjustmentValue) || 0;
+
+        const targetCollection = await tx.collection.findUnique({
+          where: { id: collectionId },
+          select: { title: true }
+        });
         
         const record = await tx.collectionPriceAdjustment.upsert({
           where: { storeId_collectionId: { storeId, collectionId } },
           update: {
             enabled,
             adjustmentType,
-            adjustmentValue: parseFloat(adjustmentValue) || 0,
+            adjustmentValue: parsedVal,
+            updatedAt: new Date(),
           },
           create: {
             storeId,
             collectionId,
             enabled,
             adjustmentType,
-            adjustmentValue: parseFloat(adjustmentValue) || 0,
+            adjustmentValue: parsedVal,
           }
         });
         updatedAdjustments.push(record);
+
+        // Also clean up any other collection adjustments for this store that have the same title (e.g. duplicate child-store collections)
+        if (targetCollection?.title) {
+          const matchingCollections = await tx.collection.findMany({
+            where: {
+              title: { equals: targetCollection.title, mode: 'insensitive' },
+              id: { not: collectionId }
+            },
+            select: { id: true }
+          });
+
+          if (matchingCollections.length > 0) {
+            await tx.collectionPriceAdjustment.deleteMany({
+              where: {
+                storeId,
+                collectionId: { in: matchingCollections.map(c => c.id) }
+              }
+            });
+          }
+        }
       }
     });
 

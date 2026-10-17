@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import { Loading } from '@/components/common/Loading';
 import { Toast } from '@/components/common/Toast';
@@ -13,6 +13,7 @@ import {
   AlertCircleIcon,
   StoreIcon,
   CartIcon,
+  RefreshIcon,
 } from '@shopify/polaris-icons';
 import { StandaloneGuard } from '@/components/ui/StandaloneGuard';
 import { useStoreContext } from '@/components/providers/StoreProvider';
@@ -45,6 +46,8 @@ export default function BackInStockAdminPage() {
   const { isStandalone } = useStoreContext();
   const [loading, setLoading] = useState(true);
   const [tableLoading, setTableLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date>(new Date());
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -77,10 +80,13 @@ export default function BackInStockAdminPage() {
     currentPage = 1,
     currentStatus = statusFilter,
     currentSearch = search,
-    currentBatch = batchFilter
+    currentBatch = batchFilter,
+    isSilent = false
   ) => {
     try {
-      setTableLoading(true);
+      if (!isSilent) {
+        setTableLoading(true);
+      }
       const params = new URLSearchParams({
         page: String(currentPage),
         pageSize: '10',
@@ -108,18 +114,25 @@ export default function BackInStockAdminPage() {
         if (data.stats) {
           setStats(data.stats);
         }
+        setLastRefreshedAt(new Date());
       }
     } catch (err: any) {
-      setToast({ message: 'Failed to load Back in Stock logs', type: 'error' });
+      if (!isSilent) {
+        setToast({ message: 'Failed to load Back in Stock logs', type: 'error' });
+      }
     } finally {
       setLoading(false);
-      setTableLoading(false);
+      if (!isSilent) {
+        setTableLoading(false);
+      }
+      setIsRefreshing(false);
     }
   }, [statusFilter, search, batchFilter]);
 
+  // Initial load
   useEffect(() => {
     if (isStandalone) {
-      loadData(1, statusFilter, search, batchFilter);
+      loadData(1, statusFilter, search, batchFilter, false);
       shopifyFetch('/api/stores?active=false')
         .then((res) => res.json())
         .then((data) => {
@@ -131,6 +144,30 @@ export default function BackInStockAdminPage() {
         .catch(() => {});
     }
   }, [isStandalone]);
+
+  // Sync when window regains focus or visibility, or when manual refresh is clicked
+  useEffect(() => {
+    if (!isStandalone) return;
+
+    const handleSync = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        loadData(page, statusFilter, search, batchFilter, true);
+      }
+    };
+
+    window.addEventListener('focus', handleSync);
+    document.addEventListener('visibilitychange', handleSync);
+
+    return () => {
+      window.removeEventListener('focus', handleSync);
+      document.removeEventListener('visibilitychange', handleSync);
+    };
+  }, [isStandalone, page, statusFilter, search, batchFilter, loadData]);
+
+  const handleManualRefresh = () => {
+    setIsRefreshing(true);
+    loadData(page, statusFilter, search, batchFilter, false);
+  };
 
   const activeStore = stores.find((s) => s.id === selectedStoreId) || stores[0] || null;
   const previewStoreName = activeStore ? (activeStore.label || activeStore.shopDomain) : 'ESHAN Chennai Store';
@@ -331,18 +368,32 @@ export default function BackInStockAdminPage() {
       </div>
     ),
     orderStatusBadge: job.sourceType === 'PRE_ORDER' || job.isPreorder ? (
-      <div className="flex flex-col items-center justify-center text-center space-y-0.5">
+      <div className="flex flex-col items-center justify-center text-center space-y-1">
         <span className="text-xs font-mono font-bold text-gray-900 block truncate">
           {job.orderNumber || 'Order Confirmed'}
         </span>
         <span
-          className={`inline-block px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider ${
+          className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
             job.orderStatus === 'ALLOCATED'
-              ? 'bg-purple-100 text-purple-800 border border-purple-300'
-              : 'bg-amber-100 text-amber-800 border border-amber-300'
+              ? 'bg-purple-100 text-purple-800 border border-purple-300 shadow-2xs'
+              : job.orderStatus === 'FULFILLED'
+              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs'
+              : job.orderStatus === 'PARTIALLY_FULFILLED'
+              ? 'bg-blue-100 text-blue-800 border border-blue-300 shadow-2xs'
+              : job.orderStatus === 'CANCELLED'
+              ? 'bg-rose-100 text-rose-800 border border-rose-300 shadow-2xs'
+              : 'bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs'
           }`}
         >
-          {job.orderStatus === 'ALLOCATED' ? 'Allocated' : 'Unfulfilled'}
+          {job.orderStatus === 'ALLOCATED'
+            ? 'Allocated'
+            : job.orderStatus === 'FULFILLED'
+            ? 'Fulfilled'
+            : job.orderStatus === 'PARTIALLY_FULFILLED'
+            ? 'Partially Fulfilled'
+            : job.orderStatus === 'CANCELLED'
+            ? 'Cancelled'
+            : (job.orderStatus || 'Unfulfilled')}
         </span>
       </div>
     ) : job.status === 'FAILED' ? (
@@ -359,13 +410,17 @@ export default function BackInStockAdminPage() {
     ) : (
       <div className="flex justify-center">
         <span
-          className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+          className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
             job.status === 'SENT'
-              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-              : 'bg-sky-50 text-sky-700 border border-sky-200'
+              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs'
+              : job.status === 'PROCESSING'
+              ? 'bg-indigo-100 text-indigo-800 border border-indigo-300 shadow-2xs'
+              : job.status === 'CANCELLED'
+              ? 'bg-gray-100 text-gray-700 border border-gray-300 shadow-2xs'
+              : 'bg-sky-100 text-sky-800 border border-sky-300 shadow-2xs'
           }`}
         >
-          {job.status === 'SENT' ? 'Alert Sent' : 'Pending'}
+          {job.status === 'SENT' ? 'Alert Sent' : job.status === 'PROCESSING' ? 'Processing' : job.status === 'CANCELLED' ? 'Cancelled' : 'Pending'}
         </span>
       </div>
     ),
@@ -390,13 +445,34 @@ export default function BackInStockAdminPage() {
         />
       )}
 
-      {/* Page Title */}
+      {/* Page Title & Real-Time Sync Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-gray-200">
         <div>
           <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Back in Stock Monitor</h1>
           <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
             Track real-time restock alerts and customer notification logs.
           </p>
+        </div>
+        <div className="flex items-center gap-3 self-start sm:self-auto">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold shadow-2xs">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span>Live Auto-Sync</span>
+          </div>
+          <button
+            type="button"
+            onClick={handleManualRefresh}
+            disabled={tableLoading || isRefreshing}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-bold transition shadow-2xs disabled:opacity-50 cursor-pointer"
+            title="Refresh now"
+          >
+            <div className={`w-3.5 h-3.5 text-gray-600 ${isRefreshing ? 'animate-spin' : ''}`}>
+              <Icon source={RefreshIcon} />
+            </div>
+            <span>Refresh</span>
+          </button>
         </div>
       </div>
 
@@ -475,6 +551,31 @@ export default function BackInStockAdminPage() {
           { label: 'Notify Me Waitlist', value: 'NOTIFY_ME' },
           { label: 'Pre-order Commitments', value: 'PRE_ORDER' },
         ]}
+        secondaryFilterable={true}
+        secondaryFilterValue={statusFilter}
+        onSecondaryFilterChange={handleStatusChange}
+        secondaryFilterOptions={[
+          { label: 'All States', value: 'ALL' },
+          { label: 'Pending Only', value: 'PENDING' },
+          { label: 'Unfulfilled Orders', value: 'UNFULFILLED' },
+          { label: 'Allocated Orders', value: 'ALLOCATED' },
+          { label: 'Fulfilled Orders', value: 'FULFILLED' },
+          { label: 'Alerts Sent', value: 'SENT' },
+          { label: 'Failed Alerts', value: 'FAILED' },
+        ]}
+        extraControls={
+          <button
+            type="button"
+            onClick={handleManualRefresh}
+            disabled={tableLoading || isRefreshing}
+            className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition shadow-2xs disabled:opacity-50 cursor-pointer flex items-center justify-center"
+            title="Refresh table data"
+          >
+            <div className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`}>
+              <Icon source={RefreshIcon} />
+            </div>
+          </button>
+        }
         itemsPerPage={10}
         paginate={true}
       />

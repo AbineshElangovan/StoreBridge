@@ -848,11 +848,65 @@ export class PreorderService {
           await client.request(mutation, { variables: fallbackVariables });
         } catch (_) {}
       }
+      return depositCode;
     } catch (err: any) {
       console.warn('[PreorderService:syncDepositDiscount] Note creating deposit code:', err.message);
     }
 
     return depositCode;
   }
+
+  /**
+   * Automatically ensure targeted Shopify variants have inventoryPolicy = CONTINUE
+   * so customers never see "already sold out" when placing pre-orders.
+   */
+  static async syncInventoryPolicy(storeId: string, productIds: string[]) {
+    if (!productIds || productIds.length === 0) return;
+    try {
+      const store = await prisma.store.findUnique({
+        where: { id: storeId },
+        select: { shopDomain: true },
+      });
+      if (!store || !store.shopDomain) return;
+      const { getAdminClient } = require('@/lib/shopify/admin');
+      const client = await getAdminClient(store.shopDomain);
+
+      for (const rawPid of productIds) {
+        const pid = rawPid.startsWith('gid://') ? rawPid : `gid://shopify/Product/${rawPid}`;
+        const query = `
+          query getVariants($id: ID!) {
+            product(id: $id) {
+              variants(first: 50) {
+                nodes {
+                  id
+                  inventoryPolicy
+                }
+              }
+            }
+          }
+        `;
+        const res: any = await client.request(query, { variables: { id: pid } });
+        const variants = res.data?.product?.variants?.nodes || [];
+        const toUpdate = variants
+          .filter((v: any) => v.inventoryPolicy !== 'CONTINUE')
+          .map((v: any) => ({ id: v.id, inventoryPolicy: 'CONTINUE' }));
+
+        if (toUpdate.length > 0) {
+          const mutation = `
+            mutation updatePolicy($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+              productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+                userErrors { field message }
+              }
+            }
+          `;
+          await client.request(mutation, { variables: { productId: pid, variants: toUpdate } });
+          console.log(`[PreorderService] Automatically updated ${toUpdate.length} variants to CONTINUE for product ${pid}`);
+        }
+      }
+    } catch (e) {
+      console.warn('[PreorderService] Auto-sync inventory policy failed:', e);
+    }
+  }
 }
+
 

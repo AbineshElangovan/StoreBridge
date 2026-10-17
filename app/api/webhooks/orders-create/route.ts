@@ -20,7 +20,8 @@ export async function POST(req: NextRequest) {
 
     const order = JSON.parse(rawBody);
     const orderId = String(order.id);
-    const orderNumber = order.name || `#${orderId}`;
+    const rawOrderName = order.name || `#${orderId}`;
+    const orderNumber = `PRE-${rawOrderName.startsWith('#') ? rawOrderName : `#${rawOrderName}`}`;
     const customerEmail = order.email || order.contact_email || order.customer?.email || null;
     const customerPhone = order.phone || order.customer?.phone || null;
     const customerName = [order.customer?.first_name, order.customer?.last_name]

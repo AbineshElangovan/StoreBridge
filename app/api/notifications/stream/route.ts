@@ -103,7 +103,9 @@ export async function GET(req: NextRequest) {
         try {
           const notificationWhere: any = {
             createdAt: { gt: lastCreatedAt },
-            recipientStoreId: currentStore.id,
+            ...(isMasterStore
+              ? { recipientStoreId: { in: targetStoreIds } }
+              : { recipientStoreId: currentStore.id }),
           };
 
           const newNotifications = await prisma.notification.findMany({
@@ -125,7 +127,8 @@ export async function GET(req: NextRequest) {
             }
           }
         } catch (error) {
-          cleanup();
+          console.error('[NotificationStream] Transient poll error:', error);
+          // Do not call cleanup() on transient DB poll error, keep connection alive
         }
       }, 6000);
 

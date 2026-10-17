@@ -11,7 +11,7 @@ import {
   ADD_PRODUCT_TO_COLLECTION_MUTATION, GET_PUBLICATIONS_QUERY, PUBLISH_MUTATION
 } from './graphql';
 import { syncProductCollectionsByTags } from './collection-sync';
-import { normalizeTagOrCollection } from '@/lib/utils/categoryNormalization';
+import { normalizeTagOrCollection, isCategoryMatch } from '@/lib/utils/categoryNormalization';
 import { acquireSyncLock } from './locks';
 
 export async function calculateAdjustedPrice(
@@ -34,18 +34,15 @@ export async function calculateAdjustedPrice(
     include: { collection: true }
   });
 
-  const normalizedInputCollections = productCollections.map(c => c.trim().toLowerCase());
-
   const targetRules = allEnabledRules.filter(rule => {
-    const colTitle = rule.collection?.title?.trim().toLowerCase();
-    return colTitle ? normalizedInputCollections.includes(colTitle) : false;
+    if (!rule.collection?.title) return false;
+    return productCollections.some(cat => isCategoryMatch(cat, rule.collection.title));
   });
 
   if (targetRules.length > 0) {
     if (targetRules.length > 1) {
-      // Sort to prioritize the highest adjustment value
-      targetRules.sort((a, b) => b.adjustmentValue - a.adjustmentValue);
-      console.warn(`[Pricing] Target store ${targetStore?.shopDomain} has multiple conflicting collection rules for product. Picking the highest: ${targetRules[0].collection?.title}`);
+      // Sort by most recently updated rule so that newly saved adjustments (like 0%) take precedence over older rules
+      targetRules.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     }
     
     const rule = targetRules[0];
@@ -226,10 +223,9 @@ export async function applyPriceAdjustmentToStore(storeId: string) {
       }
 
       // Track matching collection rules for detailed notification/activity reporting
-      const normalizedInputCollections = collectionTitles.map(c => c.trim().toLowerCase());
       const matchingRules = allEnabledRules.filter(rule => {
-        const colTitle = rule.collection?.title?.trim().toLowerCase();
-        return colTitle ? normalizedInputCollections.includes(colTitle) : false;
+        if (!rule.collection?.title) return false;
+        return collectionTitles.some(cat => isCategoryMatch(cat, rule.collection.title));
       });
 
       if (matchingRules.length > 0) {
