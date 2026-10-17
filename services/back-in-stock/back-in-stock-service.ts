@@ -125,14 +125,14 @@ export class BackInStockService {
         if (po.email) {
           try {
             const encryptedPoEmail = safeEncrypt(po.email);
-            // Check if customer was already notified for this pre-order within the last 1 hour
+            // Check if customer was already notified for this pre-order within the last 1 minute
             const recentPoJob = await prisma.notificationJob.findFirst({
               where: {
                 storeId,
                 shopifyVariantId: cleanVariantId,
                 customerEmail: encryptedPoEmail,
                 productTitle: { startsWith: '[Pre-order]' },
-                createdAt: { gte: new Date(Date.now() - 3600000) },
+                createdAt: { gte: new Date(Date.now() - 60000) },
               },
             });
 
@@ -240,7 +240,7 @@ export class BackInStockService {
           where: {
             registrationId: reg.id,
             channel: NotificationChannel.EMAIL,
-            createdAt: { gte: new Date(Date.now() - 3600000) },
+            createdAt: { gte: new Date(Date.now() - 60000) },
           },
         });
 

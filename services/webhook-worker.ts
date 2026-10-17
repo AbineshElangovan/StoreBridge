@@ -1018,7 +1018,7 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
 
     // BACK IN STOCK DETECTION:
     // When inventory transitions from 0 -> positive, notify pending waitlist subscribers (Standalone stores only)
-    if (isStandalone && prevQty <= 0 && safeAvailable > 0) {
+    if (isStandalone && safeAvailable > 0) {
       try {
         const { BackInStockService } = require('@/services/back-in-stock/back-in-stock-service');
         await BackInStockService.processBackInStock({

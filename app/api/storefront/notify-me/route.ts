@@ -267,8 +267,8 @@ export async function POST(req: NextRequest) {
     const storeDisplayName = store.label || store.shopDomain;
 
     let emailDelivered = false;
-    // Dispatch waitlist confirmation email strictly for NEW registrations (prevent duplicate emails)
-    if (email && !result.alreadyRegistered) {
+    // Dispatch waitlist confirmation email whenever customer provides an email
+    if (email) {
       try {
         const emailRes = await EmailNotificationService.sendWaitlistConfirmationEmail({
           to: email,

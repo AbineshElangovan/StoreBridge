@@ -137,8 +137,8 @@ export async function updateLocalProductCache(shopDomain: string, payload: any, 
           });
         }
 
-        // TRIGGER BACK IN STOCK: When variant transitions from 0/negative to positive stock
-        if (prevQty <= 0 && trueInventory > 0) {
+        // TRIGGER BACK IN STOCK: When variant transitions to positive stock
+        if (trueInventory > 0) {
           try {
             const { BackInStockService } = require('@/services/back-in-stock/back-in-stock-service');
             await BackInStockService.processBackInStock({
