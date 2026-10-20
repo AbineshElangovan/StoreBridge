@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { authenticate } from '@/lib/shopify/authenticate';
+import { evaluateForecastStockoutRisks } from '@/services/planning/stockout-risk-service';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
     const { store: currentStore, sessionStore, isMasterSession } = await authenticate(req);
+    // Background evaluation of stockout risks based on current store settings
+    evaluateForecastStockoutRisks(currentStore.id).catch(() => {});
     const searchParams = req.nextUrl.searchParams;
 
     const selectedStore = searchParams.get('store') || 'all';
@@ -97,7 +100,7 @@ export async function GET(req: NextRequest) {
         safetyStockDays: (currentStore as any).safetyStockDays ?? 3
       };
 
-      const historyDays = Math.max(90, cfg.salesHistoryPeriodDays || 90);
+      const historyDays = Math.max(1, cfg.salesHistoryPeriodDays || 30);
       const historyCutoff = new Date(Date.now() - historyDays * 24 * 60 * 60 * 1000);
 
       const salesLogs = await prisma.activityLog.findMany({
@@ -241,7 +244,7 @@ export async function GET(req: NextRequest) {
         safetyStockDays: (currentStore as any).safetyStockDays ?? 3
       };
 
-      const salesHistoryDays = Math.max(90, cfg.salesHistoryPeriodDays || 90);
+      const salesHistoryDays = Math.max(1, cfg.salesHistoryPeriodDays || 30);
       const forecastDays = overrideForecastDays || cfg.forecastPeriodDays || 7;
       const highRiskDays = cfg.supplierLeadTimeDays || 10;
       const leadTimeDays = highRiskDays;

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { WebhookStatus } from "@prisma/client";
 import { createNotification } from "@/services/notification-service";
+import { evaluateForecastStockoutRisks } from "@/services/planning/stockout-risk-service";
 
 // Import your existing sync logic here
 import {
@@ -1052,6 +1053,8 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
         }
       });
       if (!existingLog) {
+        const unitPrice = cache?.price ? parseFloat(String(cache.price)) : 0;
+        const saleAmount = isSale && unitPrice > 0 ? Math.abs(diff) * unitPrice : null;
         await prisma.activityLog.create({
           data: {
             storeId: storeRecord.id,
@@ -1061,7 +1064,8 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
             imageUrl: imgUrl,
             eventType: eventType as any,
             description: description,
-            quantity: Math.abs(diff)
+            quantity: Math.abs(diff),
+            amount: saleAmount,
           }
         });
       }
@@ -1123,11 +1127,13 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
         sourceStoreId: storeRecord.id,
       });
 
-      if (!storeRecord.isMaster && !isStandalone) {
-        const masterStore = await prisma.store.findFirst({
-          where: { isMaster: true, isActive: true }
+      if (!storeRecord.isMaster) {
+        const parentConnection = await prisma.storeConnection.findFirst({
+          where: { targetStoreId: storeRecord.id },
+          include: { sourceStore: true }
         });
-        if (masterStore && masterStore.id !== storeRecord.id) {
+        if (parentConnection && parentConnection.sourceStore && parentConnection.sourceStore.isActive) {
+          const masterStore = parentConnection.sourceStore;
           await createNotification({
             recipientStoreId: masterStore.id,
             type: 'OUT_OF_STOCK',
@@ -1153,11 +1159,13 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
         sourceStoreId: storeRecord.id,
       });
 
-      if (!storeRecord.isMaster && !isStandalone) {
-        const masterStore = await prisma.store.findFirst({
-          where: { isMaster: true, isActive: true }
+      if (!storeRecord.isMaster) {
+        const parentConnection = await prisma.storeConnection.findFirst({
+          where: { targetStoreId: storeRecord.id },
+          include: { sourceStore: true }
         });
-        if (masterStore && masterStore.id !== storeRecord.id) {
+        if (parentConnection && parentConnection.sourceStore && parentConnection.sourceStore.isActive) {
+          const masterStore = parentConnection.sourceStore;
           await createNotification({
             recipientStoreId: masterStore.id,
             type: 'LOW_STOCK',
@@ -1171,5 +1179,8 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
         }
       }
     }
+
+    // Evaluate forecast stockout risk alerts whenever inventory updates
+    evaluateForecastStockoutRisks(storeRecord.id).catch(() => {});
   }
 }

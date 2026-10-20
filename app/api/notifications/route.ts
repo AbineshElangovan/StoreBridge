@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticate } from '@/lib/shopify/authenticate';
 import { getNotifications, markAllAsRead, deleteAllNotifications, deleteNotification } from '@/services/notification-service';
+import { cleanupExpiredActivityLogs } from '@/lib/services/activityRetention';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
     const { store } = await authenticate(req);
+    cleanupExpiredActivityLogs().catch(() => {});
     const searchParams = req.nextUrl.searchParams;
 
     const type = searchParams.get('type') || undefined;

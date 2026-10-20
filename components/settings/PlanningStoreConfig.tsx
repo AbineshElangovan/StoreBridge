@@ -246,11 +246,11 @@ export function PlanningStoreConfig({
                       </span>
                     ) : store.isStandalone ? (
                       <span
-                        className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border shadow-2xs"
+                        className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border shadow-2xs"
                         style={{
-                          backgroundColor: 'var(--theme-surface-2, #e2e8f0)',
-                          color: 'var(--theme-text-muted, #64748b)',
-                          borderColor: 'var(--theme-border, #cbd5e1)',
+                          backgroundColor: 'var(--color-primary-light)',
+                          color: 'var(--color-primary-dark, var(--color-primary))',
+                          borderColor: 'var(--theme-border-accent, var(--color-primary))',
                         }}
                       >
                         STANDALONE

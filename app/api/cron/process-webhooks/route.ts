@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server';
 import { processWebhookQueue } from '@/services/webhook-worker';
+import { cleanupExpiredActivityLogs } from '@/lib/services/activityRetention';
+import { evaluateForecastStockoutRisks } from '@/services/planning/stockout-risk-service';
 
 // To prevent Vercel from caching this route, forcing it to run on every request
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
   try {
-    // Basic security measure (optional): You could require a secret token in the Authorization header
-    // const authHeader = req.headers.get('authorization');
-    // if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    //   return new NextResponse('Unauthorized', { status: 401 });
-    // }
+    // Run 90-day retention cleanup and evaluate stockout risk alerts in the background
+    cleanupExpiredActivityLogs().catch(() => {});
+    evaluateForecastStockoutRisks().catch(() => {});
 
     const { processedCount } = await processWebhookQueue();
 

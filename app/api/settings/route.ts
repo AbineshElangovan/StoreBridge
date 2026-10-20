@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticate } from "@/lib/shopify/authenticate";
 import { prisma } from "@/lib/db/prisma";
+import { evaluateForecastStockoutRisks } from "@/services/planning/stockout-risk-service";
 
 export const dynamic = 'force-dynamic';
 
@@ -230,6 +231,9 @@ export async function PUT(req: NextRequest) {
           await prisma.$executeRawUnsafe(`UPDATE "stores" SET ${sets.join(', ')} WHERE "id" = '${selectedStoreId}';`);
         }
       }
+
+      // Re-evaluate stockout risk alerts with the newly saved planning config
+      evaluateForecastStockoutRisks(selectedStoreId).catch(() => {});
     }
 
     // Only update StoreSetting if notification or data retention fields were provided

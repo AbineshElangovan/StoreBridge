@@ -404,20 +404,37 @@ export default function SettingsPage() {
                               <span 
                                 className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border shadow-2xs shrink-0"
                                 style={{
-                                  backgroundColor: 'var(--color-primary-light)',
-                                  color: 'var(--color-primary)',
-                                  borderColor: 'var(--theme-border-accent)'
+                                  backgroundColor: 'var(--color-primary)',
+                                  color: '#ffffff',
+                                  borderColor: 'var(--color-primary-dark, var(--color-primary))'
                                 }}
                               >
                                 MASTER
                               </span>
                             ) : s.isStandalone ? (
                               <span
-                                className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border shadow-2xs shrink-0 bg-slate-100 text-slate-700 border-slate-300"
+                                className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border shadow-2xs shrink-0"
+                                style={{
+                                  backgroundColor: 'var(--color-primary-light)',
+                                  color: 'var(--color-primary-dark, var(--color-primary))',
+                                  borderColor: 'var(--theme-border-accent, var(--color-primary))'
+                                }}
                               >
                                 STANDALONE
                               </span>
-                            ) : null}
+                            ) : (
+                              <span
+                                className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border shadow-2xs shrink-0"
+                                style={{
+                                  backgroundColor: 'var(--color-primary-light)',
+                                  color: 'var(--color-primary)',
+                                  borderColor: 'var(--theme-border-accent)',
+                                  opacity: 0.85
+                                }}
+                              >
+                                CONNECTED
+                              </span>
+                            )}
                           </div>
                           <div className="text-xs text-gray-500 mt-0.5 truncate max-w-full sm:max-w-xs">
                             {s.shopDomain}
@@ -575,8 +592,8 @@ export default function SettingsPage() {
             >
               <div className="bg-white/90 border border-[var(--border-color)] rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs mt-2">
                 <div className="flex flex-col">
-                  <span className="text-sm sm:text-base font-bold text-gray-900">Store activity logs for 90 days</span>
-                  <span className="text-xs text-gray-500 mt-0.5">Then permanently deleted.</span>
+                  <span className="text-sm sm:text-base font-bold text-gray-900">Store activity logs & notifications for 90 days</span>
+                  <span className="text-xs text-gray-500 mt-0.5">Then permanently deleted (activity logs, notifications, and sync history).</span>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer shrink-0 self-end sm:self-auto">
                   <input

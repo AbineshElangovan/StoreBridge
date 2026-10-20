@@ -39,7 +39,7 @@ export function StoreLogo({
         isMaster 
           ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)]/40 text-[var(--color-primary)]' 
           : isStandalone
-            ? 'border-slate-300 bg-slate-50 text-slate-700'
+            ? 'border-[var(--theme-border-accent,var(--color-primary))] bg-[var(--color-primary-light)]/40 text-[var(--color-primary)]'
             : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
       } ${sizeClasses} ${className}`}
       title={label || shopDomain || undefined}

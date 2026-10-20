@@ -103,8 +103,9 @@ function getTypeBadge(type: string, title?: string, message?: string): {
     case 'OUT_OF_STOCK':
       return { label: 'Out of Stock', tone: 'critical', iconSource: AlertCircleIcon };
     case 'LOW_STOCK':
-    case 'STOCKOUT_RISK':
       return { label: 'Low Stock', tone: 'warning', iconSource: AlertCircleIcon };
+    case 'STOCKOUT_RISK':
+      return { label: 'Forecast Stockout', tone: 'warning', iconSource: AlertCircleIcon };
     case 'PRICE_UPDATE':
       return { label: 'Price Update', tone: 'success', iconSource: CartIcon };
     case 'INVENTORY_UPDATE':
@@ -147,6 +148,15 @@ export function NotificationCard({
   const combined = `${item.title || ''} ${item.message || ''}`.toLowerCase();
   const isPreorder = combined.includes('pre-order') || combined.includes('preorder');
   const isNotifyMe = combined.includes('notify me') || combined.includes('waitlist');
+
+  // Dynamic store prefix parsing (detects any "[Store Name]: [Message]" pattern without hardcoded names)
+  const storePrefixMatch = (item.message || '').match(/^([^:\n]{2,40}):\s+(.*)$/);
+  const rawPrefix = storePrefixMatch ? storePrefixMatch[1].trim() : null;
+  const isExcluded = rawPrefix && (
+    ['note', 'warning', 'error', 'info', 'alert', 'http', 'https', 'order', 'sku', 'product'].includes(rawPrefix.toLowerCase())
+  );
+  const storePrefix = rawPrefix && !isExcluded ? rawPrefix : null;
+  const cleanMessage = storePrefix && storePrefixMatch ? storePrefixMatch[2] : item.message;
 
   const handleSyncAction = async (action: 'ACCEPT' | 'DECLINE') => {
     setIsSyncing(true);
@@ -245,7 +255,12 @@ export function NotificationCard({
               </Text>
             )}
             <Text variant="bodySm" as="p" tone={item.isRead ? 'subdued' : 'base'}>
-              {item.message}
+              {storePrefix && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-black bg-purple-100 text-purple-900 border border-purple-300 shadow-2xs mr-1.5 align-middle tracking-tight">
+                  {storePrefix}
+                </span>
+              )}
+              <span>{cleanMessage}</span>
             </Text>
 
             {/* Structured Customer & Order Metadata Tags */}
