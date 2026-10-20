@@ -11,6 +11,7 @@ export interface StorePlanningSetting {
   id: string;
   label: string;
   shopDomain: string;
+  logoUrl?: string | null;
   isMaster: boolean;
   isStandalone?: boolean;
   highRiskDays: number;
@@ -231,7 +232,7 @@ export function PlanningStoreConfig({
                 {/* Store Header Info */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-gray-100 gap-2">
                   <div className="flex items-center gap-2.5 flex-wrap">
-                    <StoreLogo shopDomain={store.shopDomain} label={store.label} isMaster={store.isMaster} size="sm" />
+                    <StoreLogo shopDomain={store.shopDomain} label={store.label} logoUrl={store.logoUrl} isMaster={store.isMaster} isStandalone={store.isStandalone} size="sm" />
                     <span className="font-bold text-base text-gray-900">{store.label || store.shopDomain}</span>
                     {store.isMaster ? (
                       <span 

@@ -270,8 +270,18 @@ export default function ConnectionsPage() {
     return {
       id: conn.targetStoreId,
       name: (
-        <div className="flex flex-col gap-1">
-          <span>{conn.targetStore.label || conn.targetStore.shopDomain}</span>
+        <div className="flex items-center gap-2.5">
+          <StoreLogo 
+            shopDomain={conn.targetStore.shopDomain} 
+            label={conn.targetStore.label} 
+            logoUrl={conn.targetStore.logoUrl} 
+            isMaster={conn.direction === 'incoming'}
+            size="sm" 
+          />
+          <div className="flex flex-col min-w-0">
+            <span className="font-semibold text-slate-900 truncate">{conn.targetStore.label || conn.targetStore.shopDomain}</span>
+            <span className="text-xs text-slate-500 font-normal truncate">https://{conn.targetStore.shopDomain}</span>
+          </div>
         </div>
       ),
       storeId: conn.targetStore.uniqueStoreId,
@@ -340,7 +350,7 @@ export default function ConnectionsPage() {
               <div className="flex justify-between items-start mb-4 gap-2">
                 <div className="min-w-0">
                   <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2 text-slate-900 flex-wrap">
-                    <StoreLogo shopDomain={master.shopDomain} label={master.label} isMaster={true} size="sm" />
+                    <StoreLogo shopDomain={master.shopDomain} label={master.label} logoUrl={master.logoUrl} isMaster={true} size="sm" />
                     <span className="truncate">{master.label || master.shopDomain.split('.')[0]}</span>
                     <span className="bg-[var(--color-primary-light)] text-[var(--color-primary-dark)] px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 border border-[var(--color-primary)] shrink-0">
                       <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M2 22h20v-2H2v2zm9-5l5-4 4 4V5c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v12l4-4 5 4z" /></svg>
@@ -391,7 +401,7 @@ export default function ConnectionsPage() {
                 <div className="flex justify-between items-start mb-4 gap-2">
                   <div className="min-w-0">
                     <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2 text-slate-900 flex-wrap">
-                      <StoreLogo shopDomain={standalone.shopDomain} label={standalone.label} isMaster={false} size="sm" />
+                      <StoreLogo shopDomain={standalone.shopDomain} label={standalone.label} logoUrl={standalone.logoUrl} isMaster={false} isStandalone={true} size="sm" />
                       <span className="truncate">{standalone.label || standalone.shopDomain.split('.')[0]}</span>
                     </h3>
                     <div className="mt-1 flex flex-col gap-0.5">
@@ -445,7 +455,13 @@ export default function ConnectionsPage() {
                 <div className="flex justify-between items-start mb-4 gap-2">
                   <div className="min-w-0">
                     <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2 text-slate-900 flex-wrap">
-                      <StoreLogo shopDomain={store.shopDomain} label={store.label} isMaster={false} size="sm" />
+                      <StoreLogo 
+                        shopDomain={store.shopDomain} 
+                        label={store.label} 
+                        logoUrl={store.logoUrl} 
+                        isMaster={conn.direction === 'incoming' || Boolean(store.isMaster)} 
+                        size="sm" 
+                      />
                       <span className="truncate">{store.label || store.shopDomain.split('.')[0]}</span>
                       {conn.direction === 'incoming' && (
                         <span className="bg-[var(--color-primary-light)] text-[var(--color-primary-dark)] px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 border border-[var(--color-primary)] shrink-0">
@@ -549,6 +565,7 @@ export default function ConnectionsPage() {
                       <StoreLogo
                         shopDomain={conn.targetStore.shopDomain}
                         label={conn.targetStore.label}
+                        logoUrl={conn.targetStore.logoUrl}
                         size="sm"
                       />
                       <span className="font-bold text-slate-900 truncate">

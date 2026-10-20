@@ -9,6 +9,7 @@ export interface StoreInfo {
   shopDomain: string;
   label: string | null;
   masterLabel: string | null;
+  logoUrl?: string | null;
   isMaster: boolean;
   isActive: boolean;
   scope: string;
@@ -16,6 +17,14 @@ export interface StoreInfo {
   variantCount?: number;
   syncCount?: number;
   isStandalone?: boolean;
+}
+
+export interface GlobalStoreLogo {
+  id: string;
+  shopDomain: string;
+  label: string | null;
+  logoUrl: string | null;
+  isMaster?: boolean;
 }
 
 interface StoreContextValue {
@@ -35,6 +44,9 @@ interface StoreContextValue {
   canManageNetwork: boolean;
   canSyncToConnectedStores: boolean;
   loading: boolean;
+  globalLogos: GlobalStoreLogo[];
+  getGlobalLogo: (query?: string | null) => string | null;
+  updateGlobalLogo: (storeId: string, newLogoUrl: string | null) => void;
   refreshStores: () => Promise<void>;
 }
 
@@ -55,6 +67,9 @@ const StoreContext = createContext<StoreContextValue>({
   canManageNetwork: false,
   canSyncToConnectedStores: false,
   loading: true,
+  globalLogos: [],
+  getGlobalLogo: () => null,
+  updateGlobalLogo: () => {},
   refreshStores: async () => {},
 });
 
@@ -82,6 +97,7 @@ function matchesStore(s: StoreInfo, target: string | null) {
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [activeStores, setActiveStores] = useState<StoreInfo[]>([]);
+  const [globalLogos, setGlobalLogos] = useState<GlobalStoreLogo[]>([]);
   const [serverCurrentStoreId, setServerCurrentStoreId] = useState<string | null>(null);
   const [serverCurrentShopDomain, setServerCurrentShopDomain] = useState<string | null>(null);
   const [sessionShopDomain, setSessionShopDomain] = useState<string | null>(null);
@@ -116,6 +132,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           // Only consider genuinely active stores for the count
           const active = data.stores.filter((s: StoreInfo) => s.isActive);
           setActiveStores(active);
+          if (data.storeLogos) setGlobalLogos(data.storeLogos);
           if (data.currentStoreId) setServerCurrentStoreId(data.currentStoreId);
           if (data.currentShopDomain) setServerCurrentShopDomain(data.currentShopDomain);
           if (data.sessionShopDomain) setSessionShopDomain(data.sessionShopDomain);
@@ -141,6 +158,33 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  const getGlobalLogo = React.useCallback((query?: string | null): string | null => {
+    if (!query) return null;
+    const clean = query.trim().toLowerCase();
+    const prefix = clean.split('.')[0].replace(/^https?:\/\//, '');
+
+    const found = globalLogos.find(l => {
+      const d = (l.shopDomain || '').toLowerCase();
+      const lab = (l.label || '').toLowerCase();
+      return (
+        d === clean ||
+        d.includes(prefix) ||
+        (prefix.length > 2 && d.split('.')[0].includes(prefix)) ||
+        (clean.length > 2 && lab.includes(clean))
+      );
+    });
+
+    if (found?.logoUrl) return found.logoUrl;
+
+    const inActive = activeStores.find(s => matchesStore(s, query));
+    return inActive?.logoUrl || null;
+  }, [globalLogos, activeStores]);
+
+  const updateGlobalLogo = React.useCallback((storeId: string, newLogoUrl: string | null) => {
+    setActiveStores(prev => prev.map(s => s.id === storeId ? { ...s, logoUrl: newLogoUrl } : s));
+    setGlobalLogos(prev => prev.map(l => l.id === storeId ? { ...l, logoUrl: newLogoUrl } : l));
   }, []);
 
   useEffect(() => {
@@ -194,6 +238,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       canManageNetwork,
       canSyncToConnectedStores,
       loading,
+      globalLogos,
+      getGlobalLogo,
+      updateGlobalLogo,
       refreshStores: loadStores
     }}>
       {children}

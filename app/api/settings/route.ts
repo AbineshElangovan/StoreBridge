@@ -39,6 +39,7 @@ async function getAuthorizedStores(currentStore: any) {
       id: s.id,
       label: s.label || s.shopDomain,
       shopDomain: s.shopDomain,
+      logoUrl: s.logoUrl || null,
       isMaster: !!s.isMaster,
       bestSellerThreshold: s.bestSellerThreshold ?? dbRow?.bestSellerThreshold ?? 20,
       deadStockDays: s.deadStockDays ?? dbRow?.deadStockDays ?? 90,

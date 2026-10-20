@@ -172,22 +172,25 @@ export function Sidebar() {
         title="Go to Dashboard"
       >
         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-dark)] text-white flex items-center justify-center shadow-xs flex-shrink-0 relative overflow-hidden border border-white/30 group-hover:scale-105 transition-transform">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="text-white">
-            <path d="M4 7V4h16v3" />
-            <path d="M9 20h6" />
-            <path d="M12 4v16" />
-            <circle cx="6" cy="14" r="2.5" fill="currentColor" fillOpacity="0.25" />
-            <circle cx="18" cy="14" r="2.5" fill="currentColor" fillOpacity="0.25" />
-            <path d="M6 14h12" />
-          </svg>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+          <img 
+            src="/logos/storebridge.jpg" 
+            alt="StoreBridge" 
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              (e.currentTarget as HTMLElement).style.display = 'none';
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent pointer-events-none" />
         </div>
         <div className="min-w-0 flex-1">
-          <h2 className="text-[15px] font-black text-gray-900 leading-tight tracking-tight flex items-center gap-1.5 group-hover:text-[var(--color-primary)] transition-colors">
+          <h3
+            className="text-gray-900 tracking-tight flex items-center gap-1.5 group-hover:text-[var(--color-primary)] group-hover:-translate-y-0.5 transition-all duration-200 ease-out"
+            style={{ fontSize: '20px', fontWeight: 600, lineHeight: 1.1, margin: 0 }}
+          >
             StoreBridge
-          </h2>
+          </h3>
           {!isStandalone && (
-            <p className="text-[11px] text-gray-500 leading-tight font-semibold mt-0.5">Multi-store sync</p>
+            <p className="text-[11px] text-gray-500 leading-tight font-semibold mt-1">Multi-store sync</p>
           )}
         </div>
       </Link>
@@ -212,24 +215,25 @@ export function Sidebar() {
                   <button
                     type="button"
                     onClick={() => setStoreMenuOpen(!storeMenuOpen)}
-                    className="flex items-start gap-2.5 w-full text-left cursor-pointer group focus:outline-none"
+                    className={`flex ${roleLabel ? 'items-start' : 'items-center'} gap-2.5 w-full text-left cursor-pointer group focus:outline-none`}
                   >
-                    <div className="pt-0.5 shrink-0">
+                    <div className={`${roleLabel ? 'pt-0.5' : ''} shrink-0`}>
                       <StoreLogo 
                         shopDomain={currentStore?.shopDomain} 
                         label={currentStore?.label} 
+                        logoUrl={currentStore?.logoUrl}
                         isMaster={currentStore?.isMaster} 
                         isStandalone={isStandalone} 
                         size="sm" 
                       />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-1.5">
+                      <div className={`flex ${roleLabel ? 'items-start' : 'items-center'} justify-between gap-1.5`}>
                         <span className="text-xs sm:text-sm font-bold text-gray-900 group-hover:text-[var(--color-primary)] transition-colors leading-snug break-words">
                           {currentStore?.label || currentStore?.shopDomain || 'Select Store'}
                         </span>
                         <svg
-                          className={`w-3.5 h-3.5 text-gray-400 group-hover:text-[var(--color-primary)] transition-transform duration-200 shrink-0 mt-0.5 ${
+                          className={`w-3.5 h-3.5 text-gray-400 group-hover:text-[var(--color-primary)] transition-transform duration-200 shrink-0 ${roleLabel ? 'mt-0.5' : ''} ${
                             storeMenuOpen ? 'rotate-180 text-[var(--color-primary)]' : ''
                           }`}
                           fill="none"
@@ -282,6 +286,7 @@ export function Sidebar() {
                                   <StoreLogo 
                                     shopDomain={s.shopDomain} 
                                     label={s.label} 
+                                    logoUrl={s.logoUrl}
                                     isMaster={s.isMaster} 
                                     isStandalone={s.isStandalone} 
                                     size="sm" 
@@ -319,11 +324,12 @@ export function Sidebar() {
                   )}
                 </div>
               ) : (
-                <div className="flex items-start gap-2.5 min-w-0">
-                  <div className="pt-0.5 shrink-0">
+                <div className={`flex ${roleLabel ? 'items-start' : 'items-center'} gap-2.5 min-w-0`}>
+                  <div className={`${roleLabel ? 'pt-0.5' : ''} shrink-0`}>
                     <StoreLogo 
                       shopDomain={currentStore?.shopDomain} 
                       label={currentStore?.label} 
+                      logoUrl={currentStore?.logoUrl}
                       isMaster={currentStore?.isMaster} 
                       isStandalone={isStandalone} 
                       size="sm" 

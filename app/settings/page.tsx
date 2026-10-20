@@ -15,6 +15,7 @@ import { StorePerformanceRules, StorePerformanceSetting } from '@/components/set
 import { PlanningStoreConfig, StorePlanningSetting } from '@/components/settings/PlanningStoreConfig';
 import { useTheme } from '@/components/providers/ThemeContext';
 import { StoreLogo } from '@/components/common';
+import { StoreLogoUploader } from '@/components/settings/StoreLogoUploader';
 import { Icon } from '@shopify/polaris';
 import { CheckIcon } from '@shopify/polaris-icons';
 import { PageTabs } from '@/components/ui/PageTabs';
@@ -326,6 +327,7 @@ export default function SettingsPage() {
     id: s.id,
     label: s.label || s.shopDomain,
     shopDomain: s.shopDomain,
+    logoUrl: s.logoUrl || null,
     isMaster: s.isMaster,
     isStandalone: s.isStandalone ?? false,
     highRiskDays: s.supplierLeadTimeDays ?? 10,
@@ -396,7 +398,23 @@ export default function SettingsPage() {
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <StoreLogo shopDomain={s.shopDomain} label={s.label} isMaster={s.isMaster} isStandalone={s.isStandalone} size="sm" />
+                            <StoreLogoUploader
+                              storeId={s.id}
+                              shopDomain={s.shopDomain}
+                              label={s.label}
+                              logoUrl={s.logoUrl}
+                              isMaster={s.isMaster}
+                              isStandalone={s.isStandalone}
+                              onLogoUpdated={(storeId, newLogoUrl) => {
+                                setStores(prev => prev.map(st => st.id === storeId ? { ...st, logoUrl: newLogoUrl } : st));
+                                setPerformanceStores((prev: any) => prev.map((st: any) => st.id === storeId ? { ...st, logoUrl: newLogoUrl } : st));
+                                if (refreshStores) refreshStores();
+                                setToastMessage({
+                                  message: newLogoUrl ? 'Store logo updated successfully!' : 'Store logo removed.',
+                                  type: 'success'
+                                });
+                              }}
+                            />
                             <span className="font-bold text-sm sm:text-base text-gray-900 truncate">
                               {s.label || s.shopDomain}
                             </span>

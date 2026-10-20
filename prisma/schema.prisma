@@ -23,6 +23,7 @@ model Store {
   scope                    String
   label                    String?
   masterLabel              String? @unique
+  logoUrl                  String? @db.Text
   isActive                 Boolean @default(true)
   lowStockThreshold        Int     @default(10)
   bestSellerThreshold      Int

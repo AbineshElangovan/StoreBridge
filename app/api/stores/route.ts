@@ -71,6 +71,7 @@ export async function GET(req: NextRequest) {
         shopDomain: s.shopDomain,
         label: s.label,
         masterLabel: s.masterLabel,
+        logoUrl: s.logoUrl || null,
         uniqueStoreId: s.uniqueStoreId,
         isMaster: s.isMaster,
         isStandalone: !isConnected && !s.isMaster,
@@ -85,6 +86,16 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    const allStoreLogos = await prisma.store.findMany({
+      select: {
+        id: true,
+        shopDomain: true,
+        label: true,
+        logoUrl: true,
+        isMaster: true
+      }
+    });
+
     return NextResponse.json({
       success: true,
       total: enrichedStores.length,
@@ -94,6 +105,7 @@ export async function GET(req: NextRequest) {
       sessionShopDomain: sessionStore?.shopDomain || store.shopDomain,
       isMasterSession: Boolean(isMasterSession),
       stores: enrichedStores,
+      storeLogos: allStoreLogos,
     });
   } catch (error: any) {
     console.error('[Stores API] Error details:', error.message, error.stack);
