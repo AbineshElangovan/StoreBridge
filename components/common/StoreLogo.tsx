@@ -94,6 +94,7 @@ export function StoreLogo({
 
   return (
     <div
+      suppressHydrationWarning
       className={`relative inline-flex items-center justify-center shrink-0 select-none overflow-hidden transition-all ${
         hasCustomLogo
           ? 'bg-white border border-gray-200 shadow-2xs'

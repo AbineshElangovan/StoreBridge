@@ -8,7 +8,7 @@ import { useStoreContext } from "@/components/providers/StoreProvider";
 import { SkuGeneratorContainer } from "@/components/sku-generation/SkuGeneratorContainer";
 
 export default function SkuSettingsPage() {
-  const [activeTab, setActiveTab] = useState<"variant_generator" | "global_rules">("variant_generator");
+  const [activeTab, setActiveTab] = useState<"global_rules" | "variant_generator">("global_rules");
 
   const [skuPrefix, setSkuPrefix] = useState("SHOE");
   const [skuSequence, setSkuSequence] = useState("0001");
@@ -25,6 +25,7 @@ export default function SkuSettingsPage() {
   const [inlineError, setInlineError] = useState<string | null>(null);
 
   const [skuMode, setSkuMode] = useState<"default" | "collection">("default");
+  const [copied, setCopied] = useState(false);
 
   const { canManageSku } = useStoreContext();
   const hasWriteAccess = canManageSku;
@@ -109,6 +110,17 @@ export default function SkuSettingsPage() {
     skuMode === "collection" && selectedCollectionPrefix ? selectedCollectionPrefix + "-" : ""
   }${skuSequence ? skuSequence.toString().padStart(4, "0") : "0001"}`;
 
+  const handleCopySku = async () => {
+    if (!generatedPreview) return;
+    try {
+      await navigator.clipboard.writeText(generatedPreview);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy SKU", err);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden space-y-6">
       {/* Header Banner */}
@@ -135,25 +147,10 @@ export default function SkuSettingsPage() {
       <div className="flex border-b border-gray-200 space-x-4">
         <button
           type="button"
-          onClick={() => setActiveTab("variant_generator")}
-          className={`pb-3 px-1 text-sm font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${
-            activeTab === "variant_generator"
-              ? "border-[#0db69d] text-[#0db69d]"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-          <span>Variant SKU Generator</span>
-        </button>
-
-        <button
-          type="button"
           onClick={() => setActiveTab("global_rules")}
           className={`pb-3 px-1 text-sm font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${
             activeTab === "global_rules"
-              ? "border-[#0db69d] text-[#0db69d]"
+              ? "border-[var(--color-primary)] text-[var(--color-primary)]"
               : "border-transparent text-gray-500 hover:text-gray-700"
           }`}
         >
@@ -163,12 +160,24 @@ export default function SkuSettingsPage() {
           </svg>
           <span>Global SKU Configuration</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("variant_generator")}
+          className={`pb-3 px-1 text-sm font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${
+            activeTab === "variant_generator"
+              ? "border-[var(--color-primary)] text-[var(--color-primary)]"
+              : "border-transparent text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <span>Variant SKU Generator</span>
+        </button>
       </div>
 
-      {/* TAB 1: Variant SKU Generator */}
-      {activeTab === "variant_generator" && <SkuGeneratorContainer />}
-
-      {/* TAB 2: Global SKU Rules */}
+      {/* TAB 1: Global SKU Rules */}
       {activeTab === "global_rules" && (
         <div className="p-4 sm:p-6 bg-white border border-gray-200 rounded-xl sm:rounded-2xl shadow-2xs">
           <div className="mb-5 border-l-4 sm:border-l-6 border-[var(--color-primary)] pl-3 sm:pl-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -253,11 +262,41 @@ export default function SkuSettingsPage() {
               </div>
             )}
 
-            <div className="mt-2 p-4 bg-[var(--color-primary-light)] border-2 border-[var(--theme-border-accent)] rounded-xl shadow-2xs text-center">
-              <p className="text-gray-600 text-xs sm:text-sm mb-1.5 font-semibold">Generated Base SKU Example</p>
-              <span className="text-lg sm:text-xl font-bold text-[var(--color-primary-dark)] tracking-wider break-all">
-                {generatedPreview}
-              </span>
+            <div className="mt-2 p-5 bg-[var(--color-primary-light)] border-2 border-[var(--theme-border-accent)] rounded-xl shadow-2xs text-center flex flex-col items-center justify-center gap-2.5">
+              <p className="text-gray-600 text-xs sm:text-sm font-semibold m-0">Generated Base SKU Example</p>
+
+              <div className="flex flex-wrap items-center justify-center gap-3.5 my-1">
+                <span className="text-2xl sm:text-3xl lg:text-4xl font-black text-[var(--color-primary-dark)] tracking-wider font-mono break-all select-all">
+                  {generatedPreview}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={handleCopySku}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-xs border shrink-0 ${
+                    copied
+                      ? "bg-emerald-600 text-white border-emerald-600 shadow-emerald-100"
+                      : "bg-white text-[var(--color-primary-dark)] hover:bg-gray-50 border-gray-300 hover:border-gray-400 active:scale-95"
+                  }`}
+                  title="Copy SKU to clipboard"
+                >
+                  {copied ? (
+                    <>
+                      <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span>Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5 text-[var(--color-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                      <span>Copy SKU</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="mt-4 pt-4 border-t border-gray-200 flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-3">
@@ -281,6 +320,9 @@ export default function SkuSettingsPage() {
           </div>
         </div>
       )}
+
+      {/* TAB 2: Variant SKU Generator */}
+      {activeTab === "variant_generator" && <SkuGeneratorContainer />}
     </div>
   );
 }

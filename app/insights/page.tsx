@@ -8,6 +8,7 @@ import { InsightFilters } from '@/components/insights/InsightFilters';
 import { InsightStats } from '@/components/insights/InsightStats';
 import { InsightTabs, InsightTabType } from '@/components/insights/InsightTabs';
 import { InsightTable } from '@/components/insights/InsightTable';
+import { Loading } from '@/components/common';
 
 export default function InsightsPage() {
   const searchParams = useSearchParams();
@@ -21,6 +22,7 @@ export default function InsightsPage() {
   const [page, setPage] = useState<number>(1);
 
   const [loading, setLoading] = useState<boolean>(true);
+  const [initialLoading, setInitialLoading] = useState<boolean>(true);
   const [stats, setStats] = useState({
     unitsSold: 0,
     revenue: 0,
@@ -118,6 +120,7 @@ export default function InsightsPage() {
       console.error('[Insights Page] Fetch error:', err);
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
   }, [shop, selectedStore, selectedRange, selectedCollection, activeTab, page]);
 
@@ -145,6 +148,10 @@ export default function InsightsPage() {
     setActiveTab(tab);
     setPage(1);
   };
+
+  if (initialLoading) {
+    return <Loading label="Loading product insights..." />;
+  }
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">

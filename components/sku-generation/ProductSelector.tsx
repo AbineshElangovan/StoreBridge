@@ -181,9 +181,9 @@ export function ProductSelector({ selectedProductId, onSelectProduct, disabled, 
 
           {/* Floating Dropdown Menu with Live Search */}
           {isOpen && (
-            <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white border border-gray-200 rounded-2xl shadow-xl max-h-80 flex flex-col overflow-hidden divide-y divide-gray-100">
+            <div className="absolute left-0 right-0 top-full mt-1.5 z-[100] bg-white border border-gray-200 rounded-2xl shadow-2xl flex flex-col overflow-hidden divide-y divide-gray-100 max-h-[360px]">
               {/* Sticky Search Input at the top of the dropdown */}
-              <div className="p-2.5 bg-gray-50 border-b border-gray-200 flex items-center gap-2">
+              <div className="p-2.5 bg-gray-50 border-b border-gray-200 flex items-center gap-2 shrink-0">
                 <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
@@ -193,7 +193,7 @@ export function ProductSelector({ selectedProductId, onSelectProduct, disabled, 
                   placeholder="Type SKU or title (e.g. 'ts' for T-Shirt)..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-white px-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0db69d] focus:border-[#0db69d]"
+                  className="w-full bg-white px-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)] focus:border-[var(--color-primary)]"
                 />
                 {searchTerm && (
                   <button
@@ -207,8 +207,8 @@ export function ProductSelector({ selectedProductId, onSelectProduct, disabled, 
                 )}
               </div>
 
-              {/* Items List */}
-              <div className="overflow-y-auto max-h-60 p-1 divide-y divide-gray-50">
+              {/* Items List - comfortable 5 items visible, then scrolls */}
+              <div className="overflow-y-auto max-h-[275px] p-1 divide-y divide-gray-50">
                 {filteredProducts.length === 0 ? (
                   <div className="p-4 text-center text-xs text-gray-500 font-semibold">
                     No products found matching &quot;{searchTerm}&quot;
@@ -225,7 +225,7 @@ export function ProductSelector({ selectedProductId, onSelectProduct, disabled, 
                         onClick={() => handleSelect(p)}
                         className={`w-full text-left p-2.5 rounded-xl text-xs flex items-center justify-between gap-3 cursor-pointer transition-colors ${
                           isSelected
-                            ? "bg-teal-50 text-[#0f766e] font-extrabold"
+                            ? "bg-[var(--color-primary-light)] text-[var(--color-primary-dark)] font-extrabold"
                             : "hover:bg-gray-50 text-gray-800"
                         }`}
                       >
@@ -237,7 +237,7 @@ export function ProductSelector({ selectedProductId, onSelectProduct, disabled, 
                               className="w-7 h-7 object-cover rounded-md border border-gray-200 shrink-0 bg-white"
                             />
                           ) : (
-                            <div className="w-7 h-7 bg-teal-100 text-[#0f766e] font-bold text-3xs rounded-md flex items-center justify-center shrink-0">
+                            <div className="w-7 h-7 bg-[var(--color-primary-light)] text-[var(--color-primary-dark)] font-bold text-3xs rounded-md flex items-center justify-center shrink-0">
                               PROD
                             </div>
                           )}

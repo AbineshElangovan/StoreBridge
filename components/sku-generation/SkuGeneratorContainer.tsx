@@ -222,7 +222,7 @@ export function SkuGeneratorContainer() {
       )}
 
       {/* Unified Product & Variants Card */}
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-2xs overflow-hidden divide-y divide-gray-100">
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-2xs divide-y divide-gray-100 relative">
         <ProductSelector
           selectedProductId={selectedProduct?.shopifyProductId || ""}
           onSelectProduct={(p) => setSelectedProduct(p)}

@@ -11,6 +11,7 @@ import { StockRiskTable } from '@/components/inventory-planning/StockRiskTable';
 import { ForecastTable } from '@/components/inventory-planning/ForecastTable';
 import { ReplenishmentTable } from '@/components/inventory-planning/ReplenishmentTable';
 import { PlanningPagination } from '@/components/inventory-planning/PlanningPagination';
+import { Loading } from '@/components/common';
 
 export default function InventoryPlanningPage() {
   const searchParams = useSearchParams();
@@ -18,6 +19,7 @@ export default function InventoryPlanningPage() {
   const { activeStores, isMasterSession, isMaster: isContextMaster, isMultiStore: isContextMultiStore } = useStoreContext();
 
   const [loading, setLoading] = useState<boolean>(true);
+  const [initialLoading, setInitialLoading] = useState<boolean>(true);
   const [selectedStore, setSelectedStore] = useState<string>('all');
   const [selectedCollection, setSelectedCollection] = useState<string>('all');
   const [selectedForecastDays, setSelectedForecastDays] = useState<string>('');
@@ -136,6 +138,7 @@ export default function InventoryPlanningPage() {
       console.error('Error fetching inventory planning data:', err);
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
   }, [shop, selectedStore, selectedCollection, selectedForecastDays, selectedReplenishDays, searchQuery, activeTab, page]);
 
@@ -172,6 +175,10 @@ export default function InventoryPlanningPage() {
     setActiveTab(tab);
     setPage(1);
   };
+
+  if (initialLoading) {
+    return <Loading label="Loading inventory planning..." />;
+  }
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto">

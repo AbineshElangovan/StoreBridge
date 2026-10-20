@@ -405,6 +405,7 @@ export default function SettingsPage() {
                               logoUrl={s.logoUrl}
                               isMaster={s.isMaster}
                               isStandalone={s.isStandalone}
+                              showTextButton={false}
                               onLogoUpdated={(storeId, newLogoUrl) => {
                                 setStores(prev => prev.map(st => st.id === storeId ? { ...st, logoUrl: newLogoUrl } : st));
                                 setPerformanceStores((prev: any) => prev.map((st: any) => st.id === storeId ? { ...st, logoUrl: newLogoUrl } : st));

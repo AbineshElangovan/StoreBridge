@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import { PageLoader } from '@/components/common/PageLoader';
+import { Loading } from '@/components/common';
 import {
   Page,
   Layout,
@@ -322,6 +323,10 @@ export default function NotificationsPage() {
       setSavingPrefs(false);
     }
   };
+
+  if (loading && notifications.length === 0) {
+    return <Loading label="Loading notifications..." />;
+  }
 
   return (
     <Page>

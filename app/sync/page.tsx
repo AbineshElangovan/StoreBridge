@@ -9,6 +9,7 @@ import { SyncTabs } from '@/components/sync/SyncTabs';
 import { ImportTab } from '@/components/import/ImportTab';
 import { ManualSyncPanel } from '@/components/sync/ManualSyncPanel';
 import { SyncHistoryTable } from '@/components/sync/SyncHistoryTable';
+import { Loading } from '@/components/common';
 
 export default function SyncPage() {
   const { isMaster, isStandalone, loading: contextLoading } = useStoreContext();
@@ -71,6 +72,10 @@ export default function SyncPage() {
       setHistoryLoading(false);
     }
   };
+
+  if (statsLoading && !stats) {
+    return <Loading label="Loading store synchronization..." />;
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden">

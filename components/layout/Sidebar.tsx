@@ -171,7 +171,10 @@ export function Sidebar() {
         className="px-5 py-5 flex items-center gap-3 border-b border-[var(--theme-border-accent)]/50 bg-white/40 hover:bg-white/60 transition-all cursor-pointer group shrink-0"
         title="Go to Dashboard"
       >
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-dark)] text-white flex items-center justify-center shadow-xs flex-shrink-0 relative overflow-hidden border border-white/30 group-hover:scale-105 transition-transform">
+        <div 
+          className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-dark)] text-white flex items-center justify-center shadow-xs flex-shrink-0 relative overflow-hidden border border-white/30 group-hover:scale-105 transition-transform"
+          suppressHydrationWarning
+        >
           <img 
             src="/logos/storebridge.jpg" 
             alt="StoreBridge" 

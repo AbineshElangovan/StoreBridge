@@ -58,6 +58,7 @@ export default function ActivityPage() {
   const { isStandalone, isMultiStore } = useStoreContext();
   const [activities, setActivities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [currentStoreId, setCurrentStoreId] = useState<string | null>(null);
   const [allowedStoreIds, setAllowedStoreIds] = useState<string[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<string>("Disconnected");
@@ -125,6 +126,7 @@ export default function ActivityPage() {
       setErrorMsg(error.message || "Network error");
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
   }, [debouncedQueryValue, collectionFilter, storeFilter, dateFilter, page]);
 
@@ -384,6 +386,10 @@ export default function ActivityPage() {
     }
   }, [debouncedQueryValue, collectionFilter, storeFilter, dateFilter]);
 
+  if (initialLoading) {
+    return <Loading label="Loading activities..." />;
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden">
       <div className="flex flex-col gap-6 min-w-0 w-full">
@@ -488,8 +494,9 @@ export default function ActivityPage() {
           )}
 
           {loading ? (
-            <div className="py-16 flex flex-col items-center justify-center gap-3">
-              <Loading label="Loading activities..." />
+            <div className="py-20 flex flex-col items-center justify-center gap-3">
+              <div className="w-8 h-8 rounded-full border-3 border-indigo-200 border-t-[#6366f1] animate-spin" />
+              <p className="text-xs font-semibold text-slate-500 m-0">Filtering activities...</p>
             </div>
           ) : activities.length === 0 ? (
             <div className="py-16 text-center flex flex-col items-center justify-center gap-2">
