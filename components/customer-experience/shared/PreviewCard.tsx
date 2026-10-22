@@ -217,6 +217,13 @@ export function PreviewCard({
                 <span className="text-sm font-semibold text-gray-400 line-through">
                   Rs. {originalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
+                {showSavings && calculation && calculation.discountType !== 'none' && calculation.discountAmount > 0 && calculation.offerBadge && (
+                  <span
+                    className="text-[11px] font-black px-2 py-0.5 rounded-full transition-colors bg-emerald-100 text-emerald-800 border border-emerald-300"
+                  >
+                    {calculation.offerBadge}
+                  </span>
+                )}
                 {showSavings && (
                   <span
                     className="text-[11px] font-black px-2 py-0.5 rounded-full transition-colors"
@@ -227,13 +234,6 @@ export function PreviewCard({
                     }}
                   >
                     50% DEPOSIT
-                  </span>
-                )}
-                {showSavings && calculation && calculation.discountType !== 'none' && calculation.discountAmount > 0 && calculation.offerBadge && (
-                  <span
-                    className="text-[11px] font-black px-2 py-0.5 rounded-full transition-colors bg-amber-100 text-amber-900 border border-amber-300"
-                  >
-                    {calculation.offerBadge}
                   </span>
                 )}
               </>
@@ -265,6 +265,11 @@ export function PreviewCard({
               className="text-xs font-bold tracking-tight mt-1 transition-colors"
               style={{ color: primaryColor }}
             >
+              {calculation && calculation.discountType !== 'none' && calculation.discountAmount > 0 ? (
+                <>
+                  <span className="font-extrabold text-emerald-700">{calculation.savingsText}</span> •{' '}
+                </>
+              ) : null}
               Pay Rs. {payableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} today (50% deposit) • Rs. {payableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} balance due upon restock
             </p>
           ) : showSavings && calculation && calculation.discountType !== 'none' && calculation.discountAmount > 0 && selectedVariant === 'L' && calculation.savingsText ? (
@@ -330,6 +335,55 @@ export function PreviewCard({
                   </div>
                 )}
               </div>
+
+              {/* Payment Plan Breakdown Card matching live storefront */}
+              {isHalfPayment && (
+                <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3 text-xs space-y-1.5">
+                  <div className="flex justify-between items-center pb-1.5 border-b border-emerald-200">
+                    <span className="font-extrabold text-emerald-800 flex items-center gap-1.5 text-xs">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+                      Pre-order Payment Plan
+                    </span>
+                    <span className="bg-emerald-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase">
+                      50% Deposit
+                    </span>
+                  </div>
+
+                  {calculation && calculation.discountType !== 'none' && calculation.discountAmount > 0 ? (
+                    <>
+                      <div className="flex justify-between text-gray-500 text-[11px]">
+                        <span>Original Price:</span>
+                        <span className="line-through">{calculation.formattedOriginalPrice}</span>
+                      </div>
+                      <div className="flex justify-between text-emerald-700 font-bold text-[11px]">
+                        <span>Pre-order Discount ({calculation.offerBadge}):</span>
+                        <span>- {calculation.formattedDiscountAmount}</span>
+                      </div>
+                      <div className="flex justify-between text-gray-900 font-bold text-xs pt-1 border-t border-dashed border-emerald-200">
+                        <span>Total Product Price:</span>
+                        <span>{calculation.formattedFinalPrice}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between text-gray-700 font-semibold text-xs">
+                      <span>Total Product Price:</span>
+                      <span className="font-bold text-gray-900">Rs. {basePrice.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
+
+                  <div className="flex justify-between text-emerald-800 font-extrabold text-xs">
+                    <span>Due Today (50% Deposit):</span>
+                    <span>Rs. {payableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex justify-between text-amber-700 font-semibold text-[11px]">
+                    <span>Remaining Balance:</span>
+                    <span>Rs. {payableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (Due upon restock)</span>
+                  </div>
+                  <div className="text-[11px] font-semibold text-emerald-800 text-center pt-1.5 border-t border-dashed border-emerald-200">
+                    Only 50% payment required today to reserve your item.
+                  </div>
+                </div>
+              )}
 
               <p className="text-xs text-gray-600 font-medium leading-relaxed text-center">
                 Don't miss out - Grab yours now before we sell out again!

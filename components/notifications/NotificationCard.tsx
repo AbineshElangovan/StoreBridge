@@ -123,6 +123,107 @@ function getTypeBadge(type: string, title?: string, message?: string): {
   }
 }
 
+function renderMessageWithStoreBadges(rawMessage: string) {
+  if (!rawMessage) return null;
+
+  // 1. Check for prefix with colon: e.g. "ESHAN Karur Store: Product updated"
+  const colonPrefixMatch = rawMessage.match(/^([^:\n]{2,40}):\s+(.*)$/);
+  if (colonPrefixMatch) {
+    const rawPrefix = colonPrefixMatch[1].trim();
+    const isExcluded = ['note', 'warning', 'error', 'info', 'alert', 'http', 'https', 'order', 'sku', 'product'].includes(rawPrefix.toLowerCase());
+    if (!isExcluded) {
+      const isMaster = rawPrefix.toLowerCase().includes('coimbatore');
+      return (
+        <>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-black shadow-2xs mr-1.5 align-middle tracking-tight ${
+            isMaster
+              ? 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+              : 'bg-purple-100 text-purple-900 border border-purple-200'
+          }`}>
+            {rawPrefix}
+          </span>
+          <span>{colonPrefixMatch[2]}</span>
+        </>
+      );
+    }
+  }
+
+  // 2. Check for action messages starting with a store name:
+  // e.g. "ESHAN Karur Store updated product Men's Hoodie"
+  // e.g. "ESHAN Karur Store created product Men's Hoodie"
+  // e.g. "ESHAN Karur Store deleted product Men's Hoodie"
+  const startStoreMatch = rawMessage.match(/^(.+?\bStore\b|\bESHAN\s+[A-Za-z0-9_-]+(?:\s+Store)?)\s+(updated product|created product|deleted product|created order)(.*)$/i);
+  if (startStoreMatch) {
+    const storeName = startStoreMatch[1].trim();
+    const action = startStoreMatch[2];
+    const rest = startStoreMatch[3];
+    const isMaster = storeName.toLowerCase().includes('coimbatore');
+    return (
+      <>
+        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-black shadow-2xs mr-1.5 align-middle tracking-tight ${
+          isMaster
+            ? 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+            : 'bg-purple-100 text-purple-900 border border-purple-200'
+        }`}>
+          {storeName}
+        </span>
+        <span className="font-semibold text-gray-800">{action}</span>
+        <span>{rest}</span>
+      </>
+    );
+  }
+
+  // 3. Check for sync messages referencing target or source store:
+  // e.g. "44 products synced successfully to ESHAN Karur Store"
+  // e.g. "44 products synchronized from ESHAN Coimbatore Store"
+  // e.g. "Sync partially failed to ESHAN Karur Store (2 products failed)"
+  const syncMatch = rawMessage.match(/^(.*?\b(?:synced successfully to|synchronized from|synced from|synced to|sync partially failed to)\s+)(.+?\bStore\b|\bESHAN\s+[A-Za-z0-9_-]+(?:\s+Store)?)(.*)$/i);
+  if (syncMatch) {
+    const leading = syncMatch[1];
+    const storeName = syncMatch[2].trim();
+    const trailing = syncMatch[3];
+    const isMaster = storeName.toLowerCase().includes('coimbatore');
+    return (
+      <>
+        <span>{leading}</span>
+        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-black shadow-2xs mx-1 align-middle tracking-tight ${
+          isMaster
+            ? 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+            : 'bg-purple-100 text-purple-900 border border-purple-200'
+        }`}>
+          {storeName}
+        </span>
+        <span>{trailing}</span>
+      </>
+    );
+  }
+
+  // 4. General match for any store mention in text (e.g. "ESHAN Karur Store", "ESHAN Coimbatore Store", etc.)
+  const generalStoreMatch = rawMessage.match(/\b(ESHAN\s+[A-Za-z0-9_-]+(?:\s+Store)?|[A-Z][a-zA-Z0-9_-]+\s+Store)\b/);
+  if (generalStoreMatch) {
+    const storeName = generalStoreMatch[0].trim();
+    const idx = rawMessage.indexOf(generalStoreMatch[0]);
+    const before = rawMessage.slice(0, idx);
+    const after = rawMessage.slice(idx + generalStoreMatch[0].length);
+    const isMaster = storeName.toLowerCase().includes('coimbatore');
+    return (
+      <>
+        <span>{before}</span>
+        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-black shadow-2xs mx-1 align-middle tracking-tight ${
+          isMaster
+            ? 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+            : 'bg-purple-100 text-purple-900 border border-purple-200'
+        }`}>
+          {storeName}
+        </span>
+        <span>{after}</span>
+      </>
+    );
+  }
+
+  return <span>{rawMessage}</span>;
+}
+
 export function NotificationCard({
   item,
   onMarkAsRead,
@@ -135,7 +236,7 @@ export function NotificationCard({
   );
 
   const badgeInfo = getTypeBadge(item.type, item.title, item.message);
-  const storeLabel = item.recipientStore?.label || item.recipientStore?.shopDomain || 'Store';
+  const storeLabel = (item.recipientStore?.label || item.recipientStore?.shopDomain || 'Store').trim();
   const isMaster = item.recipientStore?.isMaster || false;
 
   const emailMatch = (item.message || '').match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
@@ -148,15 +249,6 @@ export function NotificationCard({
   const combined = `${item.title || ''} ${item.message || ''}`.toLowerCase();
   const isPreorder = combined.includes('pre-order') || combined.includes('preorder');
   const isNotifyMe = combined.includes('notify me') || combined.includes('waitlist');
-
-  // Dynamic store prefix parsing (detects any "[Store Name]: [Message]" pattern without hardcoded names)
-  const storePrefixMatch = (item.message || '').match(/^([^:\n]{2,40}):\s+(.*)$/);
-  const rawPrefix = storePrefixMatch ? storePrefixMatch[1].trim() : null;
-  const isExcluded = rawPrefix && (
-    ['note', 'warning', 'error', 'info', 'alert', 'http', 'https', 'order', 'sku', 'product'].includes(rawPrefix.toLowerCase())
-  );
-  const storePrefix = rawPrefix && !isExcluded ? rawPrefix : null;
-  const cleanMessage = storePrefix && storePrefixMatch ? storePrefixMatch[2] : item.message;
 
   const handleSyncAction = async (action: 'ACCEPT' | 'DECLINE') => {
     setIsSyncing(true);
@@ -254,14 +346,9 @@ export function NotificationCard({
                 SKU: {item.sku}
               </Text>
             )}
-            <Text variant="bodySm" as="p" tone={item.isRead ? 'subdued' : 'base'}>
-              {storePrefix && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-black bg-purple-100 text-purple-900 border border-purple-300 shadow-2xs mr-1.5 align-middle tracking-tight">
-                  {storePrefix}
-                </span>
-              )}
-              <span>{cleanMessage}</span>
-            </Text>
+            <div className={`text-sm ${item.isRead ? 'text-gray-500' : 'text-gray-900'} leading-relaxed`}>
+              {renderMessageWithStoreBadges(item.message)}
+            </div>
 
             {/* Structured Customer & Order Metadata Tags */}
             {(email || isPreorder || isNotifyMe) && (

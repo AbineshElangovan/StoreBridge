@@ -653,6 +653,11 @@
 
     const originalText = button.innerHTML;
 
+    let customerEmail = window.Shopify?.customer?.email || '';
+    if (!customerEmail) {
+      try { customerEmail = localStorage.getItem('storebridge_customer_email') || ''; } catch(e){}
+    }
+
     button.disabled = true;
 
     button.innerHTML =
@@ -806,7 +811,38 @@
         };
         localStorage.setItem('storebridge_pending_preorder', JSON.stringify(pendingItem));
 
-        log('Pre-order item added to cart and saved to pending preorder in localStorage.');
+        try {
+          const shop = config.shop || window.Shopify?.shop || 'eshan-inventory-solutions.myshopify.com';
+          const apiUrl = config.apiUrl || 'https://dz50mdfc-3000.inc1.devtunnels.ms';
+
+          fetch(`${apiUrl}/api/storefront/record-preorder`, {
+            method: 'POST',
+            keepalive: true,
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Shopify-Shop-Domain': shop,
+              'X-Tunnel-Skip-Anti-Phishing-Page': '1',
+              Accept: 'application/json'
+            },
+            body: JSON.stringify({
+              shop,
+              orderNumber: 'auto',
+              variantId: String(variantId),
+              customerName: window.Shopify?.customer?.name || (customerEmail ? customerEmail.split('@')[0] : 'Customer'),
+              customerEmail: customerEmail,
+              customerPhone: null,
+              quantity: finalQuantity,
+              productTitle: pendingItem.productTitle,
+              variantTitle: pendingItem.variantTitle,
+              paymentOption: pendingItem.paymentOption,
+              totalAmount: pendingItem.totalAmount,
+              depositAmount: pendingItem.depositAmount,
+              remainingBalance: pendingItem.remainingBalance,
+              paymentStatus: isHalf ? 'PARTIALLY_PAID' : 'PAID',
+              currency: 'INR'
+            })
+          }).catch(function() {});
+        } catch (postErr) {}
       } catch (e) {}
 
       window.location.href = cartUrl;
@@ -873,9 +909,10 @@
       config.preorder.discountType !== 'none' &&
       Number(config.preorder.discountValue) > 0;
 
+    let discountAmt = 0;
     let finalPrice = numPrice;
     if (hasOffer) {
-      const discountAmt = config.preorder.discountType === 'percentage'
+      discountAmt = config.preorder.discountType === 'percentage'
         ? (numPrice * Number(config.preorder.discountValue)) / 100
         : Number(config.preorder.discountValue);
       finalPrice = Math.max(0, numPrice - discountAmt);
@@ -938,7 +975,7 @@
             ? `
               <div style="margin-top: 8px; padding: 6px 10px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; font-size: 11px; font-weight: 700; color: #065f46; display: flex; align-items: center; justify-content: space-between;">
                 <span>Special Pre-order Offer:</span>
-                <span style="background: #059669; color: #ffffff; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 800;">
+                <span style="background: #16a34a; color: #ffffff; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 800;">
                   ${
                     config.preorder.discountType === 'percentage'
                       ? `${escapeHtml(config.preorder.discountValue)}% OFF`
@@ -962,10 +999,25 @@
             </span>
             <span style="background: #22c55e; color: #ffffff; padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: 800; text-transform: uppercase;">50% Deposit</span>
           </div>
-          <div style="display: flex; justify-content: space-between; color: #475569; font-size: 12px; margin-top: 2px;">
-            <span>Total Product Price:</span>
-            <span style="font-weight: 700; color: #0f172a;">${formatMoney(finalPrice)}</span>
-          </div>
+          ${hasOffer ? `
+            <div style="display: flex; justify-content: space-between; color: #64748b; font-size: 12px; margin-top: 2px;">
+              <span>Original Price:</span>
+              <span style="text-decoration: line-through; color: #94a3b8; font-weight: 600;">${formatMoney(numPrice)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; color: #047857; font-size: 12px; font-weight: 700;">
+              <span>Pre-order Discount (${config.preorder.discountType === 'percentage' ? `${escapeHtml(config.preorder.discountValue)}% OFF` : `Rs. ${escapeHtml(config.preorder.discountValue)} OFF`}):</span>
+              <span>- ${formatMoney(discountAmt)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; color: #0f172a; font-size: 12px; font-weight: 700; border-top: 1px dashed #bbf7d0; padding-top: 4px;">
+              <span>Total Product Price:</span>
+              <span style="font-weight: 800; color: #0f172a;">${formatMoney(finalPrice)}</span>
+            </div>
+          ` : `
+            <div style="display: flex; justify-content: space-between; color: #475569; font-size: 12px; margin-top: 2px;">
+              <span>Total Product Price:</span>
+              <span style="font-weight: 700; color: #0f172a;">${formatMoney(finalPrice)}</span>
+            </div>
+          `}
           <div style="display: flex; justify-content: space-between; color: #15803d; font-weight: 800; font-size: 13px;">
             <span>Due Today (50% Deposit):</span>
             <span>${formatMoney(halfInitial)}</span>
@@ -973,6 +1025,9 @@
           <div style="display: flex; justify-content: space-between; color: #b45309; font-weight: 600; font-size: 11px;">
             <span>Remaining Balance:</span>
             <span>${formatMoney(halfRemaining)} (Due upon restock)</span>
+          </div>
+          <div style="margin-top: 4px; padding-top: 6px; border-top: 1px dashed #bbf7d0; font-size: 11px; font-weight: 600; color: #166534; text-align: center;">
+            Only 50% payment required today to reserve your item.
           </div>
         </div>
       ` : (allowHalf && allowFull) ? `
@@ -990,7 +1045,7 @@
                   <span style="font-size: 13px; font-weight: 800; color: #047857;">Pay ${formatMoney(halfInitial)}</span>
                 </div>
                 <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">
-                  ${formatMoney(halfRemaining)} balance due when item is ready to ship
+                  ${hasOffer ? `50% of discounted total (${formatMoney(finalPrice)}) • ` : ''}${formatMoney(halfRemaining)} balance due when item is ready to ship
                 </div>
               </div>
             </label>
@@ -1011,10 +1066,25 @@
 
           <!-- Price & Payment Breakdown -->
           <div class="storebridge-breakdown-card" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; font-size: 12px; display: flex; flex-direction: column; gap: 4px; margin-top: 2px;">
-            <div style="display: flex; justify-content: space-between; color: #475569;">
-              <span>Total Product Price:</span>
-              <span id="storebridge-total-display" style="font-weight: 700; color: #0f172a;">${formatMoney(finalPrice)}</span>
-            </div>
+            ${hasOffer ? `
+              <div style="display: flex; justify-content: space-between; color: #64748b; font-size: 11px;">
+                <span>Original Price:</span>
+                <span style="text-decoration: line-through; color: #94a3b8; font-weight: 600;">${formatMoney(numPrice)}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; color: #047857; font-size: 11px; font-weight: 700;">
+                <span>Pre-order Discount (${config.preorder.discountType === 'percentage' ? `${escapeHtml(config.preorder.discountValue)}% OFF` : `Rs. ${escapeHtml(config.preorder.discountValue)} OFF`}):</span>
+                <span>- ${formatMoney(discountAmt)}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; color: #0f172a; font-size: 12px; font-weight: 700; border-top: 1px dashed #cbd5e1; padding-top: 4px;">
+                <span>Total Product Price:</span>
+                <span id="storebridge-total-display" style="font-weight: 800; color: #0f172a;">${formatMoney(finalPrice)}</span>
+              </div>
+            ` : `
+              <div style="display: flex; justify-content: space-between; color: #475569;">
+                <span>Total Product Price:</span>
+                <span id="storebridge-total-display" style="font-weight: 700; color: #0f172a;">${formatMoney(finalPrice)}</span>
+              </div>
+            `}
             <div style="display: flex; justify-content: space-between; color: #047857; font-weight: 700;">
               <span id="storebridge-due-label">Due Today (${currentPlan === 'HALF' ? '50% Initial Payment' : 'Full Payment'}):</span>
               <span id="storebridge-due-display">${formatMoney(dueNow)}</span>
@@ -1023,6 +1093,11 @@
               <span>Remaining Balance:</span>
               <span id="storebridge-remaining-display">${formatMoney(dueLater)} ${currentPlan === 'HALF' ? '(Due upon restock)' : ''}</span>
             </div>
+            ${currentPlan === 'HALF' ? `
+              <div style="margin-top: 4px; padding-top: 6px; border-top: 1px dashed #e2e8f0; font-size: 11px; font-weight: 600; color: #166534; text-align: center;">
+                Only 50% payment required today to reserve your item.
+              </div>
+            ` : ''}
           </div>
         </div>
       ` : ''}

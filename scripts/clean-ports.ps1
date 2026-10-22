@@ -42,18 +42,18 @@ try {
 function Show-StoreBridgeBanner {
     Write-Host ""
     Write-Host "================================================================================" -ForegroundColor Cyan
-    Write-Host " StoreBridge Shopify Admin Quick Links:" -ForegroundColor Green
+    Write-Host " StoreBridge Shopify Admin Quick Links (Dashboard):" -ForegroundColor Green
     Write-Host "   [Master] Coimbatore Store:" -ForegroundColor White
-    Write-Host "   https://admin.shopify.com/store/eshan-coimbatore-store-8jjdfk4t/apps/f82dbdee74418429d3510c35ca99aae3/activity" -ForegroundColor Yellow
+    Write-Host "   https://admin.shopify.com/store/eshan-coimbatore-store-8jjdfk4t/apps/f82dbdee74418429d3510c35ca99aae3" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "   Inventory Solutions Store:" -ForegroundColor White
-    Write-Host "   https://admin.shopify.com/store/eshan-inventory-solutions/apps/f82dbdee74418429d3510c35ca99aae3/activity" -ForegroundColor Yellow
+    Write-Host "   https://admin.shopify.com/store/eshan-inventory-solutions/apps/f82dbdee74418429d3510c35ca99aae3" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "   Karur Store:" -ForegroundColor White
-    Write-Host "   https://admin.shopify.com/store/eshan-karur-store/apps/f82dbdee74418429d3510c35ca99aae3/activity" -ForegroundColor Yellow
+    Write-Host "   https://admin.shopify.com/store/eshan-karur-store/apps/f82dbdee74418429d3510c35ca99aae3" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "   Namakkal Store:" -ForegroundColor White
-    Write-Host "   https://admin.shopify.com/store/eshan-namakkal/apps/f82dbdee74418429d3510c35ca99aae3/activity" -ForegroundColor Yellow
+    Write-Host "   https://admin.shopify.com/store/eshan-namakkal/apps/f82dbdee74418429d3510c35ca99aae3" -ForegroundColor Yellow
     Write-Host "================================================================================" -ForegroundColor Cyan
     Write-Host ""
 }

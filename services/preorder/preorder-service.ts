@@ -447,9 +447,24 @@ export class PreorderService {
     paymentStatus = 'ALL'
   ) {
     const { safeDecrypt } = require('@/lib/utils/encryption');
+    try {
+      const { BackInStockService } = require('@/services/back-in-stock/back-in-stock-service');
+      await BackInStockService.syncLivePreordersFromShopify(storeId);
+    } catch (_) {}
     const skip = (Math.max(1, page) - 1) * pageSize;
 
-    const where: any = { storeId };
+    const store = await prisma.store.findUnique({
+      where: { id: storeId },
+      select: { isMaster: true },
+    });
+
+    let storeFilter: any = storeId;
+    if (store?.isMaster) {
+      const allStores = await prisma.store.findMany({ select: { id: true } });
+      storeFilter = { in: allStores.map(s => s.id) };
+    }
+
+    const where: any = { storeId: storeFilter };
     if (paymentStatus && paymentStatus !== 'ALL') {
       where.paymentStatus = paymentStatus;
     }
@@ -472,12 +487,69 @@ export class PreorderService {
       }),
     ]);
 
-    const decryptedRecords = records.map((r: any) => ({
-      ...r,
-      customerName: safeDecrypt(r.customerName),
-      customerEmail: safeDecrypt(r.customerEmail),
-      customerPhone: safeDecrypt(r.customerPhone),
-    }));
+    const variantIds = records.map((r: any) => r.shopifyVariantId).filter(Boolean);
+    const cleanVariantIds = variantIds.map((id: string) => id.replace(/\D/g, ''));
+
+    const caches = await prisma.productCache.findMany({
+      where: {
+        OR: [
+          { shopifyVariantId: { in: variantIds } },
+          { shopifyVariantId: { in: cleanVariantIds.map((id: string) => `gid://shopify/ProductVariant/${id}`) } },
+        ],
+      },
+      select: { shopifyVariantId: true, imageUrl: true, title: true },
+    });
+
+    const imageMap = new Map<string, string>();
+    for (const c of caches) {
+      const clean = c.shopifyVariantId.replace(/\D/g, '');
+      if (c.imageUrl) {
+        imageMap.set(clean, c.imageUrl);
+        imageMap.set(c.shopifyVariantId, c.imageUrl);
+      }
+    }
+
+    const missingTitleRecords = records.filter((r: any) => {
+      const cleanVarId = (r.shopifyVariantId || '').replace(/\D/g, '');
+      return !imageMap.get(cleanVarId) && !imageMap.get(r.shopifyVariantId) && r.productTitle;
+    });
+
+    if (missingTitleRecords.length > 0) {
+      const titles: string[] = Array.from(
+        new Set(missingTitleRecords.map((r: any) => String(r.productTitle || '').trim()).filter(Boolean))
+      );
+      const titleCaches = await prisma.productCache.findMany({
+        where: {
+          OR: titles.map((t) => ({
+            title: { contains: t, mode: 'insensitive' }
+          }))
+        },
+        select: { title: true, imageUrl: true },
+      });
+      for (const tc of titleCaches) {
+        if (tc.imageUrl) {
+          for (const t of titles) {
+            if (tc.title.toLowerCase().includes(t.toLowerCase()) && !imageMap.has(`title:${t.toLowerCase()}`)) {
+              imageMap.set(`title:${t.toLowerCase()}`, tc.imageUrl);
+            }
+          }
+        }
+      }
+    }
+
+    const decryptedRecords = records.map((r: any) => {
+      const cleanVarId = (r.shopifyVariantId || '').replace(/\D/g, '');
+      const titleKey = r.productTitle ? `title:${r.productTitle.trim().toLowerCase()}` : '';
+      const imageUrl = imageMap.get(cleanVarId) || imageMap.get(r.shopifyVariantId) || (titleKey ? imageMap.get(titleKey) : null) || null;
+
+      return {
+        ...r,
+        imageUrl,
+        customerName: safeDecrypt(r.customerName),
+        customerEmail: safeDecrypt(r.customerEmail),
+        customerPhone: safeDecrypt(r.customerPhone),
+      };
+    });
 
     return {
       data: decryptedRecords,

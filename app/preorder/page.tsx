@@ -22,8 +22,31 @@ import { PageTabs, PageTab } from '@/components/ui/PageTabs';
 
 export type PreorderTabId = 'general' | 'offers_payment' | 'orders';
 
+function ProductThumbnail({ src, alt }: { src?: string | null; alt?: string }) {
+  const [hasError, setHasError] = useState(false);
+
+  if (!src || hasError) {
+    return (
+      <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 text-slate-400">
+        <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt || 'Product'}
+      className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0 bg-slate-50 shadow-xs"
+      onError={() => setHasError(true)}
+    />
+  );
+}
+
 export default function PreorderAdminPage() {
-  const { isStandalone } = useStoreContext();
+  const { isStandalone, currentStore } = useStoreContext();
   const { currentTheme } = useTheme();
   const primaryColor = currentTheme?.primaryColor || '#047857';
   const accentColor = currentTheme?.accentColor || '#d1fae5';
@@ -75,11 +98,9 @@ export default function PreorderAdminPage() {
   const [recordsStatus, setRecordsStatus] = useState('ALL');
 
   useEffect(() => {
-    if (isStandalone) {
-      fetchConfig();
-      fetchRecords(1, '', 'ALL');
-    }
-  }, [isStandalone]);
+    fetchConfig();
+    fetchRecords(1, '', 'ALL');
+  }, [currentStore?.shopDomain]);
 
   // Fetch pure calculations from backend API whenever discount settings change
   useEffect(() => {
@@ -88,8 +109,9 @@ export default function PreorderAdminPage() {
       try {
         setCalculating(true);
         const val = parseFloat(discountValue) || 0;
+        const shopParam = currentStore?.shopDomain ? `&shop=${encodeURIComponent(currentStore.shopDomain)}` : '';
         const res = await shopifyFetch(
-          `/api/preorder?action=calculate&basePrice=1240&discountType=${discountType}&discountValue=${val}`
+          `/api/preorder?action=calculate&basePrice=1240&discountType=${discountType}&discountValue=${val}${shopParam}`
         );
         const data = await res.json();
         if (active && data.success) {
@@ -107,16 +129,22 @@ export default function PreorderAdminPage() {
       active = false;
       clearTimeout(timer);
     };
-  }, [discountType, discountValue]);
+  }, [discountType, discountValue, currentStore?.shopDomain]);
 
   // Debounced search for Pre-order orders
   useEffect(() => {
-    if (!isStandalone) return;
     const timer = setTimeout(() => {
       fetchRecords(1, recordsSearch, recordsStatus);
     }, 300);
     return () => clearTimeout(timer);
   }, [recordsSearch, recordsStatus]);
+
+  // Re-fetch records immediately when user switches to 'orders' tab
+  useEffect(() => {
+    if (activeTab === 'orders') {
+      fetchRecords(1, recordsSearch, recordsStatus);
+    }
+  }, [activeTab]);
 
   const fetchRecords = async (page = recordsPage, search = recordsSearch, status = recordsStatus, isSilent = false) => {
     try {
@@ -128,6 +156,9 @@ export default function PreorderAdminPage() {
         search: search.trim(),
         paymentStatus: status,
       });
+      if (currentStore?.shopDomain) {
+        params.set('shop', currentStore.shopDomain);
+      }
       const res = await shopifyFetch(`/api/preorder?${params.toString()}`);
       const data = await res.json();
       if (data.success) {
@@ -147,7 +178,7 @@ export default function PreorderAdminPage() {
 
   // Sync when tab is active and when window regains focus or visibility
   useEffect(() => {
-    if (!isStandalone || activeTab !== 'orders') return;
+    if (activeTab !== 'orders') return;
 
     const handleSync = () => {
       if (typeof document !== 'undefined' && !document.hidden) {
@@ -162,12 +193,13 @@ export default function PreorderAdminPage() {
       window.removeEventListener('focus', handleSync);
       document.removeEventListener('visibilitychange', handleSync);
     };
-  }, [isStandalone, activeTab, recordsPage, recordsSearch, recordsStatus]);
+  }, [activeTab, recordsPage, recordsSearch, recordsStatus]);
 
   const fetchConfig = async () => {
     try {
       setLoading(true);
-      const res = await shopifyFetch('/api/preorder');
+      const url = currentStore?.shopDomain ? `/api/preorder?shop=${encodeURIComponent(currentStore.shopDomain)}` : '/api/preorder';
+      const res = await shopifyFetch(url);
       const data = await res.json();
       if (data.success && data.config) {
         setEnabled(data.config.enabled);
@@ -307,8 +339,7 @@ export default function PreorderAdminPage() {
   }
 
   return (
-    <StandaloneGuard featureName="Pre-order">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden space-y-8">
       {/* Toast Alert */}
       {toast && (
         <Toast
@@ -620,38 +651,19 @@ export default function PreorderAdminPage() {
               }
             >
               <div className="space-y-6">
-                {/* 1. Payment type Dropdown */}
+                {/* 1. Discount on total price */}
                 <div>
-                  <label className="block text-sm font-bold text-gray-900 mb-3">
-                    Payment type
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={paymentType}
-                      onChange={(e) => handlePaymentTypeChange(e.target.value as 'FULL' | 'HALF')}
-                      className="w-full appearance-none px-4 py-3 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-xl shadow-2xs focus:border-gray-900 focus:ring-1 focus:ring-gray-900 outline-none pr-10 cursor-pointer transition-colors hover:border-gray-400"
-                    >
-                      <option value="FULL">Full payment</option>
-                      <option value="HALF">Half payment</option>
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
-                      <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
-                    </div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-bold text-gray-900">
+                      1. Pre-order Discount
+                    </label>
+                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                      Applied first to product price
+                    </span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-3 font-normal leading-relaxed">
-                    {paymentType === 'FULL'
-                      ? 'Customers will pay full price at checkout.'
-                      : 'Customers will pay 50% deposit at checkout and remaining later.'}
+                  <p className="text-xs text-gray-500 mb-3 font-normal leading-relaxed">
+                    Set a promotional discount applied directly to the catalog price for pre-ordered items.
                   </p>
-                </div>
-
-                {/* 2. Discount on total price */}
-                <div className="pt-6 border-t border-gray-100">
-                  <label className="block text-sm font-bold text-gray-900 mb-3">
-                    Discount on total price
-                  </label>
                   <div className="flex flex-wrap items-center gap-7">
                     <label className="inline-flex items-center gap-2 cursor-pointer text-sm font-semibold text-gray-800 hover:text-gray-900 transition-colors">
                       <input
@@ -746,6 +758,38 @@ export default function PreorderAdminPage() {
                   )}
                 </div>
 
+                {/* 2. Payment type Dropdown */}
+                <div className="pt-6 border-t border-gray-100">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-bold text-gray-900">
+                      2. Payment Plan Option
+                    </label>
+                    <span className="text-[11px] font-semibold text-slate-700 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+                      Calculated on discounted price
+                    </span>
+                  </div>
+                  <div className="relative mt-2">
+                    <select
+                      value={paymentType}
+                      onChange={(e) => handlePaymentTypeChange(e.target.value as 'FULL' | 'HALF')}
+                      className="w-full appearance-none px-4 py-3 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-xl shadow-2xs focus:border-gray-900 focus:ring-1 focus:ring-gray-900 outline-none pr-10 cursor-pointer transition-colors hover:border-gray-400"
+                    >
+                      <option value="FULL">Full payment (100% upfront)</option>
+                      <option value="HALF">Half payment (50% deposit upfront)</option>
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
+                      <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2 font-normal leading-relaxed">
+                    {paymentType === 'FULL'
+                      ? 'Customers will pay the full discounted price at checkout.'
+                      : 'Customers pay a 50% deposit based on the discounted price today, and the remaining 50% upon restock.'}
+                  </p>
+                </div>
+
                 {/* 3. Display Settings */}
                 <div className="pt-6 border-t border-gray-100">
                   <label className="block text-sm font-bold text-gray-900 mb-3">
@@ -831,14 +875,14 @@ export default function PreorderAdminPage() {
             title="Pre-order Management"
             headerColor={primaryColor}
             columns={[
-              { key: 'orderRef', title: 'Order Ref', type: 'react_node', width: '14%' },
-              { key: 'product', title: 'Product & Variant', type: 'react_node', width: '24%' },
-              { key: 'customer', title: 'Customer', type: 'react_node', width: '20%' },
-              { key: 'totalAmount', title: 'Total', type: 'react_node', width: '10%' },
-              { key: 'depositAmount', title: 'Initial Paid', type: 'react_node', width: '10%' },
-              { key: 'remainingBalance', title: 'Remaining', type: 'react_node', width: '10%' },
-              { key: 'paymentOption', title: 'Payment Plan', type: 'react_node', width: '12%' },
-              { key: 'paymentStatus', title: 'Status', type: 'react_node', width: '10%' },
+              { key: 'orderRef', title: 'Order Ref', type: 'react_node', width: '13%' },
+              { key: 'product', title: 'Product & Variant', type: 'react_node', width: '27%' },
+              { key: 'customer', title: 'Customer', type: 'react_node', width: '18%' },
+              { key: 'totalAmount', title: 'Total', type: 'react_node', width: '9%' },
+              { key: 'depositAmount', title: 'Initial Paid', type: 'react_node', width: '9%' },
+              { key: 'remainingBalance', title: 'Remaining', type: 'react_node', width: '9%' },
+              { key: 'paymentOption', title: 'Payment Plan', type: 'react_node', width: '10%' },
+              { key: 'paymentStatus', title: 'Status', type: 'react_node', width: '9%' },
             ]}
             items={records.map((record) => {
               const isPartiallyPaid = record.paymentStatus === 'PARTIALLY_PAID' || record.remainingBalance > 0;
@@ -863,15 +907,30 @@ export default function PreorderAdminPage() {
                   </div>
                 ),
                 product: (
-                  <div className="flex flex-col max-w-[200px]">
-                    <span className="font-semibold text-slate-900 text-xs truncate" title={record.productTitle || 'Pre-order Item'}>
-                      {record.productTitle || 'Pre-order Item'}
-                    </span>
-                    {record.variantTitle && (
-                      <span className="text-[11px] text-gray-500 truncate" title={record.variantTitle}>
-                        {record.variantTitle}
-                      </span>
+                  <div className="flex items-center gap-3">
+                    {record.imageUrl ? (
+                      <img
+                        src={record.imageUrl}
+                        alt={record.productTitle || 'Product'}
+                        className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0 bg-slate-50 shadow-xs"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 text-slate-400">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
                     )}
+                    <div className="flex flex-col min-w-0 max-w-[210px]">
+                      <span className="font-bold text-slate-900 text-xs truncate" title={record.productTitle || 'Pre-order Item'}>
+                        {record.productTitle || 'Pre-order Item'}
+                      </span>
+                      {record.variantTitle && (
+                        <span className="text-[11px] text-gray-500 font-medium truncate" title={record.variantTitle}>
+                          {record.variantTitle}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ),
                 customer: (
@@ -977,6 +1036,5 @@ export default function PreorderAdminPage() {
         </div>
       )}
     </div>
-    </StandaloneGuard>
   );
 }

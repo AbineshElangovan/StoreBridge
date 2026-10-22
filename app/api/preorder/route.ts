@@ -35,13 +35,7 @@ const PreorderConfigSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const { store, isStandalone } = await authenticate(req);
-    if (!isStandalone) {
-      return NextResponse.json(
-        { success: false, error: 'Pre-order is restricted to Standalone stores.' },
-        { status: 403 }
-      );
-    }
+    const { store } = await authenticate(req);
     const searchParams = req.nextUrl.searchParams;
     const type = searchParams.get('type');
     const action = searchParams.get('action');
@@ -201,13 +195,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { store, isStandalone } = await authenticate(req);
-    if (!isStandalone) {
-      return NextResponse.json(
-        { success: false, error: 'Pre-order is restricted to Standalone stores.' },
-        { status: 403 }
-      );
-    }
+    const { store } = await authenticate(req);
     const body = await req.json();
 
     const parsed = PreorderConfigSchema.safeParse(body);

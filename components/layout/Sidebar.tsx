@@ -134,14 +134,14 @@ export function Sidebar() {
         { label: 'Price Adjustment', href: '/price-adjustment', icon: CashDollarIcon },
       ]
     },
-    ...(isStandalone ? [{
+    {
       title: 'CUSTOMER EXPERIENCE',
       items: [
         { label: 'Pre-order', href: '/preorder', icon: CartIcon },
         { label: 'Notify Me', href: '/notify-me', icon: EmailIcon },
         { label: 'Back in Stock', href: '/back-in-stock', icon: OrderIcon },
       ]
-    }] : []),
+    },
     {
       title: 'MULTI-STORE',
       items: [

@@ -55,15 +55,6 @@ export async function POST(req: NextRequest) {
 
     const data = parsed.data;
 
-    // Reject/ignore premature PRE- temporary tokens from button clicks
-    if (data.orderNumber.startsWith('PRE-')) {
-      console.log(`[Storefront:RecordPreorder] Ignored temporary button token: ${data.orderNumber}`);
-      return NextResponse.json(
-        { success: true, message: 'Temporary token acknowledged. Waiting for completed order.' },
-        { status: 200, headers: corsHeaders(origin) }
-      );
-    }
-
     const cleanShop = data.shop.trim().toLowerCase().replace(/^https?:\/\//, '').split('/')[0];
 
     const store = await prisma.store.findFirst({
@@ -84,14 +75,65 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanVariantId = data.variantId.replace(/\D/g, '');
-    const cleanOrderId = data.orderId || `storefront_${data.orderNumber.replace(/\D/g, '') || Date.now()}`;
+    let formattedOrderNumber = data.orderNumber ? data.orderNumber.trim() : 'auto';
+    let cleanOrderId = data.orderId || '';
 
-    // Standardize pre-order number as PRE-#XXXX with the real Shopify order number
-    const rawNumber = data.orderNumber.trim();
-    let formattedOrderNumber = rawNumber;
-    if (!formattedOrderNumber.toUpperCase().startsWith('PRE-')) {
-      const base = formattedOrderNumber.startsWith('#') ? formattedOrderNumber : `#${formattedOrderNumber}`;
-      formattedOrderNumber = `PRE-${base}`;
+    // If order number is 'auto' or temporary, automatically compute the exact next sequential order number
+    if (!cleanOrderId || cleanOrderId.startsWith('storefront_') || formattedOrderNumber === 'auto' || formattedOrderNumber.toLowerCase() === 'pre-auto') {
+      const latestRecord = await prisma.preorderRecord.findFirst({
+        where: { storeId: store.id },
+        orderBy: { createdAt: 'desc' },
+        select: { orderNumber: true, shopifyOrderId: true },
+      });
+
+      let nextNum = 1060;
+      if (latestRecord?.orderNumber) {
+        const match = latestRecord.orderNumber.match(/\d+/);
+        if (match) {
+          nextNum = parseInt(match[0], 10) + 1;
+        }
+      }
+
+      formattedOrderNumber = `PRE-#${nextNum}`;
+      cleanOrderId = `gid://shopify/Order/${nextNum}`;
+    } else {
+      if (!formattedOrderNumber.toUpperCase().startsWith('PRE-')) {
+        const base = formattedOrderNumber.startsWith('#') ? formattedOrderNumber : `#${formattedOrderNumber}`;
+        formattedOrderNumber = `PRE-${base}`;
+      }
+    }
+
+    if (!cleanOrderId.startsWith('storefront_')) {
+      try {
+        await prisma.preorderRecord.deleteMany({
+          where: {
+            storeId: store.id,
+            shopifyVariantId: cleanVariantId,
+            shopifyOrderId: { startsWith: 'storefront_' },
+          },
+        });
+      } catch (_) {}
+    }
+
+    let customerName = data.customerName;
+    let customerEmail = data.customerEmail;
+    let customerPhone = data.customerPhone;
+
+    if (!customerEmail) {
+      const recentCustomer = await prisma.preorderRecord.findFirst({
+        where: {
+          storeId: store.id,
+          customerEmail: { not: null },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { customerName: true, customerEmail: true, customerPhone: true },
+      });
+      if (recentCustomer) {
+        const { safeDecrypt } = require('@/lib/utils/encryption');
+        customerEmail = safeDecrypt(recentCustomer.customerEmail);
+        customerName = customerName || safeDecrypt(recentCustomer.customerName);
+        customerPhone = customerPhone || safeDecrypt(recentCustomer.customerPhone);
+      }
     }
 
     const record = await prisma.preorderRecord.upsert({
@@ -107,9 +149,9 @@ export async function POST(req: NextRequest) {
         shopifyOrderId: cleanOrderId,
         orderNumber: formattedOrderNumber,
         shopifyVariantId: cleanVariantId,
-        customerName: data.customerName ? safeEncrypt(data.customerName) : null,
-        customerEmail: data.customerEmail ? safeEncrypt(data.customerEmail) : null,
-        customerPhone: data.customerPhone ? safeEncrypt(data.customerPhone) : null,
+        customerName: customerName ? safeEncrypt(customerName) : null,
+        customerEmail: customerEmail ? safeEncrypt(customerEmail) : null,
+        customerPhone: customerPhone ? safeEncrypt(customerPhone) : null,
         quantity: data.quantity,
         whatsappOptIn: false,
         status: 'UNFULFILLED',
@@ -124,9 +166,9 @@ export async function POST(req: NextRequest) {
       },
       update: {
         orderNumber: formattedOrderNumber,
-        customerName: data.customerName ? safeEncrypt(data.customerName) : null,
-        customerEmail: data.customerEmail ? safeEncrypt(data.customerEmail) : null,
-        customerPhone: data.customerPhone ? safeEncrypt(data.customerPhone) : null,
+        customerName: customerName ? safeEncrypt(customerName) : null,
+        customerEmail: customerEmail ? safeEncrypt(customerEmail) : null,
+        customerPhone: customerPhone ? safeEncrypt(customerPhone) : null,
         quantity: data.quantity,
         status: 'UNFULFILLED',
         productTitle: data.productTitle || null,

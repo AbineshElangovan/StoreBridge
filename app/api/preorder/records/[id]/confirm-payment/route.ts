@@ -9,13 +9,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { store, isStandalone } = await authenticate(req);
-    if (!isStandalone) {
-      return NextResponse.json(
-        { success: false, error: 'Pre-order is restricted to Standalone stores.' },
-        { status: 403 }
-      );
-    }
+    const { store } = await authenticate(req);
 
     const { id } = await params;
     if (!id) {

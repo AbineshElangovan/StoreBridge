@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { NotifyMeService } from '@/services/notify-me/notify-me-service';
 import { EmailNotificationService } from '@/services/notifications/email-notification-service';
-import { isStoreStandalone } from '@/lib/shopify/authenticate';
 import { z } from 'zod';
 
 import { parsePhoneNumber, isValidPhoneNumber } from 'libphonenumber-js';
@@ -117,14 +116,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Store not found or inactive' },
         { status: 404, headers: corsHeaders(origin) }
-      );
-    }
-
-    const isStandalone = await isStoreStandalone(store.id);
-    if (!isStandalone) {
-      return NextResponse.json(
-        { success: false, error: 'Feature only available for standalone stores' },
-        { status: 403, headers: corsHeaders(origin) }
       );
     }
 

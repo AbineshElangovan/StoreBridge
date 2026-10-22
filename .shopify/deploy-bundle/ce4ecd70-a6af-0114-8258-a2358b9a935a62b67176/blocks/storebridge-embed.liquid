@@ -49,6 +49,9 @@
   data-storebridge-embed="true"
   data-shop="{{ shop.permanent_domain }}"
   data-api-url="{{ block.settings.api_url | default: 'https://dz50mdfc-3000.inc1.devtunnels.ms' }}"
+  data-customer-email="{{ customer.email | default: '' }}"
+  data-customer-name="{{ customer.name | default: '' }}"
+  data-customer-phone="{{ customer.phone | default: '' }}"
   style="display: none;"
 ></div>
 

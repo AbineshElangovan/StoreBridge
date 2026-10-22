@@ -13,13 +13,7 @@ const ActionSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const { store, isStandalone } = await authenticate(req);
-    if (!isStandalone) {
-      return NextResponse.json(
-        { success: false, error: 'Back in Stock is restricted to Standalone stores.' },
-        { status: 403 }
-      );
-    }
+    const { store } = await authenticate(req);
     const searchParams = req.nextUrl.searchParams;
 
     const page = parseInt(searchParams.get('page') || '1', 10);
@@ -59,13 +53,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { store, isStandalone } = await authenticate(req);
-    if (!isStandalone) {
-      return NextResponse.json(
-        { success: false, error: 'Back in Stock is restricted to Standalone stores.' },
-        { status: 403 }
-      );
-    }
+    const { store } = await authenticate(req);
     const body = await req.json();
 
     const parsed = ActionSchema.safeParse(body);

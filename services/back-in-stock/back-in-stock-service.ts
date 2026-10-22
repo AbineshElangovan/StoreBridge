@@ -612,6 +612,20 @@ export class BackInStockService {
             targetStatus = 'ALLOCATED';
           }
 
+          const rawName = order.name || order.id;
+          const formattedOrderNum = rawName.toUpperCase().startsWith('PRE-')
+            ? rawName
+            : `PRE-${rawName.startsWith('#') ? rawName : `#${rawName}`}`;
+
+          // Clean up any temporary storefront placeholder for this variant
+          await (prisma as any).preorderRecord.deleteMany({
+            where: {
+              storeId,
+              shopifyVariantId: cleanVariantId,
+              shopifyOrderId: { startsWith: 'storefront_' },
+            },
+          });
+
           await (prisma as any).preorderRecord.upsert({
             where: {
               storeId_shopifyOrderId_shopifyVariantId: {
@@ -623,7 +637,7 @@ export class BackInStockService {
             create: {
               storeId,
               shopifyOrderId: order.id,
-              orderNumber: order.name || order.id,
+              orderNumber: formattedOrderNum,
               shopifyVariantId: cleanVariantId,
               customerName: customerName ? safeEncrypt(customerName) : null,
               customerEmail: customerEmail ? safeEncrypt(customerEmail) : null,
@@ -641,7 +655,7 @@ export class BackInStockService {
               currency: 'INR',
             },
             update: {
-              orderNumber: order.name || order.id,
+              orderNumber: formattedOrderNum,
               customerPhone: customerPhone ? safeEncrypt(customerPhone) : undefined,
               status: targetStatus,
             },
@@ -669,7 +683,18 @@ export class BackInStockService {
     const pageSize = Math.max(1, Math.min(100, filters.pageSize || 10));
     const skip = (page - 1) * pageSize;
 
-    const baseWhere: any = { storeId };
+    const store = await prisma.store.findUnique({
+      where: { id: storeId },
+      select: { isMaster: true },
+    });
+
+    let storeFilter: any = storeId;
+    if (store?.isMaster) {
+      const allStores = await prisma.store.findMany({ select: { id: true } });
+      storeFilter = { in: allStores.map(s => s.id) };
+    }
+
+    const baseWhere: any = { storeId: storeFilter };
 
     if (filters.status && filters.status !== 'ALL') {
       baseWhere.status = filters.status;
@@ -702,10 +727,10 @@ export class BackInStockService {
     }
 
     const [totalSent, totalPending, totalFailed, totalSubscribers] = await Promise.all([
-      prisma.notificationJob.count({ where: { storeId, status: NotificationJobStatus.SENT } }),
-      prisma.notificationJob.count({ where: { storeId, status: NotificationJobStatus.PENDING } }),
-      prisma.notificationJob.count({ where: { storeId, status: NotificationJobStatus.FAILED } }),
-      prisma.notifyMeRegistration.count({ where: { storeId } }),
+      prisma.notificationJob.count({ where: { storeId: storeFilter, status: NotificationJobStatus.SENT } }),
+      prisma.notificationJob.count({ where: { storeId: storeFilter, status: NotificationJobStatus.PENDING } }),
+      prisma.notificationJob.count({ where: { storeId: storeFilter, status: NotificationJobStatus.FAILED } }),
+      prisma.notifyMeRegistration.count({ where: { storeId: storeFilter } }),
     ]);
 
     const [rawJobs, preorders, allRegs, allStoreRegs] = await Promise.all([
@@ -714,15 +739,15 @@ export class BackInStockService {
         orderBy: { createdAt: 'desc' },
       }),
       prisma.preorderRecord.findMany({
-        where: { storeId },
+        where: { storeId: storeFilter },
         orderBy: { createdAt: 'desc' },
       }),
       prisma.notifyMeRegistration.findMany({
-        where: { storeId },
+        where: { storeId: storeFilter },
         orderBy: { createdAt: 'desc' },
       }),
       prisma.notifyMeRegistration.findMany({
-        where: { storeId },
+        where: { storeId: storeFilter },
         select: { customerEmail: true, customerWhatsApp: true },
       }),
     ]);
@@ -843,6 +868,11 @@ export class BackInStockService {
     for (const item of candidateItems) {
       let foundKey: string | null = null;
       for (const [key, existing] of mergedJobMap.entries()) {
+        // Distinct orders with different order numbers must never be collapsed
+        if (item.orderNumber && existing.orderNumber && item.orderNumber !== existing.orderNumber) {
+          continue;
+        }
+
         const isSameCustomer = Boolean(
           (item.customerEmail && existing.customerEmail && item.customerEmail === existing.customerEmail) ||
           (item.customerWhatsApp && existing.customerWhatsApp && item.customerWhatsApp === existing.customerWhatsApp)
@@ -854,7 +884,7 @@ export class BackInStockService {
           item.productTitle.trim().toLowerCase() === existing.productTitle.trim().toLowerCase()
         );
 
-        // Merge if exact registration ID matches, OR if same customer & same variant/product
+        // Merge if exact registration ID matches, OR if same customer & same variant/product (and not conflicting orders)
         if (isSameReg || (isSameCustomer && (isSameVariant || isSameProduct))) {
           foundKey = key;
           break;
@@ -944,7 +974,6 @@ export class BackInStockService {
     const [variantMaps, productCaches, registrations, preorderRecords] = await Promise.all([
       prisma.variantMap.findMany({
         where: {
-          storeId,
           OR: [
             { shopifyVariantId: { in: allVarLookups } },
           ],
@@ -953,7 +982,6 @@ export class BackInStockService {
       }),
       prisma.productCache.findMany({
         where: {
-          storeId,
           OR: [
             { shopifyVariantId: { in: allVarLookups } },
           ],
@@ -968,12 +996,22 @@ export class BackInStockService {
         : Promise.resolve([]),
       prisma.preorderRecord.findMany({
         where: {
-          storeId,
           shopifyVariantId: { in: allVarLookups },
         },
         select: { shopifyVariantId: true, quantity: true },
       }),
     ]);
+
+    // Title fallback for any records without variant match
+    const missingTitles = paginatedData
+      .map(j => (j.productTitle || '').replace(/^\[Pre-order\]\s*/i, '').trim())
+      .filter(t => t && t !== 'Product');
+    const titleCaches = missingTitles.length > 0 ? await prisma.productCache.findMany({
+      where: {
+        OR: missingTitles.map(t => ({ title: { contains: t, mode: 'insensitive' } }))
+      },
+      select: { title: true, imageUrl: true }
+    }) : [];
 
     const enrichedRows = paginatedData.map((job) => {
       const cleanVId = job.shopifyVariantId?.replace(/\D/g, '');
@@ -1005,8 +1043,12 @@ export class BackInStockService {
       );
 
       const sku = vMap?.sku || pCache?.sku || (cleanVId ? `SKU-${cleanVId.slice(-6)}` : '-');
+      const cleanTitleKey = (job.productTitle || '').replace(/^\[Pre-order\]\s*/i, '').toLowerCase().trim();
+      const titleFallbackImg = titleCaches.find((tc: any) => tc.imageUrl && tc.title.toLowerCase().includes(cleanTitleKey))?.imageUrl || null;
       const isJobImgPlaceholder = !job.imageUrl || job.imageUrl.includes('1/0890/1234');
-      const imageUrl = (isJobImgPlaceholder && pCache?.imageUrl) ? pCache.imageUrl : (job.imageUrl || pCache?.imageUrl || null);
+      const imageUrl = (isJobImgPlaceholder && (pCache?.imageUrl || titleFallbackImg))
+        ? (pCache?.imageUrl || titleFallbackImg)
+        : (job.imageUrl || pCache?.imageUrl || titleFallbackImg || null);
 
       let cleanProductTitle = job.productTitle && !job.productTitle.includes('[Pre-order] Product') && !job.productTitle.includes('Product')
         ? job.productTitle.replace(/^\[Pre-order\]\s*/i, '')

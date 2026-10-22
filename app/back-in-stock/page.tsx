@@ -131,24 +131,20 @@ export default function BackInStockAdminPage() {
 
   // Initial load
   useEffect(() => {
-    if (isStandalone) {
-      loadData(1, statusFilter, search, batchFilter, false);
-      shopifyFetch('/api/stores?active=false')
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.stores && data.stores.length > 0) {
-            setStores(data.stores);
-            setSelectedStoreId(data.stores[0].id);
-          }
-        })
-        .catch(() => {});
-    }
-  }, [isStandalone]);
+    loadData(1, statusFilter, search, batchFilter, false);
+    shopifyFetch('/api/stores?active=false')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.stores && data.stores.length > 0) {
+          setStores(data.stores);
+          setSelectedStoreId(data.stores[0].id);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
-  // Sync when window regains focus or visibility, or when manual refresh is clicked
+  // Sync when window regains focus or visibility
   useEffect(() => {
-    if (!isStandalone) return;
-
     const handleSync = () => {
       if (typeof document !== 'undefined' && !document.hidden) {
         loadData(page, statusFilter, search, batchFilter, true);
@@ -162,7 +158,7 @@ export default function BackInStockAdminPage() {
       window.removeEventListener('focus', handleSync);
       document.removeEventListener('visibilitychange', handleSync);
     };
-  }, [isStandalone, page, statusFilter, search, batchFilter, loadData]);
+  }, [page, statusFilter, search, batchFilter, loadData]);
 
   const handleManualRefresh = () => {
     setIsRefreshing(true);
@@ -284,15 +280,22 @@ export default function BackInStockAdminPage() {
       </div>
     ),
     sourceTypeBadge: (
-      <span
-        className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
-          job.sourceType === 'PRE_ORDER' || job.isPreorder
-            ? 'bg-purple-100 text-purple-800 border border-purple-300'
-            : 'bg-sky-100 text-sky-800 border border-sky-300'
-        }`}
-      >
-        {job.sourceType === 'PRE_ORDER' || job.isPreorder ? 'Pre-order' : 'Notify Me'}
-      </span>
+      <div className="flex flex-col items-start gap-1">
+        <span
+          className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+            job.sourceType === 'PRE_ORDER' || job.isPreorder
+              ? 'bg-purple-100 text-purple-800 border border-purple-300'
+              : 'bg-sky-100 text-sky-800 border border-sky-300'
+          }`}
+        >
+          {job.sourceType === 'PRE_ORDER' || job.isPreorder ? 'Pre-order' : 'Notify Me'}
+        </span>
+        {job.orderNumber && (
+          <span className="font-bold font-mono text-[11px] text-slate-800">
+            {job.orderNumber}
+          </span>
+        )}
+      </div>
     ),
     quantityBadge: (
       <span className="inline-flex items-center justify-center font-extrabold text-gray-900 bg-gray-100 px-2.5 py-1 rounded-lg text-xs border border-gray-200">
@@ -435,8 +438,7 @@ export default function BackInStockAdminPage() {
   }
 
   return (
-    <StandaloneGuard featureName="Back in Stock">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden space-y-8">
       {toast && (
         <Toast
           content={toast.message}
@@ -580,6 +582,5 @@ export default function BackInStockAdminPage() {
         paginate={true}
       />
     </div>
-    </StandaloneGuard>
   );
 }

@@ -229,7 +229,18 @@ export class NotifyMeService {
     const pageSize = Math.max(1, Math.min(100, filters.pageSize || 10));
     const skip = (page - 1) * pageSize;
 
-    const baseWhere: any = { storeId };
+    const store = await prisma.store.findUnique({
+      where: { id: storeId },
+      select: { isMaster: true },
+    });
+
+    let storeFilter: any = storeId;
+    if (store?.isMaster) {
+      const allStores = await prisma.store.findMany({ select: { id: true } });
+      storeFilter = { in: allStores.map(s => s.id) };
+    }
+
+    const baseWhere: any = { storeId: storeFilter };
 
     if (filters.status && filters.status !== 'ALL') {
       baseWhere.status = filters.status;

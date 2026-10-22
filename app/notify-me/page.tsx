@@ -111,10 +111,8 @@ export default function NotifyMeAdminPage() {
   }, [statusFilter, search]);
 
   useEffect(() => {
-    if (isStandalone) {
-      loadData(1, statusFilter, search);
-    }
-  }, [isStandalone]);
+    loadData(1, statusFilter, search);
+  }, []);
 
   const handleSaveSettings = async () => {
     if (!notifyEmail) {
@@ -294,8 +292,7 @@ export default function NotifyMeAdminPage() {
   }
 
   return (
-    <StandaloneGuard featureName="Notify Me">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden space-y-8">
         {toast && (
           <Toast
             content={toast.message}
@@ -448,6 +445,5 @@ export default function NotifyMeAdminPage() {
           />
         </div>
       </div>
-    </StandaloneGuard>
   );
 }

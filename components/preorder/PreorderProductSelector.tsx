@@ -38,12 +38,15 @@ export function PreorderProductSelector({
   const [products, setProducts] = useState<ProductSummary[]>([]);
   const [collections, setCollections] = useState<{ id: string; title: string }[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<string>('ALL');
+  const [stockFilter, setStockFilter] = useState<'OOS' | 'ALL'>('OOS');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadData();
   }, []);
+
+  const normalizeId = (id: string) => id.replace(/^gid:\/\/shopify\/Product\//, '');
 
   const loadData = async () => {
     try {
@@ -56,6 +59,13 @@ export function PreorderProductSelector({
       const prodData = await prodRes.json();
       if (prodData.success && Array.isArray(prodData.products)) {
         setProducts(prodData.products);
+
+        // Sanitize: remove any ghost or stale IDs that don't exist in current catalog
+        const catalogIds = new Set(prodData.products.map((p: any) => normalizeId(p.shopifyProductId)));
+        const sanitized = selectedProductIds.filter((id) => catalogIds.has(normalizeId(id)));
+        if (sanitized.length !== selectedProductIds.length) {
+          onChange(sanitized);
+        }
       }
 
       const colData = await colRes.json();
@@ -76,14 +86,34 @@ export function PreorderProductSelector({
     }
   };
 
+  const normalizedSelected = useMemo(() => {
+    return new Set(selectedProductIds.map(normalizeId));
+  }, [selectedProductIds]);
+
+  const selectedProductsList = useMemo(() => {
+    return products.filter((p) => normalizedSelected.has(normalizeId(p.shopifyProductId)));
+  }, [products, normalizedSelected]);
+
+  const oosCount = useMemo(() => {
+    return products.filter((p) => (
+      p.totalInventory <= inventoryThreshold ||
+      p.hasOutOfStockVariant ||
+      p.isOutOfStock
+    )).length;
+  }, [products, inventoryThreshold]);
+
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
-      // 1. Strictly show out-of-stock products only
+      // 1. Stock filter: OOS only vs All Products (selected items are always shown so user can view/unselect them)
       const isEligibleOOS =
         p.totalInventory <= inventoryThreshold ||
         p.hasOutOfStockVariant ||
         p.isOutOfStock;
-      if (!isEligibleOOS) return false;
+      const isSelected = normalizedSelected.has(normalizeId(p.shopifyProductId));
+
+      if (stockFilter === 'OOS' && !isEligibleOOS && !isSelected) {
+        return false;
+      }
 
       // 2. Collection filter
       if (selectedCollection !== 'ALL') {
@@ -103,13 +133,7 @@ export function PreorderProductSelector({
 
       return true;
     });
-  }, [products, inventoryThreshold, selectedCollection, searchTerm]);
-
-  const normalizeId = (id: string) => id.replace(/^gid:\/\/shopify\/Product\//, '');
-
-  const normalizedSelected = useMemo(() => {
-    return new Set(selectedProductIds.map(normalizeId));
-  }, [selectedProductIds]);
+  }, [products, inventoryThreshold, selectedCollection, searchTerm, stockFilter, normalizedSelected]);
 
   const toggleProduct = (productId: string) => {
     if (disabled) return;
@@ -142,10 +166,6 @@ export function PreorderProductSelector({
     onChange([]);
   };
 
-  const selectedProductsList = useMemo(() => {
-    return products.filter((p) => normalizedSelected.has(normalizeId(p.shopifyProductId)));
-  }, [products, normalizedSelected]);
-
   if (loading) {
     return (
       <div className="py-6 flex items-center justify-center">
@@ -154,10 +174,12 @@ export function PreorderProductSelector({
     );
   }
 
+  const selectedCount = selectedProductsList.length;
+
   return (
     <div className="space-y-4">
-      {/* Search and Collection Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      {/* Search, Stock Filter, and Collection Filters */}
+      <div className="flex flex-col sm:flex-row gap-2.5">
         <div className="relative flex-1">
           <svg
             className="w-4 h-4 absolute left-3 top-3 text-gray-400"
@@ -177,12 +199,38 @@ export function PreorderProductSelector({
           />
         </div>
 
+        {/* Stock Filter Toggle: Out of Stock vs All */}
+        <div className="inline-flex rounded-lg border border-gray-300 bg-gray-50 p-0.5 text-xs font-semibold shrink-0">
+          <button
+            type="button"
+            onClick={() => setStockFilter('OOS')}
+            className={`px-3 py-1.5 rounded-md transition-colors cursor-pointer ${
+              stockFilter === 'OOS'
+                ? 'bg-white text-gray-900 shadow-2xs font-bold'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            Out of Stock ({oosCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStockFilter('ALL')}
+            className={`px-3 py-1.5 rounded-md transition-colors cursor-pointer ${
+              stockFilter === 'ALL'
+                ? 'bg-white text-gray-900 shadow-2xs font-bold'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            All Products ({products.length})
+          </button>
+        </div>
+
         {collections.length > 0 && (
           <select
             value={selectedCollection}
             onChange={(e) => setSelectedCollection(e.target.value)}
             disabled={disabled}
-            className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 sm:w-48"
+            className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 sm:w-44"
           >
             <option value="ALL">All Collections</option>
             {collections.map((c) => (
@@ -194,14 +242,14 @@ export function PreorderProductSelector({
         )}
       </div>
 
-      {/* Action Header & Counts */}
+      {/* Action Header & Accurate Counts */}
       <div className="flex items-center justify-between text-xs font-medium text-gray-600 pb-2 border-b border-gray-100">
         <div>
           <span className="font-semibold text-gray-900">
-            {normalizedSelected.size} product{normalizedSelected.size === 1 ? '' : 's'} selected
+            {selectedCount} product{selectedCount === 1 ? '' : 's'} selected
           </span>
           <span className="text-gray-400 mx-2">•</span>
-          <span>{filteredProducts.length} out-of-stock product{filteredProducts.length === 1 ? '' : 's'}</span>
+          <span>{oosCount} out-of-stock product{oosCount === 1 ? '' : 's'}</span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -218,7 +266,7 @@ export function PreorderProductSelector({
           <button
             type="button"
             onClick={clearAllSelected}
-            disabled={disabled || normalizedSelected.size === 0}
+            disabled={disabled || selectedCount === 0}
             className="px-3 py-1.5 text-xs font-bold rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 transition-colors disabled:opacity-40 cursor-pointer flex items-center gap-1.5 shadow-2xs"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
