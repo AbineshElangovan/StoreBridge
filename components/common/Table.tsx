@@ -1,9 +1,12 @@
 'use client';
 import React, { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { Badge, Text, Icon } from '@shopify/polaris';
 import { XIcon } from '@shopify/polaris-icons';
 import { CustomSelect } from './CustomSelect';
+import { Pagination } from './Pagination';
 import { useTheme } from '@/components/providers/ThemeContext';
+import { getProductUrl } from '@/lib/utils/productUrl';
 
 export interface ColumnConfig {
   title: string;
@@ -120,7 +123,7 @@ function SearchInput({ value, onChange, placeholder, accentColor }: { value: str
   );
 }
 
-const ImageCell = ({ src }: { src: string | string[] }) => {
+const ImageCell = ({ src, alt = "Product" }: { src: string | string[]; alt?: string }) => {
   const [errorIndex, setErrorIndex] = useState(0);
   const srcArray = Array.isArray(src) ? src : [src];
   const currentSrc = srcArray[errorIndex];
@@ -139,9 +142,10 @@ const ImageCell = ({ src }: { src: string | string[] }) => {
   return (
     <img 
       src={currentSrc} 
-      alt="Product" 
+      alt={alt} 
       onError={() => setErrorIndex(prev => prev + 1)} 
-      style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', border: '1px solid #e5e7eb', display: 'block', margin: '0 auto' }} 
+      style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', border: '1px solid #e5e7eb', display: 'block', margin: '0 auto', transition: 'all 0.15s ease' }} 
+      className="hover:opacity-90 transition-opacity"
     />
   );
 };
@@ -248,8 +252,26 @@ export function Table({
   const renderCell = (item: any, col: ColumnConfig) => {
     const val = item[col.key];
     switch (col.type) {
-      case 'image':
-        return <ImageCell src={val} />;
+      case 'image': {
+        const imageElement = <ImageCell src={val} alt={item.title || "Product"} />;
+        const targetHref = item.url || item.href || (
+          (item.shopifyProductId || (item.id && !item.orderNumber && !item.jobId && !item.action && !item.type))
+            ? getProductUrl(item)
+            : undefined
+        );
+        if (targetHref) {
+          return (
+            <Link
+              href={targetHref}
+              className="inline-flex items-center justify-center transition-transform duration-150 hover:scale-105 active:scale-95 cursor-pointer rounded-md focus:outline-none"
+              title={item.title ? `View ${item.title}` : "View product details"}
+            >
+              {imageElement}
+            </Link>
+          );
+        }
+        return imageElement;
+      }
       case 'bold':
         return <strong style={{ fontWeight: 600, color: '#111827' }}>{val ?? '—'}</strong>;
       case 'badge':
@@ -419,37 +441,11 @@ export function Table({
               `Showing ${(currentPage - 1) * itemsPerPage + 1}–${Math.min(currentPage * itemsPerPage, filteredItems.length)} of ${filteredItems.length} records`
             )}
           </span>
-          <div className="inline-flex items-center gap-3 bg-white px-2 py-1 rounded-xl border border-gray-200 shadow-2xs">
-            <button
-              onClick={() => handlePageChange(Math.max(currentPage - 1, 1))}
-              disabled={currentPage <= 1 || loading}
-              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                currentPage <= 1 || loading
-                  ? 'bg-[#eaebee] text-gray-400 cursor-not-allowed opacity-50'
-                  : 'bg-[#e4e5e7] hover:bg-[#d8d9dc] text-gray-800 cursor-pointer shadow-2xs'
-              }`}
-              aria-label="Previous page"
-            >
-              ‹
-            </button>
-
-            <span className="text-xs font-semibold text-gray-700 select-none px-1">
-              Page {currentPage} of {totalPages}
-            </span>
-
-            <button
-              onClick={() => handlePageChange(Math.min(currentPage + 1, totalPages))}
-              disabled={currentPage >= totalPages || loading}
-              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                currentPage >= totalPages || loading
-                  ? 'bg-[#eaebee] text-gray-400 cursor-not-allowed opacity-50'
-                  : 'bg-[#e4e5e7] hover:bg-[#d8d9dc] text-gray-800 cursor-pointer shadow-2xs'
-              }`}
-              aria-label="Next page"
-            >
-              ›
-            </button>
-          </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
         </div>
       )}
     </div>

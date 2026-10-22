@@ -44,6 +44,28 @@ export async function cleanupExpiredActivityLogs(): Promise<RetentionCleanupResu
     });
     summary.activityLogs = actResult.count;
 
+    // 1b. Purge any duplicate activity logs in the recent window
+    try {
+      const recentLogs = await prisma.activityLog.findMany({
+        take: 300,
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, storeId: true, eventType: true, productTitle: true, sku: true, createdAt: true }
+      });
+      const seen = new Set<string>();
+      const dupIds: string[] = [];
+      for (const l of recentLogs) {
+        const bucket = Math.floor(new Date(l.createdAt).getTime() / 60000);
+        const key = `${l.storeId}_${l.eventType}_${l.productTitle}_${l.sku || ''}_${bucket}`;
+        if (seen.has(key)) dupIds.push(l.id);
+        else seen.add(key);
+      }
+      if (dupIds.length > 0) {
+        await prisma.activityLog.deleteMany({ where: { id: { in: dupIds } } });
+      }
+    } catch (dupErr) {
+      console.warn('[Data Retention] Warning cleaning duplicate activity logs:', dupErr);
+    }
+
     // 2. Purge In-App Notifications older than 90 days
     const notifResult = await prisma.notification.deleteMany({
       where: {

@@ -141,18 +141,22 @@ export default function ProductsPage() {
                   title="Search Results"
                   headerColor="#6366f1"
                   columns={columns}
-                  items={filterProducts(allProducts).map(item => ({
-                    ...item,
-                    title_node: (
-                      <Link
-                        href={getProductUrl(item)}
-                        className="font-bold text-gray-900 hover:text-[#6366f1] hover:underline cursor-pointer transition-colors"
-                      >
-                        {item.title}
-                      </Link>
-                    ),
-                    updatedDate: <LocalizedDate date={item.updatedDate || item.updatedAt} format="datetime" />
-                  }))}
+                  items={filterProducts(allProducts).map(item => {
+                    const prodUrl = getProductUrl(item);
+                    return {
+                      ...item,
+                      url: prodUrl,
+                      title_node: (
+                        <Link
+                          href={prodUrl}
+                          className="font-bold text-gray-900 hover:text-[#6366f1] hover:underline cursor-pointer transition-colors"
+                        >
+                          {item.title}
+                        </Link>
+                      ),
+                      updatedDate: <LocalizedDate date={item.updatedDate || item.updatedAt} format="datetime" />
+                    };
+                  })}
                   searchable={false}
                   filterable
                   itemsPerPage={10}
@@ -172,9 +176,8 @@ export default function ProductsPage() {
                 />
             </div>
           ) : loading ? (
-            <div className="w-full h-64 flex flex-col items-center justify-center bg-white rounded-xl border border-gray-100 shadow-sm gap-4">
-              <div className="w-11 h-11 rounded-full border-4 border-black/10 border-t-[var(--color-primary)] animate-spin" />
-              <p className="text-sm text-gray-400 font-medium">Loading products...</p>
+            <div className="w-full bg-white rounded-xl border border-gray-100 shadow-sm p-8">
+              <Loading label="Loading products..." />
             </div>
           ) : Object.keys(groupedProducts).length > 0 ? (() => {
             const colors = ['#6366f1', '#7c3aed', '#8b5cf6', '#6366f1', '#7c3aed', '#8b5cf6'];
@@ -192,18 +195,22 @@ export default function ProductsPage() {
                       title={collectionName}
                       headerColor={collectionName === 'Uncategorized' ? '#475569' : colors[index % colors.length]}
                       columns={columns}
-                      items={filteredItems.map(item => ({
-                        ...item,
-                        title_node: (
-                          <Link
-                            href={getProductUrl(item)}
-                            className="font-bold text-gray-900 hover:text-[#6366f1] hover:underline cursor-pointer transition-colors"
-                          >
-                            {item.title}
-                          </Link>
-                        ),
-                        updatedDate: <LocalizedDate date={item.updatedDate || item.updatedAt} format="datetime" />
-                      }))}
+                      items={filteredItems.map(item => {
+                        const prodUrl = getProductUrl(item);
+                        return {
+                          ...item,
+                          url: prodUrl,
+                          title_node: (
+                            <Link
+                              href={prodUrl}
+                              className="font-bold text-gray-900 hover:text-[#6366f1] hover:underline cursor-pointer transition-colors"
+                            >
+                              {item.title}
+                            </Link>
+                          ),
+                          updatedDate: <LocalizedDate date={item.updatedDate || item.updatedAt} format="datetime" />
+                        };
+                      })}
                       searchable={false}
                       filterable
                       itemsPerPage={10}

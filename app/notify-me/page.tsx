@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import { Loading } from '@/components/common/Loading';
 import { Toast } from '@/components/common/Toast';
 import { Table, ColumnConfig } from '@/components/common/Table';
+import { getProductUrl } from '@/lib/utils/productUrl';
 import {
   SettingsCard,
   SettingsToggle,
@@ -16,20 +18,16 @@ import {
 import { StandaloneGuard } from '@/components/ui/StandaloneGuard';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 
-function ProductThumbnail({ src, alt }: { src?: string | null; alt?: string }) {
+function ProductThumbnail({ src, alt, href }: { src?: string | null; alt?: string; href?: string }) {
   const [hasError, setHasError] = useState(false);
 
-  if (!src || hasError) {
-    return (
-      <div className="w-10 h-10 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0 text-gray-400">
-        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-      </div>
-    );
-  }
-
-  return (
+  const content = (!src || hasError) ? (
+    <div className="w-10 h-10 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0 text-gray-400">
+      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    </div>
+  ) : (
     <img
       src={src}
       alt={alt || 'Product'}
@@ -37,6 +35,15 @@ function ProductThumbnail({ src, alt }: { src?: string | null; alt?: string }) {
       className="w-10 h-10 rounded-xl object-cover border border-gray-200 shrink-0 bg-white"
     />
   );
+
+  if (href) {
+    return (
+      <Link href={href} className="shrink-0 transition-transform duration-150 hover:scale-105 active:scale-95 cursor-pointer block" title="View product details">
+        {content}
+      </Link>
+    );
+  }
+  return content;
 }
 
 export default function NotifyMeAdminPage() {
@@ -212,31 +219,46 @@ export default function NotifyMeAdminPage() {
     },
   ];
 
-  const formattedItems = registrations.map((r) => ({
-    ...r,
-    productInfo: (
-      <div className="flex items-center gap-3 text-left">
-        <ProductThumbnail src={r.imageUrl} alt={r.productTitle} />
-        <div className="min-w-0">
-          <p className="font-bold text-gray-900 text-xs sm:text-sm truncate">
-            {r.productTitle || 'Product'}
-          </p>
-          <p className="text-[11px] text-gray-500 truncate">
-            {r.variantTitle && r.variantTitle !== 'Default Title'
-              ? r.variantTitle
-              : (r.shopifyVariantId ? `Var ID: ${r.shopifyVariantId.replace(/^gid:\/\/shopify\/ProductVariant\//, '')}` : '')}
-          </p>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
-              SKU: {r.sku || '-'}
-            </span>
-            <span className="text-[10px] text-gray-400 font-mono">
-              ID: {r.shopifyVariantId?.replace(/^gid:\/\/shopify\/ProductVariant\//, '') || '-'}
-            </span>
+  const formattedItems = registrations.map((r) => {
+    const prodUrl = r.productId || r.shopifyProductId || r.sku
+      ? getProductUrl({ id: r.productId, shopifyProductId: r.shopifyProductId, sku: r.sku })
+      : undefined;
+
+    return {
+      ...r,
+      productInfo: (
+        <div className="flex items-center gap-3 text-left">
+          <ProductThumbnail src={r.imageUrl} alt={r.productTitle} href={prodUrl} />
+          <div className="min-w-0">
+            {prodUrl ? (
+              <Link
+                href={prodUrl}
+                className="font-bold text-gray-900 text-xs sm:text-sm truncate hover:underline hover:text-indigo-600 transition-colors block"
+                title={r.productTitle || 'Product'}
+              >
+                {r.productTitle || 'Product'}
+              </Link>
+            ) : (
+              <p className="font-bold text-gray-900 text-xs sm:text-sm truncate">
+                {r.productTitle || 'Product'}
+              </p>
+            )}
+            <p className="text-[11px] text-gray-500 truncate">
+              {r.variantTitle && r.variantTitle !== 'Default Title'
+                ? r.variantTitle
+                : (r.shopifyVariantId ? `Var ID: ${r.shopifyVariantId.replace(/^gid:\/\/shopify\/ProductVariant\//, '')}` : '')}
+            </p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                SKU: {r.sku || '-'}
+              </span>
+              <span className="text-[10px] text-gray-400 font-mono">
+                ID: {r.shopifyVariantId?.replace(/^gid:\/\/shopify\/ProductVariant\//, '') || '-'}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
-    ),
+      ),
     customerContact: (
       <div className="space-y-0.5 text-left">
         {r.customerEmail ? (
@@ -279,16 +301,12 @@ export default function NotifyMeAdminPage() {
       day: 'numeric',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit',
     }),
-  }));
+  };
+});
 
   if (loading) {
-    return (
-      <div className="p-8 flex items-center justify-center min-h-[60vh]">
-        <Loading />
-      </div>
-    );
+    return <Loading label="Loading notify me..." />;
   }
 
   return (

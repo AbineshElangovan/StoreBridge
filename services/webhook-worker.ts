@@ -19,6 +19,25 @@ import { createMasterProductMapping, findMappingByVariantId } from "@/services/p
 const BATCH_SIZE = 20;
 const MAX_RETRIES = 3;
 
+const recentActivityMap = new Map<string, number>();
+
+function canLogActivity(storeId: string, productId: string | undefined | null, eventType: string): boolean {
+  if (!productId) return true;
+  const key = `${storeId}_${productId}_${eventType}`;
+  const now = Date.now();
+  const lastTime = recentActivityMap.get(key) || 0;
+  if (now - lastTime < 60000) {
+    return false;
+  }
+  recentActivityMap.set(key, now);
+  if (recentActivityMap.size > 2000) {
+    for (const [k, time] of recentActivityMap.entries()) {
+      if (now - time > 120000) recentActivityMap.delete(k);
+    }
+  }
+  return true;
+}
+
 function isCatalogMetadataChanged(payload: any, cachedProducts: any[]): boolean {
   if (!cachedProducts || cachedProducts.length === 0) {
     return true; // No existing cache, treat as initial/meaningful update
@@ -239,7 +258,7 @@ async function handleProductsCreate(shop: string, payload: any, webhookId: strin
         createdAt: { gte: new Date(Date.now() - 60000) }
       }
     });
-    if (!existingLog) {
+    if (canLogActivity(store.id, String(payload.id), "CREATE") && !existingLog) {
       await prisma.activityLog.create({
         data: {
           storeId: store.id,
@@ -471,7 +490,7 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
         createdAt: { gte: new Date(Date.now() - 60000) }
       }
     });
-    if (!existingLog) {
+    if (canLogActivity(store.id, String(payload.id), "UPDATE") && !existingLog) {
       await prisma.activityLog.create({
         data: {
           storeId: store.id,
@@ -603,7 +622,7 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
             createdAt: { gte: new Date(Date.now() - 60000) }
           }
         });
-        if (!existingLog) {
+        if (canLogActivity(storeRecord.id, String(currentPayload.id), "UPDATE") && !existingLog) {
           await prisma.activityLog.create({
             data: {
               storeId: storeRecord.id,
@@ -716,7 +735,7 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
         createdAt: { gte: new Date(Date.now() - 60000) }
       }
     });
-    if (!existingLog) {
+    if (canLogActivity(store.id, String(payload.id), "DELETE") && !existingLog) {
       await prisma.activityLog.create({
         data: {
           storeId: store.id,
@@ -816,7 +835,7 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
         createdAt: { gte: new Date(Date.now() - 60000) }
       }
     });
-    if (!existingLog) {
+    if (canLogActivity(store.id, String(payload.id), "DELETE") && !existingLog) {
       await prisma.activityLog.create({
         data: {
           storeId: store.id,
@@ -1052,7 +1071,7 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
           createdAt: { gte: new Date(Date.now() - 30000) }
         }
       });
-      if (!existingLog) {
+      if (canLogActivity(storeRecord.id, prodId, String(eventType)) && !existingLog) {
         const unitPrice = cache?.price ? parseFloat(String(cache.price)) : 0;
         const saleAmount = isSale && unitPrice > 0 ? Math.abs(diff) * unitPrice : null;
         await prisma.activityLog.create({

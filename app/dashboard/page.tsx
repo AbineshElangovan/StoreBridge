@@ -149,24 +149,28 @@ export default async function DashboardPage() {
     take: 100,
   });
 
-  const lowStockProducts = lowStockRaw.map((p) => ({
-    id: p.id,
-    imageUrl: resolveImageUrl(p),
-    title_node: (
-      <Link 
-        href={getProductUrl(p)}
-        className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
-      >
-        {p.title}
-      </Link>
-    ),
-    title: p.title,
-    sku: p.sku || 'N/A',
-    inventoryQuantity: p.inventoryQuantity,
-    stockLevel: p.inventoryQuantity <= 5 ? 'Critical' : 'Low',
-    updatedDate: <LocalizedDate date={p.updatedAt} format="date" />,
-    updatedTime: <LocalizedDate date={p.updatedAt} format="time" />,
-  }));
+  const lowStockProducts = lowStockRaw.map((p) => {
+    const prodUrl = getProductUrl(p);
+    return {
+      id: p.id,
+      url: prodUrl,
+      imageUrl: resolveImageUrl(p),
+      title_node: (
+        <Link 
+          href={prodUrl}
+          className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
+        >
+          {p.title}
+        </Link>
+      ),
+      title: p.title,
+      sku: p.sku || 'N/A',
+      inventoryQuantity: p.inventoryQuantity,
+      stockLevel: p.inventoryQuantity <= 5 ? 'Critical' : 'Low',
+      updatedDate: <LocalizedDate date={p.updatedAt} format="date" />,
+      updatedTime: <LocalizedDate date={p.updatedAt} format="time" />,
+    };
+  });
 
   const lowStockColumns: ColumnConfig[] = [
     { title: 'Image', key: 'imageUrl', type: 'image' },
@@ -185,25 +189,29 @@ export default async function DashboardPage() {
     take: 100,
   });
 
-  const recentlyAddedProducts = recentlyAddedRaw.map((p) => ({
-    id: p.id,
-    imageUrl: resolveImageUrl(p),
-    title_node: (
-      <Link 
-        href={getProductUrl(p)}
-        className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
-      >
-        {p.title}
-      </Link>
-    ),
-    title: p.title,
-    vendor: 'ESHAN',
-    sku: p.sku || 'N/A',
-    inventoryQuantity: p.inventoryQuantity,
-    status: 'Active',
-    addedDate: <LocalizedDate date={p.createdAt} format="date" />,
-    addedTime: <LocalizedDate date={p.createdAt} format="time" />,
-  }));
+  const recentlyAddedProducts = recentlyAddedRaw.map((p) => {
+    const prodUrl = getProductUrl(p);
+    return {
+      id: p.id,
+      url: prodUrl,
+      imageUrl: resolveImageUrl(p),
+      title_node: (
+        <Link 
+          href={prodUrl}
+          className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
+        >
+          {p.title}
+        </Link>
+      ),
+      title: p.title,
+      vendor: 'ESHAN',
+      sku: p.sku || 'N/A',
+      inventoryQuantity: p.inventoryQuantity,
+      status: 'Active',
+      addedDate: <LocalizedDate date={p.createdAt} format="date" />,
+      addedTime: <LocalizedDate date={p.createdAt} format="time" />,
+    };
+  });
 
   const recentlyAddedColumns: ColumnConfig[] = [
     { title: 'Image', key: 'imageUrl', type: 'image' },

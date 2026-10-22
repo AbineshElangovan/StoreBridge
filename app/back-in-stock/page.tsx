@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import Link from 'next/link';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import { Loading } from '@/components/common/Loading';
 import { Toast } from '@/components/common/Toast';
 import { Table, ColumnConfig } from '@/components/common/Table';
+import { getProductUrl } from '@/lib/utils/productUrl';
 import { Icon } from '@shopify/polaris';
 import {
   EmailIcon,
@@ -19,20 +21,16 @@ import { StandaloneGuard } from '@/components/ui/StandaloneGuard';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 import { EmailTemplateCustomizer } from '@/components/customer-experience/shared';
 
-function ProductThumbnail({ src, alt }: { src?: string | null; alt?: string }) {
+function ProductThumbnail({ src, alt, href }: { src?: string | null; alt?: string; href?: string }) {
   const [hasError, setHasError] = useState(false);
 
-  if (!src || hasError) {
-    return (
-      <div className="w-10 h-10 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0 text-gray-400">
-        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-      </div>
-    );
-  }
-
-  return (
+  const content = (!src || hasError) ? (
+    <div className="w-10 h-10 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center shrink-0 text-gray-400">
+      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    </div>
+  ) : (
     <img
       src={src}
       alt={alt || 'Product'}
@@ -40,6 +38,15 @@ function ProductThumbnail({ src, alt }: { src?: string | null; alt?: string }) {
       className="w-10 h-10 rounded-xl object-cover border border-gray-200 shrink-0 bg-white"
     />
   );
+
+  if (href) {
+    return (
+      <Link href={href} className="shrink-0 transition-transform duration-150 hover:scale-105 active:scale-95 cursor-pointer block" title="View product details">
+        {content}
+      </Link>
+    );
+  }
+  return content;
 }
 
 export default function BackInStockAdminPage() {
@@ -259,26 +266,41 @@ export default function BackInStockAdminPage() {
     },
   ];
 
-  const formattedItems = jobs.map((job) => ({
-    ...job,
-    productInfo: (
-      <div className="flex items-center gap-3 text-left">
-        <ProductThumbnail src={job.imageUrl} alt={job.productTitle} />
-        <div className="min-w-0">
-          <p className="font-bold text-gray-900 text-xs sm:text-sm truncate">
-            {job.productTitle}
-          </p>
-          <p className="text-[11px] text-gray-500 truncate">
-            {job.variantTitle && job.variantTitle !== 'Default Title' ? job.variantTitle : (job.shopifyVariantId ? `ID: ${job.shopifyVariantId}` : '')}
-          </p>
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
-              SKU: {job.sku || '-'}
-            </span>
+  const formattedItems = jobs.map((job) => {
+    const prodUrl = job.productId || job.shopifyProductId || job.sku
+      ? getProductUrl({ id: job.productId, shopifyProductId: job.shopifyProductId, sku: job.sku })
+      : undefined;
+
+    return {
+      ...job,
+      productInfo: (
+        <div className="flex items-center gap-3 text-left">
+          <ProductThumbnail src={job.imageUrl} alt={job.productTitle} href={prodUrl} />
+          <div className="min-w-0">
+            {prodUrl ? (
+              <Link
+                href={prodUrl}
+                className="font-bold text-gray-900 text-xs sm:text-sm truncate hover:underline hover:text-indigo-600 transition-colors block"
+                title={job.productTitle || 'Product'}
+              >
+                {job.productTitle}
+              </Link>
+            ) : (
+              <p className="font-bold text-gray-900 text-xs sm:text-sm truncate">
+                {job.productTitle}
+              </p>
+            )}
+            <p className="text-[11px] text-gray-500 truncate">
+              {job.variantTitle && job.variantTitle !== 'Default Title' ? job.variantTitle : (job.shopifyVariantId ? `ID: ${job.shopifyVariantId}` : '')}
+            </p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                SKU: {job.sku || '-'}
+              </span>
+            </div>
           </div>
         </div>
-      </div>
-    ),
+      ),
     sourceTypeBadge: (
       <div className="flex flex-col items-start gap-1">
         <span
@@ -427,14 +449,11 @@ export default function BackInStockAdminPage() {
         </span>
       </div>
     ),
-  }));
+  };
+});
 
   if (loading) {
-    return (
-      <div className="p-8 flex items-center justify-center min-h-[60vh]">
-        <Loading />
-      </div>
-    );
+    return <Loading label="Loading back in stock..." />;
   }
 
   return (

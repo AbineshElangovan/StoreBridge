@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import { Loading } from '@/components/common/Loading';
 import { Toast } from '@/components/common/Toast';
 import { Table, ColumnConfig } from '@/components/common/Table';
 import { useTheme } from '@/components/providers/ThemeContext';
+import { getProductUrl } from '@/lib/utils/productUrl';
 import {
   SettingsCard,
   SettingsToggle,
@@ -22,20 +24,16 @@ import { PageTabs, PageTab } from '@/components/ui/PageTabs';
 
 export type PreorderTabId = 'general' | 'offers_payment' | 'orders';
 
-function ProductThumbnail({ src, alt }: { src?: string | null; alt?: string }) {
+function ProductThumbnail({ src, alt, href }: { src?: string | null; alt?: string; href?: string }) {
   const [hasError, setHasError] = useState(false);
 
-  if (!src || hasError) {
-    return (
-      <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 text-slate-400">
-        <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-      </div>
-    );
-  }
-
-  return (
+  const content = (!src || hasError) ? (
+    <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 text-slate-400">
+      <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      </svg>
+    </div>
+  ) : (
     <img
       src={src}
       alt={alt || 'Product'}
@@ -43,6 +41,15 @@ function ProductThumbnail({ src, alt }: { src?: string | null; alt?: string }) {
       onError={() => setHasError(true)}
     />
   );
+
+  if (href) {
+    return (
+      <Link href={href} className="shrink-0 transition-transform duration-150 hover:scale-105 active:scale-95 cursor-pointer block" title="View product details">
+        {content}
+      </Link>
+    );
+  }
+  return content;
 }
 
 export default function PreorderAdminPage() {
@@ -331,11 +338,7 @@ export default function PreorderAdminPage() {
   );
 
   if (loading) {
-    return (
-      <div className="p-8 flex items-center justify-center min-h-[60vh]">
-        <Loading />
-      </div>
-    );
+    return <Loading label="Loading preorder..." />;
   }
 
   return (
@@ -906,33 +909,36 @@ export default function PreorderAdminPage() {
                     </span>
                   </div>
                 ),
-                product: (
-                  <div className="flex items-center gap-3">
-                    {record.imageUrl ? (
-                      <img
-                        src={record.imageUrl}
-                        alt={record.productTitle || 'Product'}
-                        className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0 bg-slate-50 shadow-xs"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 text-slate-400">
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
+                product: (() => {
+                  const prodUrl = record.productId || record.shopifyProductId || record.sku
+                    ? getProductUrl({ id: record.productId, shopifyProductId: record.shopifyProductId, sku: record.sku })
+                    : undefined;
+                  return (
+                    <div className="flex items-center gap-3">
+                      <ProductThumbnail src={record.imageUrl} alt={record.productTitle} href={prodUrl} />
+                      <div className="flex flex-col min-w-0 max-w-[210px]">
+                        {prodUrl ? (
+                          <Link
+                            href={prodUrl}
+                            className="font-bold text-slate-900 text-xs truncate hover:underline hover:text-indigo-600 transition-colors"
+                            title={record.productTitle || 'Pre-order Item'}
+                          >
+                            {record.productTitle || 'Pre-order Item'}
+                          </Link>
+                        ) : (
+                          <span className="font-bold text-slate-900 text-xs truncate" title={record.productTitle || 'Pre-order Item'}>
+                            {record.productTitle || 'Pre-order Item'}
+                          </span>
+                        )}
+                        {record.variantTitle && (
+                          <span className="text-[11px] text-gray-500 font-medium truncate" title={record.variantTitle}>
+                            {record.variantTitle}
+                          </span>
+                        )}
                       </div>
-                    )}
-                    <div className="flex flex-col min-w-0 max-w-[210px]">
-                      <span className="font-bold text-slate-900 text-xs truncate" title={record.productTitle || 'Pre-order Item'}>
-                        {record.productTitle || 'Pre-order Item'}
-                      </span>
-                      {record.variantTitle && (
-                        <span className="text-[11px] text-gray-500 font-medium truncate" title={record.variantTitle}>
-                          {record.variantTitle}
-                        </span>
-                      )}
                     </div>
-                  </div>
-                ),
+                  );
+                })(),
                 customer: (
                   <div className="flex flex-col max-w-[170px]">
                     <span className="text-xs font-medium text-slate-800 truncate" title={record.customerName || 'Customer'}>

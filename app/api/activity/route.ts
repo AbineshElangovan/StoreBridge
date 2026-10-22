@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     const isExport = searchParams.get('export') === 'true';
     
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '10', 10);
+    const limit = parseInt(searchParams.get('limit') || '15', 10);
     const skip = (page - 1) * limit;
 
     let allowedStoreIds: string[] = [];
@@ -71,33 +71,37 @@ export async function GET(req: NextRequest) {
 
     if (collection && collection !== 'all' && collection.trim()) {
       const col = collection.trim();
-      // Find all matching products in ProductCache for this collection
+      // Find all products in ProductCache that strictly belong to this collection
       const matchingCaches = await prisma.productCache.findMany({
         where: {
-          OR: [
-            { collections: { some: { collection: { title: { equals: col, mode: 'insensitive' } } } } },
-            { tags: { contains: col, mode: 'insensitive' } },
-            { title: { contains: col, mode: 'insensitive' } }
-          ]
+          storeId: { in: allowedStoreIds },
+          collections: {
+            some: {
+              collection: {
+                title: { equals: col, mode: 'insensitive' }
+              }
+            }
+          }
         },
         select: { shopifyProductId: true, sku: true, title: true }
       });
 
-      const colSkus = matchingCaches.map((c: any) => c.sku).filter(Boolean);
-      const colTitles = matchingCaches.map((c: any) => c.title).filter(Boolean);
-      const colPids = matchingCaches.map((c: any) => c.shopifyProductId).filter(Boolean);
+      const colSkus = Array.from(new Set(matchingCaches.map((c: any) => c.sku).filter(Boolean)));
+      const colPids = Array.from(new Set(matchingCaches.map((c: any) => c.shopifyProductId).filter(Boolean)));
       const colRawPids = colPids.map((p: string) => p.replace('gid://shopify/Product/', ''));
 
-      andConditions.push({
-        OR: [
-          { collection: { contains: col, mode: 'insensitive' } },
-          { productTitle: { contains: col, mode: 'insensitive' } },
-          { description: { contains: col, mode: 'insensitive' } },
-          ...(colSkus.length > 0 ? [{ sku: { in: colSkus } }] : []),
-          ...(colPids.length > 0 ? [{ productId: { in: [...colPids, ...colRawPids] } }] : []),
-          ...(colTitles.length > 0 ? [{ productTitle: { in: colTitles } }] : [])
-        ]
-      });
+      const colOrConditions: any[] = [
+        { collection: { equals: col, mode: 'insensitive' } }
+      ];
+
+      if (colSkus.length > 0) {
+        colOrConditions.push({ sku: { in: colSkus } });
+      }
+      if (colPids.length > 0 || colRawPids.length > 0) {
+        colOrConditions.push({ productId: { in: [...colPids, ...colRawPids] } });
+      }
+
+      andConditions.push({ OR: colOrConditions });
     }
 
     if (dateRange && dateRange !== 'all') {
@@ -247,15 +251,19 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // Deduplicate past duplicate log entries created within the same 60-second window
-    const seenMap = new Set<string>();
-    const deduplicatedActivities = enrichedActivities.filter((a: any) => {
-      const timeBucket = Math.floor(new Date(a.createdAt).getTime() / 60000);
-      const key = `${a.storeId}_${a.eventType}_${a.productTitle}_${a.sku || ''}_${timeBucket}`;
-      if (seenMap.has(key)) return false;
-      seenMap.add(key);
-      return true;
-    });
+    // For bulk exports, deduplicate any identical log entries created in the same 60-second window.
+    // For paginated table requests, activities are fetched from the database directly matching the exact limit.
+    let responseActivities = enrichedActivities;
+    if (isExport) {
+      const seenMap = new Set<string>();
+      responseActivities = enrichedActivities.filter((a: any) => {
+        const timeBucket = Math.floor(new Date(a.createdAt).getTime() / 60000);
+        const key = `${a.storeId}_${a.eventType}_${a.productTitle}_${a.sku || ''}_${timeBucket}`;
+        if (seenMap.has(key)) return false;
+        seenMap.add(key);
+        return true;
+      });
+    }
     
     let storeOptions: any[] = [];
     if (isMultiStore) {
@@ -281,7 +289,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      activities: deduplicatedActivities,
+      activities: responseActivities,
       pagination: {
         total: totalActivities,
         page,
