@@ -49,3 +49,6 @@ webhook_debug.txt
 # Prisma local database
 prisma/*.db
 prisma/*.db-journal
+
+# Database dumps
+*.dump

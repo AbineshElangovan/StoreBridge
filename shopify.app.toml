@@ -2,7 +2,7 @@
 
 client_id = "f82dbdee74418429d3510c35ca99aae3"
 name = "StoreBridge"
-application_url = "https://dz50mdfc-3000.inc1.devtunnels.ms"
+application_url = "https://store-bridge-yemi.vercel.app"
 embedded = true
 
 [build]
@@ -39,4 +39,8 @@ optional_scopes = [ ]
 use_legacy_install_flow = false
 
 [auth]
-redirect_urls = [ "https://dz50mdfc-3000.inc1.devtunnels.ms/api/auth/callback" ]
+redirect_urls = [
+  "https://dz50mdfc-3000.inc1.devtunnels.ms/api/auth/callback",
+  "https://store-bridge-yemi.vercel.app/api/auth/callback"
+]
+

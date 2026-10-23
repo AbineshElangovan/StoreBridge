@@ -6,8 +6,11 @@ import { sessionStorage } from "./session-storage";
 import fs from "fs";
 import path from "path";
 
-// Extract hostName from shopify.app.toml or active config file as the single source of truth
+// Extract hostName from SHOPIFY_APP_URL env var, or shopify.app.toml as fallback
 function getAppHostName(): string {
+  if (process.env.SHOPIFY_APP_URL) {
+    return process.env.SHOPIFY_APP_URL.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  }
   try {
     const rootDir = process.cwd();
     const files = fs.readdirSync(rootDir);
@@ -24,7 +27,7 @@ function getAppHostName(): string {
   } catch (error) {
     console.error("Error reading shopify.app config:", error);
   }
-  return (process.env.SHOPIFY_APP_URL || "").replace(/^https?:\/\//, "");
+  return "";
 }
 
 // This ensures the adapter import is not tree-shaken
