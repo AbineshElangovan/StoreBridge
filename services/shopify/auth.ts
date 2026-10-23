@@ -2,7 +2,7 @@ import { shopify } from "@/lib/shopify";
 import { prisma } from "@/lib/db/prisma";
 import { AuthStatus } from "@prisma/client";
 import { registerWebhooks } from "@/lib/shopify/webhooks";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { redirect } from "next/navigation";
 import { syncStoreProducts } from "./bulk-sync";
 import { hasValidShopifyAccessToken } from "./utils";
@@ -333,11 +333,39 @@ export async function handleAuthCallback(req: NextRequest) {
     });
 
   // Get embedded app URL to redirect the user
-  const redirectUrl = await shopify.auth.getEmbeddedAppUrl({
-    rawRequest: cleanRequest,
-  });
+  let redirectUrl: string;
+  try {
+    redirectUrl = await shopify.auth.getEmbeddedAppUrl({
+      rawRequest: cleanRequest,
+    });
+  } catch (err: any) {
+    console.warn("[OAuthCallback] shopify.auth.getEmbeddedAppUrl failed, calculating fallback:", err?.message);
+    const host = req.nextUrl.searchParams.get("host");
+    const sanitizedShop = shopify.utils.sanitizeShop(shop, true) || normalizedShop;
+    if (host) {
+      try {
+        const decodedHost = Buffer.from(host, "base64").toString("utf8");
+        redirectUrl = `https://${decodedHost}/apps/${shopify.config.apiKey}`;
+      } catch {
+        redirectUrl = `https://${sanitizedShop}/admin/apps/${shopify.config.apiKey}`;
+      }
+    } else {
+      redirectUrl = `https://${sanitizedShop}/admin/apps/${shopify.config.apiKey}`;
+    }
+  }
 
-  return Response.redirect(redirectUrl);
+  console.log("[OAuthCallback] Redirecting to embedded app URL:", redirectUrl);
+  const response = NextResponse.redirect(redirectUrl);
+  if (headers) {
+    for (const [key, value] of Object.entries(headers)) {
+      if (Array.isArray(value)) {
+        value.forEach((v) => response.headers.append(key, v));
+      } else {
+        response.headers.set(key, value as string);
+      }
+    }
+  }
+  return response;
 }
 
 export async function verifyStoreInstallation(shop: string | null | undefined, host: string | null | undefined) {

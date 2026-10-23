@@ -52,3 +52,7 @@ prisma/*.db-journal
 
 # Database dumps
 *.dump
+
+# Shopify CLI bundles
+.shopify/deploy-bundle*
+.shopify/dev-bundle*
