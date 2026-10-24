@@ -310,7 +310,8 @@ export default function NotifyMeAdminPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden space-y-8">
+    <StandaloneGuard featureName="Notify Me">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden space-y-8">
         {toast && (
           <Toast
             content={toast.message}
@@ -463,5 +464,6 @@ export default function NotifyMeAdminPage() {
           />
         </div>
       </div>
+    </StandaloneGuard>
   );
 }

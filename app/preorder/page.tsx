@@ -342,7 +342,8 @@ export default function PreorderAdminPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden space-y-8">
+    <StandaloneGuard featureName="Pre-order">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden space-y-8">
       {/* Toast Alert */}
       {toast && (
         <Toast
@@ -1042,5 +1043,6 @@ export default function PreorderAdminPage() {
         </div>
       )}
     </div>
+    </StandaloneGuard>
   );
 }
