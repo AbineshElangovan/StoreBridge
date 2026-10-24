@@ -7,7 +7,10 @@ import { hasValidShopifyAccessToken } from "./utils";
 import { GET_PRODUCTS_QUERY, GET_PRODUCTS_WITH_INVENTORY_QUERY, SHOP_INFO_QUERY } from "./graphql";
 import { createNotification } from "@/services/notification-service";
 
-export async function syncStoreProducts(shopDomain: string) {
+export async function syncStoreProducts(
+  shopDomain: string,
+  options: { sendNotification?: boolean } = { sendNotification: true }
+) {
   console.log("[SyncService] Starting sync for shop:", shopDomain);
 
   const store = await prisma.store.findUnique({
@@ -217,26 +220,30 @@ export async function syncStoreProducts(shopDomain: string) {
       syncedVariants: variantCount
     });
 
-    await createNotification({
-      recipientStoreId: store.id,
-      type: 'SYNC_UPDATE',
-      title: 'Sync Completed',
-      message: `${productCount} product${productCount === 1 ? '' : 's'} (${variantCount} variants) synchronized successfully`,
-      sourceStoreId: store.id,
-    });
+    if (options.sendNotification !== false) {
+      await createNotification({
+        recipientStoreId: store.id,
+        type: 'SYNC_UPDATE',
+        title: 'Sync Completed',
+        message: `${productCount} product${productCount === 1 ? '' : 's'} (${variantCount} variants) synchronized successfully`,
+        sourceStoreId: store.id,
+      });
+    }
 
     return {
       syncedProducts: productCount,
       syncedVariants: variantCount,
     };
   } catch (error: any) {
-    await createNotification({
-      recipientStoreId: store.id,
-      type: 'SYNC_FAILURE',
-      title: 'Sync Failed',
-      message: `Product sync failed: ${error?.message || 'Unknown error'}`,
-      sourceStoreId: store.id,
-    });
+    if (options.sendNotification !== false) {
+      await createNotification({
+        recipientStoreId: store.id,
+        type: 'SYNC_FAILURE',
+        title: 'Sync Failed',
+        message: `Product sync failed: ${error?.message || 'Unknown error'}`,
+        sourceStoreId: store.id,
+      });
+    }
     throw error;
   }
 }

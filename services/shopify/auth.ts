@@ -323,8 +323,8 @@ export async function handleAuthCallback(req: NextRequest) {
     console.error("[OAuth] Webhook registration failed:", error.message);
   }
 
-  // Trigger product and inventory synchronization in background
-  syncStoreProducts(normalizedShop)
+  // Trigger product and inventory synchronization in background (silent: avoid spamming notification bell on each login/deploy)
+  syncStoreProducts(normalizedShop, { sendNotification: false })
     .then((result) => {
       console.log(`[OAuth] Background initial sync complete for ${normalizedShop}`, result);
     })
