@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { Table, ColumnConfig } from '@/components/common/Table';
+import { useStoreContext } from '@/components/providers/StoreProvider';
 
 interface ReplenishmentTableProps {
   products: any[];
@@ -20,6 +21,7 @@ export function ReplenishmentTable({
   totalItems,
   onPageChange
 }: ReplenishmentTableProps) {
+  const { isStandalone } = useStoreContext();
   const columns: ColumnConfig[] = [
     { title: 'PRODUCT', key: 'product_node', type: 'react_node', width: '32%', align: 'left' },
     { title: 'SKU', key: 'sku_node', type: 'react_node', width: '22%', align: 'left' },
@@ -53,7 +55,7 @@ export function ReplenishmentTable({
           <div className="text-sm font-bold text-gray-900 leading-snug" title={p.title}>
             {p.title}
           </div>
-          {p.storeLabel && (
+          {!isStandalone && p.storeLabel && (
             <div className="mt-0.5">
               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-200 shadow-2xs whitespace-nowrap">
                 {p.storeLabel}

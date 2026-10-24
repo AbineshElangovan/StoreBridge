@@ -3,12 +3,23 @@ import { authenticate, handleApiError } from "@/lib/shopify/authenticate";
 import { prisma } from "@/lib/db/prisma";
 import { syncStoreProducts } from "@/services/shopify";
 import { normalizeTagOrCollection } from "@/lib/utils/categoryNormalization";
+import { PreorderService } from "@/services/preorder/preorder-service";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    const { store } = await authenticate(req);
+    const { store, isStandalone } = await authenticate(req);
+
+    // If standalone, load pre-order configuration to calculate eligibility
+    let preorderConfig: any = null;
+    if (isStandalone) {
+      try {
+        preorderConfig = await PreorderService.getConfig(store.id);
+      } catch (err) {
+        console.warn("[Products API] Could not load PreorderConfig:", err);
+      }
+    }
     
     // Fetch store-specific products with collections
     const products = await prisma.productCache.findMany({
@@ -159,6 +170,31 @@ export async function GET(req: NextRequest) {
         }
       }
 
+      let isPreorderTargeted = false;
+      let isPreorderAvailable = false;
+      let preorderStatus: string | null = null;
+
+      if (isStandalone && preorderConfig && preorderConfig.enabled) {
+        const prodColls = (p.collections || []).flatMap((cp: any) => [
+          cp.collection?.id,
+          cp.collection?.shopifyCollectionId,
+        ]).filter(Boolean) as string[];
+
+        isPreorderTargeted = PreorderService.isProductTargeted(
+          preorderConfig,
+          p.shopifyProductId,
+          prodColls
+        );
+
+        const threshold = preorderConfig.inventoryThreshold ?? 0;
+        isPreorderAvailable = isPreorderTargeted && p.inventoryQuantity <= threshold;
+        preorderStatus = isPreorderAvailable
+          ? 'Pre-order Active'
+          : isPreorderTargeted
+          ? 'Pre-order Ready'
+          : null;
+      }
+
       const item = {
         id: p.id,
         shopifyProductId: p.shopifyProductId,
@@ -178,6 +214,9 @@ export async function GET(req: NextRequest) {
             ? 'Low'
             : 'Healthy',
         status: p.inventoryQuantity > 0 ? 'Active' : 'Inactive',
+        isPreorderTargeted,
+        isPreorderAvailable,
+        preorderStatus,
         updatedDate: p.updatedAt.toISOString(),
         updatedTime: p.updatedAt.toISOString(),
       };
@@ -221,6 +260,20 @@ export async function GET(req: NextRequest) {
       });
     });
 
+    const preorderActiveCount = isStandalone
+      ? dedupedProducts.filter(p => {
+          const prodColls = (p.collections || []).flatMap((cp: any) => [
+            cp.collection?.id,
+            cp.collection?.shopifyCollectionId,
+          ]).filter(Boolean) as string[];
+          return (
+            preorderConfig?.enabled &&
+            PreorderService.isProductTargeted(preorderConfig, p.shopifyProductId, prodColls) &&
+            p.inventoryQuantity <= (preorderConfig.inventoryThreshold ?? 0)
+          );
+        }).length
+      : 0;
+
     return NextResponse.json({
       success: true,
       stats: {
@@ -228,8 +281,17 @@ export async function GET(req: NextRequest) {
         totalInventory,
         activeProducts,
         lowStock,
+        preorderActive: preorderActiveCount,
       },
       lowStockThreshold: store.lowStockThreshold,
+      isStandalone,
+      preorderConfig: isStandalone && preorderConfig ? {
+        enabled: preorderConfig.enabled,
+        selectionMode: preorderConfig.selectionMode,
+        inventoryThreshold: preorderConfig.inventoryThreshold,
+        discountType: preorderConfig.discountType,
+        discountValue: preorderConfig.discountValue,
+      } : null,
       groupedProducts,
     });
   } catch (err: any) {

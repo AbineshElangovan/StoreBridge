@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Table, ColumnConfig } from '@/components/common/Table';
 import { Loading } from '@/components/common';
 import { shopifyFetch } from '@/lib/shopify/Client';
@@ -13,6 +14,8 @@ import Link from 'next/link';
 import { getProductUrl } from '@/lib/utils/productUrl';
 
 export default function ProductsPage() {
+  const searchParams = useSearchParams();
+  const currentShop = searchParams.get('shop');
   const { isStandalone } = useStoreContext();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -31,16 +34,14 @@ export default function ProductsPage() {
     return Array.from(flatMap.values());
   }, [groupedProducts]);
 
-  const hasLoadedRef = React.useRef(false);
-
   useEffect(() => {
-    if (hasLoadedRef.current) return;
-    hasLoadedRef.current = true;
-
     async function loadProducts() {
       try {
-        console.log("Loading products data...");
-        const res = await shopifyFetch('/api/products');
+        setLoading(true);
+        const url = currentShop
+          ? `/api/products?shop=${encodeURIComponent(currentShop)}&t=${Date.now()}`
+          : `/api/products?t=${Date.now()}`;
+        const res = await shopifyFetch(url);
         if (res.ok) {
           const json = await res.json();
           setData(json);
@@ -52,7 +53,7 @@ export default function ProductsPage() {
       }
     }
     loadProducts();
-  }, []);
+  }, [currentShop]);
 
   if (loading) {
     return <Loading label="Loading products..." />;
@@ -63,10 +64,12 @@ export default function ProductsPage() {
   const filterProducts = (products: any[]) => {
     return products.filter((p) => {
       const q = searchQuery.toLowerCase().trim();
-      if (!q) return true;
-      const titleMatch = p.title?.toLowerCase().includes(q);
-      const skuMatch = p.sku?.toLowerCase().includes(q);
-      return titleMatch || skuMatch;
+      if (q) {
+        const titleMatch = p.title?.toLowerCase().includes(q);
+        const skuMatch = p.sku?.toLowerCase().includes(q);
+        if (!titleMatch && !skuMatch) return false;
+      }
+      return true;
     });
   };
 
@@ -78,14 +81,8 @@ export default function ProductsPage() {
     { title: 'Stock Qty', key: 'inventoryQuantity', type: 'bold' },
     {
       title: 'Stock Level',
-      key: 'stockLevel',
-      type: 'badge',
-      badgeRules: {
-        Healthy: 'success',
-        Low: 'warning',
-        Critical: 'critical',
-        'Out of Stock': 'critical',
-      },
+      key: 'stockLevel_node',
+      type: 'react_node',
     },
     {
       title: 'Status',
@@ -95,6 +92,41 @@ export default function ProductsPage() {
     },
     { title: 'Updated Date', key: 'updatedDate' },
   ];
+
+  const mapProductToRow = (item: any) => {
+    const prodUrl = getProductUrl(item);
+    return {
+      ...item,
+      url: prodUrl,
+      title_node: (
+        <Link
+          href={prodUrl}
+          className="font-bold text-gray-900 hover:text-[#6366f1] hover:underline cursor-pointer transition-colors"
+        >
+          {item.title}
+        </Link>
+      ),
+      stockLevel_node: (isStandalone && item.isPreorderAvailable) ? (
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-2xs whitespace-nowrap">
+          <span className="w-1.5 h-1.5 rounded-full bg-purple-600"></span>
+          Pre-order
+        </span>
+      ) : (
+        <span
+          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+            item.stockLevel === 'Healthy'
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              : item.stockLevel === 'Low'
+              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+              : 'bg-rose-50 text-rose-700 border border-rose-200'
+          }`}
+        >
+          {item.stockLevel || '—'}
+        </span>
+      ),
+      updatedDate: <LocalizedDate date={item.updatedDate || item.updatedAt} format="datetime" />
+    };
+  };
 
   if (loading) {
     return <Loading label="Loading products..." />;
@@ -109,10 +141,11 @@ export default function ProductsPage() {
               Products & Collections
             </h1>
             <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
-              Manage your stores products and collections effortlessly.
+              {isStandalone
+                ? "Manage your products and collections effortlessly."
+                : "Manage your store's products and collections effortlessly."}
             </p>
           </div>
-
           <div className="flex flex-wrap lg:flex-nowrap items-center gap-4">
             {/* Overall Search Bar */}
             <div className="relative w-full md:w-80 shadow-sm rounded-lg">
@@ -133,7 +166,12 @@ export default function ProductsPage() {
         </div>
 
         <div className="flex flex-col gap-8 min-w-0 w-full">
-          <DashboardCards stats={{ ...stats, lastUpdated: 'Just now' }} lowStockThreshold={data?.lowStockThreshold ?? 15} />
+          <DashboardCards
+            page="products"
+            stats={{ ...stats, lastUpdated: 'Just now' }}
+            lowStockThreshold={data?.lowStockThreshold ?? 15}
+            isStandalone={isStandalone}
+          />
           {searchQuery.trim() !== '' ? (
             <div className="w-full relative">
               <Table
@@ -141,22 +179,7 @@ export default function ProductsPage() {
                   title="Search Results"
                   headerColor="#6366f1"
                   columns={columns}
-                  items={filterProducts(allProducts).map(item => {
-                    const prodUrl = getProductUrl(item);
-                    return {
-                      ...item,
-                      url: prodUrl,
-                      title_node: (
-                        <Link
-                          href={prodUrl}
-                          className="font-bold text-gray-900 hover:text-[#6366f1] hover:underline cursor-pointer transition-colors"
-                        >
-                          {item.title}
-                        </Link>
-                      ),
-                      updatedDate: <LocalizedDate date={item.updatedDate || item.updatedAt} format="datetime" />
-                    };
-                  })}
+                  items={filterProducts(allProducts).map(mapProductToRow)}
                   searchable={false}
                   filterable
                   itemsPerPage={10}
@@ -170,7 +193,7 @@ export default function ProductsPage() {
                   ]}
                   emptyState={
                     <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
-                      No products found matching your search.
+                      No products found matching your filter criteria.
                     </div>
                   }
                 />
@@ -184,7 +207,7 @@ export default function ProductsPage() {
             return Object.entries(groupedProducts)
               .sort((a, b) => {
                 if (a[0] === 'Uncategorized') return 1;
-                if (b[0] === 'Uncategorized') return -1;
+                if (a[0] === 'Uncategorized') return -1;
                 return a[0].localeCompare(b[0]);
               })
               .map(([collectionName, items], index) => {
@@ -195,22 +218,7 @@ export default function ProductsPage() {
                       title={collectionName}
                       headerColor={collectionName === 'Uncategorized' ? '#475569' : colors[index % colors.length]}
                       columns={columns}
-                      items={filteredItems.map(item => {
-                        const prodUrl = getProductUrl(item);
-                        return {
-                          ...item,
-                          url: prodUrl,
-                          title_node: (
-                            <Link
-                              href={prodUrl}
-                              className="font-bold text-gray-900 hover:text-[#6366f1] hover:underline cursor-pointer transition-colors"
-                            >
-                              {item.title}
-                            </Link>
-                          ),
-                          updatedDate: <LocalizedDate date={item.updatedDate || item.updatedAt} format="datetime" />
-                        };
-                      })}
+                      items={filteredItems.map(mapProductToRow)}
                       searchable={false}
                       filterable
                       itemsPerPage={10}

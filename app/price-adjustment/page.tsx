@@ -143,8 +143,8 @@ export default function PriceAdjustmentPage() {
               return (
                 <ThemedSection
                   key={s.id}
-                  title={`${s.label || s.shopDomain} Adjustments`}
-                  description={`Manage collection-specific price adjustments for ${s.shopDomain}`}
+                  title={isStandalone ? "Price Adjustments" : `${s.label || s.shopDomain} Adjustments`}
+                  description={isStandalone ? "Manage collection-specific price adjustments for your products" : `Manage collection-specific price adjustments for ${s.shopDomain}`}
                   bgColor={themeCardBg}
                   borderColor={themeBorder}
                   stripeColor={themePrimary}
@@ -157,7 +157,7 @@ export default function PriceAdjustmentPage() {
                       className="p-4 sm:p-6 bg-white rounded-xl shadow-2xs overflow-x-auto transition-colors"
                       style={{ border: `1px solid ${themeBorder}40` }}
                     >
-                      <CollectionPriceAdjustment storeId={s.id} storeName={s.label || s.shopDomain} />
+                      <CollectionPriceAdjustment storeId={s.id} storeName={s.label || s.shopDomain} isStandalone={isStandalone} />
                     </div>
                   </div>
                 </ThemedSection>

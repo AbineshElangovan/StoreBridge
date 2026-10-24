@@ -108,6 +108,18 @@ export async function authenticate(req: NextRequest) {
                     isStandalone: targetStandalone,
                   };
                 }
+
+                // If target is an independent standalone store, allow accessing it directly as standalone
+                const targetStandalone = await isStoreStandalone(targetStore.id);
+                if (targetStandalone) {
+                  return {
+                    shop: targetStore.shopDomain,
+                    store: targetStore,
+                    sessionStore: targetStore,
+                    isMasterSession: false,
+                    isStandalone: true,
+                  };
+                }
               }
             }
             return {
@@ -158,6 +170,18 @@ export async function authenticate(req: NextRequest) {
               sessionStore: master,
               isMasterSession: true,
               isStandalone: targetStandalone,
+            };
+          }
+
+          // If target is an independent standalone store, allow accessing it directly
+          const targetStandalone = await isStoreStandalone(targetStore.id);
+          if (targetStandalone) {
+            return {
+              shop: targetStore.shopDomain,
+              store: targetStore,
+              sessionStore: targetStore,
+              isMasterSession: false,
+              isStandalone: true,
             };
           }
         }

@@ -35,9 +35,9 @@ export function PlanningFilters({
   selectedReplenishDays = '30',
   onReplenishDaysChange = () => {},
 }: PlanningFiltersProps) {
-  const { activeStores, isMasterSession, isMaster: isContextMaster, isMultiStore: isContextMultiStore } = useStoreContext();
+  const { isStandalone, activeStores, isMasterSession, isMaster: isContextMaster, isMultiStore: isContextMultiStore } = useStoreContext();
 
-  const isUserMultiStore = (stores && stores.length > 1) || isMasterSession || isContextMaster || isContextMultiStore || (activeStores && activeStores.length > 1);
+  const isUserMultiStore = !isStandalone && ((stores && stores.length > 1) || isMasterSession || isContextMaster || isContextMultiStore || (activeStores && activeStores.length > 1));
 
   // Compute available stores: prefer passed-in stores if multiple, otherwise fallback to activeStores
   const displayStores = (stores && stores.length > 1)

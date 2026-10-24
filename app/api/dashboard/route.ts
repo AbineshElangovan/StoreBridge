@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { authenticate, handleApiError } from '@/lib/shopify/authenticate';
 import { cleanupExpiredActivityLogs } from '@/lib/services/activityRetention';
+import { PreorderService } from '@/services/preorder/preorder-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,11 @@ export async function GET(req: NextRequest) {
     const [productCaches, totalSyncs, successSyncs, latestSync, allStores] = await Promise.all([
       prisma.productCache.findMany({ 
         where: { storeId: { in: visibleStoreIds } },
+        include: {
+          collections: {
+            include: { collection: true }
+          }
+        },
         orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }] 
       }),
       prisma.syncLog.count({ where: { sourceStoreId: store.id } }),
@@ -84,8 +90,33 @@ export async function GET(req: NextRequest) {
       currentStoreProducts.filter((p: any) => p.inventoryQuantity > 0).map((p: any) => p.shopifyProductId)
     ).size;
     const lowStockCount = currentStoreProducts.filter((p: any) => p.inventoryQuantity <= store.lowStockThreshold).length;
+    let preorderActiveCount = 0;
+    try {
+      const preorderConfig = await PreorderService.getConfig(store.id);
+      if (preorderConfig && preorderConfig.enabled) {
+        preorderActiveCount = currentStoreProducts.filter((p: any) => {
+          const prodColls = (p.collections || []).flatMap((cp: any) => [
+            cp.collection?.id,
+            cp.collection?.shopifyCollectionId,
+          ]).filter(Boolean) as string[];
+          return (
+            p.inventoryQuantity <= (preorderConfig.inventoryThreshold ?? 0) &&
+            PreorderService.isProductTargeted(preorderConfig, p.shopifyProductId, prodColls)
+          );
+        }).length;
+      }
+    } catch (e) {
+      console.warn('[Dashboard] Could not fetch preorder active count:', e);
+    }
 
-    const stats = { totalProducts, totalInventory, activeProducts, lowStock: lowStockCount, lastUpdated };
+    const stats = {
+      totalProducts,
+      totalInventory,
+      activeProducts,
+      lowStock: lowStockCount,
+      preorderActive: preorderActiveCount,
+      lastUpdated,
+    };
 
     const storesWithProducts = allStores.map((s: any) => {
       const storeSpecificProducts = productCaches.filter((p: any) => p.storeId === s.id);

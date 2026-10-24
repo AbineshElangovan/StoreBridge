@@ -15,6 +15,7 @@ import {
   NotificationIcon 
 } from '@shopify/polaris-icons';
 import { useNotifications, NotificationItem } from '@/components/providers/NotificationContext';
+import { useStoreContext } from '@/components/providers/StoreProvider';
 
 function getRelativeTime(dateString: string): string {
   const date = new Date(dateString);
@@ -73,6 +74,7 @@ function getTypeStyle(type: string) {
 }
 
 export function NotificationBell() {
+  const { isStandalone } = useStoreContext();
   const {
     notifications,
     unreadCount,
@@ -261,12 +263,12 @@ export function NotificationBell() {
                         {item.message}
                       </p>
                       <div className="flex items-center gap-1.5 mt-1 text-[10px] text-gray-400">
-                        {storeName && (
+                        {!isStandalone && storeName && (
                           <span className="font-semibold text-gray-500 truncate max-w-[120px]">
                             {storeName}
                           </span>
                         )}
-                        {storeName && <span>•</span>}
+                        {!isStandalone && storeName && <span>•</span>}
                         <span>{getRelativeTime(item.createdAt)}</span>
                       </div>
                     </div>

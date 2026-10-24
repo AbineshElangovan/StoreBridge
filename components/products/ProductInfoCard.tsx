@@ -13,6 +13,7 @@ interface ProductInfoCardProps {
   status: string;
   currentStock: number;
   healthStatus: 'Healthy' | 'Low' | 'Critical' | 'Out of Stock';
+  preorderStatus?: string | null;
 }
 
 export function ProductInfoCard({
@@ -24,7 +25,8 @@ export function ProductInfoCard({
   basePrice,
   status,
   currentStock,
-  healthStatus
+  healthStatus,
+  preorderStatus
 }: ProductInfoCardProps) {
   const formattedPrice = new Intl.NumberFormat('en-IN', {
     style: 'currency',
@@ -81,12 +83,32 @@ export function ProductInfoCard({
           </span>
         </div>
 
-        <div className="flex items-center justify-between py-1">
+        <div className="flex items-center justify-between py-1 border-b border-gray-100">
           <span className="font-medium text-gray-500">Stock level</span>
           <div className="flex items-center gap-2">
             <StockHealthBadge status={healthStatus} stockQuantity={currentStock} />
           </div>
         </div>
+
+        {preorderStatus && (
+          <div className="flex items-center justify-between py-1">
+            <span className="font-medium text-gray-500">Pre-order</span>
+            <span
+              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                preorderStatus === 'Pre-order Active'
+                  ? 'bg-purple-100 text-purple-800 border-purple-200'
+                  : preorderStatus === 'Pre-order Ready'
+                  ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                  : 'bg-gray-100 text-gray-600 border-gray-200'
+              }`}
+            >
+              {preorderStatus === 'Pre-order Active' && (
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-600 animate-pulse" />
+              )}
+              {preorderStatus}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

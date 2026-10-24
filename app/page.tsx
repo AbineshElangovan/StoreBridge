@@ -69,7 +69,7 @@ export default function DashboardPage() {
     return <Loading label="Loading dashboard..." />;
   }
 
-  const stats = data?.stats || { totalProducts: 0, totalInventory: 0, lowStock: 0, activeProducts: 0, lastUpdated: 'Never' };
+  const stats = data?.stats || { totalProducts: 0, totalInventory: 0, lowStock: 0, activeProducts: 0, preorderActive: 0, lastUpdated: 'Never' };
   const lowStockThreshold = data?.lowStockThreshold ?? 10;
   const storeSummaryData = (data?.stores && data.stores.length > 0)
     ? data.stores.map((store: any) => ({
@@ -174,12 +174,14 @@ export default function DashboardPage() {
               Inventory Dashboard
             </h1>
             <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
-              Live overview of your connected Shopify store.
+              {isStandalone
+                ? "Live overview of your Shopify store."
+                : "Live overview of your connected Shopify store."}
             </p>
           </div>
         </div>
 
-        <DashboardCards stats={stats} lowStockThreshold={lowStockThreshold} />
+        <DashboardCards stats={stats} lowStockThreshold={lowStockThreshold} isStandalone={isStandalone} />
 
         {/* Charts: BarChart & PieCharts */}
         <DashboardCharts
@@ -187,26 +189,26 @@ export default function DashboardPage() {
           chartData={{
             combinedData: (data?.stores && data.stores.length > 0)
               ? data.stores.map((s: any) => ({
-                  name: s.label || s.shopDomain,
+                  name: isStandalone ? 'Inventory' : (s.label || s.shopDomain),
                   'Total Products': s.productCount ?? stats.totalProducts,
                   'Total Inventory': s.inventoryTotal ?? stats.totalInventory,
                   'Total Sales Value': s.salesValue ?? (stats.totalInventory * 500),
                 }))
               : [{
-                  name: 'Current Store',
+                  name: isStandalone ? 'Inventory' : 'Current Store',
                   'Total Products': stats.totalProducts,
                   'Total Inventory': stats.totalInventory,
                   'Total Sales Value': stats.totalInventory * 500,
                 }],
             currentStoreData: (data?.stores && data.stores.length > 0)
               ? data.stores.filter((s: any) => s.id === data.currentStoreId).map((s: any) => ({
-                  name: s.label || s.shopDomain,
+                  name: isStandalone ? 'Inventory' : (s.label || s.shopDomain),
                   'Total Products': s.productCount ?? stats.totalProducts,
                   'Total Inventory': s.inventoryTotal ?? stats.totalInventory,
                   'Total Sales Value': s.salesValue ?? (stats.totalInventory * 500),
                 }))
               : [{
-                  name: 'Current Store',
+                  name: isStandalone ? 'Inventory' : 'Current Store',
                   'Total Products': stats.totalProducts,
                   'Total Inventory': stats.totalInventory,
                   'Total Sales Value': stats.totalInventory * 500,
@@ -214,25 +216,27 @@ export default function DashboardPage() {
           }}
         />
 
-        {/* Store Summary Table */}
-        <div className="w-full overflow-hidden">
-          <div className="overflow-x-auto w-full max-w-full">
-            <Table
-              title="Store Summary"
-              headerColor="#0f766e"
-              columns={storeSummaryColumns}
-              items={storeSummaryData}
-              searchable={false}
-              filterable={false}
-              paginate={false}
-              emptyState={
-                <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
-                  No store data available.
-                </div>
-              }
-            />
+        {/* Store Summary Table (Hidden in standalone mode) */}
+        {!isStandalone && (
+          <div className="w-full overflow-hidden">
+            <div className="overflow-x-auto w-full max-w-full">
+              <Table
+                title="Store Summary"
+                headerColor="#0f766e"
+                columns={storeSummaryColumns}
+                items={storeSummaryData}
+                searchable={false}
+                filterable={false}
+                paginate={false}
+                emptyState={
+                  <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
+                    No store data available.
+                  </div>
+                }
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="w-full overflow-hidden">
           <div className="overflow-x-auto w-full max-w-full">

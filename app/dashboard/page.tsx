@@ -7,6 +7,7 @@ import { Table, ColumnConfig } from '@/components/common/Table';
 import { LocalizedDate } from '@/components/common/LocalizedDate';
 import { TableCard } from '@/components/ui/TableCard';
 import { StoreRoleBadge } from '@/components/ui/StoreRoleBadge';
+import { PreorderService } from '@/services/preorder/preorder-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,7 @@ export default async function DashboardPage() {
   }) : [];
   const connectedStoreIds = connections.map((c: any) => c.targetStoreId);
   const visibleStoreIds = primaryStore ? [primaryStore.id, ...connectedStoreIds] : [];
+  const isStandalone = connections.length === 0 && !primaryStore?.isMaster;
 
   const totalProducts = await prisma.productCache.count({ where: { storeId: { in: visibleStoreIds } } });
   const invResult = await prisma.productCache.aggregate({
@@ -47,7 +49,32 @@ export default async function DashboardPage() {
     timeStr = diffMins < 1 ? 'Just now' : diffMins < 60 ? `${diffMins} mins ago` : `${Math.floor(diffMins / 60)} hrs ago`;
   }
 
-  const stats = { totalProducts, totalInventory, lowStock: lowStockCount, activeProducts, lastUpdated: timeStr };
+  let preorderActive = 0;
+  if (primaryStore) {
+    try {
+      const preorderConfig = await PreorderService.getConfig(primaryStore.id);
+      if (preorderConfig && preorderConfig.enabled) {
+        const primaryProducts = await prisma.productCache.findMany({
+          where: { storeId: primaryStore.id },
+          include: { collections: { include: { collection: true } } },
+        });
+        preorderActive = primaryProducts.filter((p: any) => {
+          const prodColls = (p.collections || []).flatMap((cp: any) => [
+            cp.collection?.id,
+            cp.collection?.shopifyCollectionId,
+          ]).filter(Boolean) as string[];
+          return (
+            p.inventoryQuantity <= (preorderConfig.inventoryThreshold ?? 0) &&
+            PreorderService.isProductTargeted(preorderConfig, p.shopifyProductId, prodColls)
+          );
+        }).length;
+      }
+    } catch (e) {
+      console.warn('[DashboardPage] Error fetching preorder count:', e);
+    }
+  }
+
+  const stats = { totalProducts, totalInventory, lowStock: lowStockCount, activeProducts, preorderActive, lastUpdated: timeStr };
 
   // ── Chart data – one combined array per store (only Master + connected stores) ──
   const stores = await prisma.store.findMany({
@@ -290,31 +317,33 @@ export default async function DashboardPage() {
         </div>
 
         {/* ── Statistics Cards ── */}
-        <DashboardCards stats={stats} lowStockThreshold={lowStockThreshold} />
+        <DashboardCards stats={stats} lowStockThreshold={lowStockThreshold} isStandalone={isStandalone} />
 
         {/* ── Charts ── */}
         <DashboardCharts chartData={chartData} />
 
-        {/* ── Store Summary ── */}
-        <div className="w-full overflow-hidden">
-          <TableCard title="Store Summary" description="Overview of inventory across your network">
-            <div className="overflow-x-auto w-full max-w-full">
-              <Table
-                headerColor="var(--color-primary-dark)"
-                columns={storeSummaryColumns}
-                items={storeSummaryData}
-                searchable={false}
-                filterable={false}
-                paginate={false}
-                emptyState={
-                  <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
-                    No store data available.
-                  </div>
-                }
-              />
-            </div>
-          </TableCard>
-        </div>
+        {/* ── Store Summary (Hidden in standalone mode) ── */}
+        {!isStandalone && (
+          <div className="w-full overflow-hidden">
+            <TableCard title="Store Summary" description="Overview of inventory across your network">
+              <div className="overflow-x-auto w-full max-w-full">
+                <Table
+                  headerColor="var(--color-primary-dark)"
+                  columns={storeSummaryColumns}
+                  items={storeSummaryData}
+                  searchable={false}
+                  filterable={false}
+                  paginate={false}
+                  emptyState={
+                    <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
+                      No store data available.
+                    </div>
+                  }
+                />
+              </div>
+            </TableCard>
+          </div>
+        )}
 
         <div className="w-full overflow-hidden">
           <TableCard title="Low Stock Products" description={`Items with ${lowStockThreshold} or fewer units remaining`}>

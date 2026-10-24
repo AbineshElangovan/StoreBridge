@@ -408,6 +408,7 @@ export default function NotificationsPage() {
             totalCount={totalCount}
             onMarkAllRead={handleMarkAllRead}
             onOpenDeleteAllModal={() => setShowDeleteAllConfirm(true)}
+            isStandalone={isStandalone}
           />
         </Layout.Section>
 
@@ -439,6 +440,7 @@ export default function NotificationsPage() {
                     item={item}
                     onMarkAsRead={handleMarkAsRead}
                     onDelete={handleDeleteNotification}
+                    isStandalone={isStandalone}
                   />
                 ))}
 

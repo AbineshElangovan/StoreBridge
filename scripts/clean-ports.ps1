@@ -42,18 +42,23 @@ try {
 function Show-StoreBridgeBanner {
     Write-Host ""
     Write-Host "================================================================================" -ForegroundColor Cyan
-    Write-Host " StoreBridge Shopify Admin Quick Links (Dashboard):" -ForegroundColor Green
-    Write-Host "   [Master] Coimbatore Store:" -ForegroundColor White
-    Write-Host "   https://admin.shopify.com/store/eshan-coimbatore-store-8jjdfk4t/apps/f82dbdee74418429d3510c35ca99aae3" -ForegroundColor Yellow
+    Write-Host " StoreBridge Quick Links by Store (Tunnel & Vercel):" -ForegroundColor Green
     Write-Host ""
-    Write-Host "   Inventory Solutions Store:" -ForegroundColor White
-    Write-Host "   https://admin.shopify.com/store/eshan-inventory-solutions/apps/f82dbdee74418429d3510c35ca99aae3" -ForegroundColor Yellow
+    Write-Host " [Master] Coimbatore Store:" -ForegroundColor White
+    Write-Host "   Local (Tunnel): https://dz50mdfc-3000.inc1.devtunnels.ms/products?shop=eshan-coimbatore-store-8jjdfk4t.myshopify.com" -ForegroundColor Yellow
+    Write-Host "   Live (Shopify): https://admin.shopify.com/store/eshan-coimbatore-store-8jjdfk4t/apps/f82dbdee74418429d3510c35ca99aae3/products" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "   Karur Store:" -ForegroundColor White
-    Write-Host "   https://admin.shopify.com/store/eshan-karur-store/apps/f82dbdee74418429d3510c35ca99aae3" -ForegroundColor Yellow
+    Write-Host " ESHAN Chennai Store (Inventory Solutions):" -ForegroundColor White
+    Write-Host "   Local (Tunnel): https://dz50mdfc-3000.inc1.devtunnels.ms/products?shop=eshan-inventory-solutions.myshopify.com" -ForegroundColor Yellow
+    Write-Host "   Live (Shopify): https://admin.shopify.com/store/eshan-inventory-solutions/apps/f82dbdee74418429d3510c35ca99aae3/products" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "   Namakkal Store:" -ForegroundColor White
-    Write-Host "   https://admin.shopify.com/store/eshan-namakkal/apps/f82dbdee74418429d3510c35ca99aae3" -ForegroundColor Yellow
+    Write-Host " Karur Store:" -ForegroundColor White
+    Write-Host "   Local (Tunnel): https://dz50mdfc-3000.inc1.devtunnels.ms/products?shop=eshan-karur-store.myshopify.com" -ForegroundColor Yellow
+    Write-Host "   Live (Shopify): https://admin.shopify.com/store/eshan-karur-store/apps/f82dbdee74418429d3510c35ca99aae3/products" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host " Namakkal Store:" -ForegroundColor White
+    Write-Host "   Local (Tunnel): https://dz50mdfc-3000.inc1.devtunnels.ms/products?shop=eshan-namakkal.myshopify.com" -ForegroundColor Yellow
+    Write-Host "   Live (Shopify): https://admin.shopify.com/store/eshan-namakkal/apps/f82dbdee74418429d3510c35ca99aae3/products" -ForegroundColor Cyan
     Write-Host "================================================================================" -ForegroundColor Cyan
     Write-Host ""
 }

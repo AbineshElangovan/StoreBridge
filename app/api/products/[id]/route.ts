@@ -6,6 +6,7 @@ import { setInventoryQuantity } from "@/lib/shopify/inventory";
 import { fetchDefaultLocation } from "@/services/shopify/api-helpers";
 import { createNotification } from "@/services/notification-service";
 import { calculateAdjustedPrice } from "@/services/shopify/pricing";
+import { PreorderService } from "@/services/preorder/preorder-service";
 
 export const dynamic = 'force-dynamic';
 
@@ -14,7 +15,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { store } = await authenticate(req);
+    const { store, isStandalone } = await authenticate(req);
     const { id: rawIdParam } = await params;
     const rawId = Array.isArray(rawIdParam) ? (rawIdParam as string[]).join('/') : (rawIdParam as string || '');
     const decodedId = decodeURIComponent(rawId).trim();
@@ -325,6 +326,60 @@ export async function GET(
     const collectionNames = targetProduct.collections.map(cp => cp.collection.title);
     const collectionName = collectionNames.length > 0 ? collectionNames.join(', ') : (targetProduct.tags ? targetProduct.tags.split(',')[0] : 'General');
 
+    // Pre-order calculations for Standalone store
+    let preorderConfig: any = null;
+    let preorderInfo: any = null;
+    if (isStandalone) {
+      try {
+        preorderConfig = await PreorderService.getConfig(store.id);
+        if (preorderConfig) {
+          const productCollectionIds = (targetProduct.collections || []).flatMap((cp: any) => [
+            cp.collection?.id,
+            cp.collection?.shopifyCollectionId,
+          ]).filter(Boolean) as string[];
+
+          const isTargeted = Boolean(
+            preorderConfig.enabled &&
+            PreorderService.isProductTargeted(
+              preorderConfig,
+              targetProduct.shopifyProductId,
+              productCollectionIds
+            )
+          );
+
+          const threshold = preorderConfig.inventoryThreshold ?? 0;
+          const isAvailable = isTargeted && totalCurrentStock <= threshold;
+
+          let status: 'Pre-order Active' | 'Pre-order Ready' | 'Not Targeted' | 'Disabled' = 'Not Targeted';
+          if (!preorderConfig.enabled) {
+            status = 'Disabled';
+          } else if (isAvailable) {
+            status = 'Pre-order Active';
+          } else if (isTargeted) {
+            status = 'Pre-order Ready';
+          }
+
+          preorderInfo = {
+            enabled: Boolean(preorderConfig.enabled),
+            isTargeted,
+            isAvailable,
+            status,
+            inventoryThreshold: threshold,
+            discountType: preorderConfig.discountType || 'none',
+            discountValue: Number(preorderConfig.discountValue) || 0,
+            allowHalfPayment: preorderConfig.allowHalfPayment !== false,
+            allowFullPayment: preorderConfig.allowFullPayment !== false,
+            defaultPaymentOption: preorderConfig.defaultPaymentOption || 'HALF',
+            customerMessage: preorderConfig.customerMessage || "Pre-order before it's gone.",
+            shippingMessage: preorderConfig.shippingMessage || "Shipping: As soon as possible",
+            selectionMode: preorderConfig.selectionMode || 'ALL_PRODUCTS',
+          };
+        }
+      } catch (e) {
+        console.warn('[Product Details API] Failed to calculate preorder info:', e);
+      }
+    }
+
     return NextResponse.json({
       success: true,
       product: {
@@ -339,6 +394,8 @@ export async function GET(
         status: totalCurrentStock > 0 ? 'Active' : 'Draft',
         currentStock: totalCurrentStock,
         healthStatus: overallHealth,
+        isStandalone,
+        preorder: preorderInfo,
         variants: variantsInDb.map(v => {
           const rawTitle = v.title || '';
           let variantName = rawTitle;
@@ -350,6 +407,23 @@ export async function GET(
             variantName = mainProductTitle;
           }
 
+          const variantCollectionIds = (targetProduct.collections || []).flatMap((cp: any) => [
+            cp.collection?.id,
+            cp.collection?.shopifyCollectionId,
+          ]).filter(Boolean) as string[];
+
+          const isVarTargeted = Boolean(
+            preorderConfig?.enabled &&
+            PreorderService.isProductTargeted(
+              preorderConfig,
+              targetProduct.shopifyProductId,
+              variantCollectionIds
+            )
+          );
+
+          const isVarAvailable =
+            isVarTargeted && (v.inventoryQuantity || 0) <= (preorderConfig?.inventoryThreshold ?? 0);
+
           return {
             id: v.id,
             shopifyVariantId: v.shopifyVariantId,
@@ -357,7 +431,14 @@ export async function GET(
             sku: v.sku || 'N/A',
             price: Math.max(0, v.price || 0),
             quantity: Math.max(0, v.inventoryQuantity || 0),
-            status: (v.inventoryQuantity || 0) > 0 ? 'Active' : 'Out of Stock'
+            status: (v.inventoryQuantity || 0) > 0 ? 'Active' : 'Out of Stock',
+            isPreorderTargeted: isVarTargeted,
+            isPreorderAvailable: isVarAvailable,
+            preorderStatus: isVarAvailable
+              ? 'Pre-order Active'
+              : isVarTargeted
+              ? 'Pre-order Ready'
+              : null,
           };
         }),
         performance: {

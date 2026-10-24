@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useStoreContext } from '@/components/providers/StoreProvider';
 import {
   Card,
   BlockStack,
@@ -53,6 +54,7 @@ interface NotificationCardProps {
   item: NotificationItem;
   onMarkAsRead: (id: string) => void;
   onDelete: (id: string) => void;
+  isStandalone?: boolean;
 }
 
 function getRelativeTime(dateString: string): string {
@@ -123,8 +125,11 @@ function getTypeBadge(type: string, title?: string, message?: string): {
   }
 }
 
-function renderMessageWithStoreBadges(rawMessage: string) {
+function renderMessageWithStoreBadges(rawMessage: string, isStandalone: boolean = false) {
   if (!rawMessage) return null;
+  if (isStandalone) {
+    return <span>{rawMessage}</span>;
+  }
 
   // 1. Check for prefix with colon: e.g. "ESHAN Karur Store: Product updated"
   const colonPrefixMatch = rawMessage.match(/^([^:\n]{2,40}):\s+(.*)$/);
@@ -228,7 +233,10 @@ export function NotificationCard({
   item,
   onMarkAsRead,
   onDelete,
+  isStandalone: propIsStandalone,
 }: NotificationCardProps) {
+  const storeContext = useStoreContext();
+  const isStandalone = propIsStandalone ?? storeContext?.isStandalone ?? false;
   const [imgError, setImgError] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'PENDING' | 'ACCEPTED' | 'DECLINED' | null>(
@@ -299,13 +307,15 @@ export function NotificationCard({
           </InlineStack>
 
           <InlineStack gap="200" blockAlign="center">
-            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold ${
-              isMaster ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-teal-100 text-teal-800 border border-teal-200'
-            }`}>
-              {storeLabel}
-            </span>
+            {!isStandalone && (
+              <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold ${
+                isMaster ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-teal-100 text-teal-800 border border-teal-200'
+              }`}>
+                {storeLabel}
+              </span>
+            )}
             <Text variant="bodySm" tone="subdued" as="span">
-              • {getRelativeTime(item.createdAt)}
+              {!isStandalone ? `• ${getRelativeTime(item.createdAt)}` : getRelativeTime(item.createdAt)}
             </Text>
           </InlineStack>
         </InlineStack>
@@ -347,7 +357,7 @@ export function NotificationCard({
               </Text>
             )}
             <div className={`text-sm ${item.isRead ? 'text-gray-500' : 'text-gray-900'} leading-relaxed`}>
-              {renderMessageWithStoreBadges(item.message)}
+              {renderMessageWithStoreBadges(item.message, isStandalone)}
             </div>
 
             {/* Structured Customer & Order Metadata Tags */}

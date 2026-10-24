@@ -25,6 +25,7 @@ interface NotificationFiltersProps {
   totalCount: number;
   onMarkAllRead: () => void;
   onOpenDeleteAllModal: () => void;
+  isStandalone?: boolean;
 }
 
 export function NotificationFilters({
@@ -41,6 +42,7 @@ export function NotificationFilters({
   totalCount,
   onMarkAllRead,
   onOpenDeleteAllModal,
+  isStandalone = false,
 }: NotificationFiltersProps) {
   const typeOptions = [
     { label: 'All types', value: 'ALL' },
@@ -74,7 +76,7 @@ export function NotificationFilters({
             </div>
 
             {/* Stores Dropdown (Master Store) */}
-            {storeOptions.length > 1 && (
+            {!isStandalone && storeOptions.length > 1 && (
               <div className="min-w-[160px]">
                 <Select
                   label=""

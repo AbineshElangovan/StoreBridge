@@ -308,7 +308,9 @@ export default function ActivityPage() {
       doc.setTextColor(100, 116, 139);
       doc.text(`Generated on ${new Date().toLocaleString('en-GB')}  |  Total Records: ${exportActivities.length}`, 14, 21);
 
-      const tableColumn = ["Date & Time", "Event", "Title", "SKU", "Store", "Description"];
+      const tableColumn = isStandalone
+        ? ["Date & Time", "Event", "Title", "SKU", "Description"]
+        : ["Date & Time", "Event", "Title", "SKU", "Store", "Description"];
       const tableRows: any[] = [];
 
       const sanitizeForPdf = (val: string | null | undefined): string => {
@@ -336,7 +338,11 @@ export default function ActivityPage() {
         const rawDesc = item.description || "Product details updated in catalog";
         const desc = sanitizeForPdf(rawDesc);
 
-        tableRows.push([dateFormatted, event, title, sku, store, desc]);
+        if (isStandalone) {
+          tableRows.push([dateFormatted, event, title, sku, desc]);
+        } else {
+          tableRows.push([dateFormatted, event, title, sku, store, desc]);
+        }
       });
 
       autoTable(doc, {
@@ -453,7 +459,7 @@ export default function ActivityPage() {
             </div>
 
             {/* Custom Tailwind Store Select (Master Only) */}
-            {isMaster && isMultiStore && (
+            {isMaster && isMultiStore && !isStandalone && (
               <div className="w-full sm:w-auto sm:min-w-[160px]">
                 <CustomSelect
                   label="Store"
@@ -519,8 +525,8 @@ export default function ActivityPage() {
                       <th className="py-3 px-3.5 w-[14%]">Event</th>
                       <th className="py-3 px-3.5 w-[22%]">Title</th>
                       <th className="py-3 px-3.5 w-[13%] whitespace-nowrap">SKU</th>
-                      <th className="py-3 px-3.5 w-[13%]">Store</th>
-                      <th className="py-3 px-3.5 w-[25%]">Description</th>
+                      {!isStandalone && <th className="py-3 px-3.5 w-[13%]">Store</th>}
+                      <th className={`py-3 px-3.5 ${isStandalone ? 'w-[38%]' : 'w-[25%]'}`}>Description</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 text-slate-800 text-xs">
@@ -574,12 +580,14 @@ export default function ActivityPage() {
                             )}
                           </td>
 
-                          {/* 5. Store (3-line wrap) */}
-                          <td className="py-3.5 px-3.5 align-middle">
-                            <span className="text-xs font-semibold text-slate-700 leading-snug line-clamp-3 break-words block max-w-[130px]" title={storeLabel}>
-                              {storeLabel}
-                            </span>
-                          </td>
+                          {/* 5. Store (only if not standalone) */}
+                          {!isStandalone && (
+                            <td className="py-3.5 px-3.5 align-middle">
+                              <span className="text-xs font-semibold text-slate-700 leading-snug line-clamp-3 break-words block max-w-[130px]" title={storeLabel}>
+                                {storeLabel}
+                              </span>
+                            </td>
+                          )}
 
                           {/* 6. Description */}
                           <td className="py-3.5 px-3.5 align-middle">
@@ -630,9 +638,11 @@ export default function ActivityPage() {
                                 {sku}
                               </span>
                             )}
-                            <span className="text-[11px] font-semibold text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200/60 line-clamp-3 break-words">
-                              {storeLabel}
-                            </span>
+                            {!isStandalone && (
+                              <span className="text-[11px] font-semibold text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200/60 line-clamp-3 break-words">
+                                {storeLabel}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>

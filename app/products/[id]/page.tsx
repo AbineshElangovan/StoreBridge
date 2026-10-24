@@ -15,9 +15,10 @@ import { getCleanProductName } from '@/lib/utils/formatProductTitle';
 import { ConfirmToast } from '@/components/ui/ConfirmToast';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 import { useToast } from '@/components/providers/ToastContext';
+import { PreorderAvailabilityCard } from '@/components/products/PreorderAvailabilityCard';
 
 export default function ProductDetailsPage() {
-  const { isMaster } = useStoreContext();
+  const { isMaster, isStandalone } = useStoreContext();
   const { showSuccess, showError } = useToast();
   const params = useParams();
   const router = useRouter();
@@ -196,10 +197,11 @@ export default function ProductDetailsPage() {
             status={productData.status}
             currentStock={productData.currentStock}
             healthStatus={productData.healthStatus}
+            preorderStatus={productData.preorder?.status}
           />
         </div>
 
-        {/* Right Column: Variants + Performance Metrics + Store Availability */}
+        {/* Right Column: Variants + Performance Metrics + Store Availability / Pre-order Card */}
         <div className="lg:col-span-8 space-y-6 w-full">
           <ProductVariants
             productId={productData.shopifyProductId || productData.id}
@@ -209,7 +211,14 @@ export default function ProductDetailsPage() {
 
           <ProductPerformance performance={productData.performance} />
 
-          <StoreAvailability stores={productData.storeAvailability || []} />
+          {isStandalone ? (
+            <PreorderAvailabilityCard
+              preorder={productData.preorder}
+              currentStock={productData.currentStock}
+            />
+          ) : (
+            <StoreAvailability stores={productData.storeAvailability || []} />
+          )}
         </div>
       </div>
 

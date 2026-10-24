@@ -9,7 +9,7 @@ import { PriceAdjustmentPreview } from '@/components/price-adjustment/PriceAdjus
 
 import { useTheme } from '@/components/providers/ThemeContext';
 
-export default function CollectionPriceAdjustment({ storeId, storeName }: { storeId: string, storeName: string }) {
+export default function CollectionPriceAdjustment({ storeId, storeName, isStandalone }: { storeId: string, storeName: string, isStandalone?: boolean }) {
   const { currentTheme } = useTheme();
   const [collections, setCollections] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,7 +135,7 @@ export default function CollectionPriceAdjustment({ storeId, storeName }: { stor
       <div style={{ marginBottom: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <h3 style={{ fontSize: '15px', fontWeight: 700, color: darkColor }}>
-            Collection Price Adjustments for {storeName}
+            {isStandalone ? 'Collection Price Adjustments' : `Collection Price Adjustments for ${storeName}`}
           </h3>
           {collections.length > 0 && (
             <div style={{ width: '220px' }}>
