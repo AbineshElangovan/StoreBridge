@@ -150,11 +150,11 @@ export default function SkuSettingsPage() {
           onClick={() => setActiveTab("global_rules")}
           className={`pb-3 px-1 text-sm font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${
             activeTab === "global_rules"
-              ? "border-[var(--color-primary)] text-[var(--color-primary)]"
-              : "border-transparent text-gray-500 hover:text-gray-700"
+              ? "border-[var(--color-primary)] text-black font-black"
+              : "border-transparent text-gray-500 hover:text-gray-900"
           }`}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
@@ -166,11 +166,11 @@ export default function SkuSettingsPage() {
           onClick={() => setActiveTab("variant_generator")}
           className={`pb-3 px-1 text-sm font-bold border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${
             activeTab === "variant_generator"
-              ? "border-[var(--color-primary)] text-[var(--color-primary)]"
-              : "border-transparent text-gray-500 hover:text-gray-700"
+              ? "border-[var(--color-primary)] text-black font-black"
+              : "border-transparent text-gray-500 hover:text-gray-900"
           }`}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
           <span>Variant SKU Generator</span>
@@ -203,8 +203,8 @@ export default function SkuSettingsPage() {
                     setSelectedCollectionPrefix("");
                   }
                 }}
-                className={`px-3.5 sm:px-4 py-1.5 text-xs sm:text-sm font-bold rounded-lg transition-all cursor-pointer ${
-                  skuMode === "default" ? "bg-[var(--color-primary)] text-white shadow-xs" : "text-gray-600 hover:bg-gray-200/70"
+                className={`px-3.5 sm:px-4 py-1.5 text-xs sm:text-sm font-black rounded-lg transition-all cursor-pointer ${
+                  skuMode === "default" ? "bg-[var(--color-primary)] text-black shadow-xs" : "text-gray-700 hover:bg-gray-200/70"
                 }`}
                 disabled={!hasWriteAccess}
               >
@@ -213,8 +213,8 @@ export default function SkuSettingsPage() {
               <button
                 type="button"
                 onClick={() => hasWriteAccess && setSkuMode("collection")}
-                className={`px-3.5 sm:px-4 py-1.5 text-xs sm:text-sm font-bold rounded-lg transition-all cursor-pointer ${
-                  skuMode === "collection" ? "bg-[var(--color-primary)] text-white shadow-xs" : "text-gray-600 hover:bg-gray-200/70"
+                className={`px-3.5 sm:px-4 py-1.5 text-xs sm:text-sm font-black rounded-lg transition-all cursor-pointer ${
+                  skuMode === "collection" ? "bg-[var(--color-primary)] text-black shadow-xs" : "text-gray-700 hover:bg-gray-200/70"
                 }`}
                 disabled={!hasWriteAccess}
               >
@@ -310,7 +310,7 @@ export default function SkuSettingsPage() {
                 </span>
               )}
               <button
-                className="w-full sm:w-auto px-5 py-2.5 bg-[var(--color-primary)] text-white text-sm font-bold rounded-xl hover:opacity-90 transition-all shadow-2xs text-center cursor-pointer"
+                className="w-full sm:w-auto px-5 py-2.5 bg-[var(--color-primary)] text-black text-sm font-black rounded-xl hover:opacity-90 transition-all shadow-2xs text-center cursor-pointer"
                 onClick={handleSave}
                 disabled={saving || !hasWriteAccess}
               >

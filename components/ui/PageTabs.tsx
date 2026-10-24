@@ -38,7 +38,7 @@ export function PageTabs<T extends string = string>({
             onClick={() => onTabChange(tab.id)}
             className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all duration-150 cursor-pointer shrink-0 flex items-center gap-2 ${
               isActive
-                ? 'bg-[var(--color-primary)] text-white shadow-xs'
+                ? 'bg-[var(--color-primary)] text-[var(--color-primary-text,#000000)] font-black shadow-xs'
                 : 'text-gray-700 hover:text-gray-900 hover:bg-black/5 font-semibold'
             }`}
           >
@@ -46,7 +46,7 @@ export function PageTabs<T extends string = string>({
             {typeof tab.badge === 'number' && tab.badge > 0 && (
               <span
                 className={`px-2 py-0.5 text-[10px] font-black rounded-full ${
-                  isActive ? 'bg-white/25 text-white' : 'bg-gray-100 text-gray-700'
+                  isActive ? 'bg-black/15 text-[var(--color-primary-text,#000000)]' : 'bg-gray-100 text-gray-700'
                 }`}
               >
                 {tab.badge}

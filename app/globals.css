@@ -12,44 +12,47 @@
    ========================================================================== */
 
 :root, [data-theme="emerald_forest"], [data-theme="emerald"] {
-  /* 1. Nordic Emerald Studio (Default) */
-  --color-primary: #047857;
-  --color-primary-light: #d1fae5;
-  --color-primary-dark: #022c22;
-  --color-primary-hover: #065f46;
+  /* 1. Lime Studio - User Given Color (#a7cd18) for Buttons with Solid Black Content Inside */
+  --color-primary: #a7cd18;           /* User given color (#a7cd18) for buttons */
+  --color-primary-hover: #96bb13;     /* Hover state */
+  --color-primary-dark: #000000;      /* Pure black */
+  --color-primary-light: #f7fee7;     /* Soft lime tint */
+  --color-primary-text: #000000;      /* Pure solid black text inside lime green */
+  --color-primary-lime: #a7cd18;      /* Exact vibrant lime */
+  --color-primary-accent: #000000;
 
-  --theme-navbar-bg: rgba(209, 250, 229, 0.98);
-  --theme-navbar-border: #34d399;
-  --theme-sidebar-bg: rgba(209, 250, 229, 0.98);
-  --theme-sidebar-border: #34d399;
-  --theme-sidebar-active-bg: #a7f3d0;
-  --theme-sidebar-active-text: #022c22;
-  --theme-sidebar-hover-bg: #047857;
-  --theme-sidebar-hover-text: #ffffff;
-  --theme-card-bg: rgba(240, 253, 248, 0.95);
-  --theme-border-accent: #6ee7b7;
-  --theme-glow: rgba(4, 120, 87, 0.25);
+  --theme-navbar-bg: rgba(249, 253, 238, 0.98); /* Much lighter navbar */
+  --theme-navbar-border: #d4e897;
+  --theme-sidebar-bg: #f2fadc;        /* Much lighter sidebar */
+  --theme-sidebar-border: #d4e897;
+  --theme-sidebar-active-bg: #a7cd18; /* Lime green active button */
+  --theme-sidebar-active-text: #000000; /* Pure black text inside */
+  --theme-sidebar-hover-bg: rgba(0, 0, 0, 0.05);
+  --theme-sidebar-hover-text: #000000;
+  --theme-card-bg: rgba(255, 255, 255, 0.98);
+  --theme-border-accent: #d4e897;
+  --theme-glow: rgba(167, 205, 24, 0.35);
 
   /* Status */
-  --color-success: #15803d;
+  --color-success: #65a30d;
   --color-warning: #b45309;
   --color-danger: #b91c1c;
   --color-info: #0369a1;
 
   /* Backgrounds */
-  --bg-page: #f0fdf4;
-  --bg-card: rgba(240, 253, 248, 0.95);
-  --bg-hover: #d1fae5;
+  --bg-page: #fbfdf5;
+  --bg-card: rgba(255, 255, 255, 0.98);
+  --bg-hover: #f1fad4;
 
   /* Text */
   --text-primary: #0f172a;
-  --text-secondary: #64748b;
+  --text-secondary: #475569;
 
   /* Border */
-  --border-color: #a7f3d0;
+  --border-color: #e2f0b4;
 
   /* Shadow */
-  --shadow-card: 0 4px 20px rgba(2, 44, 34, 0.08);
+  --shadow-card: 0 4px 20px rgba(20, 36, 3, 0.05);
 
   /* Radius */
   --radius-sm: 8px;
@@ -194,12 +197,20 @@
     transition: border-color 0.3s ease, background-color 0.3s ease, box-shadow 0.3s ease;
   }
   .ys-btn-primary { 
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-white text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xs; 
-    background-color: var(--color-primary);
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-black transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xs; 
+    background-color: var(--color-primary, #a7cd18) !important;
+    color: #000000 !important;
+    border: 1px solid #91b212;
     border-radius: var(--radius-sm);
   }
+  .ys-btn-primary *,
+  .ys-btn-primary svg,
+  .ys-btn-primary path {
+    color: #000000 !important;
+    fill: #000000 !important;
+  }
   .ys-btn-primary:hover:not(:disabled) {
-    background-color: var(--color-primary-hover);
+    background-color: var(--color-primary-hover, #96bb13) !important;
     box-shadow: 0 4px 12px var(--theme-glow);
   }
   .ys-btn-secondary { 
@@ -294,6 +305,40 @@
 [data-theme] .bg-teal-500,
 [data-theme] .peer-checked\:bg-teal-600:checked {
   background-color: var(--color-primary) !important;
+}
+
+/* Universal Rule: Everything inside lime green elements must be pure solid black */
+:root .bg-\[\#a7cd18\],
+:root .bg-\[var\(--color-primary\)\],
+:root button[style*="--color-primary"],
+:root button[style*="#a7cd18"],
+[data-theme="emerald_forest"] .bg-\[\#a7cd18\],
+[data-theme="emerald_forest"] .bg-\[var\(--color-primary\)\],
+[data-theme="emerald_forest"] button[style*="--color-primary"],
+[data-theme="emerald_forest"] button[style*="#a7cd18"],
+[data-theme="emerald"] .bg-\[\#a7cd18\],
+[data-theme="emerald"] .bg-\[var\(--color-primary\)\],
+[data-theme="emerald"] button[style*="--color-primary"],
+[data-theme="emerald"] button[style*="#a7cd18"] {
+  color: #000000 !important;
+  font-weight: 900 !important;
+}
+
+:root .bg-\[\#a7cd18\] *,
+:root .bg-\[var\(--color-primary\)\] *,
+:root button[style*="--color-primary"] *,
+:root button[style*="#a7cd18"] *,
+[data-theme="emerald_forest"] .bg-\[\#a7cd18\] *,
+[data-theme="emerald_forest"] .bg-\[var\(--color-primary\)\] *,
+[data-theme="emerald_forest"] button[style*="--color-primary"] *,
+[data-theme="emerald_forest"] button[style*="#a7cd18"] *,
+[data-theme="emerald"] .bg-\[\#a7cd18\] *,
+[data-theme="emerald"] .bg-\[var\(--color-primary\)\] *,
+[data-theme="emerald"] button[style*="--color-primary"] *,
+[data-theme="emerald"] button[style*="#a7cd18"] * {
+  color: #000000 !important;
+  fill: #000000 !important;
+  font-weight: 900 !important;
 }
 
 [data-theme] .text-\[\#0db69d\],
@@ -533,12 +578,12 @@ html[data-theme="sapphire"] [data-scrolling="true"]::-webkit-scrollbar-thumb {
 [data-theme="sky_azure"] .ys-sk-dot,
 [data-theme="sapphire"] .ys-sk-dot { background-color: #0284c7 !important; }
 
-/* 2. Nordic Emerald Studio */
+/* 2. Lime Green Studio */
 [data-theme="emerald_forest"] [data-scrolling="true"],
 [data-theme="emerald"] [data-scrolling="true"],
 [data-theme="emerald_forest"].sb-scrolling,
 [data-theme="emerald"].sb-scrolling {
-  scrollbar-color: #047857 transparent !important;
+  scrollbar-color: #a7cd18 transparent !important;
 }
 [data-theme="emerald_forest"] *:not(.custom-dropdown-scrollbar)[data-scrolling="true"]::-webkit-scrollbar-thumb,
 [data-theme="emerald"] *:not(.custom-dropdown-scrollbar)[data-scrolling="true"]::-webkit-scrollbar-thumb,
@@ -546,16 +591,16 @@ html[data-theme="sapphire"] [data-scrolling="true"]::-webkit-scrollbar-thumb {
 [data-theme="emerald"].sb-scrolling::-webkit-scrollbar-thumb,
 html[data-theme="emerald_forest"] [data-scrolling="true"]::-webkit-scrollbar-thumb,
 html[data-theme="emerald"] [data-scrolling="true"]::-webkit-scrollbar-thumb {
-  background-color: #047857 !important;
+  background-color: #a7cd18 !important;
 }
 [data-theme="emerald_forest"] .ys-sk-spinner,
 [data-theme="emerald"] .ys-sk-spinner,
 [data-theme="emerald_forest"] .ys-sync-ring,
-[data-theme="emerald"] .ys-sync-ring { border-top-color: #047857 !important; }
+[data-theme="emerald"] .ys-sync-ring { border-top-color: #a7cd18 !important; }
 [data-theme="emerald_forest"] .ys-sk-ping,
-[data-theme="emerald"] .ys-sk-ping { border-color: #047857 !important; }
+[data-theme="emerald"] .ys-sk-ping { border-color: #a7cd18 !important; }
 [data-theme="emerald_forest"] .ys-sk-dot,
-[data-theme="emerald"] .ys-sk-dot { background-color: #047857 !important; }
+[data-theme="emerald"] .ys-sk-dot { background-color: #a7cd18 !important; }
 
 /* 3. Crimson Ruby Studio */
 [data-theme="crimson_ruby"] [data-scrolling="true"],

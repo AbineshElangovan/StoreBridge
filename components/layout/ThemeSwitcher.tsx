@@ -18,14 +18,14 @@ interface ThemeMergePalette {
 
 const THEME_MERGE_PALETTES: Record<WallpaperTheme, ThemeMergePalette> = {
   emerald_forest: {
-    color1: '#10b981',
-    color1Light: '#6ee7b7',
-    color2: '#047857',
-    color2Dark: '#022c22',
-    glowColor: 'rgba(16, 185, 129, 0.45)',
-    dot1Color: '#10b981',
-    dot2Color: '#022c22',
-    label: 'Mint & Obsidian Pine',
+    color1: '#a7cd18',
+    color1Light: '#f2fadc',
+    color2: '#a7cd18',
+    color2Dark: '#142403',
+    glowColor: 'rgba(167, 205, 24, 0.45)',
+    dot1Color: '#a7cd18',
+    dot2Color: '#142403',
+    label: 'Lime Green & Soft Pastel',
   },
   sky_azure: {
     color1: '#38bdf8',

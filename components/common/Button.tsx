@@ -35,7 +35,7 @@ export function Button({
   // Variant styles
   let variantClass = "";
   if (variant === 'primary') {
-    variantClass = "bg-[#0db69d] hover:bg-[#0b9c86] text-white shadow-xs active:bg-[#09806e]";
+    variantClass = "bg-[var(--color-primary,#a7cd18)] hover:bg-[var(--color-primary-hover,#96bb13)] text-[var(--color-primary-text,#142403)] font-bold shadow-xs active:opacity-90 border border-[#91b212]";
   } else if (variant === 'destructive') {
     variantClass = "bg-[#991b1b] hover:bg-[#7f1d1d] text-white shadow-xs active:bg-[#6b1414]";
   } else if (variant === 'plain') {

@@ -74,7 +74,7 @@ export function ResponsiveLayout({
       <div className="md:hidden absolute top-0 left-0 w-full h-[60px] ys-theme-navbar border-b z-40 flex items-center px-4 justify-between shadow-xs transition-colors duration-300">
         <div className="flex items-center gap-2">
           <Link href={createHref('/')} className="flex items-center gap-2">
-            <span className="w-7 h-7 rounded-lg bg-[var(--color-primary)] text-white flex items-center justify-center font-bold text-xs shadow-2xs">
+            <span className="w-7 h-7 rounded-lg bg-[var(--color-primary)] text-black flex items-center justify-center font-black text-xs shadow-2xs">
               SB
             </span>
             <span className="text-sm font-extrabold text-gray-900 tracking-tight">StoreBridge</span>

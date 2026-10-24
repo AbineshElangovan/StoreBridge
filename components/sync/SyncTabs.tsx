@@ -20,7 +20,7 @@ export function SyncTabs({ activeTab, onChange, isMaster, isConnected, isStandal
           onClick={() => onChange('IMPORT')}
           className={`${
             activeTab === 'IMPORT'
-              ? 'border-[var(--color-primary)] text-[var(--color-primary)] font-bold'
+              ? 'border-[var(--color-primary)] text-black font-black'
               : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300 font-semibold'
           } whitespace-nowrap py-3 sm:py-3.5 px-1 border-b-2 text-xs sm:text-sm transition-all duration-150 cursor-pointer`}
         >
@@ -32,7 +32,7 @@ export function SyncTabs({ activeTab, onChange, isMaster, isConnected, isStandal
           onClick={() => onChange('SYNC')}
           className={`${
             activeTab === 'SYNC'
-              ? 'border-[var(--color-primary)] text-[var(--color-primary)] font-bold'
+              ? 'border-[var(--color-primary)] text-black font-black'
               : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300 font-semibold'
           } whitespace-nowrap py-3 sm:py-3.5 px-1 border-b-2 text-xs sm:text-sm transition-all duration-150 cursor-pointer`}
         >
@@ -45,7 +45,7 @@ export function SyncTabs({ activeTab, onChange, isMaster, isConnected, isStandal
             onClick={() => onChange('HISTORY')}
             className={`${
               activeTab === 'HISTORY'
-                ? 'border-[var(--color-primary)] text-[var(--color-primary)] font-bold'
+                ? 'border-[var(--color-primary)] text-black font-black'
                 : 'border-transparent text-gray-500 hover:text-gray-900 hover:border-gray-300 font-semibold'
             } whitespace-nowrap py-3 sm:py-3.5 px-1 border-b-2 text-xs sm:text-sm transition-all duration-150 cursor-pointer`}
           >

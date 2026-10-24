@@ -168,32 +168,31 @@ export function Sidebar() {
       {/* Innovative Brand Logo Header */}
       <Link
         href={createHref('/')}
-        className="px-5 py-5 flex items-center gap-3 border-b border-[var(--theme-border-accent)]/50 bg-white/40 hover:bg-white/60 transition-all cursor-pointer group shrink-0"
+        className="px-5 py-5 flex items-center gap-3 border-b border-[var(--theme-sidebar-border)] bg-[#cae174] hover:bg-[#c2dc65] transition-all cursor-pointer group shrink-0 shadow-2xs"
         title="Go to Dashboard"
       >
         <div 
-          className="w-10 h-10 rounded-xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-dark)] text-white flex items-center justify-center shadow-xs flex-shrink-0 relative overflow-hidden border border-white/30 group-hover:scale-105 transition-transform"
+          className="w-10 h-10 rounded-xl bg-white text-white flex items-center justify-center shadow-xs flex-shrink-0 relative overflow-hidden border border-black/10 group-hover:scale-105 transition-transform p-0.5"
           suppressHydrationWarning
         >
           <img 
             src="/logos/storebridge.jpg" 
             alt="StoreBridge" 
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover rounded-lg"
             onError={(e) => {
               (e.currentTarget as HTMLElement).style.display = 'none';
             }}
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent pointer-events-none" />
         </div>
         <div className="min-w-0 flex-1">
           <h3
-            className="text-gray-900 tracking-tight flex items-center gap-1.5 group-hover:text-[var(--color-primary)] group-hover:-translate-y-0.5 transition-all duration-200 ease-out"
-            style={{ fontSize: '20px', fontWeight: 600, lineHeight: 1.1, margin: 0 }}
+            className="text-gray-950 tracking-tight flex items-center gap-1.5 group-hover:text-black group-hover:-translate-y-0.5 transition-all duration-200 ease-out"
+            style={{ fontSize: '20px', fontWeight: 700, lineHeight: 1.1, margin: 0 }}
           >
             StoreBridge
           </h3>
           {!isStandalone && (
-            <p className="text-[11px] text-gray-500 leading-tight font-semibold mt-1">Multi-store sync</p>
+            <p className="text-[11px] text-gray-700 leading-tight font-bold mt-1">Multi-store sync</p>
           )}
         </div>
       </Link>
@@ -376,14 +375,14 @@ export function Sidebar() {
                     href={createHref(item.href)}
                     prefetch={false}
                     className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-150 group cursor-pointer ${isActive
-                      ? 'bg-[var(--color-primary)] text-white font-bold shadow-xs'
-                      : 'text-gray-700 hover:bg-black/5 font-medium'
+                      ? 'bg-[var(--color-primary)] text-black font-black shadow-md border border-[#91b212]'
+                      : 'text-gray-950 hover:bg-black/5 font-bold'
                       }`}
                   >
-                    <span className={isActive ? 'text-white' : 'text-gray-500 group-hover:text-gray-900 transition-colors'}>
+                    <span className={isActive ? 'text-black' : 'text-gray-900 group-hover:text-black transition-colors'}>
                       <Icon source={item.icon} tone="inherit" />
                     </span>
-                    <span className="flex-1 truncate">{item.label}</span>
+                    <span className={`flex-1 truncate ${isActive ? 'text-black font-black' : ''}`}>{item.label}</span>
                     {item.badge && (
                       <span className="bg-red-500 text-white font-extrabold text-[11px] px-2 py-0.5 rounded-full shadow-xs">
                         {item.badge}

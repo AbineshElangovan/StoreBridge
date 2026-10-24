@@ -452,8 +452,7 @@ export default function SettingsPage() {
                         <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto shrink-0 justify-start sm:justify-end">
                           {!s.isMaster && (
                             <button
-                              className="px-3.5 py-2 text-white text-xs sm:text-sm font-semibold rounded-lg transition-colors shadow-2xs disabled:opacity-50 cursor-pointer flex-1 sm:flex-none text-center"
-                              style={{ backgroundColor: 'var(--color-primary)' }}
+                              className="px-3.5 py-2 text-black text-xs sm:text-sm font-black rounded-lg transition-colors shadow-2xs disabled:opacity-50 cursor-pointer flex-1 sm:flex-none text-center bg-[var(--color-primary,#a7cd18)] border border-[#91b212] hover:bg-[var(--color-primary-hover,#96bb13)]"
                               disabled={masterSaving}
                               onClick={() => promptSetMaster(s.id, masterLabels[s.id] || (s.label || s.shopDomain).replace('.myshopify.com', ''), false)}
                             >
@@ -557,8 +556,7 @@ export default function SettingsPage() {
                 <div className="pt-2">
                   <div className="flex items-center justify-between gap-3">
                     <button
-                      className="w-full sm:w-auto px-5 py-2 text-white text-sm font-semibold rounded-lg transition-all shadow-2xs disabled:opacity-50 cursor-pointer text-center"
-                      style={{ backgroundColor: 'var(--color-primary)' }}
+                      className="w-full sm:w-auto px-5 py-2 text-black text-sm font-black rounded-lg transition-all shadow-2xs disabled:opacity-50 cursor-pointer text-center bg-[var(--color-primary,#a7cd18)] border border-[#91b212] hover:bg-[var(--color-primary-hover,#96bb13)]"
                       disabled={saving}
                       onClick={handleSave}
                     >

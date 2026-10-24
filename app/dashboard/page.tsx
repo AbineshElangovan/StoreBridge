@@ -265,8 +265,8 @@ export default async function DashboardPage() {
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
             Live · {timeStr}
           </div>
-          <button className="flex items-center gap-2 px-4 py-1.5 bg-[var(--color-primary-dark)] text-white text-sm font-semibold rounded-lg hover:bg-[var(--color-primary)] transition-colors shadow-sm">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <button className="flex items-center gap-2 px-4 py-1.5 bg-[var(--color-primary,#a7cd18)] text-black font-black text-sm rounded-lg hover:bg-[var(--color-primary-hover,#96bb13)] border border-[#91b212] transition-colors shadow-sm cursor-pointer">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
             Run sync
