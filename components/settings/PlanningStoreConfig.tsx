@@ -6,6 +6,7 @@ import { NumberSettingInput } from './NumberSettingInput';
 import { StoreLogo } from '@/components/common';
 import { Icon } from '@shopify/polaris';
 import { CheckIcon } from '@shopify/polaris-icons';
+import { useStoreContext } from '@/components/providers/StoreProvider';
 
 export interface StorePlanningSetting {
   id: string;
@@ -36,13 +37,17 @@ interface PlanningStoreConfigProps {
     }
   ) => Promise<boolean>;
   isSaving: boolean;
+  isStandalone?: boolean;
 }
 
 export function PlanningStoreConfig({
   stores,
   onSavePlanningRules,
-  isSaving
+  isSaving,
+  isStandalone: isStandaloneProp,
 }: PlanningStoreConfigProps) {
+  const { isStandalone: contextIsStandalone } = useStoreContext();
+  const isStandalone = isStandaloneProp ?? contextIsStandalone;
   const [formData, setFormData] = useState<{
     [storeId: string]: {
       highRiskDays: string;
@@ -204,8 +209,12 @@ export function PlanningStoreConfig({
 
   return (
     <ThemedSection
-      title="Planning Store Config"
-      description="Configure low stock alerts, demand forecast periods, past sales analysis windows, and buffer stock per store."
+      title={isStandalone ? "Inventory Planning Config" : "Planning Store Config"}
+      description={
+        isStandalone
+          ? "Configure low stock alerts, demand forecast periods, past sales analysis windows, and buffer stock."
+          : "Configure low stock alerts, demand forecast periods, past sales analysis windows, and buffer stock per store."
+      }
     >
       <div className="flex flex-col gap-5 mt-2">
         {stores.length === 0 ? (
@@ -229,52 +238,54 @@ export function PlanningStoreConfig({
                 key={store.id}
                 className="bg-white/95 border border-[var(--border-color)] rounded-xl p-4 sm:p-5 shadow-2xs transition-all hover:border-[var(--color-primary)]/60"
               >
-                {/* Store Header Info */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-gray-100 gap-2">
-                  <div className="flex items-center gap-2.5 flex-wrap">
-                    <StoreLogo shopDomain={store.shopDomain} label={store.label} logoUrl={store.logoUrl} isMaster={store.isMaster} isStandalone={store.isStandalone} size="sm" />
-                    <span className="font-bold text-base text-gray-900">{store.label || store.shopDomain}</span>
-                    {store.isMaster ? (
-                      <span 
-                        className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border shadow-2xs"
-                        style={{
-                          backgroundColor: 'var(--color-primary-light)',
-                          color: 'var(--color-primary)',
-                          borderColor: 'var(--theme-border-accent)'
-                        }}
-                      >
-                        MASTER
-                      </span>
-                    ) : store.isStandalone ? (
-                      <span
-                        className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border shadow-2xs"
-                        style={{
-                          backgroundColor: 'var(--color-primary-light)',
-                          color: 'var(--color-primary-dark, var(--color-primary))',
-                          borderColor: 'var(--theme-border-accent, var(--color-primary))',
-                        }}
-                      >
-                        STANDALONE
-                      </span>
-                    ) : (
-                      <span 
-                        className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border shadow-2xs"
-                        style={{
-                          backgroundColor: 'var(--color-primary-light)',
-                          color: 'var(--color-primary)',
-                          borderColor: 'var(--theme-border-accent)',
-                          opacity: 0.8,
-                        }}
-                      >
-                        CONNECTED
-                      </span>
-                    )}
+                {/* Store Header Info - Only shown for multi-store networks */}
+                {!isStandalone && (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-gray-100 gap-2">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <StoreLogo shopDomain={store.shopDomain} label={store.label} logoUrl={store.logoUrl} isMaster={store.isMaster} isStandalone={store.isStandalone} size="sm" />
+                      <span className="font-bold text-base text-gray-900">{store.label || store.shopDomain}</span>
+                      {store.isMaster ? (
+                        <span 
+                          className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border shadow-2xs"
+                          style={{
+                            backgroundColor: 'var(--color-primary-light)',
+                            color: 'var(--color-primary)',
+                            borderColor: 'var(--theme-border-accent)'
+                          }}
+                        >
+                          MASTER
+                        </span>
+                      ) : store.isStandalone ? (
+                        <span
+                          className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border shadow-2xs"
+                          style={{
+                            backgroundColor: 'var(--color-primary-light)',
+                            color: 'var(--color-primary-dark, var(--color-primary))',
+                            borderColor: 'var(--theme-border-accent, var(--color-primary))',
+                          }}
+                        >
+                          STANDALONE
+                        </span>
+                      ) : (
+                        <span 
+                          className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border shadow-2xs"
+                          style={{
+                            backgroundColor: 'var(--color-primary-light)',
+                            color: 'var(--color-primary)',
+                            borderColor: 'var(--theme-border-accent)',
+                            opacity: 0.8,
+                          }}
+                        >
+                          CONNECTED
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs font-mono text-gray-400">{store.shopDomain}</span>
                   </div>
-                  <span className="text-xs font-mono text-gray-400">{store.shopDomain}</span>
-                </div>
+                )}
 
                 {/* Planning & Risk Parameters Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
+                <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 ${!isStandalone ? 'pt-4' : ''}`}>
                   {/* Low Stock Alert */}
                   <NumberSettingInput
                     id={`high-risk-${store.id}`}

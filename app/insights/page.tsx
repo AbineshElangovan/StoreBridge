@@ -13,7 +13,7 @@ import { Loading } from '@/components/common';
 export default function InsightsPage() {
   const searchParams = useSearchParams();
   const shop = searchParams.get('shop');
-  const { activeStores, isMasterSession, isMaster: isContextMaster, isMultiStore: isContextMultiStore } = useStoreContext();
+  const { activeStores, isMasterSession, isMaster: isContextMaster, isMultiStore: isContextMultiStore, isStandalone } = useStoreContext();
 
   const [selectedStore, setSelectedStore] = useState<string>('all');
   const [selectedRange, setSelectedRange] = useState<string>('30');
@@ -198,6 +198,7 @@ export default function InsightsPage() {
         page={page}
         totalPages={pagination.totalPages}
         onPageChange={setPage}
+        isStandalone={isStandalone}
       />
     </div>
   );

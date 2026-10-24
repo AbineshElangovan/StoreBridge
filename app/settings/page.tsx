@@ -328,7 +328,7 @@ export default function SettingsPage() {
     shopDomain: s.shopDomain,
     logoUrl: s.logoUrl || null,
     isMaster: s.isMaster,
-    isStandalone: s.isStandalone ?? false,
+    isStandalone: s.isStandalone ?? (stores.find((st: any) => st.id === s.id)?.isStandalone ?? isStandalone),
     highRiskDays: s.supplierLeadTimeDays ?? 10,
     forecastPeriodDays: s.forecastPeriodDays ?? 7,
     salesHistoryPeriodDays: s.salesHistoryPeriodDays ?? 30,
@@ -587,6 +587,7 @@ export default function SettingsPage() {
               stores={planningStores}
               onSavePlanningRules={handleSavePlanningRules}
               isSaving={saving}
+              isStandalone={isStandalone}
             />
           </div>
         )}

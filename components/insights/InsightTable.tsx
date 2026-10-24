@@ -4,6 +4,7 @@ import React from 'react';
 import { Table, ColumnConfig } from '@/components/common/Table';
 import { StockHealthBadge } from './StockHealthBadge';
 import { InsightTabType } from './InsightTabs';
+import { useStoreContext } from '@/components/providers/StoreProvider';
 
 interface InsightTableProps {
   activeTab: InsightTabType;
@@ -12,6 +13,7 @@ interface InsightTableProps {
   page: number;
   totalPages: number;
   onPageChange: (newPage: number) => void;
+  isStandalone?: boolean;
 }
 
 export function InsightTable({
@@ -21,7 +23,10 @@ export function InsightTable({
   page,
   totalPages,
   onPageChange,
+  isStandalone: isStandaloneProp,
 }: InsightTableProps) {
+  const { isStandalone: contextIsStandalone } = useStoreContext();
+  const isStandalone = isStandaloneProp ?? contextIsStandalone;
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
@@ -127,7 +132,7 @@ export function InsightTable({
           <div className="text-xs sm:text-sm font-semibold text-gray-900 truncate max-w-full sm:max-w-xs md:max-w-sm" title={p.title}>
             {p.title}
           </div>
-          {p.storeLabel && (
+          {!isStandalone && p.storeLabel && (
             <div className="mt-1">
               <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-sky-100 text-sky-800 border border-sky-200 shadow-2xs whitespace-nowrap">
                 {p.storeLabel}

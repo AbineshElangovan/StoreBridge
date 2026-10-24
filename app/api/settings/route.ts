@@ -5,7 +5,7 @@ import { evaluateForecastStockoutRisks } from "@/services/planning/stockout-risk
 
 export const dynamic = 'force-dynamic';
 
-async function getAuthorizedStores(currentStore: any) {
+async function getAuthorizedStores(currentStore: any, isCurrentStoreStandalone: boolean = false) {
   const storeMap = new Map<string, any>();
   storeMap.set(currentStore.id, currentStore);
 
@@ -35,12 +35,14 @@ async function getAuthorizedStores(currentStore: any) {
 
   return Array.from(storeMap.values()).map((s: any) => {
     const dbRow = dbDataMap.get(s.id);
+    const isStandalone = s.id === currentStore.id ? isCurrentStoreStandalone : (!s.isMaster);
     return {
       id: s.id,
       label: s.label || s.shopDomain,
       shopDomain: s.shopDomain,
       logoUrl: s.logoUrl || null,
       isMaster: !!s.isMaster,
+      isStandalone,
       bestSellerThreshold: s.bestSellerThreshold ?? dbRow?.bestSellerThreshold ?? 20,
       deadStockDays: s.deadStockDays ?? dbRow?.deadStockDays ?? 90,
       forecastPeriodDays: s.forecastPeriodDays ?? dbRow?.forecastPeriodDays ?? 7,
@@ -54,9 +56,9 @@ async function getAuthorizedStores(currentStore: any) {
 
 export async function GET(req: NextRequest) {
   try {
-    const { store } = await authenticate(req);
+    const { store, isStandalone } = await authenticate(req);
     const storeSetting = await prisma.storeSetting.findUnique({ where: { storeId: store.id } });
-    const authorizedStores = await getAuthorizedStores(store);
+    const authorizedStores = await getAuthorizedStores(store, isStandalone);
 
     return NextResponse.json({
       success: true,
