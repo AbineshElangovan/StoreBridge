@@ -195,6 +195,8 @@ export async function GET(req: NextRequest) {
       .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 50);
 
+    const preorderMetrics = await PreorderService.getPreorderMetrics(store.id);
+
     return NextResponse.json({
       success: true,
       currentStoreId: store.id,
@@ -204,6 +206,7 @@ export async function GET(req: NextRequest) {
       lowStockProducts,
       recentlyAddedProducts,
       lowStockThreshold: store.lowStockThreshold,
+      preorderMetrics,
     });
   } catch (error: any) {
     console.error('[Dashboard API] Error:', error);

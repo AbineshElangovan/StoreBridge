@@ -3,6 +3,7 @@ import { verifyWebhook } from "@/lib/shopify/webhooks";
 import { prisma } from "@/lib/db/prisma";
 import { safeEncrypt } from "@/lib/utils/encryption";
 import { EmailNotificationService } from "@/services/notifications/email-notification-service";
+import { PreorderNotificationService } from "@/services/preorder/preorder-notifications";
 import { NotificationChannel, NotificationJobStatus } from "@prisma/client";
 
 export const dynamic = 'force-dynamic';
@@ -197,18 +198,31 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        // 1b. Create in-app notification for merchant
-        await prisma.notification.create({
-          data: {
-            recipientStoreId: store.id,
-            type: 'OUT_OF_STOCK',
-            title: `New Pre-order Received (${paymentOption === 'HALF' ? 'Half Payment' : 'Full Payment'})`,
-            message: `${customerEmail || customerName || 'Customer'} pre-ordered ${quantity}x ${itemTitle} (${orderNumber}). Paid: ₹${finalDepositAmount.toFixed(2)}${finalRemainingBalance > 0 ? `, Remaining: ₹${finalRemainingBalance.toFixed(2)}` : ''}`,
-            productId: String(item.product_id || ''),
-            productTitle: itemTitle,
-            sourceStoreId: store.id,
-            isRead: false,
-          },
+        // 1b. Create in-app notification for merchant with persistent deduplication
+        await PreorderNotificationService.notifyNewPreorder({
+          storeId: store.id,
+          orderNumber,
+          productTitle: itemTitle,
+          variantTitle,
+          quantity,
+          paymentOption,
+          depositAmount: finalDepositAmount,
+          totalAmount,
+          remainingBalance: finalRemainingBalance,
+          customerName,
+          customerEmail,
+          paymentStatus: finalPaymentStatus,
+          productId: String(item.product_id || ''),
+        });
+
+        // Notify awaiting stock if order was created with status UNFULFILLED
+        await PreorderNotificationService.notifyAwaitingStock({
+          storeId: store.id,
+          orderNumber,
+          productTitle: itemTitle,
+          variantTitle,
+          quantity,
+          productId: String(item.product_id || ''),
         });
       } catch (dbErr: any) {
         console.warn(`[Webhook:orders/create:PreorderRecordSaveError]`, dbErr.message);

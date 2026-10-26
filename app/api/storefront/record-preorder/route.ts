@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { safeEncrypt } from '@/lib/utils/encryption';
 import { z } from 'zod';
+import { PreorderNotificationService } from '@/services/preorder/preorder-notifications';
 
 export const dynamic = 'force-dynamic';
 
@@ -205,19 +206,25 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Create in-app notification in StoreBridge Dashboard
+    // Create in-app notification in StoreBridge Dashboard with persistent deduplication
     try {
-      await prisma.notification.create({
-        data: {
-          recipientStoreId: store.id,
-          type: 'INVENTORY_UPDATE',
-          title: `New Pre-order: ${formattedOrderNumber}`,
-          message: `${data.customerName || data.customerEmail || 'Customer'} placed a pre-order for ${data.productTitle || 'Product'} (${data.quantity} ${data.quantity === 1 ? 'unit' : 'units'}) - ${formattedOrderNumber}.`,
-          productId: cleanVariantId,
-          productTitle: data.productTitle || 'Pre-order Item',
-          sourceStoreId: store.id,
-          isRead: false,
-        },
+      await PreorderNotificationService.notifyNewPreorder({
+        storeId: store.id,
+        orderNumber: formattedOrderNumber,
+        productTitle: data.productTitle || 'Pre-order Item',
+        quantity: data.quantity,
+        paymentOption: (data as any).paymentOption || 'FULL',
+        customerName: data.customerName,
+        customerEmail: data.customerEmail,
+        productId: cleanVariantId,
+      });
+
+      await PreorderNotificationService.notifyAwaitingStock({
+        storeId: store.id,
+        orderNumber: formattedOrderNumber,
+        productTitle: data.productTitle || 'Pre-order Item',
+        quantity: data.quantity,
+        productId: cleanVariantId,
       });
     } catch (_) {}
 

@@ -153,9 +153,19 @@ export async function GET(req: NextRequest) {
       const search = searchParams.get('search') || '';
       const paymentStatus = searchParams.get('paymentStatus') || 'ALL';
       const records = await PreorderService.getPreorderRecords(store.id, page, pageSize, search, paymentStatus);
+      const metrics = await PreorderService.getPreorderMetrics(store.id);
       return NextResponse.json({
         success: true,
         ...records,
+        metrics,
+      });
+    }
+
+    if (type === 'metrics') {
+      const metrics = await PreorderService.getPreorderMetrics(store.id);
+      return NextResponse.json({
+        success: true,
+        metrics,
       });
     }
 
@@ -164,6 +174,7 @@ export async function GET(req: NextRequest) {
 
     const config = await PreorderService.getConfig(store.id, productId, variantId);
     const overrides = await PreorderService.listOverrides(store.id);
+    const metrics = await PreorderService.getPreorderMetrics(store.id);
 
     // Initial calculations computed strictly in backend API
     const calculation = PreorderService.calculatePrice(
@@ -182,6 +193,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       config,
+      metrics,
       calculation,
       sample100,
       sample500Half,

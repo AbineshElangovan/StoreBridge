@@ -7,15 +7,38 @@ import { Table, ColumnConfig } from '@/components/common/Table';
 import { LocalizedDate } from '@/components/common/LocalizedDate';
 import { TableCard } from '@/components/ui/TableCard';
 import { StoreRoleBadge } from '@/components/ui/StoreRoleBadge';
-import { PreorderService } from '@/services/preorder/preorder-service';
+import { PreorderService, type PreorderMetrics } from '@/services/preorder/preorder-service';
 
 export const dynamic = 'force-dynamic';
 
-export default async function DashboardPage() {
+interface DashboardPageProps {
+  searchParams?: Promise<{ shop?: string; storeId?: string; host?: string }>;
+}
 
-  // Read master store and connected stores for this network
-  const primaryStore = await prisma.store.findFirst({ where: { isMaster: true, isActive: true } }) 
-    || await prisma.store.findFirst({ where: { isActive: true } });
+export default async function DashboardPage(props: DashboardPageProps) {
+  const searchParams = props?.searchParams ? await props.searchParams : {};
+  const queryShop = searchParams?.shop;
+
+  let primaryStore = null;
+  if (queryShop) {
+    const clean = queryShop.trim().toLowerCase();
+    const prefix = clean.split('.')[0].replace(/^https?:\/\//, '');
+    primaryStore = await prisma.store.findFirst({
+      where: {
+        isActive: true,
+        OR: [
+          { shopDomain: clean },
+          { shopDomain: { contains: prefix, mode: 'insensitive' } },
+          { label: { contains: prefix, mode: 'insensitive' } },
+        ],
+      },
+    });
+  }
+
+  if (!primaryStore) {
+    primaryStore = await prisma.store.findFirst({ where: { isMaster: true, isActive: true } }) 
+      || await prisma.store.findFirst({ where: { isActive: true } });
+  }
   const lowStockThreshold = primaryStore?.lowStockThreshold ?? 10;
 
   // Find connected stores (exclude standalone/unconnected stores)
@@ -71,6 +94,26 @@ export default async function DashboardPage() {
       }
     } catch (e) {
       console.warn('[DashboardPage] Error fetching preorder count:', e);
+    }
+  }
+
+  let preorderMetrics: PreorderMetrics = {
+    totalPreorders: 0,
+    pendingPreorders: 0,
+    revenue: 0,
+    pendingRevenue: 0,
+    totalRevenue: 0,
+    awaitingStockCount: 0,
+    allocatedStockCount: 0,
+    fulfilledCount: 0,
+    currency: 'INR',
+  };
+
+  if (primaryStore) {
+    try {
+      preorderMetrics = await PreorderService.getPreorderMetrics(primaryStore.id);
+    } catch (e) {
+      console.warn('[DashboardPage] Error fetching preorder metrics:', e);
     }
   }
 
@@ -320,7 +363,7 @@ export default async function DashboardPage() {
         <DashboardCards stats={stats} lowStockThreshold={lowStockThreshold} isStandalone={isStandalone} />
 
         {/* ── Charts ── */}
-        <DashboardCharts chartData={chartData} />
+        <DashboardCharts chartData={chartData} isStandalone={isStandalone} preorderMetrics={preorderMetrics} />
 
         {/* ── Store Summary (Hidden in standalone mode) ── */}
         {!isStandalone && (

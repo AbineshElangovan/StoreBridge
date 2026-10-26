@@ -52,15 +52,16 @@ export interface BarChartProps {
   yTickFormatter?: (v: number) => string;
   yWidth?: number;
   height?: number;
+  headerAction?: React.ReactNode;
 }
 
 export function BarChart({
   title, subtitle, data, xKey, bars,
-  yTickFormatter = formatYTick, yWidth = 70, height = 280,
+  yTickFormatter = formatYTick, yWidth = 70, height = 280, headerAction,
 }: BarChartProps) {
   const hasData = data && data.length > 0;
   return (
-    <ChartCard title={title} description={subtitle}>
+    <ChartCard title={title} description={subtitle} headerAction={headerAction}>
       {!hasData ? <NoData /> : (
         <div style={{ width: '100%', height }} className="min-w-0 overflow-hidden">
           <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={50}>
@@ -71,7 +72,11 @@ export function BarChart({
               <Tooltip
                 cursor={{ fill: 'rgba(0,0,0,0.04)' }}
                 contentStyle={tooltipStyle}
-                formatter={(value: any) => [Number(value).toLocaleString('en-IN'), '']}
+                formatter={(value: any, name: any) => {
+                  const num = Number(value).toLocaleString('en-IN');
+                  const isCurrency = String(name || '').toLowerCase().includes('sales') || String(name || '').toLowerCase().includes('value') || String(name || '').toLowerCase().includes('revenue');
+                  return [isCurrency ? `₹${num}` : num, name];
+                }}
               />
               <Legend iconType="circle" iconSize={8} wrapperStyle={{ paddingTop: 16, fontSize: 13 }} />
               {bars.map((bar) => (
@@ -205,6 +210,7 @@ export interface PieChartProps {
   innerRadius?: number | string;
   outerRadius?: number | string;
   height?: number;
+  headerAction?: React.ReactNode;
 }
 
 const RADIAN = Math.PI / 180;
@@ -241,15 +247,15 @@ function renderCustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent
   );
 }
 
-export function PieChart({ title, subtitle, data, unit = '', innerRadius = 0, outerRadius = '80%', height = 240 }: PieChartProps) {
+export function PieChart({ title, subtitle, data, unit = '', innerRadius = 0, outerRadius = '80%', height = 240, headerAction }: PieChartProps) {
   const total = Array.isArray(data) ? data.reduce((s, d) => s + (Number(d.value) || 0), 0) : 0;
   const hasData = Array.isArray(data) && data.length > 0 && total > 0;
 
   return (
-    <ChartCard title={title} description={subtitle} height="auto">
+    <ChartCard title={title} description={subtitle} headerAction={headerAction} height="100%">
       {!hasData ? <NoData message="No data to display" /> : (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, width: '100%' }} className="min-w-0 overflow-hidden">
-          <div style={{ width: '100%', height }} className="min-w-0 overflow-hidden">
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', gap: 16, width: '100%', height: '100%' }} className="min-w-0 overflow-hidden flex-1">
+          <div style={{ width: '100%', height }} className="min-w-0 overflow-hidden shrink-0">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} debounce={50}>
               <RechartsPieChart>
                 <Pie
@@ -277,8 +283,8 @@ export function PieChart({ title, subtitle, data, unit = '', innerRadius = 0, ou
             </ResponsiveContainer>
           </div>
 
-          {/* Legend showing all stores */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', marginTop: 4 }}>
+          {/* Legend showing all entries */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', marginTop: 'auto' }}>
             {data.map((entry, idx) => {
               const pct = total > 0 ? ((entry.value / total) * 100).toFixed(1) : '0';
               const isLast = idx === data.length - 1;

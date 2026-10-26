@@ -21,6 +21,8 @@ import { PreorderCollectionSelector } from '@/components/preorder/PreorderCollec
 import { StandaloneGuard } from '@/components/ui/StandaloneGuard';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 import { PageTabs, PageTab } from '@/components/ui/PageTabs';
+import { PreorderPerformanceCard } from '@/components/dashboard/PreorderPerformanceCard';
+import type { PreorderMetrics } from '@/services/preorder/preorder-service';
 
 export type PreorderTabId = 'general' | 'offers_payment' | 'orders';
 
@@ -103,6 +105,7 @@ export default function PreorderAdminPage() {
   const [recordsTotal, setRecordsTotal] = useState(0);
   const [recordsSearch, setRecordsSearch] = useState('');
   const [recordsStatus, setRecordsStatus] = useState('ALL');
+  const [preorderMetrics, setPreorderMetrics] = useState<PreorderMetrics | null>(null);
 
   useEffect(() => {
     fetchConfig();
@@ -175,6 +178,9 @@ export default function PreorderAdminPage() {
           setRecordsTotalPages(data.pagination.totalPages || 1);
           setRecordsPage(data.pagination.page || page);
         }
+        if (data.metrics) {
+          setPreorderMetrics(data.metrics);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch preorder records:', err);
@@ -232,6 +238,9 @@ export default function PreorderAdminPage() {
         }
         if (data.sample100) {
           setSample100(data.sample100);
+        }
+        if (data.metrics) {
+          setPreorderMetrics(data.metrics);
         }
       }
     } catch (err: any) {
@@ -354,23 +363,15 @@ export default function PreorderAdminPage() {
       )}
 
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-gray-200">
-        <div>
-          <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Pre-order</h1>
-          <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
-            Allow customers to pre-order items when stock drops to or below the configured inventory threshold.
-          </p>
-        </div>
-
-        {activeTab !== 'orders' && (
-          <SaveButton
-            onClick={handleSave}
-            loading={saving}
-            label="Save Settings"
-            loadingLabel="Saving..."
-          />
-        )}
+      <div>
+        <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Pre-order</h1>
+        <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
+          Allow customers to pre-order items when stock drops to or below the configured inventory threshold.
+        </p>
       </div>
+
+      {/* Pre-order Performance Overview: 4 database-driven cards (Total Pre-orders, Pending Pre-orders, Pre-order Revenue, Pending Revenue) at the top of the navbar */}
+      <PreorderPerformanceCard metrics={preorderMetrics || undefined} />
 
       {/* 3-Tab Navbar Navigation */}
       <PageTabs
@@ -378,6 +379,18 @@ export default function PreorderAdminPage() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
       />
+
+      {/* Action Bar Under Navbar */}
+      {activeTab !== 'orders' && (
+        <div className="flex justify-end pt-1">
+          <SaveButton
+            onClick={handleSave}
+            loading={saving}
+            label="Save Settings"
+            loadingLabel="Saving..."
+          />
+        </div>
+      )}
 
       {/* TAB 1: Setup & Products (Enable Pre-order, Product Selection, Customize Messaging) */}
       {activeTab === 'general' && (

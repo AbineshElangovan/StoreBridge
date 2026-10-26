@@ -127,11 +127,11 @@ export async function getAdminClient(shopDomain: string) {
     await prisma.store.update({
       where: { shopDomain },
       data: { 
-        isActive: false,
-        authStatus: "INVALID_TOKEN" 
+        authStatus: "INVALID_TOKEN",
+        authFailureReason: "Decryption failed: " + error.message
       },
     });
-    throw new Error(`CRITICAL: Store ${shopDomain} access token decryption failed. Marked inactive.`);
+    throw new Error(`CRITICAL: Store ${shopDomain} access token decryption failed.`);
   }
 
   // 2. Single Source of Truth
@@ -163,19 +163,18 @@ export async function handleGraphQLError(error: any, shopDomain: string) {
     console.error("===== SHOPIFY 401 =====");
     
     // We already do proactive refresh in getAdminClient.
-    // If we hit a 401 here, it means either:
-    // 1. Proactive refresh failed.
-    // 2. The token was revoked by the merchant uninstalling the app.
-    // 3. We didn't have a refresh token or it was missing.
-    console.warn(`Access token invalid for ${shopDomain}. Marking store as inactive as a permanent failure.`);
-    await prisma.store.update({
-      where: { shopDomain },
-      data: { 
-        isActive: false,
-        authStatus: "INVALID_TOKEN" 
-      },
-    });
-    throw new Error(`Unauthorized: Store ${shopDomain} marked as inactive.`);
+    // If we hit a 401 here, update authStatus without deactivating the store record
+    console.warn(`Access token invalid for ${shopDomain}. Updating authStatus to INVALID_TOKEN.`);
+    try {
+      await prisma.store.update({
+        where: { shopDomain },
+        data: { 
+          authStatus: "INVALID_TOKEN",
+          authFailureReason: error.message || "401 Unauthorized"
+        },
+      });
+    } catch {}
+    throw new Error(`Unauthorized: Store ${shopDomain} token requires re-authentication.`);
   }
 
   throw error;

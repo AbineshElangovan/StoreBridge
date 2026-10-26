@@ -122,6 +122,33 @@ export class BackInStockService {
           console.warn('[BackInStockService:PreorderRecord:StatusUpdateError]', statErr.message);
         }
 
+        // Notify admin in StoreBridge that stock was allocated & if fully paid, ready for fulfillment
+        try {
+          const { PreorderNotificationService } = require('@/services/preorder/preorder-notifications');
+          const poOrderNumber = po.orderNumber || po.orderId;
+          const cleanOrderNum = poOrderNumber.startsWith('PRE-') ? poOrderNumber : `PRE-${poOrderNumber.startsWith('#') ? poOrderNumber : `#${poOrderNumber}`}`;
+          await PreorderNotificationService.notifyStockAllocated({
+            storeId,
+            orderNumber: cleanOrderNum,
+            productTitle: (po as any).productTitle || productTitle,
+            variantTitle: (po as any).variantTitle || variantTitle,
+            quantity: po.quantity || 1,
+            productId: cleanVariantId,
+          });
+
+          if ((po as any).paymentStatus === 'PAID' || (po as any).paymentOption === 'FULL') {
+            await PreorderNotificationService.notifyReadyForFulfillment({
+              storeId,
+              orderNumber: cleanOrderNum,
+              productTitle: (po as any).productTitle || productTitle,
+              variantTitle: (po as any).variantTitle || variantTitle,
+              paymentOption: (po as any).paymentOption,
+              paymentStatus: (po as any).paymentStatus || 'PAID',
+              productId: cleanVariantId,
+            });
+          }
+        } catch (_) {}
+
         if (po.email) {
           try {
             const encryptedPoEmail = safeEncrypt(po.email);
@@ -660,6 +687,21 @@ export class BackInStockService {
               status: targetStatus,
             },
           });
+
+          // Detect fulfillment or cancellation lifecycle event
+          if (existingRecord && existingRecord.status !== targetStatus && (targetStatus === 'FULFILLED' || targetStatus === 'CANCELLED')) {
+            try {
+              const { PreorderNotificationService } = require('@/services/preorder/preorder-notifications');
+              await PreorderNotificationService.notifyStatusChanged({
+                storeId,
+                orderNumber: formattedOrderNum,
+                productTitle: item.title,
+                variantTitle: item.variant?.title,
+                newStatus: targetStatus as 'FULFILLED' | 'CANCELLED',
+                productId: cleanVariantId,
+              });
+            } catch (_) {}
+          }
         }
       }
     } catch (_) {

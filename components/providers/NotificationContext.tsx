@@ -15,6 +15,7 @@ export interface NotificationItem {
   imageUrl?: string | null;
   sku?: string | null;
   isRead: boolean;
+  metadata?: any;
   createdAt: string;
   recipientStore?: {
     id: string;

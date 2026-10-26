@@ -186,6 +186,7 @@ export default function DashboardPage() {
         {/* Charts: BarChart & PieCharts */}
         <DashboardCharts
           isStandalone={isStandalone}
+          preorderMetrics={data?.preorderMetrics}
           chartData={{
             combinedData: (data?.stores && data.stores.length > 0)
               ? data.stores.map((s: any) => ({

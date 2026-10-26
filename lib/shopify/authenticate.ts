@@ -60,9 +60,22 @@ export async function authenticate(req: NextRequest) {
     const clean = shopStr.trim().toLowerCase();
     const prefix = clean.split('.')[0].replace(/^https?:\/\//, '');
 
-    return prisma.store.findFirst({
+    const activeStore = await prisma.store.findFirst({
       where: {
         isActive: true,
+        OR: [
+          { shopDomain: clean },
+          { shopDomain: { contains: prefix, mode: 'insensitive' } },
+          { label: { contains: prefix, mode: 'insensitive' } },
+          { uniqueStoreId: clean },
+          { id: clean }
+        ]
+      }
+    });
+    if (activeStore) return activeStore;
+
+    return prisma.store.findFirst({
+      where: {
         OR: [
           { shopDomain: clean },
           { shopDomain: { contains: prefix, mode: 'insensitive' } },
@@ -205,18 +218,19 @@ export async function authenticate(req: NextRequest) {
         label: { contains: requestedShop, mode: 'insensitive' }
       }
     });
-
-    if (!store) {
-      throw new AuthError("Store not installed or inactive");
-    }
   }
 
+  // Graceful fallback to active Master store or any active store
   if (!store) {
     store = await prisma.store.findFirst({ where: { isMaster: true, isActive: true } })
       || await prisma.store.findFirst({ where: { isActive: true } });
   }
 
-  if (store && store.isActive) {
+  if (!store) {
+    throw new AuthError("Store not installed or inactive");
+  }
+
+  if (store) {
     const standalone = await isStoreStandalone(store.id);
     return {
       shop: store.shopDomain,

@@ -12,7 +12,8 @@ import {
   ProductIcon, 
   CashDollarIcon, 
   AlertCircleIcon, 
-  NotificationIcon 
+  NotificationIcon,
+  OrderIcon,
 } from '@shopify/polaris-icons';
 import { useNotifications, NotificationItem } from '@/components/providers/NotificationContext';
 import { useStoreContext } from '@/components/providers/StoreProvider';
@@ -31,7 +32,21 @@ function getRelativeTime(dateString: string): string {
   return `${days} d ago`;
 }
 
-function getTypeStyle(type: string) {
+function getTypeStyle(type: string, title?: string, metadata?: any) {
+  if (
+    title?.toLowerCase().includes('pre-order') ||
+    title?.toLowerCase().includes('stock allocated') ||
+    metadata?.eventType?.startsWith?.('PREORDER_')
+  ) {
+    return {
+      icon: <Icon source={OrderIcon} tone="magic" />,
+      label: 'Pre-order',
+      bg: 'bg-purple-50',
+      border: 'border-purple-200',
+      text: 'text-purple-700',
+    };
+  }
+
   switch (type) {
     case 'OUT_OF_STOCK':
     case 'STOCKOUT_RISK':
@@ -235,7 +250,7 @@ export function NotificationBell() {
               </div>
             ) : (
               notifications.map((item) => {
-                const style = getTypeStyle(item.type);
+                const style = getTypeStyle(item.type, item.title, item.metadata);
                 const storeName = item.recipientStore?.label || item.recipientStore?.shopDomain || '';
                 return (
                   <div
