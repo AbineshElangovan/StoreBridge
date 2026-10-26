@@ -105,9 +105,9 @@ export function ImportPreview({
       <div className="flex items-center gap-4 border-t border-gray-100 pt-6">
         <button 
           onClick={() => setShowConfirm(true)}
-          className="px-6 py-2.5 bg-[var(--color-primary,#a7cd18)] hover:bg-[var(--color-primary-hover,#96bb13)] text-black text-sm font-black rounded-xl border border-[#91b212] transition-all shadow-xs flex items-center gap-2 cursor-pointer"
+          className="px-6 py-2.5 bg-[var(--color-primary,#a7cd18)] hover:bg-[var(--color-primary-hover,#96bb13)] text-[var(--color-primary-text,#000000)] text-sm font-black rounded-xl border border-[var(--theme-sidebar-border,#91b212)] transition-all shadow-xs flex items-center gap-2 cursor-pointer"
         >
-          <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-4 h-4 text-current" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
           </svg>
           Import Products Now

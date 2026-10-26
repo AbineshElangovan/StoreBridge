@@ -531,7 +531,7 @@ export default function ConnectionsPage() {
                 onChange={(e) => setStoreIdInput(e.target.value)}
               />
               <button
-                className="w-full sm:w-auto px-5 py-2.5 bg-[var(--color-primary,#a7cd18)] text-black text-sm font-black rounded-xl border border-[#91b212] hover:bg-[var(--color-primary-hover,#96bb13)] transition-all shadow-2xs whitespace-nowrap text-center cursor-pointer disabled:opacity-50"
+                className="w-full sm:w-auto px-5 py-2.5 bg-[var(--color-primary,#a7cd18)] text-[var(--color-primary-text,#000000)] text-sm font-black rounded-xl border border-[var(--theme-sidebar-border,#91b212)] hover:bg-[var(--color-primary-hover,#96bb13)] transition-all shadow-2xs whitespace-nowrap text-center cursor-pointer disabled:opacity-50"
                 onClick={handleAddStore}
                 disabled={connecting || !storeIdInput.trim()}
               >

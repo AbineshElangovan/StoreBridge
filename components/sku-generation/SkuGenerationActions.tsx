@@ -87,7 +87,7 @@ export function SkuGenerationActions({
           type="button"
           onClick={onApply}
           disabled={disabled || !canApply || isGenerating || isApplying}
-          className="px-6 py-2.5 bg-[var(--color-primary)] text-[var(--color-primary-text,#000000)] border border-[#91b212] text-xs sm:text-sm font-black rounded-lg hover:opacity-90 active:opacity-100 transition-all shadow-2xs hover:shadow-xs disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
+          className="px-6 py-2.5 bg-[var(--color-primary)] text-[var(--color-primary-text,#000000)] border border-[var(--theme-sidebar-border,#91b212)] text-xs sm:text-sm font-black rounded-lg hover:opacity-90 active:opacity-100 transition-all shadow-2xs hover:shadow-xs disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
         >
           {isApplying ? (
             <svg className="w-4 h-4 animate-spin text-current" fill="none" viewBox="0 0 24 24">

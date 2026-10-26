@@ -90,7 +90,7 @@ export function ImportResult({ result, onReset }: ImportResultProps) {
       <div className="flex justify-center">
         <button 
           onClick={onReset}
-          className="px-6 py-2.5 bg-[var(--color-primary,#a7cd18)] hover:bg-[var(--color-primary-hover,#96bb13)] text-black text-sm font-black rounded-xl border border-[#91b212] transition-all shadow-xs cursor-pointer"
+          className="px-6 py-2.5 bg-[var(--color-primary,#a7cd18)] hover:bg-[var(--color-primary-hover,#96bb13)] text-[var(--color-primary-text,#000000)] text-sm font-black rounded-xl border border-[var(--theme-sidebar-border,#91b212)] transition-all shadow-xs cursor-pointer"
         >
           Import Another File
         </button>

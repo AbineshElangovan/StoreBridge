@@ -80,14 +80,14 @@ Slim Fit Jeans,<p>Stylish slim-fit denim jeans suitable for casual wear.</p>,999
         <button 
           onClick={onValidate}
           disabled={!file || isValidating}
-          className="flex-1 flex justify-center py-2.5 px-4 rounded-xl shadow-xs text-sm font-black text-black bg-[var(--color-primary,#a7cd18)] hover:bg-[var(--color-primary-hover,#96bb13)] border border-[#91b212] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-lime-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+          className="flex-1 flex justify-center py-2.5 px-4 rounded-xl shadow-xs text-sm font-black text-[var(--color-primary-text,#000000)] bg-[var(--color-primary,#a7cd18)] hover:bg-[var(--color-primary-hover,#96bb13)] border border-[var(--theme-sidebar-border,#91b212)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-primary)] disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
         >
           {isValidating ? 'Processing...' : 'Preview CSV'}
         </button>
         <button 
           onClick={handleDirectClick}
           disabled={!file || isValidating}
-          className="flex-1 flex justify-center py-2.5 px-4 rounded-xl shadow-xs text-sm font-black text-black bg-[var(--color-primary,#a7cd18)] hover:bg-[var(--color-primary-hover,#96bb13)] border border-[#91b212] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-lime-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+          className="flex-1 flex justify-center py-2.5 px-4 rounded-xl shadow-xs text-sm font-black text-[var(--color-primary-text,#000000)] bg-[var(--color-primary,#a7cd18)] hover:bg-[var(--color-primary-hover,#96bb13)] border border-[var(--theme-sidebar-border,#91b212)] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--color-primary)] disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
         >
           {isValidating ? 'Importing...' : 'Import Directly'}
         </button>

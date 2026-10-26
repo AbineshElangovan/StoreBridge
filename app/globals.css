@@ -29,6 +29,11 @@
   --theme-sidebar-active-text: #000000; /* Pure black text inside */
   --theme-sidebar-hover-bg: rgba(0, 0, 0, 0.05);
   --theme-sidebar-hover-text: #000000;
+  --theme-brand-bg: #cae174;
+  --theme-brand-hover-bg: #c2dc65;
+  --theme-brand-border: #d4e897;
+  --theme-brand-text: #0a0a0a;
+  --theme-brand-subtext: #374151;
   --theme-card-bg: rgba(255, 255, 255, 0.98);
   --theme-border-accent: #d4e897;
   --theme-glow: rgba(167, 205, 24, 0.35);
@@ -75,6 +80,12 @@
   --theme-sidebar-active-text: #0c4a6e;
   --theme-sidebar-hover-bg: #0284c7;
   --theme-sidebar-hover-text: #ffffff;
+  --theme-brand-bg: #bae6fd;
+  --theme-brand-hover-bg: #7dd3fc;
+  --theme-brand-border: #38bdf8;
+  --theme-brand-text: #082f49;
+  --theme-brand-subtext: #0369a1;
+  --color-primary-text: #ffffff;
   --theme-card-bg: rgba(240, 249, 255, 0.95);
   --theme-border-accent: #7dd3fc;
   --theme-glow: rgba(2, 132, 199, 0.25);
@@ -101,6 +112,12 @@
   --theme-sidebar-active-text: #450a0a;
   --theme-sidebar-hover-bg: #991b1b;
   --theme-sidebar-hover-text: #ffffff;
+  --theme-brand-bg: #fecaca;
+  --theme-brand-hover-bg: #fca5a5;
+  --theme-brand-border: #f87171;
+  --theme-brand-text: #450a0a;
+  --theme-brand-subtext: #991b1b;
+  --color-primary-text: #ffffff;
   --theme-card-bg: rgba(255, 245, 245, 0.95);
   --theme-border-accent: #fca5a5;
   --theme-glow: rgba(153, 27, 27, 0.25);
@@ -127,6 +144,12 @@
   --theme-sidebar-active-text: #581c87;
   --theme-sidebar-hover-bg: #6b21a8;
   --theme-sidebar-hover-text: #ffffff;
+  --theme-brand-bg: #e9d5ff;
+  --theme-brand-hover-bg: #d8b4fe;
+  --theme-brand-border: #c084fc;
+  --theme-brand-text: #3b0764;
+  --theme-brand-subtext: #6b21a8;
+  --color-primary-text: #ffffff;
   --theme-card-bg: rgba(250, 245, 255, 0.95);
   --theme-border-accent: #d8b4fe;
   --theme-glow: rgba(107, 33, 168, 0.25);
@@ -153,6 +176,12 @@
   --theme-sidebar-active-text: #fde047;
   --theme-sidebar-hover-bg: #000000;
   --theme-sidebar-hover-text: #fef08a;
+  --theme-brand-bg: #fef08a;
+  --theme-brand-hover-bg: #fde047;
+  --theme-brand-border: #eab308;
+  --theme-brand-text: #000000;
+  --theme-brand-subtext: #854d0e;
+  --color-primary-text: #fde047;
   --theme-card-bg: rgba(255, 255, 255, 0.98);
   --theme-border-accent: #eab308;
   --theme-glow: rgba(0, 0, 0, 0.35);
@@ -199,15 +228,15 @@
   .ys-btn-primary { 
     @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-black transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xs; 
     background-color: var(--color-primary, #a7cd18) !important;
-    color: #000000 !important;
-    border: 1px solid #91b212;
+    color: var(--color-primary-text, #000000) !important;
+    border: 1px solid var(--theme-sidebar-border, #91b212);
     border-radius: var(--radius-sm);
   }
   .ys-btn-primary *,
   .ys-btn-primary svg,
   .ys-btn-primary path {
-    color: #000000 !important;
-    fill: #000000 !important;
+    color: var(--color-primary-text, #000000) !important;
+    fill: currentColor !important;
   }
   .ys-btn-primary:hover:not(:disabled) {
     background-color: var(--color-primary-hover, #96bb13) !important;
@@ -309,8 +338,6 @@
 
 /* Universal Rule: Everything inside lime green elements must be pure solid black */
 :root .bg-\[\#a7cd18\],
-:root .bg-\[var\(--color-primary\)\],
-:root button[style*="--color-primary"],
 :root button[style*="#a7cd18"],
 [data-theme="emerald_forest"] .bg-\[\#a7cd18\],
 [data-theme="emerald_forest"] .bg-\[var\(--color-primary\)\],
@@ -325,15 +352,13 @@
 }
 
 :root .bg-\[\#a7cd18\] *,
-:root .bg-\[var\(--color-primary\)\] *,
-:root button[style*="--color-primary"] *,
 :root button[style*="#a7cd18"] *,
 [data-theme="emerald_forest"] .bg-\[\#a7cd18\] *,
-[data-theme="emerald_forest"] .bg-\[var\(--color-primary\)\] *,
+[data-theme="emerald_forest"] .bg-\[var\(--color-primary\)\],
 [data-theme="emerald_forest"] button[style*="--color-primary"] *,
 [data-theme="emerald_forest"] button[style*="#a7cd18"] *,
 [data-theme="emerald"] .bg-\[\#a7cd18\] *,
-[data-theme="emerald"] .bg-\[var\(--color-primary\)\] *,
+[data-theme="emerald"] .bg-\[var\(--color-primary\)\],
 [data-theme="emerald"] button[style*="--color-primary"] *,
 [data-theme="emerald"] button[style*="#a7cd18"] * {
   color: #000000 !important;

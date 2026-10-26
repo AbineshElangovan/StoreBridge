@@ -213,7 +213,7 @@ export function StorePerformanceRules({
                   type="button"
                   disabled={isSaving || savingStoreId === store.id}
                   onClick={() => handleSave(store.id)}
-                  className="w-full sm:w-auto px-5 py-2 bg-[var(--color-primary,#a7cd18)] hover:bg-[var(--color-primary-hover,#96bb13)] text-black border border-[#91b212] disabled:opacity-50 text-xs font-black rounded-lg transition-colors shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-center"
+                  className="w-full sm:w-auto px-5 py-2 bg-[var(--color-primary,#a7cd18)] hover:bg-[var(--color-primary-hover,#96bb13)] text-[var(--color-primary-text,#000000)] border border-[var(--theme-sidebar-border,#91b212)] disabled:opacity-50 text-xs font-black rounded-lg transition-colors shadow-2xs cursor-pointer flex items-center justify-center gap-1.5 text-center"
                 >
                   {savingStoreId === store.id ? 'Saving...' : 'Save'}
                 </button>

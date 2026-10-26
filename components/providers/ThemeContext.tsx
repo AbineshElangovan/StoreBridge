@@ -42,6 +42,10 @@ export interface WallpaperOption {
   sidebarBorder: string;
   cardBg: string;
   tagline: string;
+  brandBg?: string;
+  brandHoverBg?: string;
+  brandText?: string;
+  brandSubtext?: string;
 }
 
 // Backward compatibility alias
@@ -77,6 +81,10 @@ export const LIGHT_THEMES: WallpaperOption[] = [
     tableHeaderBg: 'bg-lime-100/90 text-lime-950 border-b border-lime-300 font-bold',
     tableOddRow: 'bg-white/95 hover:bg-lime-50/70 transition-colors',
     tableEvenRow: 'bg-lime-50/50 hover:bg-lime-100/60 transition-colors',
+    brandBg: '#cae174',
+    brandHoverBg: '#c2dc65',
+    brandText: '#0a0a0a',
+    brandSubtext: '#374151',
   },
   {
     id: 'sky_azure',
@@ -107,6 +115,10 @@ export const LIGHT_THEMES: WallpaperOption[] = [
     tableHeaderBg: 'bg-sky-200/80 text-sky-950 border-b border-sky-300',
     tableOddRow: 'bg-white/95 hover:bg-sky-100/70 transition-colors',
     tableEvenRow: 'bg-sky-100/60 hover:bg-sky-200/80 transition-colors',
+    brandBg: '#bae6fd',
+    brandHoverBg: '#7dd3fc',
+    brandText: '#082f49',
+    brandSubtext: '#0369a1',
   },
   {
     id: 'crimson_ruby',
@@ -137,6 +149,10 @@ export const LIGHT_THEMES: WallpaperOption[] = [
     tableHeaderBg: 'bg-red-200/80 text-red-950 border-b border-red-300',
     tableOddRow: 'bg-white/95 hover:bg-red-100/70 transition-colors',
     tableEvenRow: 'bg-red-100/60 hover:bg-red-200/80 transition-colors',
+    brandBg: '#fecaca',
+    brandHoverBg: '#fca5a5',
+    brandText: '#450a0a',
+    brandSubtext: '#991b1b',
   },
   {
     id: 'lavender',
@@ -167,6 +183,10 @@ export const LIGHT_THEMES: WallpaperOption[] = [
     tableHeaderBg: 'bg-purple-200/80 text-purple-950 border-b border-purple-300',
     tableOddRow: 'bg-white/95 hover:bg-purple-100/70 transition-colors',
     tableEvenRow: 'bg-purple-100/60 hover:bg-purple-200/80 transition-colors',
+    brandBg: '#e9d5ff',
+    brandHoverBg: '#d8b4fe',
+    brandText: '#3b0764',
+    brandSubtext: '#6b21a8',
   },
   {
     id: 'sand',
@@ -197,6 +217,10 @@ export const LIGHT_THEMES: WallpaperOption[] = [
     tableHeaderBg: 'bg-yellow-200 text-black border-b border-yellow-400',
     tableOddRow: 'bg-white/95 hover:bg-yellow-50/90 transition-colors',
     tableEvenRow: 'bg-yellow-50/60 hover:bg-yellow-100/70 transition-colors',
+    brandBg: '#fef08a',
+    brandHoverBg: '#fde047',
+    brandText: '#000000',
+    brandSubtext: '#854d0e',
   },
 ];
 
