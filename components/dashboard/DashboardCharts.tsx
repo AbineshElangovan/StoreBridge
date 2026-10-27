@@ -52,10 +52,10 @@ function ToggleButtonGroup<T extends string>({
             key={opt.value}
             type="button"
             onClick={() => onChange(opt.value)}
-            className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all duration-150 select-none ${
+            className={`px-3 py-1 text-xs transition-all duration-150 select-none cursor-pointer rounded-md ${
               isActive
-                ? 'bg-white text-gray-900 shadow-sm border border-gray-200/80'
-                : 'text-gray-500 hover:text-gray-900 border border-transparent'
+                ? 'bg-[var(--color-primary)] toggle-btn-active font-black shadow-xs border border-[var(--color-primary-dark,var(--color-primary))]'
+                : 'text-gray-600 hover:text-black font-semibold border border-transparent hover:bg-gray-200/50'
             }`}
           >
             {opt.label}

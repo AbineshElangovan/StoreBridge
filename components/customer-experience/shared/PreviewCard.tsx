@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Icon } from '@shopify/polaris';
 import { DeliveryIcon, CheckIcon, NotificationIcon } from '@shopify/polaris-icons';
 import { useTheme } from '@/components/providers/ThemeContext';
+import { PolarisSelect } from '@/components/common';
 
 export interface PreorderPreviewProps {
   enabled: boolean;
@@ -120,23 +121,17 @@ export function PreviewCard({
           {selectorType === 'dropdown' ? (
             /* Scroll down / dropdown selector */
             <div>
-              <label className="text-xs font-semibold text-gray-700 block mb-1">Select Variant</label>
-              <div className="relative">
-                <select
-                  value={selectedVariant}
-                  onChange={(e) => setSelectedVariant(e.target.value as any)}
-                  className="w-full appearance-none px-3.5 py-2.5 text-xs font-semibold text-gray-900 bg-white border border-gray-300 rounded-xl shadow-2xs focus:border-gray-900 focus:ring-1 focus:ring-gray-900 outline-none pr-9 cursor-pointer transition-all hover:border-gray-400"
-                >
-                  <option value="L">White / L — Sold Out (Pre-order)</option>
-                  <option value="M">White / M — 12 in stock (Add to Cart)</option>
-                  <option value="S">White / S — 0 in stock (Pre-order)</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                </div>
-              </div>
+              <PolarisSelect
+                label="Select Variant"
+                labelHidden={false}
+                value={selectedVariant}
+                onChange={(val) => setSelectedVariant(val as any)}
+                options={[
+                  { label: 'White / L — Sold Out (Pre-order)', value: 'L' },
+                  { label: 'White / M — 12 in stock (Add to Cart)', value: 'M' },
+                  { label: 'White / S — 0 in stock (Pre-order)', value: 'S' },
+                ]}
+              />
               <span className="text-[10px] text-gray-400 block mt-1">
                 {selectedVariant === 'L' || selectedVariant === 'S'
                   ? 'Selected variant stock is 0 → Shows Pre-order'

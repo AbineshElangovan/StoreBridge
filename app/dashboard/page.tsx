@@ -294,6 +294,75 @@ export default async function DashboardPage(props: DashboardPageProps) {
     { title: 'Added Time', key: 'addedTime' },
   ];
 
+  // ── Pre-order Eligible Products Table (Standalone only) ──
+  let preorderEligibleProducts: any[] = [];
+  if (primaryStore && isStandalone) {
+    try {
+      const preorderConfig = await PreorderService.getConfig(primaryStore.id);
+      if (preorderConfig && preorderConfig.enabled) {
+        const primaryProducts = await prisma.productCache.findMany({
+          where: { storeId: primaryStore.id },
+          include: { collections: { include: { collection: true } } },
+        });
+        const threshold = preorderConfig.inventoryThreshold ?? 0;
+        const targeted = primaryProducts.filter((p: any) => {
+          const prodColls = (p.collections || []).flatMap((cp: any) => [
+            cp.collection?.id,
+            cp.collection?.shopifyCollectionId,
+          ]).filter(Boolean) as string[];
+          return (
+            p.inventoryQuantity <= threshold &&
+            PreorderService.isProductTargeted(preorderConfig, p.shopifyProductId, prodColls)
+          );
+        });
+
+        preorderEligibleProducts = targeted
+          .map((p: any) => {
+            const prodUrl = getProductUrl(p);
+            return {
+              id: p.id,
+              url: prodUrl,
+              imageUrl: resolveImageUrl(p),
+              title_node: (
+                <Link
+                  href={prodUrl}
+                  className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
+                >
+                  {p.title}
+                </Link>
+              ),
+              title: p.title,
+              sku: p.sku || 'N/A',
+              inventoryQuantity: p.inventoryQuantity,
+              preorderStatus: 'Pre-order',
+              updatedDate: <LocalizedDate date={p.updatedAt} format="date" />,
+              updatedTime: <LocalizedDate date={p.updatedAt} format="time" />,
+            };
+          })
+          .sort((a: any, b: any) => a.inventoryQuantity - b.inventoryQuantity);
+      }
+    } catch (e) {
+      console.warn('[DashboardPage] Error fetching preorder eligible products:', e);
+    }
+  }
+
+  const preorderEligibleColumns: ColumnConfig[] = [
+    { title: 'Image', key: 'imageUrl', type: 'image' },
+    { title: 'Product Name', key: 'title_node', type: 'react_node' },
+    { title: 'SKU', key: 'sku' },
+    { title: 'Current Stock', key: 'inventoryQuantity', type: 'bold' },
+    {
+      title: 'Status',
+      key: 'preorderStatus',
+      type: 'badge',
+      badgeRules: {
+        'Pre-order': 'warning',
+      },
+    },
+    { title: 'Updated Date', key: 'updatedDate' },
+    { title: 'Updated Time', key: 'updatedTime' },
+  ];
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full overflow-x-hidden">
       <div className="flex flex-col min-w-0 w-full">
@@ -388,6 +457,31 @@ export default async function DashboardPage(props: DashboardPageProps) {
           </div>
         )}
 
+        {/* ── Pre-order Eligible Products (Standalone only) ── */}
+        {isStandalone && (
+          <div className="w-full overflow-hidden">
+            <TableCard title="Pre-order Eligible Products" description="Products eligible or currently taking pre-orders">
+              <div className="overflow-x-auto w-full max-w-full">
+                <Table
+                  headerColor="#7c3aed"
+                  columns={preorderEligibleColumns}
+                  items={preorderEligibleProducts}
+                  searchable
+                  searchKey="title"
+                  filterable={false}
+                  paginate={true}
+                  itemsPerPage={10}
+                  emptyState={
+                    <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
+                      No pre-order products currently taking orders.
+                    </div>
+                  }
+                />
+              </div>
+            </TableCard>
+          </div>
+        )}
+
         <div className="w-full overflow-hidden">
           <TableCard title="Low Stock Products" description={`Items with ${lowStockThreshold} or fewer units remaining`}>
             <div className="overflow-x-auto w-full max-w-full">
@@ -404,6 +498,8 @@ export default async function DashboardPage(props: DashboardPageProps) {
                   { label: 'Critical', value: 'Critical' },
                   { label: 'Low', value: 'Low' },
                 ]}
+                paginate={true}
+                itemsPerPage={10}
                 emptyState={
                   <div style={{ padding: '40px', textAlign: 'center', color: 'var(--color-success)' }}>
                     All inventory levels are healthy.
@@ -425,6 +521,8 @@ export default async function DashboardPage(props: DashboardPageProps) {
                 searchable
                 searchKey="title"
                 filterable={false}
+                paginate={true}
+                itemsPerPage={10}
                 emptyState={
                   <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
                     No recently added products.

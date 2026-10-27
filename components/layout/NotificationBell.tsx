@@ -227,7 +227,7 @@ export function NotificationBell() {
                   }}
                   className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all cursor-pointer whitespace-nowrap ${
                     active
-                      ? 'bg-[var(--color-primary)] text-black font-black shadow-2xs'
+                      ? 'bg-[var(--color-primary)] toggle-btn-active font-black shadow-2xs'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200/70 hover:text-black font-semibold'
                   }`}
                 >

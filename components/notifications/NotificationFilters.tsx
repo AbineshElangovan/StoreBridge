@@ -99,7 +99,7 @@ export function NotificationFilters({
                 }}
                 className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                   statusFilter === 'all'
-                    ? 'bg-[var(--color-primary-dark,#082f49)] text-white shadow-xs'
+                    ? 'bg-[var(--color-primary)] toggle-btn-active font-black shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                 }`}
               >
@@ -112,7 +112,7 @@ export function NotificationFilters({
                 }}
                 className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                   statusFilter === 'unread'
-                    ? 'bg-[var(--color-primary-dark,#082f49)] text-white shadow-xs'
+                    ? 'bg-[var(--color-primary)] toggle-btn-active font-black shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                 }`}
               >
@@ -125,7 +125,7 @@ export function NotificationFilters({
                 }}
                 className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                   statusFilter === 'read'
-                    ? 'bg-[var(--color-primary-dark,#082f49)] text-white shadow-xs'
+                    ? 'bg-[var(--color-primary)] toggle-btn-active font-black shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                 }`}
               >

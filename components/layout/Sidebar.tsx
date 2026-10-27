@@ -168,7 +168,7 @@ export function Sidebar() {
       {/* Innovative Brand Logo Header */}
       <Link
         href={createHref('/')}
-        className="px-5 py-5 flex items-center gap-3 border-b border-[var(--theme-sidebar-border)] bg-transparent hover:bg-[var(--theme-brand-bg,#cae174)] active:bg-[var(--color-primary)] transition-all duration-200 cursor-pointer group shrink-0"
+        className="px-5 py-5 flex items-center gap-3 border-b border-[var(--theme-sidebar-border)] bg-transparent ys-sidebar-header active:bg-[var(--color-primary)] transition-all duration-200 cursor-pointer group shrink-0"
         title="Go to Dashboard"
       >
         <div 
@@ -279,7 +279,7 @@ export function Sidebar() {
                               className={`w-full px-3 py-2 text-left flex items-start justify-between gap-2 text-xs transition-all cursor-pointer ${
                                 isSelected
                                   ? 'bg-[var(--color-primary)] text-[var(--color-primary-text,#000000)] font-bold border-l-4 border-[var(--color-primary-dark)] shadow-2xs'
-                                  : 'text-gray-800 hover:bg-[var(--theme-brand-bg,#cae174)]/70 hover:text-black active:bg-[var(--color-primary)]'
+                                  : 'text-gray-800 ys-store-switch-item hover:text-black active:bg-[var(--color-primary)]'
                               }`}
                               style={{ backgroundColor: isSelected ? undefined : '#ffffff' }}
                             >
@@ -374,9 +374,9 @@ export function Sidebar() {
                     key={item.label}
                     href={createHref(item.href)}
                     prefetch={false}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-150 group cursor-pointer ${isActive
-                      ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover,#96bb13)] text-[var(--color-primary-text,#000000)] font-black shadow-md border border-[var(--theme-sidebar-border,#91b212)]'
-                      : 'text-gray-950 hover:bg-[var(--theme-brand-bg,#cae174)] hover:text-black active:bg-[var(--color-primary)] active:text-[var(--color-primary-text,#000000)] active:scale-[0.98] font-bold'
+                    className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-150 group cursor-pointer ys-sidebar-nav-item ${isActive
+                      ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover,#96bb13)] text-[var(--color-primary-text,#000000)] font-black shadow-md border border-[var(--theme-sidebar-border,#91b212)] ys-sidebar-active'
+                      : 'text-gray-950 hover:text-black active:bg-[var(--color-primary)] active:text-[var(--color-primary-text,#000000)] active:scale-[0.98] font-bold'
                       }`}
                   >
                     <span className={isActive ? 'text-[var(--color-primary-text,#000000)]' : 'text-gray-900 group-hover:text-black transition-colors'}>

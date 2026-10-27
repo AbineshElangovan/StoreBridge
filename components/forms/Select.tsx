@@ -1,11 +1,11 @@
 "use client";
 import React from 'react';
-import { CustomSelect } from '@/components/common/CustomSelect';
+import { PolarisSelect, PolarisSelectProps } from '@/components/common/PolarisSelect';
 
-export type SelectProps = React.ComponentProps<typeof CustomSelect>;
+export type SelectProps = PolarisSelectProps;
 
 export function Select(props: SelectProps) {
   return (
-    <CustomSelect {...props} />
+    <PolarisSelect {...props} />
   );
 }

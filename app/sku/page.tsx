@@ -204,7 +204,7 @@ export default function SkuSettingsPage() {
                   }
                 }}
                 className={`px-3.5 sm:px-4 py-1.5 text-xs sm:text-sm font-black rounded-lg transition-all cursor-pointer ${
-                  skuMode === "default" ? "bg-[var(--color-primary)] text-black shadow-xs" : "text-gray-700 hover:bg-gray-200/70"
+                  skuMode === "default" ? "bg-[var(--color-primary)] toggle-btn-active shadow-xs" : "text-gray-700 hover:bg-gray-200/70"
                 }`}
                 disabled={!hasWriteAccess}
               >
@@ -214,7 +214,7 @@ export default function SkuSettingsPage() {
                 type="button"
                 onClick={() => hasWriteAccess && setSkuMode("collection")}
                 className={`px-3.5 sm:px-4 py-1.5 text-xs sm:text-sm font-black rounded-lg transition-all cursor-pointer ${
-                  skuMode === "collection" ? "bg-[var(--color-primary)] text-black shadow-xs" : "text-gray-700 hover:bg-gray-200/70"
+                  skuMode === "collection" ? "bg-[var(--color-primary)] toggle-btn-active shadow-xs" : "text-gray-700 hover:bg-gray-200/70"
                 }`}
                 disabled={!hasWriteAccess}
               >

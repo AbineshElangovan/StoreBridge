@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import CollectionPriceAdjustment from '@/components/stores/CollectionPriceAdjustment';
 import { ThemedSection } from '@/components/ui/ThemedSection';
-import { Loading } from '@/components/common';
+import { Loading, PolarisSelect } from '@/components/common';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 import { useTheme } from '@/components/providers/ThemeContext';
 
@@ -116,21 +116,18 @@ export default function PriceAdjustmentPage() {
               <label htmlFor="master-store-select" className="text-xs sm:text-sm font-bold whitespace-nowrap" style={{ color: themeDark }}>
                 Select Store:
               </label>
-              <select
-                id="master-store-select"
-                value={selectedStoreFilter || stores.find(s => s.isMaster)?.id || stores[0]?.id || ''}
-                onChange={(e) => setSelectedStoreFilter(e.target.value)}
-                className="bg-white border text-gray-900 text-xs sm:text-sm rounded-lg p-2 font-semibold cursor-pointer outline-none transition-shadow"
-                style={{
-                  borderColor: themeBorder,
-                }}
-              >
-                {stores.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label || s.shopDomain} {s.isMaster ? '(Master)' : ''}
-                  </option>
-                ))}
-              </select>
+              <div className="min-w-[200px]">
+                <PolarisSelect
+                  label="Select Store"
+                  labelHidden
+                  value={selectedStoreFilter || stores.find(s => s.isMaster)?.id || stores[0]?.id || ''}
+                  onChange={(val) => setSelectedStoreFilter(val)}
+                  options={stores.map((s) => ({
+                    label: `${s.label || s.shopDomain}${s.isMaster ? ' (Master)' : ''}`,
+                    value: s.id,
+                  }))}
+                />
+              </div>
             </div>
           )}
         </div>

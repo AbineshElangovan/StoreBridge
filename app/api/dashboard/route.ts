@@ -91,8 +91,9 @@ export async function GET(req: NextRequest) {
     ).size;
     const lowStockCount = currentStoreProducts.filter((p: any) => p.inventoryQuantity <= store.lowStockThreshold).length;
     let preorderActiveCount = 0;
+    let preorderConfig: any = null;
     try {
-      const preorderConfig = await PreorderService.getConfig(store.id);
+      preorderConfig = await PreorderService.getConfig(store.id);
       if (preorderConfig && preorderConfig.enabled) {
         preorderActiveCount = currentStoreProducts.filter((p: any) => {
           const prodColls = (p.collections || []).flatMap((cp: any) => [
@@ -195,6 +196,31 @@ export async function GET(req: NextRequest) {
       .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 50);
 
+    const preorderEligibleProducts = (preorderConfig && preorderConfig.enabled)
+      ? currentStoreProducts
+          .filter((p: any) => {
+            const prodColls = (p.collections || []).flatMap((cp: any) => [
+              cp.collection?.id,
+              cp.collection?.shopifyCollectionId,
+            ]).filter(Boolean) as string[];
+            const threshold = preorderConfig.inventoryThreshold ?? 0;
+            return (
+              p.inventoryQuantity <= threshold &&
+              PreorderService.isProductTargeted(preorderConfig, p.shopifyProductId, prodColls)
+            );
+          })
+          .map((p: any) => {
+            const enriched = enrichProduct(p);
+            const threshold = preorderConfig.inventoryThreshold ?? 0;
+            return {
+              ...enriched,
+              threshold,
+              preorderStatus: 'Pre-order',
+            };
+          })
+          .sort((a: any, b: any) => a.inventoryQuantity - b.inventoryQuantity)
+      : [];
+
     const preorderMetrics = await PreorderService.getPreorderMetrics(store.id);
 
     return NextResponse.json({
@@ -205,6 +231,12 @@ export async function GET(req: NextRequest) {
       syncStats,
       lowStockProducts,
       recentlyAddedProducts,
+      preorderEligibleProducts,
+      preorderConfig: preorderConfig ? {
+        enabled: preorderConfig.enabled,
+        inventoryThreshold: preorderConfig.inventoryThreshold ?? 0,
+        selectionMode: preorderConfig.selectionMode || 'ALL_PRODUCTS',
+      } : null,
       lowStockThreshold: store.lowStockThreshold,
       preorderMetrics,
     });

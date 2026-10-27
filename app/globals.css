@@ -27,7 +27,7 @@
   --theme-sidebar-border: #d4e897;
   --theme-sidebar-active-bg: #a7cd18; /* Lime green active button */
   --theme-sidebar-active-text: #000000; /* Pure black text inside */
-  --theme-sidebar-hover-bg: rgba(0, 0, 0, 0.05);
+  --theme-sidebar-hover-bg: #cae174;
   --theme-sidebar-hover-text: #000000;
   --theme-brand-bg: #cae174;
   --theme-brand-hover-bg: #c2dc65;
@@ -78,10 +78,10 @@
   --theme-sidebar-border: #38bdf8;
   --theme-sidebar-active-bg: #bae6fd;
   --theme-sidebar-active-text: #0c4a6e;
-  --theme-sidebar-hover-bg: #0284c7;
-  --theme-sidebar-hover-text: #ffffff;
-  --theme-brand-bg: #bae6fd;
-  --theme-brand-hover-bg: #7dd3fc;
+  --theme-sidebar-hover-bg: #7dd3fc;
+  --theme-sidebar-hover-text: #082f49;
+  --theme-brand-bg: #7dd3fc;
+  --theme-brand-hover-bg: #38bdf8;
   --theme-brand-border: #38bdf8;
   --theme-brand-text: #082f49;
   --theme-brand-subtext: #0369a1;
@@ -110,10 +110,10 @@
   --theme-sidebar-border: #f87171;
   --theme-sidebar-active-bg: #fecaca;
   --theme-sidebar-active-text: #450a0a;
-  --theme-sidebar-hover-bg: #991b1b;
-  --theme-sidebar-hover-text: #ffffff;
-  --theme-brand-bg: #fecaca;
-  --theme-brand-hover-bg: #fca5a5;
+  --theme-sidebar-hover-bg: #fca5a5;
+  --theme-sidebar-hover-text: #450a0a;
+  --theme-brand-bg: #fca5a5;
+  --theme-brand-hover-bg: #f87171;
   --theme-brand-border: #f87171;
   --theme-brand-text: #450a0a;
   --theme-brand-subtext: #991b1b;
@@ -142,10 +142,10 @@
   --theme-sidebar-border: #c084fc;
   --theme-sidebar-active-bg: #e9d5ff;
   --theme-sidebar-active-text: #581c87;
-  --theme-sidebar-hover-bg: #6b21a8;
-  --theme-sidebar-hover-text: #ffffff;
-  --theme-brand-bg: #e9d5ff;
-  --theme-brand-hover-bg: #d8b4fe;
+  --theme-sidebar-hover-bg: #d8b4fe;
+  --theme-sidebar-hover-text: #3b0764;
+  --theme-brand-bg: #d8b4fe;
+  --theme-brand-hover-bg: #c084fc;
   --theme-brand-border: #c084fc;
   --theme-brand-text: #3b0764;
   --theme-brand-subtext: #6b21a8;
@@ -174,14 +174,14 @@
   --theme-sidebar-border: #eab308;
   --theme-sidebar-active-bg: #000000;
   --theme-sidebar-active-text: #fde047;
-  --theme-sidebar-hover-bg: #000000;
-  --theme-sidebar-hover-text: #fef08a;
-  --theme-brand-bg: #fef08a;
-  --theme-brand-hover-bg: #fde047;
+  --theme-sidebar-hover-bg: #fde047;
+  --theme-sidebar-hover-text: #000000;
+  --theme-brand-bg: #fde047;
+  --theme-brand-hover-bg: #eab308;
   --theme-brand-border: #eab308;
   --theme-brand-text: #000000;
   --theme-brand-subtext: #854d0e;
-  --color-primary-text: #fde047;
+  --color-primary-text: #ffffff;
   --theme-card-bg: rgba(255, 255, 255, 0.98);
   --theme-border-accent: #eab308;
   --theme-glow: rgba(0, 0, 0, 0.35);
@@ -364,6 +364,94 @@
   color: #000000 !important;
   fill: #000000 !important;
   font-weight: 900 !important;
+}
+
+/* ==========================================================================
+   Toggle Buttons & Pills: Lime = Solid Black Font, Other Themes = Pure White Font
+   ========================================================================== */
+[data-theme="emerald_forest"] .toggle-btn-active,
+[data-theme="emerald"] .toggle-btn-active,
+:root:not([data-theme]) .toggle-btn-active {
+  color: #000000 !important;
+  font-weight: 900 !important;
+}
+
+[data-theme="emerald_forest"] .toggle-btn-active *,
+[data-theme="emerald"] .toggle-btn-active *,
+:root:not([data-theme]) .toggle-btn-active * {
+  color: #000000 !important;
+  fill: #000000 !important;
+}
+
+/* All other themes: Toggle active button font must strictly be pure solid white */
+[data-theme]:not([data-theme="emerald_forest"]):not([data-theme="emerald"]) .toggle-btn-active,
+[data-theme]:not([data-theme="emerald_forest"]):not([data-theme="emerald"]) .bg-\[var\(--color-primary\)\],
+[data-theme]:not([data-theme="emerald_forest"]):not([data-theme="emerald"]) button.bg-\[var\(--color-primary\)\],
+[data-theme]:not([data-theme="emerald_forest"]):not([data-theme="emerald"]) a.bg-\[var\(--color-primary\)\] {
+  color: #ffffff !important;
+  font-weight: 900 !important;
+}
+
+[data-theme]:not([data-theme="emerald_forest"]):not([data-theme="emerald"]) .toggle-btn-active *,
+[data-theme]:not([data-theme="emerald_forest"]):not([data-theme="emerald"]) .bg-\[var\(--color-primary\)\] *,
+[data-theme]:not([data-theme="emerald_forest"]):not([data-theme="emerald"]) button.bg-\[var\(--color-primary\)\] *,
+[data-theme]:not([data-theme="emerald_forest"]):not([data-theme="emerald"]) a.bg-\[var\(--color-primary\)\] * {
+  color: #ffffff !important;
+  fill: #ffffff !important;
+}
+
+/* ==========================================================================
+   Sidebar Navigation & Header Light Hover Styles (All Themes)
+   ========================================================================== */
+.ys-sidebar-nav-item {
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+[data-theme="emerald_forest"] .ys-sidebar-nav-item:not(.ys-sidebar-active):hover,
+[data-theme="emerald"] .ys-sidebar-nav-item:not(.ys-sidebar-active):hover,
+:root:not([data-theme]) .ys-sidebar-nav-item:not(.ys-sidebar-active):hover,
+[data-theme="emerald_forest"] .ys-sidebar-header:hover,
+[data-theme="emerald"] .ys-sidebar-header:hover,
+:root:not([data-theme]) .ys-sidebar-header:hover,
+[data-theme="emerald_forest"] .ys-store-switch-item:hover,
+[data-theme="emerald"] .ys-store-switch-item:hover,
+:root:not([data-theme]) .ys-store-switch-item:hover {
+  background-color: #cae174 !important;
+  color: #000000 !important;
+}
+
+[data-theme="sky_azure"] .ys-sidebar-nav-item:not(.ys-sidebar-active):hover,
+[data-theme="sapphire"] .ys-sidebar-nav-item:not(.ys-sidebar-active):hover,
+[data-theme="sky_azure"] .ys-sidebar-header:hover,
+[data-theme="sapphire"] .ys-sidebar-header:hover,
+[data-theme="sky_azure"] .ys-store-switch-item:hover,
+[data-theme="sapphire"] .ys-store-switch-item:hover {
+  background-color: #7dd3fc !important;
+  color: #082f49 !important;
+}
+
+[data-theme="crimson_ruby"] .ys-sidebar-nav-item:not(.ys-sidebar-active):hover,
+[data-theme="crimson_ruby"] .ys-sidebar-header:hover,
+[data-theme="crimson_ruby"] .ys-store-switch-item:hover {
+  background-color: #fca5a5 !important;
+  color: #450a0a !important;
+}
+
+[data-theme="lavender"] .ys-sidebar-nav-item:not(.ys-sidebar-active):hover,
+[data-theme="violet"] .ys-sidebar-nav-item:not(.ys-sidebar-active):hover,
+[data-theme="lavender"] .ys-sidebar-header:hover,
+[data-theme="violet"] .ys-sidebar-header:hover,
+[data-theme="lavender"] .ys-store-switch-item:hover,
+[data-theme="violet"] .ys-store-switch-item:hover {
+  background-color: #d8b4fe !important;
+  color: #3b0764 !important;
+}
+
+[data-theme="sand"] .ys-sidebar-nav-item:not(.ys-sidebar-active):hover,
+[data-theme="sand"] .ys-sidebar-header:hover,
+[data-theme="sand"] .ys-store-switch-item:hover {
+  background-color: #fde047 !important;
+  color: #000000 !important;
 }
 
 [data-theme] .text-\[\#0db69d\],

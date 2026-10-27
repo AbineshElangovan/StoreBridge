@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import { Loading } from '@/components/common/Loading';
+import { PolarisSelect } from '@/components/common';
 import { useTheme } from '@/components/providers/ThemeContext';
 
 export interface ProductSummary {
@@ -206,8 +207,8 @@ export function PreorderProductSelector({
             onClick={() => setStockFilter('OOS')}
             className={`px-3 py-1.5 rounded-md transition-colors cursor-pointer ${
               stockFilter === 'OOS'
-                ? 'bg-white text-gray-900 shadow-2xs font-bold'
-                : 'text-gray-600 hover:text-gray-900'
+                ? 'bg-[var(--color-primary)] toggle-btn-active font-black shadow-xs border border-[var(--color-primary-dark,var(--color-primary))]'
+                : 'text-gray-600 hover:text-black font-semibold'
             }`}
           >
             Out of Stock ({oosCount})
@@ -217,8 +218,8 @@ export function PreorderProductSelector({
             onClick={() => setStockFilter('ALL')}
             className={`px-3 py-1.5 rounded-md transition-colors cursor-pointer ${
               stockFilter === 'ALL'
-                ? 'bg-white text-gray-900 shadow-2xs font-bold'
-                : 'text-gray-600 hover:text-gray-900'
+                ? 'bg-[var(--color-primary)] toggle-btn-active font-black shadow-xs border border-[var(--color-primary-dark,var(--color-primary))]'
+                : 'text-gray-600 hover:text-black font-semibold'
             }`}
           >
             All Products ({products.length})
@@ -226,19 +227,19 @@ export function PreorderProductSelector({
         </div>
 
         {collections.length > 0 && (
-          <select
-            value={selectedCollection}
-            onChange={(e) => setSelectedCollection(e.target.value)}
-            disabled={disabled}
-            className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 sm:w-44"
-          >
-            <option value="ALL">All Collections</option>
-            {collections.map((c) => (
-              <option key={c.id} value={c.title}>
-                {c.title}
-              </option>
-            ))}
-          </select>
+          <div className="w-48">
+            <PolarisSelect
+              label="Collection Filter"
+              labelHidden
+              value={selectedCollection}
+              onChange={setSelectedCollection}
+              disabled={disabled}
+              options={[
+                { label: 'All Collections', value: 'ALL' },
+                ...collections.map((c) => ({ label: c.title, value: c.title })),
+              ]}
+            />
+          </div>
         )}
       </div>
 

@@ -3,6 +3,7 @@
 import React from 'react';
 
 import { useStoreContext } from '@/components/providers/StoreProvider';
+import { PolarisSelect } from '@/components/common';
 
 interface FilterStore {
   id: string;
@@ -34,70 +35,46 @@ export function InsightFilters({
   const showStoreSelector = !isStandalone && stores && stores.length > 1;
 
   return (
-    <div className={`grid grid-cols-1 ${showStoreSelector ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3 mb-6 w-full`}>
+    <div className={`grid grid-cols-1 ${showStoreSelector ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3 mb-6 w-full items-center`}>
       {/* Store Selector */}
       {showStoreSelector && (
-        <div className="relative w-full">
-          <select
-            value={selectedStore}
-            onChange={(e) => onStoreChange(e.target.value)}
-            className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 pr-9 text-xs sm:text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)] cursor-pointer shadow-2xs transition-colors"
-          >
-            {stores.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-500">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </div>
-        </div>
+        <PolarisSelect
+          label="Store"
+          labelHidden
+          value={selectedStore}
+          onChange={onStoreChange}
+          options={stores.map((s) => ({ label: s.label, value: s.id }))}
+        />
       )}
 
       {/* Date Range Selector */}
-      <div className="relative w-full">
-        <select
-          value={selectedRange}
-          onChange={(e) => onRangeChange(e.target.value)}
-          className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 pr-9 text-xs sm:text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)] cursor-pointer shadow-2xs transition-colors"
-        >
-          <option value="7">Last 7 days</option>
-          <option value="30">Last 30 days</option>
-          <option value="90">Last 90 days</option>
-          <option value="365">Last 1 year</option>
-        </select>
-        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-500">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      </div>
+      <PolarisSelect
+        label="Date Range"
+        labelHidden
+        value={selectedRange}
+        onChange={onRangeChange}
+        options={[
+          { label: 'Last 7 days', value: '7' },
+          { label: 'Last 30 days', value: '30' },
+          { label: 'Last 90 days', value: '90' },
+          { label: 'Last 1 year', value: '365' },
+        ]}
+      />
 
       {/* Collection Selector */}
-      <div className="relative w-full">
-        <select
-          value={selectedCollection}
-          onChange={(e) => onCollectionChange(e.target.value)}
-          className="w-full appearance-none bg-white border border-gray-300 rounded-lg px-3.5 py-2.5 pr-9 text-xs sm:text-sm font-medium text-gray-700 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:border-[var(--color-primary)] cursor-pointer shadow-2xs transition-colors"
-        >
-          {collections.map((c) => {
-            const isAll = c === 'All collections' || c === 'all';
-            return (
-              <option key={c} value={isAll ? 'all' : c}>
-                {isAll ? 'All collections' : c}
-              </option>
-            );
-          })}
-        </select>
-        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-gray-500">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      </div>
+      <PolarisSelect
+        label="Collection"
+        labelHidden
+        value={selectedCollection}
+        onChange={onCollectionChange}
+        options={collections.map((c) => {
+          const isAll = c === 'All collections' || c === 'all';
+          return {
+            label: isAll ? 'All collections' : c,
+            value: isAll ? 'all' : c,
+          };
+        })}
+      />
     </div>
   );
 }

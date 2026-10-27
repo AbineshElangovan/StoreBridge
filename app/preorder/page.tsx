@@ -21,6 +21,7 @@ import { PreorderCollectionSelector } from '@/components/preorder/PreorderCollec
 import { StandaloneGuard } from '@/components/ui/StandaloneGuard';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 import { PageTabs, PageTab } from '@/components/ui/PageTabs';
+import { PolarisSelect } from '@/components/common';
 import { PreorderPerformanceCard } from '@/components/dashboard/PreorderPerformanceCard';
 import type { PreorderMetrics } from '@/services/preorder/preorder-service';
 
@@ -311,7 +312,7 @@ export default function PreorderAdminPage() {
   const tabs: PageTab<PreorderTabId>[] = [
     { id: 'general', label: 'Setup & Products' },
     { id: 'offers_payment', label: 'Offer & Payment' },
-    { id: 'orders', label: 'Pre-order Orders' },
+    { id: 'orders', label: 'Pre-order Tracking' },
   ];
 
   const previewColumn = (
@@ -589,17 +590,17 @@ export default function PreorderAdminPage() {
                     onClick={handleSave}
                     disabled={saving}
                     style={{ backgroundColor: primaryColor }}
-                    className="px-4 py-2 text-xs font-bold text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
+                    className="px-4 py-2 text-xs font-black text-black rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
                   >
                     {saving ? (
                       <>
-                        <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        <span className="inline-block w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin"></span>
                         Saving...
                       </>
                     ) : (
                       <>
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                        <svg className="w-3.5 h-3.5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
                         </svg>
                         Save Selection
                       </>
@@ -785,26 +786,21 @@ export default function PreorderAdminPage() {
                       Calculated on discounted price
                     </span>
                   </div>
-                  <div className="relative mt-2">
-                    <select
+                  <div className="mt-2">
+                    <PolarisSelect
                       value={paymentType}
-                      onChange={(e) => handlePaymentTypeChange(e.target.value as 'FULL' | 'HALF')}
-                      className="w-full appearance-none px-4 py-3 text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-xl shadow-2xs focus:border-gray-900 focus:ring-1 focus:ring-gray-900 outline-none pr-10 cursor-pointer transition-colors hover:border-gray-400"
-                    >
-                      <option value="FULL">Full payment (100% upfront)</option>
-                      <option value="HALF">Half payment (50% deposit upfront)</option>
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
-                      <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
-                    </div>
+                      onChange={(val) => handlePaymentTypeChange(val as 'FULL' | 'HALF')}
+                      options={[
+                        { label: 'Full payment (100% upfront)', value: 'FULL' },
+                        { label: 'Half payment (50% deposit upfront)', value: 'HALF' },
+                      ]}
+                      helpText={
+                        paymentType === 'FULL'
+                          ? 'Customers will pay the full discounted price at checkout.'
+                          : 'Customers pay a 50% deposit based on the discounted price today, and the remaining 50% upon restock.'
+                      }
+                    />
                   </div>
-                  <p className="text-xs text-gray-500 mt-2 font-normal leading-relaxed">
-                    {paymentType === 'FULL'
-                      ? 'Customers will pay the full discounted price at checkout.'
-                      : 'Customers pay a 50% deposit based on the discounted price today, and the remaining 50% upon restock.'}
-                  </p>
                 </div>
 
                 {/* 3. Display Settings */}
@@ -836,17 +832,17 @@ export default function PreorderAdminPage() {
                     onClick={handleSave}
                     disabled={saving}
                     style={{ backgroundColor: primaryColor }}
-                    className="px-4 py-2 text-xs font-bold text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
+                    className="px-4 py-2 text-xs font-black text-black rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
                   >
                     {saving ? (
                       <>
-                        <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        <span className="inline-block w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin"></span>
                         Saving...
                       </>
                     ) : (
                       <>
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                        <svg className="w-3.5 h-3.5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
                         </svg>
                         Save Payment &amp; Discount
                       </>
@@ -860,12 +856,12 @@ export default function PreorderAdminPage() {
         </div>
       )}
 
-      {/* TAB 3: Pre-order Orders Table */}
+      {/* TAB 3: Pre-order Tracking Table */}
       {activeTab === 'orders' && (
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight m-0">Pre-order Orders</h2>
+              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight m-0">Pre-order Tracking</h2>
               <p className="text-xs sm:text-sm text-slate-500 mt-1 m-0">
                 Track initial deposits, outstanding customer balances, and payment statuses.
               </p>
