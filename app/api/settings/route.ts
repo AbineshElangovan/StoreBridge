@@ -57,20 +57,59 @@ async function getAuthorizedStores(currentStore: any, isCurrentStoreStandalone: 
 export async function GET(req: NextRequest) {
   try {
     const { store, isStandalone } = await authenticate(req);
-    const storeSetting = await prisma.storeSetting.findUnique({ where: { storeId: store.id } });
     const authorizedStores = await getAuthorizedStores(store, isStandalone);
+    const targetStoreIdParam = req.nextUrl.searchParams.get('storeId');
+    const selectedStoreId = (targetStoreIdParam && authorizedStores.some(s => s.id === targetStoreIdParam))
+      ? targetStoreIdParam
+      : store.id;
+
+    const currentStoreDb = selectedStoreId === store.id ? store : ((await prisma.store.findUnique({ where: { id: selectedStoreId } })) || store);
+    const storeSetting = await prisma.storeSetting.findUnique({ where: { storeId: selectedStoreId } });
+
+    // Fetch customer experience & delivery channel notification settings
+    let notifyEmail = true;
+    let notifyWhatsApp = true;
+    let notifyWaitlist = true;
+    let notifyBackInStock = true;
+    let notifyPreorder = true;
+    let channelInApp = true;
+
+    try {
+      const notifyMe = await (prisma as any).notifyMeSetting.findUnique({ where: { storeId: selectedStoreId } });
+      if (notifyMe) {
+        if (typeof notifyMe.notifyEmail === 'boolean') notifyEmail = notifyMe.notifyEmail;
+        if (typeof notifyMe.notifyWhatsApp === 'boolean') notifyWhatsApp = notifyMe.notifyWhatsApp;
+        if (typeof notifyMe.enabled === 'boolean') {
+          notifyWaitlist = notifyMe.enabled;
+          notifyBackInStock = notifyMe.enabled;
+        }
+      }
+    } catch (nmErr) {
+      console.warn("[API:settings] notifyMe lookup warning:", nmErr);
+    }
+
+    try {
+      const preorder = await (prisma as any).preorderConfig.findFirst({
+        where: { storeId: selectedStoreId, shopifyProductId: null, shopifyVariantId: null }
+      });
+      if (preorder && typeof preorder.enabled === 'boolean') {
+        notifyPreorder = preorder.enabled;
+      }
+    } catch (poErr) {
+      console.warn("[API:settings] preorder lookup warning:", poErr);
+    }
 
     return NextResponse.json({
       success: true,
       settings: {
-        lowStockThreshold: store.lowStockThreshold,
-        bestSellerThreshold: store.bestSellerThreshold,
-        deadStockDays: store.deadStockDays,
-        forecastPeriodDays: (store as any).forecastPeriodDays ?? 7,
-        salesHistoryPeriodDays: (store as any).salesHistoryPeriodDays ?? 30,
-        supplierLeadTimeDays: (store as any).supplierLeadTimeDays ?? 7,
-        safetyStockDays: (store as any).safetyStockDays ?? 3,
-        autoSyncEnabled: store.autoSyncEnabled,
+        lowStockThreshold: currentStoreDb.lowStockThreshold,
+        bestSellerThreshold: currentStoreDb.bestSellerThreshold,
+        deadStockDays: currentStoreDb.deadStockDays,
+        forecastPeriodDays: (currentStoreDb as any).forecastPeriodDays ?? 7,
+        salesHistoryPeriodDays: (currentStoreDb as any).salesHistoryPeriodDays ?? 30,
+        supplierLeadTimeDays: (currentStoreDb as any).supplierLeadTimeDays ?? 7,
+        safetyStockDays: (currentStoreDb as any).safetyStockDays ?? 3,
+        autoSyncEnabled: currentStoreDb.autoSyncEnabled,
         dataRetentionEnabled: storeSetting?.dataRetentionEnabled ?? true,
         notifyLowStock: storeSetting?.notifyLowStock ?? true,
         notifyInventoryUpdate: storeSetting?.notifyInventoryUpdate ?? true,
@@ -78,6 +117,12 @@ export async function GET(req: NextRequest) {
         notifySyncUpdate: storeSetting?.notifySyncUpdate ?? true,
         notifySyncFailure: storeSetting?.notifySyncFailure ?? true,
         notifyStoreUpdate: storeSetting?.notifyStoreUpdate ?? true,
+        notifyPreorder,
+        notifyWaitlist,
+        notifyBackInStock,
+        channelInApp,
+        notifyEmail,
+        notifyWhatsApp,
       },
       stores: authorizedStores
     });
@@ -108,6 +153,12 @@ export async function PUT(req: NextRequest) {
       notifySyncUpdate,
       notifySyncFailure,
       notifyStoreUpdate,
+      notifyPreorder,
+      notifyWaitlist,
+      notifyBackInStock,
+      channelInApp,
+      notifyEmail,
+      notifyWhatsApp,
     } = body;
     
     const selectedStoreId = targetStoreId || store.id;
@@ -262,10 +313,10 @@ export async function PUT(req: NextRequest) {
 
       try {
         updatedSetting = await prisma.storeSetting.upsert({
-          where: { storeId: store.id },
+          where: { storeId: selectedStoreId },
           update: storeSettingData,
           create: {
-            storeId: store.id,
+            storeId: selectedStoreId,
             notifyLowStock: typeof notifyLowStock === 'boolean' ? notifyLowStock : true,
             notifyInventoryUpdate: typeof notifyInventoryUpdate === 'boolean' ? notifyInventoryUpdate : true,
             notifyPriceUpdate: typeof notifyPriceUpdate === 'boolean' ? notifyPriceUpdate : true,
@@ -279,7 +330,94 @@ export async function PUT(req: NextRequest) {
         console.warn("[API:settings] storeSetting upsert warning:", upsertErr.message);
       }
     } else {
-      updatedSetting = await prisma.storeSetting.findUnique({ where: { storeId: store.id } });
+      updatedSetting = await prisma.storeSetting.findUnique({ where: { storeId: selectedStoreId } });
+    }
+
+    // Persist Customer Experience & Channel Notification Settings
+    let currentNotifyEmail = true;
+    let currentNotifyWhatsApp = true;
+    let currentNotifyWaitlist = true;
+    let currentNotifyBackInStock = true;
+    let currentNotifyPreorder = true;
+    let currentChannelInApp = typeof channelInApp === 'boolean' ? channelInApp : true;
+
+    if (
+      typeof notifyEmail === 'boolean' ||
+      typeof notifyWhatsApp === 'boolean' ||
+      typeof notifyWaitlist === 'boolean' ||
+      typeof notifyBackInStock === 'boolean'
+    ) {
+      try {
+        const updateData: any = {};
+        if (typeof notifyEmail === 'boolean') updateData.notifyEmail = notifyEmail;
+        if (typeof notifyWhatsApp === 'boolean') updateData.notifyWhatsApp = notifyWhatsApp;
+        if (typeof notifyWaitlist === 'boolean') updateData.enabled = notifyWaitlist;
+        else if (typeof notifyBackInStock === 'boolean') updateData.enabled = notifyBackInStock;
+
+        const updatedNotifyMe = await (prisma as any).notifyMeSetting.upsert({
+          where: { storeId: selectedStoreId },
+          update: updateData,
+          create: {
+            storeId: selectedStoreId,
+            enabled: updateData.enabled ?? true,
+            notifyEmail: typeof notifyEmail === 'boolean' ? notifyEmail : true,
+            notifyWhatsApp: typeof notifyWhatsApp === 'boolean' ? notifyWhatsApp : true,
+          }
+        });
+
+        if (updatedNotifyMe) {
+          currentNotifyEmail = updatedNotifyMe.notifyEmail ?? true;
+          currentNotifyWhatsApp = updatedNotifyMe.notifyWhatsApp ?? true;
+          currentNotifyWaitlist = updatedNotifyMe.enabled ?? true;
+          currentNotifyBackInStock = updatedNotifyMe.enabled ?? true;
+        }
+      } catch (nmErr: any) {
+        console.warn("[API:settings] notifyMeSetting update warning:", nmErr.message);
+      }
+    } else {
+      try {
+        const existingNotifyMe = await (prisma as any).notifyMeSetting.findUnique({ where: { storeId: selectedStoreId } });
+        if (existingNotifyMe) {
+          currentNotifyEmail = existingNotifyMe.notifyEmail ?? true;
+          currentNotifyWhatsApp = existingNotifyMe.notifyWhatsApp ?? true;
+          currentNotifyWaitlist = existingNotifyMe.enabled ?? true;
+          currentNotifyBackInStock = existingNotifyMe.enabled ?? true;
+        }
+      } catch {}
+    }
+
+    if (typeof notifyPreorder === 'boolean') {
+      try {
+        const globalPreorder = await (prisma as any).preorderConfig.findFirst({
+          where: { storeId: selectedStoreId, shopifyProductId: null, shopifyVariantId: null }
+        });
+        if (globalPreorder) {
+          const updatedPo = await (prisma as any).preorderConfig.update({
+            where: { id: globalPreorder.id },
+            data: { enabled: notifyPreorder }
+          });
+          currentNotifyPreorder = updatedPo.enabled ?? true;
+        } else {
+          const newPo = await (prisma as any).preorderConfig.create({
+            data: {
+              storeId: selectedStoreId,
+              enabled: notifyPreorder,
+            }
+          });
+          currentNotifyPreorder = newPo.enabled ?? true;
+        }
+      } catch (poErr: any) {
+        console.warn("[API:settings] preorderConfig update warning:", poErr.message);
+      }
+    } else {
+      try {
+        const existingPo = await (prisma as any).preorderConfig.findFirst({
+          where: { storeId: selectedStoreId, shopifyProductId: null, shopifyVariantId: null }
+        });
+        if (existingPo) {
+          currentNotifyPreorder = existingPo.enabled ?? true;
+        }
+      } catch {}
     }
     
     const currentStoreRefreshed = await prisma.store.findUnique({ where: { id: store.id } });
@@ -299,6 +437,12 @@ export async function PUT(req: NextRequest) {
         notifySyncUpdate: updatedSetting?.notifySyncUpdate ?? true,
         notifySyncFailure: updatedSetting?.notifySyncFailure ?? true,
         notifyStoreUpdate: updatedSetting?.notifyStoreUpdate ?? true,
+        notifyPreorder: currentNotifyPreorder,
+        notifyWaitlist: currentNotifyWaitlist,
+        notifyBackInStock: currentNotifyBackInStock,
+        channelInApp: currentChannelInApp,
+        notifyEmail: currentNotifyEmail,
+        notifyWhatsApp: currentNotifyWhatsApp,
       },
       stores: refreshedStores
     });

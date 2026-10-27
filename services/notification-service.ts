@@ -56,8 +56,8 @@ export async function createNotification(params: CreateNotificationParams) {
 
   // Check in-flight deduplication lock to stop instant race conditions (< 15 seconds)
   cleanExpiredLocks();
-  const cleanId = productId ? productId.replace(/^gid:\/\/shopify\/(Product|Variant)\//, '').trim() : '';
-  const dedupeKey = `${recipientStoreId}:${type}:${cleanId || productTitle || message}`;
+  const cleanId = productId ? productId.replace(/^gid:\/\/shopify\/(Product|Variant|ProductVariant)\//, '').trim() : '';
+  const dedupeKey = `${recipientStoreId}:${type}:${title}:${cleanId || productTitle || message}`;
   const now = Date.now();
   if (pendingNotificationLocks.has(dedupeKey)) {
     const lockTime = pendingNotificationLocks.get(dedupeKey)!;
@@ -109,6 +109,45 @@ export async function createNotification(params: CreateNotificationParams) {
       }
     }
 
+    // 2b. Check Pre-order & Customer Experience suppression
+    const isPreorderEvent = 
+      metadata?.eventType?.startsWith?.('PREORDER') || 
+      title.toLowerCase().includes('pre-order');
+    if (isPreorderEvent) {
+      try {
+        const preorderConfig = await (prisma as any).preorderConfig.findFirst({
+          where: { storeId: recipientStoreId, shopifyProductId: null, shopifyVariantId: null },
+        });
+        if (preorderConfig && preorderConfig.enabled === false) {
+          console.log(`[NotificationService] Preorder notifications disabled for store ${recipientStoreId}. Skipping.`);
+          return null;
+        }
+      } catch (poErr) {
+        console.warn('[NotificationService] Error checking preorder config:', poErr);
+      }
+    }
+
+    const isWaitlistOrRestockEvent = 
+      metadata?.eventType?.startsWith?.('NOTIFY_ME') || 
+      metadata?.eventType?.startsWith?.('BACK_IN_STOCK') || 
+      title.toLowerCase().includes('waitlist') || 
+      title.toLowerCase().includes('back in stock') ||
+      title.toLowerCase().includes('restock') ||
+      title.toLowerCase().includes('subscriber');
+    if (isWaitlistOrRestockEvent) {
+      try {
+        const notifyMeSetting = await (prisma as any).notifyMeSetting.findUnique({
+          where: { storeId: recipientStoreId },
+        });
+        if (notifyMeSetting && notifyMeSetting.enabled === false) {
+          console.log(`[NotificationService] Waitlist/Back-in-stock notifications disabled for store ${recipientStoreId}. Skipping.`);
+          return null;
+        }
+      } catch (nmErr) {
+        console.warn('[NotificationService] Error checking notify-me settings:', nmErr);
+      }
+    }
+
     // 3. Enforce Multi-Store Rules
     // Check if store is Standalone (not master and has no store connections)
     const connectionCount = await prisma.storeConnection.count({
@@ -141,22 +180,27 @@ export async function createNotification(params: CreateNotificationParams) {
       }
     }
 
-    // 4. Anti-Spam De-duplication for ALL notification types (1 minute window for exact message, 10 min for product)
+    // 4. Anti-Spam De-duplication for notifications
     const cleanProductId = productId ? productId.replace(/^gid:\/\/shopify\/(Product|Variant)\//, '').trim() : null;
 
-    const recentDuplicate = await prisma.notification.findFirst({
-      where: {
-        recipientStoreId,
-        type,
-        title,
-        OR: [
+    // For waitlist subscribers, deduplicate by exact message (same customer email/details) to avoid blocking distinct shoppers
+    const dedupeOrConditions = isWaitlistOrRestockEvent
+      ? [{ message }]
+      : [
           { message },
           ...(cleanProductId ? [
             { productId: cleanProductId },
             { productId: `gid://shopify/Product/${cleanProductId}` }
           ] : []),
           ...(productTitle ? [{ productTitle }] : [])
-        ],
+        ];
+
+    const recentDuplicate = await prisma.notification.findFirst({
+      where: {
+        recipientStoreId,
+        type,
+        title,
+        OR: dedupeOrConditions,
         createdAt: {
           gte: new Date(Date.now() - 2 * 60 * 1000), // 2 minutes anti-spam window
         },

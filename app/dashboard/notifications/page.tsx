@@ -17,14 +17,11 @@ import {
   Button,
   Icon,
 } from '@shopify/polaris';
-import { SettingsIcon } from '@shopify/polaris-icons';
 import { Pagination } from '@/components/common/Pagination';
-import { Toast } from '@/components/common/Toast';
 import { ConfirmToast } from '@/components/ui/ConfirmToast';
 import {
   NotificationCard,
   NotificationFilters,
-  NotificationPreferencesModal,
   NotificationItem,
 } from '@/components/notifications';
 
@@ -53,23 +50,10 @@ export default function NotificationsPage() {
   const [storeOptions, setStoreOptions] = useState<StoreOption[]>([]);
 
   // Modals & Dialogs
-  const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [deletingNotification, setDeletingNotification] = useState<NotificationItem | null>(null);
   const [isDeletingSingle, setIsDeletingSingle] = useState(false);
-
-  // Preferences State
-  const [preferences, setPreferences] = useState({
-    notifyLowStock: true,
-    notifyInventoryUpdate: true,
-    notifyPriceUpdate: true,
-    notifySyncUpdate: true,
-    notifySyncFailure: true,
-    notifyStoreUpdate: true,
-  });
-  const [savingPrefs, setSavingPrefs] = useState(false);
-  const [prefsSuccess, setPrefsSuccess] = useState(false);
 
   // Fetch store options - only if current store is Master
   useEffect(() => {
@@ -102,30 +86,6 @@ export default function NotificationsPage() {
     fetchStores();
   }, [isMaster]);
 
-  // Fetch Preferences
-  useEffect(() => {
-    const fetchPreferences = async () => {
-      try {
-        const res = await shopifyFetch('/api/settings');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.settings) {
-            setPreferences({
-              notifyLowStock: data.settings.notifyLowStock ?? true,
-              notifyInventoryUpdate: data.settings.notifyInventoryUpdate ?? true,
-              notifyPriceUpdate: data.settings.notifyPriceUpdate ?? true,
-              notifySyncUpdate: data.settings.notifySyncUpdate ?? true,
-              notifySyncFailure: data.settings.notifySyncFailure ?? true,
-              notifyStoreUpdate: data.settings.notifyStoreUpdate ?? true,
-            });
-          }
-        }
-      } catch (err) {
-        console.error('[NotificationsPage] Error fetching preferences:', err);
-      }
-    };
-    fetchPreferences();
-  }, []);
 
   const activeShopDomain = currentStore?.shopDomain;
 
@@ -297,32 +257,6 @@ export default function NotificationsPage() {
   };
 
   // Save Preferences
-  const handleSavePreferences = async () => {
-    setSavingPrefs(true);
-    setPrefsSuccess(false);
-    try {
-      const res = await shopifyFetch('/api/settings', {
-        method: 'PUT',
-        body: JSON.stringify(preferences),
-      });
-
-      if (res.ok) {
-        setPrefsSuccess(true);
-        showSuccess('Preferences saved successfully');
-        setTimeout(() => {
-          setIsPreferencesOpen(false);
-          setPrefsSuccess(false);
-        }, 1200);
-      } else {
-        const errorData = await res.json();
-        showError(errorData.error || 'Failed to save preferences');
-      }
-    } catch (err: any) {
-      showError(err.message || 'Error saving preferences');
-    } finally {
-      setSavingPrefs(false);
-    }
-  };
 
   if (loading && notifications.length === 0) {
     return <Loading label="Loading notifications..." />;
@@ -339,19 +273,6 @@ export default function NotificationsPage() {
           <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
             Real-time alerts for inventory updates, stock thresholds, and store sync events.
           </p>
-        </div>
-
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={() => setIsPreferencesOpen(true)}
-            className="notification-pref-btn inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-[var(--color-primary,#047857)] hover:bg-[var(--color-primary-dark,#022c22)] transition-colors cursor-pointer shadow-xs"
-          >
-            <div style={{ width: 14, height: 14 }} className="text-white fill-white [&_svg]:fill-white [&_path]:fill-white flex items-center justify-center shrink-0">
-              <Icon source={SettingsIcon} tone="inherit" />
-            </div>
-            <span className="text-white">Notification Preferences</span>
-          </button>
         </div>
       </div>
 
@@ -457,16 +378,6 @@ export default function NotificationsPage() {
         </Layout.Section>
       </Layout>
 
-      {/* Preferences Modal */}
-      <NotificationPreferencesModal
-        open={isPreferencesOpen}
-        onClose={() => setIsPreferencesOpen(false)}
-        prefs={preferences}
-        onChange={setPreferences}
-        onSave={handleSavePreferences}
-        saving={savingPrefs}
-        saveSuccess={prefsSuccess}
-      />
     </Page>
   );
 }

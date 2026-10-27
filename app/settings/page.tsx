@@ -18,14 +18,14 @@ import { StoreLogo } from '@/components/common';
 import { Icon } from '@shopify/polaris';
 import { CheckIcon } from '@shopify/polaris-icons';
 import { PageTabs } from '@/components/ui/PageTabs';
+import { NotificationConfig } from '@/components/settings/NotificationConfig';
 
-
-export type SettingsTabId = 'store-config' | 'planning-config' | 'data-privacy';
+export type SettingsTabId = 'store-config' | 'planning-config' | 'notification-config' | 'data-privacy';
 
 export default function SettingsPage() {
   const router = useRouter();
   const { currentTheme } = useTheme();
-  const { isStandalone, refreshStores } = useStoreContext();
+  const { isMaster, isStandalone, refreshStores } = useStoreContext();
   const [activeTab, setActiveTab] = useState<SettingsTabId>('store-config');
   const [stores, setStores] = useState<any[]>([]);
   const [performanceStores, setPerformanceStores] = useState<StorePerformanceSetting[]>([]);
@@ -40,10 +40,16 @@ export default function SettingsPage() {
   const [notifySyncUpdate, setNotifySyncUpdate] = useState<boolean>(true);
   const [notifySyncFailure, setNotifySyncFailure] = useState<boolean>(true);
   const [notifyStoreUpdate, setNotifyStoreUpdate] = useState<boolean>(true);
+  const [notifyPreorder, setNotifyPreorder] = useState<boolean>(true);
+  const [notifyWaitlist, setNotifyWaitlist] = useState<boolean>(true);
+  const [notifyBackInStock, setNotifyBackInStock] = useState<boolean>(true);
+  const [selectedNotificationStoreId, setSelectedNotificationStoreId] = useState<string>('');
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [notificationSaving, setNotificationSaving] = useState(false);
+  const [notificationSuccess, setNotificationSuccess] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const [masterLabels, setMasterLabels] = useState<{ [storeId: string]: string }>({});
@@ -75,6 +81,11 @@ export default function SettingsPage() {
         });
         setMasterLabels(initialMasterLabels);
         setMasterStoreId(initialMasterStoreId);
+        if (initialMasterStoreId && !selectedNotificationStoreId) {
+          setSelectedNotificationStoreId(initialMasterStoreId);
+        } else if (loadedStores[0] && !selectedNotificationStoreId) {
+          setSelectedNotificationStoreId(loadedStores[0].id);
+        }
       } else {
         const errText = await storesRes.text();
         setDebugOutput(`API ERROR ${storesRes.status}: ${errText}`);
@@ -94,6 +105,9 @@ export default function SettingsPage() {
         if (typeof s.notifySyncUpdate === 'boolean') setNotifySyncUpdate(s.notifySyncUpdate);
         if (typeof s.notifySyncFailure === 'boolean') setNotifySyncFailure(s.notifySyncFailure);
         if (typeof s.notifyStoreUpdate === 'boolean') setNotifyStoreUpdate(s.notifyStoreUpdate);
+        if (typeof s.notifyPreorder === 'boolean') setNotifyPreorder(s.notifyPreorder);
+        if (typeof s.notifyWaitlist === 'boolean') setNotifyWaitlist(s.notifyWaitlist);
+        if (typeof s.notifyBackInStock === 'boolean') setNotifyBackInStock(s.notifyBackInStock);
 
         if ([10, 20].includes(threshVal)) {
           setThreshold(threshVal.toString());
@@ -314,6 +328,63 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSelectNotificationStore = async (storeId: string) => {
+    setSelectedNotificationStoreId(storeId);
+    try {
+      const res = await shopifyFetch(`/api/settings?storeId=${storeId}`, { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        const s = json.settings || {};
+        if (typeof s.notifyLowStock === 'boolean') setNotifyLowStock(s.notifyLowStock);
+        if (typeof s.notifyInventoryUpdate === 'boolean') setNotifyInventoryUpdate(s.notifyInventoryUpdate);
+        if (typeof s.notifyPriceUpdate === 'boolean') setNotifyPriceUpdate(s.notifyPriceUpdate);
+        if (typeof s.notifySyncUpdate === 'boolean') setNotifySyncUpdate(s.notifySyncUpdate);
+        if (typeof s.notifySyncFailure === 'boolean') setNotifySyncFailure(s.notifySyncFailure);
+        if (typeof s.notifyStoreUpdate === 'boolean') setNotifyStoreUpdate(s.notifyStoreUpdate);
+        if (typeof s.notifyPreorder === 'boolean') setNotifyPreorder(s.notifyPreorder);
+        if (typeof s.notifyWaitlist === 'boolean') setNotifyWaitlist(s.notifyWaitlist);
+        if (typeof s.notifyBackInStock === 'boolean') setNotifyBackInStock(s.notifyBackInStock);
+      }
+    } catch (err) {
+      console.error('Error fetching notification settings for store:', err);
+    }
+  };
+
+  const handleSaveNotificationSettings = async () => {
+    setNotificationSaving(true);
+    setNotificationSuccess(false);
+    try {
+      const res = await shopifyFetch('/api/settings', {
+        method: 'PUT',
+        body: JSON.stringify({
+          targetStoreId: selectedNotificationStoreId || undefined,
+          notifyLowStock,
+          notifyInventoryUpdate,
+          notifyPriceUpdate,
+          notifySyncUpdate,
+          notifySyncFailure,
+          notifyStoreUpdate,
+          notifyPreorder,
+          notifyWaitlist,
+          notifyBackInStock,
+        }),
+      });
+
+      if (res.ok) {
+        setNotificationSuccess(true);
+        setToastMessage({ message: 'Notification preferences saved successfully.', type: 'success' });
+        setTimeout(() => setNotificationSuccess(false), 3000);
+      } else {
+        setToastMessage({ message: 'Failed to save notification preferences.', type: 'error' });
+      }
+    } catch (err) {
+      console.error("Error saving notifications:", err);
+      setToastMessage({ message: 'Failed to save notification preferences.', type: 'error' });
+    } finally {
+      setNotificationSaving(false);
+    }
+  };
+
   const formattedStores = stores.map((s) => ({
     id: s.id,
     domain: s.shopDomain,
@@ -356,11 +427,12 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* ── 3-SECTION NAVIGATION BAR TABS ── */}
+        {/* ── 4-SECTION NAVIGATION BAR TABS ── */}
         <PageTabs
           tabs={[
             { id: 'store-config', label: 'Store Configurations' },
             { id: 'planning-config', label: 'Planning Store Config' },
+            { id: 'notification-config', label: 'Notification Configuration' },
             { id: 'data-privacy', label: 'Data & Privacy' },
           ]}
           activeTab={activeTab}
@@ -590,7 +662,50 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {/* ── TAB 3: DATA & PRIVACY ── */}
+        {/* ── TAB 3: NOTIFICATION CONFIGURATION ── */}
+        {activeTab === 'notification-config' && (
+          <div className={`w-full ${isStandalone ? 'max-w-4xl' : ''}`}>
+            <NotificationConfig
+              preferences={{
+                notifyLowStock,
+                notifyInventoryUpdate,
+                notifyPriceUpdate,
+                notifySyncUpdate,
+                notifySyncFailure,
+                notifyStoreUpdate,
+                notifyPreorder,
+                notifyWaitlist,
+                notifyBackInStock,
+              }}
+              onChange={(key, val) => {
+                if (key === 'notifyLowStock') setNotifyLowStock(val);
+                if (key === 'notifyInventoryUpdate') setNotifyInventoryUpdate(val);
+                if (key === 'notifyPriceUpdate') setNotifyPriceUpdate(val);
+                if (key === 'notifySyncUpdate') setNotifySyncUpdate(val);
+                if (key === 'notifySyncFailure') setNotifySyncFailure(val);
+                if (key === 'notifyStoreUpdate') setNotifyStoreUpdate(val);
+                if (key === 'notifyPreorder') setNotifyPreorder(val);
+                if (key === 'notifyWaitlist') setNotifyWaitlist(val);
+                if (key === 'notifyBackInStock') setNotifyBackInStock(val);
+              }}
+              onSave={handleSaveNotificationSettings}
+              isSaving={notificationSaving}
+              saveSuccess={notificationSuccess}
+              isStandalone={isStandalone}
+              isMaster={isMaster}
+              stores={stores.map((s) => ({
+                id: s.id,
+                label: `${s.label || s.shopDomain || s.id}${s.isMaster ? ' (Master)' : ''}`,
+                shopDomain: s.shopDomain,
+                isMaster: !!s.isMaster,
+              }))}
+              selectedStoreId={selectedNotificationStoreId || stores.find((s) => s.isMaster)?.id || stores[0]?.id || ''}
+              onSelectStore={handleSelectNotificationStore}
+            />
+          </div>
+        )}
+
+        {/* ── TAB 4: DATA & PRIVACY ── */}
         {activeTab === 'data-privacy' && (
           <div className={`w-full ${isStandalone ? 'max-w-4xl' : ''}`}>
             <ThemedSection

@@ -284,19 +284,52 @@ export async function POST(req: NextRequest) {
     // Create in-app notification in StoreBridge Dashboard for new subscribers
     if (!result.alreadyRegistered) {
       try {
-        await prisma.notification.create({
-          data: {
-            recipientStoreId: store.id,
-            type: 'INVENTORY_UPDATE',
-            title: `New Restock Subscriber: ${finalProductTitle}`,
-            message: `${email || cleanPhoneLead || 'A customer'} joined the waitlist for ${finalProductTitle}${finalVariantTitle ? ` (${finalVariantTitle})` : ''}.`,
-            productId: shopifyVariantId,
-            productTitle: finalProductTitle,
-            sourceStoreId: store.id,
-            isRead: false,
-          },
+        const { createNotification } = await import('@/services/notification-service');
+        const notifMetadata = {
+          eventType: 'NOTIFY_ME_NEW_SUBSCRIBER',
+          email: email || null,
+          phone: cleanPhoneLead || null,
+          storeId: store.id,
+          storeName: store.label || store.shopDomain,
+          variantTitle: finalVariantTitle || null,
+          source: 'STOREFRONT_NOTIFY_ME',
+        };
+
+        // 1. Alert the store where the customer registered
+        await createNotification({
+          recipientStoreId: store.id,
+          sourceStoreId: store.id,
+          type: 'INVENTORY_UPDATE',
+          title: `New Restock Subscriber: ${finalProductTitle}`,
+          message: `${email || cleanPhoneLead || 'A customer'} joined the waitlist for ${finalProductTitle}${finalVariantTitle ? ` (${finalVariantTitle})` : ''}.`,
+          productId: shopifyVariantId,
+          productTitle: finalProductTitle,
+          metadata: notifMetadata,
         });
-      } catch (_) {}
+
+        // 2. In multi-store networks, also alert the Master Store administrator
+        if (!store.isMaster) {
+          const masterStore = await prisma.store.findFirst({
+            where: { isMaster: true, isActive: true },
+          });
+
+          if (masterStore && masterStore.id !== store.id) {
+            await createNotification({
+              recipientStoreId: masterStore.id,
+              sourceStoreId: store.id,
+              targetStoreId: store.id,
+              type: 'INVENTORY_UPDATE',
+              title: `New Restock Subscriber: ${finalProductTitle}`,
+              message: `${email || cleanPhoneLead || 'A customer'} joined the waitlist for ${finalProductTitle}${finalVariantTitle ? ` (${finalVariantTitle})` : ''} on ${store.label || store.shopDomain}.`,
+              productId: shopifyVariantId,
+              productTitle: finalProductTitle,
+              metadata: notifMetadata,
+            });
+          }
+        }
+      } catch (notifErr: any) {
+        console.warn('[NotifyMe:InAppNotification:Failed]', notifErr?.message || notifErr);
+      }
     }
 
     return NextResponse.json(

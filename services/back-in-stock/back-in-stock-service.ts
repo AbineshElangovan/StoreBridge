@@ -306,19 +306,54 @@ export class BackInStockService {
     // Create in-app notification in StoreBridge Dashboard if pre-orders were allocated or waitlist notified
     if (allocatedPreorders.length > 0 || registrationsToNotify.length > 0) {
       try {
-        await prisma.notification.create({
-          data: {
-            recipientStoreId: storeId,
-            type: 'INVENTORY_UPDATE',
-            title: `Restock Dispatched: ${productTitle}`,
-            message: `Inventory restocked (${available} units available). Allocated ${allocatedPreorders.length} pre-order customer(s) and notified ${registrationsToNotify.length} waitlist subscriber(s).`,
-            productId: cleanVariantId,
-            productTitle: productTitle,
-            sourceStoreId: storeId,
-            isRead: false,
-          },
+        const { createNotification } = await import('@/services/notification-service');
+        const notifMsg = `Inventory restocked (${available} units available). Allocated ${allocatedPreorders.length} pre-order customer(s) and notified ${registrationsToNotify.length} waitlist subscriber(s).`;
+        const notifMeta = {
+          eventType: 'BACK_IN_STOCK_DISPATCHED',
+          availableUnits: available,
+          preordersAllocated: allocatedPreorders.length,
+          subscribersNotified: registrationsToNotify.length,
+          variantId: cleanVariantId,
+        };
+
+        await createNotification({
+          recipientStoreId: storeId,
+          sourceStoreId: storeId,
+          type: 'INVENTORY_UPDATE',
+          title: `Restock Dispatched: ${productTitle}`,
+          message: notifMsg,
+          productId: cleanVariantId,
+          productTitle: productTitle,
+          metadata: notifMeta,
         });
-      } catch (_) {}
+
+        // In multi-store networks, also alert the Master Store
+        const currentStore = await prisma.store.findUnique({
+          where: { id: storeId },
+          select: { isMaster: true, label: true, shopDomain: true },
+        });
+
+        if (currentStore && !currentStore.isMaster) {
+          const master = await prisma.store.findFirst({
+            where: { isMaster: true, isActive: true },
+          });
+          if (master && master.id !== storeId) {
+            await createNotification({
+              recipientStoreId: master.id,
+              sourceStoreId: storeId,
+              targetStoreId: storeId,
+              type: 'INVENTORY_UPDATE',
+              title: `Restock Dispatched: ${productTitle}`,
+              message: `${notifMsg} (${currentStore.label || currentStore.shopDomain})`,
+              productId: cleanVariantId,
+              productTitle: productTitle,
+              metadata: notifMeta,
+            });
+          }
+        }
+      } catch (restockNotifErr) {
+        console.warn('[BackInStockService:Notification:Failed]', restockNotifErr);
+      }
     }
 
     return {
