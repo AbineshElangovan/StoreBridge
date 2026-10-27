@@ -147,7 +147,7 @@ export function PreviewProductTable({ rows, isSaving }: PreviewProductTableProps
   });
 
   return (
-    <div className="w-full overflow-x-auto border border-gray-200 rounded-xl bg-white shadow-2xs">
+    <div className="w-full max-w-full overflow-hidden border border-gray-200 rounded-xl bg-white shadow-2xs">
       <Table
         headerColor={primaryColor}
         columns={columns}

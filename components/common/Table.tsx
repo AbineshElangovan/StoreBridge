@@ -293,10 +293,10 @@ export function Table({
 
       {/* ── Table Header / Toolbar ── */}
       {(title || searchable || filterable) && !loading && (
-        <div className="p-3 sm:p-4 px-4 sm:px-5 border-b border-gray-100 bg-white/40 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 rounded-t-xl">
+        <div className="p-3 sm:p-4 px-4 sm:px-5 border-b border-gray-100 bg-white/40 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 sm:gap-4 rounded-t-xl">
           
           {/* Left Side: Title */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             {title && (
               <h3 className="text-base sm:text-lg font-bold uppercase tracking-wider m-0" style={{ color: effectiveHeaderColor }}>
                 {title}
@@ -305,9 +305,9 @@ export function Table({
           </div>
 
           {/* Right Side: Search & Filter */}
-          <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 items-stretch sm:items-center w-full sm:w-auto sm:ml-auto">
+          <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 items-stretch sm:items-center w-full xl:w-auto xl:ml-auto flex-wrap">
             {searchable && (searchKey || serverSide) && (
-              <div className="w-full sm:w-auto flex-1 sm:min-w-[200px]">
+              <div className="w-full sm:w-auto flex-1 sm:min-w-[180px] sm:max-w-xs">
                 <SearchInput
                   value={query}
                   onChange={setQuery}
@@ -317,7 +317,7 @@ export function Table({
               </div>
             )}
             {secondaryFilterable && secondaryFilterOptions && (
-              <div className="w-full sm:w-auto sm:min-w-[170px]">
+              <div className="w-full sm:w-auto flex-1 sm:flex-initial sm:min-w-[150px]">
                 <CustomSelect
                   options={secondaryFilterOptions}
                   value={secondaryFilterValue || 'ALL'}
@@ -327,7 +327,7 @@ export function Table({
               </div>
             )}
             {filterable && (filterKey || serverSide) && (
-              <div className="w-full sm:w-auto sm:min-w-[160px]">
+              <div className="w-full sm:w-auto flex-1 sm:flex-initial sm:min-w-[140px]">
                 <CustomSelect
                   options={filterOptions}
                   value={currentFilterValue}
@@ -352,7 +352,7 @@ export function Table({
           {errorState}
         </div>
       ) : (
-        <div className="relative overflow-x-auto w-full">
+        <div className="relative overflow-x-auto w-full touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
           <table className="w-full min-w-[640px] border-collapse">
             <thead>
               <tr>

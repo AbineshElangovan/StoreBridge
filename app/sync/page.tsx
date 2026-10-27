@@ -12,7 +12,7 @@ import { SyncHistoryTable } from '@/components/sync/SyncHistoryTable';
 import { Loading } from '@/components/common';
 
 export default function SyncPage() {
-  const { isMaster, isStandalone, loading: contextLoading } = useStoreContext();
+  const { isMaster, isStandalone, currentStore, loading: contextLoading } = useStoreContext();
   
   // Default to IMPORT if not master, otherwise keep whatever is valid
   const [activeTab, setActiveTab] = useState<'IMPORT' | 'SYNC' | 'HISTORY'>('IMPORT');
@@ -28,14 +28,29 @@ export default function SyncPage() {
 
   const isConnected = !isStandalone && !isMaster;
 
-  // Initial load
+  // Enforce IMPORT tab for standalone stores
   useEffect(() => {
-    fetchStats();
-  }, []);
+    if (isStandalone && activeTab !== 'IMPORT') {
+      setActiveTab('IMPORT');
+    }
+  }, [isStandalone, activeTab]);
+
+  // Initial load and store changes
+  useEffect(() => {
+    if (!isStandalone) {
+      fetchStats();
+    } else {
+      setStatsLoading(false);
+    }
+  }, [isStandalone, currentStore?.id]);
 
   useEffect(() => {
-    fetchHistory();
-  }, [page]);
+    if (!isStandalone) {
+      fetchHistory();
+    } else {
+      setHistoryLoading(false);
+    }
+  }, [page, isStandalone, currentStore?.id]);
 
   // Enforce tab rules when role loads
   // We no longer auto-redirect. Users can see the tabs but will get a restricted message.
@@ -73,29 +88,39 @@ export default function SyncPage() {
     }
   };
 
-  if (statsLoading && !stats) {
-    return <Loading label="Loading store synchronization..." />;
+  if (contextLoading || (!isStandalone && statsLoading && !stats)) {
+    return <Loading label={isStandalone ? "Loading product import..." : "Loading import & sync..."} />;
   }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden">
       <div className="mb-6 pb-2">
-        <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Store Synchronization</h1>
-        <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">Manage and monitor product replication between your stores.</p>
+        <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">
+          {isStandalone ? 'Product Import' : 'Import & Sync'}
+        </h1>
+        <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
+          {isStandalone 
+            ? 'Import products and inventory from CSV or Excel files into your store catalog.' 
+            : 'Manage product imports and monitor synchronization between your stores.'}
+        </p>
       </div>
 
-      <SyncStats 
-        stats={stats || { total: 0, success: 0, failed: 0, pending: 0, skipped: 0 }} 
-        isLoading={statsLoading} 
-      />
+      {!isStandalone && (
+        <SyncStats 
+          stats={stats || { total: 0, success: 0, failed: 0, pending: 0, skipped: 0 }} 
+          isLoading={statsLoading} 
+        />
+      )}
 
-      <SyncTabs 
-        activeTab={activeTab} 
-        onChange={setActiveTab} 
-        isMaster={!!isMaster} 
-        isConnected={!!isConnected}
-        isStandalone={!!isStandalone}
-      />
+      {!isStandalone && (
+        <SyncTabs 
+          activeTab={activeTab} 
+          onChange={setActiveTab} 
+          isMaster={!!isMaster} 
+          isConnected={!!isConnected}
+          isStandalone={!!isStandalone}
+        />
+      )}
 
       {activeTab === 'IMPORT' && (
         <div className="w-full">

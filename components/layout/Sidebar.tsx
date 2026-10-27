@@ -124,7 +124,7 @@ export function Sidebar() {
     {
       title: 'OPERATIONS',
       items: [
-        { label: 'Import & Sync', href: '/sync', icon: ImportIcon },
+        { label: isStandalone ? 'Import' : 'Import & Sync', href: '/sync', icon: ImportIcon },
       ]
     },
     {

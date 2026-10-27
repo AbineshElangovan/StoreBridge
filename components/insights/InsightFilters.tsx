@@ -35,7 +35,7 @@ export function InsightFilters({
   const showStoreSelector = !isStandalone && stores && stores.length > 1;
 
   return (
-    <div className={`grid grid-cols-1 ${showStoreSelector ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3 mb-6 w-full items-center`}>
+    <div className={`grid grid-cols-1 ${showStoreSelector ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3 mb-6 w-full min-w-0 max-w-full items-center`}>
       {/* Store Selector */}
       {showStoreSelector && (
         <PolarisSelect

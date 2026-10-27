@@ -154,7 +154,7 @@ export default function InsightsPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full min-w-0 overflow-x-hidden">
       {/* Header */}
       <div className="mb-6">
         <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">

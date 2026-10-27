@@ -54,9 +54,9 @@ export function PlanningFilters({
       : stores;
 
   return (
-    <div className="bg-white/80 backdrop-blur-md rounded-xl border border-[var(--border-color)] p-3 mb-6 shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 transition-colors">
+    <div className="bg-white/80 backdrop-blur-md rounded-xl border border-[var(--border-color)] p-3 mb-6 shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 transition-colors w-full min-w-0 max-w-full">
       {/* Left Filter Dropdowns */}
-      <div className="flex flex-wrap items-center gap-2.5 flex-1">
+      <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0 w-full md:w-auto">
         {/* Store Selector (Only show if multiple stores or in multi-store master context) */}
         {isUserMultiStore && displayStores && displayStores.length > 1 && (
           <div className="w-full sm:w-auto min-w-[150px]">
@@ -128,7 +128,7 @@ export function PlanningFilters({
       </div>
 
       {/* Right Search Input */}
-      <div className="relative w-full md:w-60 shrink-0">
+      <div className="relative w-full md:w-60 shrink-0 min-w-0">
         <input
           type="text"
           placeholder="Search product or SKU..."

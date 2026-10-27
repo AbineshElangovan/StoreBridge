@@ -892,4 +892,44 @@ select option:hover {
   filter: brightness(0.9) !important;
 }
 
+/* ==========================================================================
+   Global Responsive Viewport & Touch Safeguards
+   ========================================================================== */
+
+/* Prevent horizontal viewport blowout across all devices */
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* Ensure smooth touch scrolling on iOS & Android for all scroll containers */
+.overflow-x-auto,
+.overflow-y-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Global table responsive container utility */
+.table-responsive-wrapper {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Ensure media elements never exceed parent containers */
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+/* Global dropdown clamp to ensure popups don't bleed past mobile screen edges */
+.responsive-popup {
+  max-width: calc(100vw - 24px) !important;
+}
+
+
 

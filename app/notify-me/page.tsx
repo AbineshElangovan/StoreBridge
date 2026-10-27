@@ -320,36 +320,37 @@ export default function NotifyMeAdminPage() {
           />
         )}
 
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-gray-200">
-          <div>
-            <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Notify Me</h1>
-            <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
-              Capture interested buyers with an out-of-stock waitlist modal on your storefront product pages.
-            </p>
-          </div>
+        {/* Page Header */}
+        <div>
+          <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Notify Me</h1>
+          <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
+            Capture interested buyers with an out-of-stock waitlist modal on your storefront product pages.
+          </p>
+        </div>
 
+        {/* Quick Stats Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full min-w-0">
+          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs min-w-0">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider truncate">Total Waitlist Registrations</p>
+            <p className="text-2xl font-black text-gray-900 mt-1">{stats.totalSubscribers}</p>
+          </div>
+          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs min-w-0">
+            <p className="text-xs font-bold text-amber-600 uppercase tracking-wider truncate">Pending Notifications</p>
+            <p className="text-2xl font-black text-amber-900 mt-1">{stats.pending}</p>
+          </div>
+          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs min-w-0">
+            <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider truncate">Back in Stock Alerts Sent</p>
+            <p className="text-2xl font-black text-emerald-900 mt-1">{stats.notified}</p>
+          </div>
+        </div>
+
+        {/* Action Bar Under Cards */}
+        <div className="flex justify-end pt-1">
           <SaveButton
             onClick={handleSaveSettings}
             loading={saving}
             label="Save Settings"
           />
-        </div>
-
-        {/* Quick Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Waitlist Registrations</p>
-            <p className="text-2xl font-black text-gray-900 mt-1">{stats.totalSubscribers}</p>
-          </div>
-          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs">
-            <p className="text-xs font-bold text-amber-600 uppercase tracking-wider">Pending Notifications</p>
-            <p className="text-2xl font-black text-amber-900 mt-1">{stats.pending}</p>
-          </div>
-          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs">
-            <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Back in Stock Alerts Sent</p>
-            <p className="text-2xl font-black text-emerald-900 mt-1">{stats.notified}</p>
-          </div>
         </div>
 
         {/* Settings & Live Modal Preview (2 cols) */}

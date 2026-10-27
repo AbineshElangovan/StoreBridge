@@ -262,7 +262,7 @@ export function ThemeSwitcher() {
       {/* Dropdown Menu */}
       {isOpen && (
         <div
-          className="absolute right-0 mt-2 w-92 sm:w-[410px] bg-white/98 backdrop-blur-2xl rounded-2xl border border-gray-200/90 shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 p-2.5"
+          className="fixed inset-x-3 top-[65px] sm:inset-auto sm:absolute sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-[410px] max-w-[calc(100vw-24px)] sm:max-w-[410px] mx-auto sm:mx-0 bg-white/98 backdrop-blur-2xl rounded-2xl border border-gray-200/90 shadow-2xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150 p-2.5"
         >
           {/* Menu Header */}
           <div className="px-3 py-2.5 border-b border-gray-100 mb-2 flex items-center justify-between">

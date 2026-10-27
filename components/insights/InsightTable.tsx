@@ -82,7 +82,7 @@ export function InsightTable({
     }));
 
     return (
-      <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden w-full max-w-full">
         <Table
           title={headerInfo.title}
           headerColor="#0db69d"
@@ -153,7 +153,7 @@ export function InsightTable({
   }));
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
+    <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden w-full max-w-full">
       <Table
         title={headerInfo.title}
         headerColor="#0db69d"

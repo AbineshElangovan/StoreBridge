@@ -92,7 +92,7 @@ export default function PriceAdjustmentPage() {
   const themeCardBg = currentTheme?.cardBg || 'rgba(240, 253, 248, 0.95)';
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full min-w-0 overflow-x-hidden">
       <div className="flex flex-col gap-6 sm:gap-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -107,16 +107,16 @@ export default function PriceAdjustmentPage() {
           {/* Master Store Selector Dropdown */}
           {isMaster && stores.length > 1 && (
             <div
-              className="flex items-center gap-2.5 px-4 py-2 rounded-xl shadow-2xs transition-colors"
+              className="flex items-center gap-2.5 px-3 sm:px-4 py-2 rounded-xl shadow-2xs transition-colors w-full sm:w-auto"
               style={{
                 backgroundColor: currentTheme?.navbarBg || '#ffffff',
                 border: `1.5px solid ${themeBorder}`,
               }}
             >
-              <label htmlFor="master-store-select" className="text-xs sm:text-sm font-bold whitespace-nowrap" style={{ color: themeDark }}>
+              <label htmlFor="master-store-select" className="text-xs sm:text-sm font-bold whitespace-nowrap shrink-0" style={{ color: themeDark }}>
                 Select Store:
               </label>
-              <div className="min-w-[200px]">
+              <div className="w-full sm:min-w-[200px]">
                 <PolarisSelect
                   label="Select Store"
                   labelHidden

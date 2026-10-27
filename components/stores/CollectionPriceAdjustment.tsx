@@ -133,12 +133,12 @@ export default function CollectionPriceAdjustment({ storeId, storeName, isStanda
   return (
     <div>
       <div style={{ marginBottom: '16px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 mb-3">
           <h3 style={{ fontSize: '15px', fontWeight: 700, color: darkColor }}>
             {isStandalone ? 'Collection Price Adjustments' : `Collection Price Adjustments for ${storeName}`}
           </h3>
           {collections.length > 0 && (
-            <div style={{ width: '220px' }}>
+            <div className="w-full sm:w-[220px]">
               <Input
                 type="text"
                 label="Search collections"
@@ -241,9 +241,9 @@ export default function CollectionPriceAdjustment({ storeId, storeName, isStanda
             )}
           </div>
 
-          <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', gap: '8px' }}>
+          <div className="mt-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
+              <div className="flex gap-2">
                 <button
                   type="button"
                   className="px-3.5 py-1.5 text-xs font-bold rounded-lg border shadow-2xs transition-all cursor-pointer hover:opacity-90 active:scale-95"
@@ -282,7 +282,7 @@ export default function CollectionPriceAdjustment({ storeId, storeName, isStanda
               </div>
 
               <div
-                className="flex items-center gap-2 pl-4 border-l transition-colors"
+                className="flex items-center gap-2 sm:pl-4 sm:border-l border-l-0 pl-0 transition-colors"
                 style={{ borderLeftColor: `${borderColor}80` }}
               >
                 <span style={{ fontSize: '13px', color: darkColor, fontWeight: 600 }}>Bulk Apply:</span>
@@ -313,7 +313,7 @@ export default function CollectionPriceAdjustment({ storeId, storeName, isStanda
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
               {message && (
                 <span style={{ color: message.type === 'success' ? '#16a34a' : '#dc2626', fontSize: '13px', fontWeight: 600 }}>
                   {message.text}

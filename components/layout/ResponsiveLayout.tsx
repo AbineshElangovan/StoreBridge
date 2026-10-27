@@ -9,6 +9,7 @@ import { NotificationBell } from '@/components/layout/NotificationBell';
 import { StoreRoleBadge } from '@/components/ui/StoreRoleBadge';
 import { useNavbarTitle } from '@/components/providers/NavbarTitleContext';
 import { ThemeSwitcher } from '@/components/layout/ThemeSwitcher';
+import { useStoreContext } from '@/components/providers/StoreProvider';
 
 export function ResponsiveLayout({ 
   sidebar, 
@@ -23,6 +24,7 @@ export function ResponsiveLayout({
   const shop = searchParams.get('shop');
   const host = searchParams.get('host');
   const { customTitle } = useNavbarTitle();
+  const { isStandalone } = useStoreContext();
 
   const createHref = (basePath: string) => {
     if (!basePath || basePath === '#' || basePath.startsWith('http')) return basePath;
@@ -48,6 +50,10 @@ export function ResponsiveLayout({
         return 'Products / Product Details';
       }
       return 'Details';
+    }
+
+    if (segments[0] === 'sync') {
+      return isStandalone ? 'Import' : 'Import & Sync';
     }
 
     return lastSegment.replace(/[-_]+/g, ' ');
@@ -123,7 +129,7 @@ export function ResponsiveLayout({
       </div>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-transparent relative pt-[60px] md:pt-0">
+      <main className="flex-1 flex flex-col min-w-0 w-full max-w-full overflow-y-auto overflow-x-hidden bg-transparent relative pt-[60px] md:pt-0">
         {/* Desktop Top Header (Polaris-Inspired Innovative Navbar) */}
         <div className="hidden md:flex h-16 min-h-[64px] py-2 ys-theme-navbar border-b-2 px-6 items-center justify-between sticky top-0 z-30 shadow-md backdrop-blur-xl transition-all duration-300">
           

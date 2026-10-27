@@ -46,6 +46,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" data-theme="emerald_forest" suppressHydrationWarning>
       <head>
+        <meta name="shopify-api-key" content={process.env.NEXT_PUBLIC_SHOPIFY_API_KEY || ''} />
+        <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
         <Script
           id="theme-init"
           strategy="beforeInteractive"
@@ -57,30 +59,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               } catch (e) {
                 document.documentElement.setAttribute('data-theme', 'emerald_forest');
               }
-
-              try {
-                var isEmbedded = false;
-                try {
-                  isEmbedded = (window.self !== window.top) || new URLSearchParams(window.location.search).has('host');
-                } catch (e) {
-                  isEmbedded = true;
-                }
-
-                if (isEmbedded) {
-                  if (!document.querySelector('meta[name="shopify-api-key"]')) {
-                    var meta = document.createElement('meta');
-                    meta.name = 'shopify-api-key';
-                    meta.content = "${process.env.NEXT_PUBLIC_SHOPIFY_API_KEY || ''}";
-                    document.head.appendChild(meta);
-                  }
-                  if (!document.querySelector('script[src*="app-bridge.js"]')) {
-                    var script = document.createElement('script');
-                    script.src = 'https://cdn.shopify.com/shopifycloud/app-bridge.js';
-                    script.async = false;
-                    document.head.appendChild(script);
-                  }
-                }
-              } catch (e) {}
             `,
           }}
         />
