@@ -346,40 +346,43 @@ export default function ConnectionsPage() {
           const lastSync = master.updatedAt || storeData?.updatedAt;
 
           return (
-            <div key="master" className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 flex flex-col">
+            <div
+              key="master"
+              className="group bg-white rounded-2xl border border-purple-100/90 p-5 shadow-xs flex flex-col justify-between hover:border-purple-300 hover:shadow-xl hover:shadow-purple-500/15 hover:-translate-y-1.5 transition-all duration-300 ease-out cursor-pointer select-none"
+            >
               <div className="flex justify-between items-start mb-4 gap-2">
                 <div className="min-w-0">
                   <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2 text-slate-900 flex-wrap">
                     <StoreLogo shopDomain={master.shopDomain} label={master.label} logoUrl={master.logoUrl} isMaster={true} size="sm" />
-                    <span className="truncate">{master.label || master.shopDomain.split('.')[0]}</span>
-                    <span className="bg-[var(--color-primary-light)] text-[var(--color-primary-dark)] px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 border border-[var(--color-primary)] shrink-0">
+                    <span className="truncate group-hover:text-purple-600 transition-colors duration-300 font-bold">{master.label || master.shopDomain.split('.')[0]}</span>
+                    <span className="bg-purple-50 text-purple-700 px-2.5 py-0.5 rounded-full text-xs font-bold flex items-center gap-1 border border-purple-200/80 shrink-0 transition-all duration-300 group-hover:scale-105 group-hover:bg-purple-100 group-hover:text-purple-800">
                       <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M2 22h20v-2H2v2zm9-5l5-4 4 4V5c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v12l4-4 5 4z" /></svg>
                       Master
                     </span>
                   </h3>
-                  <p className="text-slate-500 text-xs mt-1 truncate">https://{master.shopDomain}</p>
+                  <p className="text-slate-500 text-xs mt-1 truncate transition-colors duration-300 group-hover:text-purple-700">https://{master.shopDomain}</p>
                 </div>
-                <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold shrink-0 ${master.isActive ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold shrink-0 transition-all duration-300 group-hover:scale-105 ${master.isActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80' : 'bg-amber-50 text-amber-700 border border-amber-200/80'}`}>
                   {master.isActive ? 'healthy' : 'stale'}
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-xs sm:text-sm mb-4 mt-4 sm:mt-6">
+              <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-xs sm:text-sm mb-2 mt-4 sm:mt-6">
                 <div>
-                  <p className="text-slate-500 mb-0.5 text-xs">Currency</p>
-                  <p className="font-medium text-slate-900">{currency}</p>
+                  <p className="text-slate-500 mb-0.5 text-xs font-semibold uppercase tracking-tight transition-colors duration-300 group-hover:text-purple-800">Currency</p>
+                  <p className="font-extrabold text-slate-900 inline-block origin-left transition-all duration-300 transform group-hover:scale-105 group-hover:text-purple-600">{currency}</p>
                 </div>
                 <div>
-                  <p className="text-slate-500 mb-0.5 text-xs">Region</p>
-                  <p className="font-medium text-slate-900">{region}</p>
+                  <p className="text-slate-500 mb-0.5 text-xs font-semibold uppercase tracking-tight transition-colors duration-300 group-hover:text-purple-800">Region</p>
+                  <p className="font-extrabold text-slate-900 inline-block origin-left transition-all duration-300 transform group-hover:scale-105 group-hover:text-purple-600">{region}</p>
                 </div>
                 <div>
-                  <p className="text-slate-500 mb-0.5 text-xs">Plan</p>
-                  <p className="font-medium text-slate-900">{plan}</p>
+                  <p className="text-slate-500 mb-0.5 text-xs font-semibold uppercase tracking-tight transition-colors duration-300 group-hover:text-purple-800">Plan</p>
+                  <p className="font-extrabold text-slate-900 inline-block origin-left transition-all duration-300 transform group-hover:scale-105 group-hover:text-purple-600">{plan}</p>
                 </div>
                 <div>
-                  <p className="text-slate-500 mb-0.5 text-xs">Last sync</p>
-                  <p className="font-medium text-slate-900">{timeAgo(lastSync)}</p>
+                  <p className="text-slate-500 mb-0.5 text-xs font-semibold uppercase tracking-tight transition-colors duration-300 group-hover:text-purple-800">Last sync</p>
+                  <p className="font-extrabold text-slate-900 inline-block origin-left transition-all duration-300 transform group-hover:scale-105 group-hover:text-purple-600">{timeAgo(lastSync)}</p>
                 </div>
               </div>
             </div>
@@ -397,39 +400,42 @@ export default function ConnectionsPage() {
             const lastSync = standalone.updatedAt;
 
             return (
-              <div key={standalone.id || `standalone-${index}`} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 flex flex-col">
+              <div
+                key={standalone.id || `standalone-${index}`}
+                className="group bg-white rounded-2xl border border-sky-100/90 p-5 shadow-xs flex flex-col justify-between hover:border-sky-300 hover:shadow-xl hover:shadow-sky-500/15 hover:-translate-y-1.5 transition-all duration-300 ease-out cursor-pointer select-none"
+              >
                 <div className="flex justify-between items-start mb-4 gap-2">
                   <div className="min-w-0">
                     <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2 text-slate-900 flex-wrap">
                       <StoreLogo shopDomain={standalone.shopDomain} label={standalone.label} logoUrl={standalone.logoUrl} isMaster={false} isStandalone={true} size="sm" />
-                      <span className="truncate">{standalone.label || standalone.shopDomain.split('.')[0]}</span>
+                      <span className="truncate group-hover:text-sky-600 transition-colors duration-300 font-bold">{standalone.label || standalone.shopDomain.split('.')[0]}</span>
                     </h3>
                     <div className="mt-1 flex flex-col gap-0.5">
-                      <p className="text-slate-700 text-xs sm:text-sm font-medium truncate">{standalone.uniqueStoreId || 'N/A'}</p>
-                      <p className="text-slate-500 text-xs truncate">https://{standalone.shopDomain}</p>
+                      <p className="text-slate-700 text-xs sm:text-sm font-bold truncate transition-colors duration-300 group-hover:text-sky-800">{standalone.uniqueStoreId || 'N/A'}</p>
+                      <p className="text-slate-500 text-xs truncate transition-colors duration-300 group-hover:text-sky-700">https://{standalone.shopDomain}</p>
                     </div>
                   </div>
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold shrink-0 ${standalone.isActive ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold shrink-0 transition-all duration-300 group-hover:scale-105 ${standalone.isActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80' : 'bg-amber-50 text-amber-700 border border-amber-200/80'}`}>
                     {standalone.isActive ? 'healthy' : 'stale'}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-xs sm:text-sm mb-4 mt-4 sm:mt-6">
+                <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-xs sm:text-sm mb-2 mt-4 sm:mt-6">
                   <div>
-                    <p className="text-slate-500 mb-0.5 text-xs">Currency</p>
-                    <p className="font-medium text-slate-900">{currency}</p>
+                    <p className="text-slate-500 mb-0.5 text-xs font-semibold uppercase tracking-tight transition-colors duration-300 group-hover:text-sky-800">Currency</p>
+                    <p className="font-extrabold text-slate-900 inline-block origin-left transition-all duration-300 transform group-hover:scale-105 group-hover:text-sky-600">{currency}</p>
                   </div>
                   <div>
-                    <p className="text-slate-500 mb-0.5 text-xs">Region</p>
-                    <p className="font-medium text-slate-900">{region}</p>
+                    <p className="text-slate-500 mb-0.5 text-xs font-semibold uppercase tracking-tight transition-colors duration-300 group-hover:text-sky-800">Region</p>
+                    <p className="font-extrabold text-slate-900 inline-block origin-left transition-all duration-300 transform group-hover:scale-105 group-hover:text-sky-600">{region}</p>
                   </div>
                   <div>
-                    <p className="text-slate-500 mb-0.5 text-xs">Plan</p>
-                    <p className="font-medium text-slate-900">{plan}</p>
+                    <p className="text-slate-500 mb-0.5 text-xs font-semibold uppercase tracking-tight transition-colors duration-300 group-hover:text-sky-800">Plan</p>
+                    <p className="font-extrabold text-slate-900 inline-block origin-left transition-all duration-300 transform group-hover:scale-105 group-hover:text-sky-600">{plan}</p>
                   </div>
                   <div>
-                    <p className="text-slate-500 mb-0.5 text-xs">Last sync</p>
-                    <p className="font-medium text-slate-900">{timeAgo(lastSync)}</p>
+                    <p className="text-slate-500 mb-0.5 text-xs font-semibold uppercase tracking-tight transition-colors duration-300 group-hover:text-sky-800">Last sync</p>
+                    <p className="font-extrabold text-slate-900 inline-block origin-left transition-all duration-300 transform group-hover:scale-105 group-hover:text-sky-600">{timeAgo(lastSync)}</p>
                   </div>
                 </div>
               </div>
@@ -451,7 +457,10 @@ export default function ConnectionsPage() {
             const lastSync = conn.lastSyncTime;
 
             return (
-              <div key={conn.id || `${conn.targetStoreId}-${index}`} className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 flex flex-col">
+              <div
+                key={conn.id || `${conn.targetStoreId}-${index}`}
+                className="group bg-white rounded-2xl border border-emerald-100/90 p-5 shadow-xs flex flex-col justify-between hover:border-emerald-300 hover:shadow-xl hover:shadow-emerald-500/15 hover:-translate-y-1.5 transition-all duration-300 ease-out cursor-pointer select-none"
+              >
                 <div className="flex justify-between items-start mb-4 gap-2">
                   <div className="min-w-0">
                     <h3 className="font-semibold text-base sm:text-lg flex items-center gap-2 text-slate-900 flex-wrap">
@@ -462,40 +471,40 @@ export default function ConnectionsPage() {
                         isMaster={conn.direction === 'incoming' || Boolean(store.isMaster)} 
                         size="sm" 
                       />
-                      <span className="truncate">{store.label || store.shopDomain.split('.')[0]}</span>
+                      <span className="truncate group-hover:text-emerald-600 transition-colors duration-300 font-bold">{store.label || store.shopDomain.split('.')[0]}</span>
                       {conn.direction === 'incoming' && (
-                        <span className="bg-[var(--color-primary-light)] text-[var(--color-primary-dark)] px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1 border border-[var(--color-primary)] shrink-0">
+                        <span className="bg-purple-50 text-purple-700 px-2.5 py-0.5 rounded-full text-xs font-bold flex items-center gap-1 border border-purple-200/80 shrink-0 transition-all duration-300 group-hover:scale-105 group-hover:bg-purple-100 group-hover:text-purple-800">
                           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 22h20M2 18l4-10 4 6 2-8 2 8 4-6 4 10H2z" /></svg>
                           Master
                         </span>
                       )}
                     </h3>
                     <div className="mt-1 flex flex-col gap-0.5">
-                      <p className="text-slate-700 text-xs sm:text-sm font-medium truncate">{store.uniqueStoreId || 'N/A'}</p>
-                      <p className="text-slate-500 text-xs truncate">https://{store.shopDomain}</p>
+                      <p className="text-slate-700 text-xs sm:text-sm font-bold truncate transition-colors duration-300 group-hover:text-emerald-800">{store.uniqueStoreId || 'N/A'}</p>
+                      <p className="text-slate-500 text-xs truncate transition-colors duration-300 group-hover:text-emerald-700">https://{store.shopDomain}</p>
                     </div>
                   </div>
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold shrink-0 ${store.isActive ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold shrink-0 transition-all duration-300 group-hover:scale-105 ${store.isActive ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/80' : 'bg-amber-50 text-amber-700 border border-amber-200/80'}`}>
                     {store.isActive ? 'healthy' : 'stale'}
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-xs sm:text-sm mb-4 mt-4 sm:mt-6">
+                <div className="grid grid-cols-2 gap-y-4 gap-x-2 text-xs sm:text-sm mb-2 mt-4 sm:mt-6">
                   <div>
-                    <p className="text-slate-500 mb-0.5 text-xs">Currency</p>
-                    <p className="font-medium text-slate-900">{currency}</p>
+                    <p className="text-slate-500 mb-0.5 text-xs font-semibold uppercase tracking-tight transition-colors duration-300 group-hover:text-emerald-800">Currency</p>
+                    <p className="font-extrabold text-slate-900 inline-block origin-left transition-all duration-300 transform group-hover:scale-105 group-hover:text-emerald-600">{currency}</p>
                   </div>
                   <div>
-                    <p className="text-slate-500 mb-0.5 text-xs">Region</p>
-                    <p className="font-medium text-slate-900">{region}</p>
+                    <p className="text-slate-500 mb-0.5 text-xs font-semibold uppercase tracking-tight transition-colors duration-300 group-hover:text-emerald-800">Region</p>
+                    <p className="font-extrabold text-slate-900 inline-block origin-left transition-all duration-300 transform group-hover:scale-105 group-hover:text-emerald-600">{region}</p>
                   </div>
                   <div>
-                    <p className="text-slate-500 mb-0.5 text-xs">Plan</p>
-                    <p className="font-medium text-slate-900">{plan}</p>
+                    <p className="text-slate-500 mb-0.5 text-xs font-semibold uppercase tracking-tight transition-colors duration-300 group-hover:text-emerald-800">Plan</p>
+                    <p className="font-extrabold text-slate-900 inline-block origin-left transition-all duration-300 transform group-hover:scale-105 group-hover:text-emerald-600">{plan}</p>
                   </div>
                   <div>
-                    <p className="text-slate-500 mb-0.5 text-xs">Last sync</p>
-                    <p className="font-medium text-slate-900">{timeAgo(lastSync)}</p>
+                    <p className="text-slate-500 mb-0.5 text-xs font-semibold uppercase tracking-tight transition-colors duration-300 group-hover:text-emerald-800">Last sync</p>
+                    <p className="font-extrabold text-slate-900 inline-block origin-left transition-all duration-300 transform group-hover:scale-105 group-hover:text-emerald-600">{timeAgo(lastSync)}</p>
                   </div>
                 </div>
               </div>
@@ -548,52 +557,54 @@ export default function ConnectionsPage() {
 
       {/* Target Stores Table (For Master Store) */}
       {isMaster && connections.filter(c => c.direction === 'outgoing').length > 0 && (
-        <div className="mb-8 w-full overflow-hidden">
-          <TableCard title="Connected Stores">
-            <div className="overflow-x-auto w-full max-w-full">
-              <Table
-                headerColor="var(--color-primary-dark)"
-                columns={[
-                  { title: 'Store Name', key: 'name', type: 'react_node' },
-                  { title: 'Store URL', key: 'url' },
-                  { title: 'Status', key: 'status', type: 'badge', badgeRules: { 'Healthy': 'success', 'Stale': 'warning' } },
-                  { title: 'Action', key: 'action', type: 'react_node' }
-                ]}
-                items={connections.filter(c => c.direction === 'outgoing').map(conn => ({
-                  name: (
-                    <div className="flex items-center gap-2.5">
-                      <StoreLogo
-                        shopDomain={conn.targetStore.shopDomain}
-                        label={conn.targetStore.label}
-                        logoUrl={conn.targetStore.logoUrl}
-                        size="sm"
-                      />
-                      <span className="font-bold text-slate-900 truncate">
-                        {conn.targetStore.label || conn.targetStore.shopDomain.split('.')[0]}
-                      </span>
-                    </div>
-                  ),
-                  url: `https://${conn.targetStore.shopDomain}`,
-                  status: conn.targetStore.isActive ? 'Healthy' : 'Stale',
-                  action: (
-                    <button
-                      onClick={() => setRemovingConnection({
-                        id: conn.targetStoreId,
-                        name: conn.targetStore.label || conn.targetStore.shopDomain.split('.')[0]
-                      })}
-                      className="text-red-600 hover:text-red-700 font-semibold px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1.5 text-xs w-fit"
-                      title="Remove Connection"
-                    >
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-                      </svg>
-                      Remove
-                    </button>
-                  )
-                }))}
-              />
-            </div>
-          </TableCard>
+        <div className="mb-8 w-full">
+          <Table
+            title="Connected Stores"
+            headerColor="#7c3aed"
+            searchable={false}
+            filterable={false}
+            paginate={false}
+            columns={[
+              { title: 'Store Name', key: 'name', type: 'react_node', align: 'left' },
+              { title: 'Store URL', key: 'url', align: 'left' },
+              { title: 'Status', key: 'status', type: 'badge', align: 'center', badgeRules: { 'Healthy': 'success', 'Stale': 'warning' } },
+              { title: 'Action', key: 'action', type: 'react_node', align: 'center' }
+            ]}
+            items={connections.filter(c => c.direction === 'outgoing').map(conn => ({
+              name: (
+                <div className="flex items-center gap-2.5">
+                  <StoreLogo
+                    shopDomain={conn.targetStore.shopDomain}
+                    label={conn.targetStore.label}
+                    logoUrl={conn.targetStore.logoUrl}
+                    size="sm"
+                  />
+                  <span className="font-bold text-slate-900 truncate">
+                    {conn.targetStore.label || conn.targetStore.shopDomain.split('.')[0]}
+                  </span>
+                </div>
+              ),
+              url: `https://${conn.targetStore.shopDomain}`,
+              status: conn.targetStore.isActive ? 'Healthy' : 'Stale',
+              action: (
+                <div className="flex items-center justify-center w-full">
+                  <button
+                    onClick={() => setRemovingConnection({
+                      id: conn.targetStoreId,
+                      name: conn.targetStore.label || conn.targetStore.shopDomain.split('.')[0]
+                    })}
+                    className="text-red-600 hover:text-red-700 font-semibold px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 transition-colors inline-flex items-center gap-1.5 text-xs w-fit cursor-pointer mx-auto"
+                    title="Remove Connection"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                    </svg>
+                    Remove
+                  </button>
+                </div>
+              )
+            }))}
+          />
         </div>
       )}
 

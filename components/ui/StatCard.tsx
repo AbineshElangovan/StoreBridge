@@ -12,113 +12,121 @@ export interface StatCardProps {
   compact?: boolean;
 }
 
-export function StatCard({ title, value, description, icon, color = 'primary', loading, compact = false }: StatCardProps) {
+export function StatCard({
+  title,
+  value,
+  description,
+  icon,
+  color = 'primary',
+  loading,
+  compact = false,
+}: StatCardProps) {
   const colorMap = {
-    primary: { bg: 'var(--color-primary-light)', text: 'var(--color-primary-dark)' },
-    success: { bg: '#dcfce7', text: 'var(--color-success)' },
-    warning: { bg: '#fef3c7', text: 'var(--color-warning)' },
-    danger: { bg: '#fee2e2', text: 'var(--color-danger)' },
-    info: { bg: '#dbeafe', text: 'var(--color-info)' },
-    purple: { bg: '#f3e8ff', text: '#7e22ce' },
+    primary: {
+      // 1. Total Products (Teal / Ocean Cyan - distinct from purple)
+      border: 'border-teal-100/90 hover:border-teal-300',
+      shadow: 'hover:shadow-xl hover:shadow-teal-500/15',
+      title: 'text-teal-900 group-hover:text-teal-600',
+      value: 'text-slate-900 group-hover:text-teal-600',
+      desc: 'text-teal-700 group-hover:text-teal-950',
+      iconBox: 'bg-teal-50 text-teal-700 border-teal-100/60 group-hover:bg-teal-100 group-hover:text-teal-800',
+      iconRotate: 'group-hover:rotate-6',
+    },
+    info: {
+      // 2. Total Inventory (Sky Blue)
+      border: 'border-sky-100/90 hover:border-sky-300',
+      shadow: 'hover:shadow-xl hover:shadow-sky-500/15',
+      title: 'text-sky-900 group-hover:text-sky-600',
+      value: 'text-slate-900 group-hover:text-sky-600',
+      desc: 'text-sky-700 group-hover:text-sky-950',
+      iconBox: 'bg-sky-50 text-sky-700 border-sky-100/60 group-hover:bg-sky-100 group-hover:text-sky-800',
+      iconRotate: 'group-hover:rotate-6',
+    },
+    success: {
+      // 3. Active Products (Emerald Green)
+      border: 'border-emerald-100/90 hover:border-emerald-300',
+      shadow: 'hover:shadow-xl hover:shadow-emerald-500/15',
+      title: 'text-emerald-900 group-hover:text-emerald-600',
+      value: 'text-slate-900 group-hover:text-emerald-600',
+      desc: 'text-emerald-700 group-hover:text-emerald-950',
+      iconBox: 'bg-emerald-50 text-emerald-700 border-emerald-100/60 group-hover:bg-emerald-100 group-hover:text-emerald-800',
+      iconRotate: 'group-hover:rotate-6',
+    },
+    warning: {
+      // 4. Low Stock (Amber / Orange)
+      border: 'border-amber-100/90 hover:border-amber-300',
+      shadow: 'hover:shadow-xl hover:shadow-amber-500/15',
+      title: 'text-amber-900 group-hover:text-amber-600',
+      value: 'text-slate-900 group-hover:text-amber-600',
+      desc: 'text-amber-700 group-hover:text-amber-950',
+      iconBox: 'bg-amber-50 text-amber-700 border-amber-100/60 group-hover:bg-amber-100 group-hover:text-amber-800',
+      iconRotate: 'group-hover:-rotate-6',
+    },
+    purple: {
+      // 5. Pre-orders (Purple / Fuchsia)
+      border: 'border-purple-100/90 hover:border-purple-300',
+      shadow: 'hover:shadow-xl hover:shadow-purple-500/15',
+      title: 'text-purple-900 group-hover:text-purple-600',
+      value: 'text-slate-900 group-hover:text-purple-600',
+      desc: 'text-purple-700 group-hover:text-purple-950',
+      iconBox: 'bg-purple-50 text-purple-700 border-purple-100/60 group-hover:bg-purple-100 group-hover:text-purple-800',
+      iconRotate: 'group-hover:rotate-6',
+    },
+    danger: {
+      border: 'border-red-100/90 hover:border-red-300',
+      shadow: 'hover:shadow-xl hover:shadow-red-500/15',
+      title: 'text-red-900 group-hover:text-red-600',
+      value: 'text-slate-900 group-hover:text-red-600',
+      desc: 'text-red-700 group-hover:text-red-950',
+      iconBox: 'bg-red-50 text-red-700 border-red-100/60 group-hover:bg-red-100 group-hover:text-red-800',
+      iconRotate: 'group-hover:-rotate-6',
+    },
   };
 
   const theme = colorMap[color] || colorMap.primary;
 
   return (
     <div
-      className="ys-card"
-      style={{
-        padding: compact ? '16px' : '24px',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        gap: compact ? '10px' : '16px',
-        height: '100%',
-        minHeight: compact ? '120px' : '140px',
-        transition: 'box-shadow 0.2s ease, transform 0.2s ease',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-2px)';
-        e.currentTarget.style.boxShadow = '0 8px 30px rgba(0,0,0,0.08)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'none';
-        e.currentTarget.style.boxShadow = 'var(--shadow-card)';
-      }}
+      className={`group bg-white ${
+        compact ? 'p-4 min-h-[120px]' : 'p-5 min-h-[140px]'
+      } rounded-2xl border shadow-xs flex flex-col justify-between hover:border-opacity-100 hover:-translate-y-1.5 transition-all duration-300 ease-out cursor-pointer select-none w-full h-full ${
+        theme.border
+      } ${theme.shadow}`}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <h3
-            style={{
-              color: 'var(--text-secondary)',
-              fontSize: compact ? '0.8125rem' : '0.875rem',
-              fontWeight: 600,
-              margin: 0,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-            title={title}
-          >
-            {title}
-          </h3>
-          {description && (
-            <p
-              style={{
-                color: 'var(--text-secondary)',
-                fontSize: compact ? '0.7rem' : '0.75rem',
-                marginTop: '3px',
-                lineHeight: 1.3,
-                opacity: 0.85,
-              }}
-            >
-              {description}
-            </p>
-          )}
-        </div>
-
+      {/* Top Header: Title and Icon */}
+      <div className="flex items-center justify-between gap-2">
+        <span
+          className={`text-xs font-bold tracking-tight uppercase truncate transition-colors duration-300 ${theme.title}`}
+          title={title}
+        >
+          {title}
+        </span>
         {icon && (
           <div
-            style={{
-              backgroundColor: theme.bg,
-              color: theme.text,
-              width: compact ? '32px' : '40px',
-              height: compact ? '32px' : '40px',
-              borderRadius: 'var(--radius-sm)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
+            className={`w-8 h-8 rounded-xl flex items-center justify-center border transition-all duration-300 group-hover:scale-110 flex-shrink-0 ${theme.iconBox} ${theme.iconRotate}`}
           >
             <Icon source={icon} tone="base" />
           </div>
         )}
       </div>
 
-      <div>
+      {/* Bottom Section: Value and Description */}
+      <div className="mt-3">
         {loading ? (
-          <div
-            style={{
-              height: compact ? '28px' : '36px',
-              width: '60%',
-              backgroundColor: 'var(--bg-hover)',
-              borderRadius: 'var(--radius-sm)',
-            }}
-            className="animate-pulse"
-          />
+          <div className="h-8 w-3/5 bg-gray-100 rounded-lg animate-pulse" />
         ) : (
-          <p
-            style={{
-              color: 'var(--text-primary)',
-              fontSize: compact ? '1.5rem' : '2rem',
-              fontWeight: 800,
-              margin: 0,
-              lineHeight: 1,
-              letterSpacing: '-0.02em',
-            }}
+          <span
+            className={`text-2xl sm:text-3xl font-black tracking-tight transition-all duration-300 transform origin-left inline-block group-hover:scale-105 ${theme.value}`}
           >
             {value}
+          </span>
+        )}
+        {description && (
+          <p
+            className={`text-xs font-semibold mt-1 truncate transition-colors duration-300 ${theme.desc}`}
+            title={description}
+          >
+            {description}
           </p>
         )}
       </div>

@@ -203,20 +203,49 @@ export default function ProductsPage() {
               <Loading label="Loading products..." />
             </div>
           ) : Object.keys(groupedProducts).length > 0 ? (() => {
-            const colors = ['#6366f1', '#7c3aed', '#8b5cf6', '#6366f1', '#7c3aed', '#8b5cf6'];
+            const DISTINCT_TABLE_COLORS = [
+              '#2563eb', // 1. Royal Blue (pure vibrant blue, distinct from purple)
+              '#059669', // 2. Emerald Green
+              '#d97706', // 3. Amber / Warm Gold
+              '#9333ea', // 4. Royal Purple
+              '#e11d48', // 5. Rose / Crimson
+              '#0d9488', // 6. Teal / Ocean Cyan
+              '#ea580c', // 7. Tangerine / Orange
+              '#db2777', // 8. Pink / Magenta
+              '#0284c7', // 9. Sky Blue
+              '#16a34a', // 10. Forest Green
+              '#65a30d', // 11. Lime Green
+              '#dc2626', // 12. Ruby Red
+              '#b45309', // 13. Warm Ochre / Bronze
+              '#0f766e', // 14. Deep Pine
+              '#c2410c', // 15. Rust Orange
+              '#475569', // 16. Slate Steel
+            ];
+
+            const getTableColor = (name: string, idx: number): string => {
+              if (name === 'Uncategorized') return '#64748b';
+              if (idx < DISTINCT_TABLE_COLORS.length) {
+                return DISTINCT_TABLE_COLORS[idx];
+              }
+              // Golden ratio distribution for any higher number of collections
+              const hue = Math.round((idx * 137.508) % 360);
+              return `hsl(${hue}, 75%, 45%)`;
+            };
+
             return Object.entries(groupedProducts)
               .sort((a, b) => {
                 if (a[0] === 'Uncategorized') return 1;
-                if (a[0] === 'Uncategorized') return -1;
+                if (b[0] === 'Uncategorized') return -1;
                 return a[0].localeCompare(b[0]);
               })
               .map(([collectionName, items], index) => {
                 const filteredItems = filterProducts(items as any[]);
+                const tableColor = getTableColor(collectionName, index);
                 return (
                   <div key={collectionName} className="w-full relative mb-6">
                     <Table
                       title={collectionName}
-                      headerColor={collectionName === 'Uncategorized' ? '#475569' : colors[index % colors.length]}
+                      headerColor={tableColor}
                       columns={columns}
                       items={filteredItems.map(mapProductToRow)}
                       searchable={false}

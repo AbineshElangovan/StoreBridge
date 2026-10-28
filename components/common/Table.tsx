@@ -215,9 +215,12 @@ export function Table({
     }
   };
 
-  // Derive a soft background tint from effectiveHeaderColor (12% opacity)
-  const headerBg = `${effectiveHeaderColor}1a`;
-  const headerText = effectiveHeaderColor;
+  // Derive soft tints from effectiveHeaderColor safely
+  const isHex = effectiveHeaderColor.startsWith('#');
+  const headerBg = isHex ? `${effectiveHeaderColor}12` : '#f8fafc';
+  const headerBorder = isHex ? `${effectiveHeaderColor}30` : 'rgba(0,0,0,0.08)';
+  const toolbarBg = isHex ? `${effectiveHeaderColor}08` : '#f8fafc';
+  const headerText = isHex ? effectiveHeaderColor : '#1e293b';
 
   const filteredItems = useMemo(() => {
     if (serverSide) return items;
@@ -289,18 +292,37 @@ export function Table({
   };
 
   return (
-    <div className="w-full bg-white/90 backdrop-blur-md rounded-xl border border-gray-200/80 shadow-2xs relative">
+    <div
+      className={`w-full bg-white relative transition-all duration-300 ${
+        title
+          ? 'rounded-2xl border shadow-xs overflow-hidden'
+          : 'rounded-none border-0 shadow-none'
+      }`}
+      style={title ? { borderColor: headerBorder } : undefined}
+    >
 
       {/* ── Table Header / Toolbar ── */}
       {(title || searchable || filterable) && !loading && (
-        <div className="p-3 sm:p-4 px-4 sm:px-5 border-b border-gray-100 bg-white/40 flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 sm:gap-4 rounded-t-xl">
+        <div
+          className="p-3.5 sm:p-4 px-4 sm:px-5 border-b flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-3 sm:gap-4 transition-colors"
+          style={{
+            borderBottomColor: headerBorder,
+            backgroundColor: toolbarBg,
+          }}
+        >
           
           {/* Left Side: Title */}
           <div className="flex items-center gap-3 shrink-0">
             {title && (
-              <h3 className="text-base sm:text-lg font-bold uppercase tracking-wider m-0" style={{ color: effectiveHeaderColor }}>
-                {title}
-              </h3>
+              <div className="flex items-center gap-2.5">
+                <span
+                  className="w-2.5 h-2.5 rounded-full shadow-xs shrink-0"
+                  style={{ backgroundColor: effectiveHeaderColor }}
+                />
+                <h3 className="text-base sm:text-lg font-black uppercase tracking-tight m-0" style={{ color: effectiveHeaderColor }}>
+                  {title}
+                </h3>
+              </div>
             )}
           </div>
 
@@ -363,11 +385,11 @@ export function Table({
                       width: col.width,
                       backgroundColor: headerBg,
                       color: headerText,
-                      borderBottom: `2px solid ${effectiveHeaderColor}44`,
+                      borderBottom: isHex ? `2px solid ${effectiveHeaderColor}44` : `2px solid ${effectiveHeaderColor}`,
                       borderRight: i < columns.length - 1 ? '1px solid #f1f5f9' : 'none',
                       textAlign: col.align || 'center',
                     }}
-                    className="p-[10px_8px] font-bold text-xs uppercase tracking-wider whitespace-nowrap overflow-hidden text-ellipsis"
+                    className="p-[12px_12px] font-black text-xs uppercase tracking-wider whitespace-nowrap overflow-hidden text-ellipsis select-none"
                   >
                     {col.title}
                   </th>
@@ -396,26 +418,41 @@ export function Table({
                       }
                     }}
                     style={{
-                      backgroundColor: index % 2 === 0 ? 'rgba(255,255,255,0.95)' : `${effectiveHeaderColor}0a`,
+                      backgroundColor: index % 2 === 0 ? 'rgba(255,255,255,0.98)' : (isHex ? `${effectiveHeaderColor}06` : 'rgba(0,0,0,0.015)'),
                       transition: 'background-color 0.15s',
                       cursor: onRowClick ? 'pointer' : 'default'
                     }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = `${effectiveHeaderColor}18`; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = index % 2 === 0 ? 'rgba(255,255,255,0.95)' : `${effectiveHeaderColor}0a`; }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = isHex ? `${effectiveHeaderColor}14` : 'rgba(0,0,0,0.03)'; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = index % 2 === 0 ? 'rgba(255,255,255,0.98)' : (isHex ? `${effectiveHeaderColor}06` : 'rgba(0,0,0,0.015)'); }}
                   >
-                    {columns.map((col, ci) => (
-                      <td
-                        key={col.key}
-                        style={{
-                          width: col.width,
-                          borderRight: ci < columns.length - 1 ? '1px solid #f8f9ff' : 'none',
-                          textAlign: col.align || 'center',
-                        }}
-                        className="p-[8px_8px] border-b border-slate-100/80 text-[13px] align-middle overflow-hidden text-ellipsis"
-                      >
-                        {renderCell(item, col)}
-                      </td>
-                    ))}
+                    {columns.map((col, ci) => {
+                      const align = col.align || 'center';
+                      return (
+                        <td
+                          key={col.key}
+                          style={{
+                            width: col.width,
+                            borderRight: ci < columns.length - 1 ? '1px solid #f8f9ff' : 'none',
+                            textAlign: align,
+                          }}
+                          className="p-[8px_8px] border-b border-slate-100/80 text-[13px] align-middle overflow-hidden text-ellipsis"
+                        >
+                          {col.type === 'react_node' ? (
+                            <div className={
+                              align === 'center'
+                                ? 'flex items-center justify-center w-full'
+                                : align === 'right'
+                                ? 'flex items-center justify-end w-full'
+                                : 'flex items-center justify-start w-full'
+                            }>
+                              {renderCell(item, col)}
+                            </div>
+                          ) : (
+                            renderCell(item, col)
+                          )}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))
               )}

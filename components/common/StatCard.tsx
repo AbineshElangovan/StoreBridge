@@ -35,29 +35,54 @@ export function StatCard({
         flexDirection: 'column',
         gap: '16px',
       }}
-      className="ys-stat-card"
+      className="ys-stat-card group cursor-pointer select-none"
     >
       <style>{`
+        .ys-stat-card {
+          transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
         .ys-stat-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 8px 24px rgba(0,0,0,0.2) !important;
+          transform: translateY(-5px);
+          box-shadow: 0 16px 32px rgba(0,0,0,0.22) !important;
+        }
+        .ys-stat-card:hover .ys-stat-val {
+          transform: scale(1.08);
+          text-shadow: 0 2px 10px rgba(255,255,255,0.4);
+        }
+        .ys-stat-card:hover .ys-stat-label {
+          opacity: 1;
+          letter-spacing: 0.08em;
+        }
+        .ys-stat-card:hover .ys-stat-icon {
+          transform: scale(1.12) rotate(6deg);
         }
       `}</style>
 
-
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
-          <p style={{ fontSize: '0.78rem', fontWeight: 500, opacity: 0.85, margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <p
+            className="ys-stat-label"
+            style={{
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              opacity: 0.85,
+              margin: 0,
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+              transition: 'all 0.3s ease',
+            }}
+          >
             {label}
           </p>
           {description && (
-            <p style={{ fontSize: '0.72rem', opacity: 0.65, margin: '2px 0 0', maxWidth: '160px' }}>
+            <p style={{ fontSize: '0.72rem', opacity: 0.75, margin: '3px 0 0', maxWidth: '160px', transition: 'opacity 0.3s ease' }}>
               {description}
             </p>
           )}
         </div>
         {icon && (
           <div
+            className="ys-stat-icon"
             style={{
               width: 46,
               height: 46,
@@ -67,6 +92,7 @@ export function StatCard({
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
+              transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
             }}
           >
             <Icon source={icon} />
@@ -76,7 +102,18 @@ export function StatCard({
 
       {/* Value */}
       <div>
-        <p style={{ fontSize: '2rem', fontWeight: 800, margin: 0, lineHeight: 1 }}>
+        <p
+          className="ys-stat-val"
+          style={{
+            fontSize: '2rem',
+            fontWeight: 800,
+            margin: 0,
+            lineHeight: 1,
+            display: 'inline-block',
+            transformOrigin: 'left bottom',
+            transition: 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          }}
+        >
           {value}
         </p>
       </div>

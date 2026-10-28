@@ -440,7 +440,7 @@ export default async function DashboardPage(props: DashboardPageProps) {
             <TableCard title="Store Summary" description="Overview of inventory across your network">
               <div className="overflow-x-auto w-full max-w-full">
                 <Table
-                  headerColor="var(--color-primary-dark)"
+                  headerColor="#0d9488"
                   columns={storeSummaryColumns}
                   items={storeSummaryData}
                   searchable={false}
@@ -486,7 +486,7 @@ export default async function DashboardPage(props: DashboardPageProps) {
           <TableCard title="Low Stock Products" description={`Items with ${lowStockThreshold} or fewer units remaining`}>
             <div className="overflow-x-auto w-full max-w-full">
               <Table
-                headerColor="var(--color-warning)"
+                headerColor="#d97706"
                 columns={lowStockColumns}
                 items={lowStockProducts}
                 searchable
@@ -515,7 +515,7 @@ export default async function DashboardPage(props: DashboardPageProps) {
           <TableCard title="Recently Added Products" description="Latest products synced to the database">
             <div className="overflow-x-auto w-full max-w-full">
               <Table
-                headerColor="var(--color-info)"
+                headerColor="#0284c7"
                 columns={recentlyAddedColumns}
                 items={recentlyAddedProducts}
                 searchable

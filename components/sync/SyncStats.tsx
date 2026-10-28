@@ -26,19 +26,31 @@ export function SyncStats({ stats, isLoading }: SyncStatsProps) {
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-      <div className="bg-white p-5 sm:p-6 border border-gray-200 rounded-xl shadow-2xs">
-        <h3 className="text-xs sm:text-sm font-semibold text-gray-500 mb-1 sm:mb-2">Total syncs</h3>
-        <p className="text-2xl sm:text-4xl font-bold text-gray-900">{stats.total}</p>
+      <div className="group bg-white p-5 sm:p-6 border border-gray-200/90 rounded-2xl shadow-2xs hover:border-indigo-300 hover:shadow-xl hover:shadow-indigo-500/15 hover:-translate-y-1.5 transition-all duration-300 ease-out cursor-pointer select-none">
+        <h3 className="text-xs sm:text-sm font-semibold text-gray-500 mb-1 sm:mb-2 transition-colors duration-300 group-hover:text-indigo-600">
+          Total syncs
+        </h3>
+        <p className="text-2xl sm:text-4xl font-bold text-gray-900 inline-block origin-left transition-all duration-300 transform group-hover:scale-105 group-hover:text-indigo-600">
+          {stats.total}
+        </p>
       </div>
       
-      <div className="bg-white p-5 sm:p-6 border border-gray-200 rounded-xl shadow-2xs">
-        <h3 className="text-xs sm:text-sm font-semibold text-gray-500 mb-1 sm:mb-2">Successful</h3>
-        <p className="text-2xl sm:text-4xl font-bold text-green-600">{stats.success}</p>
+      <div className="group bg-white p-5 sm:p-6 border border-gray-200/90 rounded-2xl shadow-2xs hover:border-emerald-300 hover:shadow-xl hover:shadow-emerald-500/15 hover:-translate-y-1.5 transition-all duration-300 ease-out cursor-pointer select-none">
+        <h3 className="text-xs sm:text-sm font-semibold text-gray-500 mb-1 sm:mb-2 transition-colors duration-300 group-hover:text-emerald-600">
+          Successful
+        </h3>
+        <p className="text-2xl sm:text-4xl font-bold text-green-600 inline-block origin-left transition-all duration-300 transform group-hover:scale-105 group-hover:text-emerald-500">
+          {stats.success}
+        </p>
       </div>
       
-      <div className="bg-white p-5 sm:p-6 border border-gray-200 rounded-xl shadow-2xs">
-        <h3 className="text-xs sm:text-sm font-semibold text-gray-500 mb-1 sm:mb-2">Failed</h3>
-        <p className="text-2xl sm:text-4xl font-bold text-red-600">{stats.failed}</p>
+      <div className="group bg-white p-5 sm:p-6 border border-gray-200/90 rounded-2xl shadow-2xs hover:border-red-300 hover:shadow-xl hover:shadow-red-500/15 hover:-translate-y-1.5 transition-all duration-300 ease-out cursor-pointer select-none">
+        <h3 className="text-xs sm:text-sm font-semibold text-gray-500 mb-1 sm:mb-2 transition-colors duration-300 group-hover:text-red-600">
+          Failed
+        </h3>
+        <p className="text-2xl sm:text-4xl font-bold text-red-600 inline-block origin-left transition-all duration-300 transform group-hover:scale-105 group-hover:text-red-500">
+          {stats.failed}
+        </p>
       </div>
     </div>
   );

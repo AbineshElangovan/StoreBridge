@@ -38,15 +38,19 @@ export async function refreshOfflineToken(store: any) {
       throw new Error("Invalid encrypted refresh token format");
     }
 
+    const params = new URLSearchParams();
+    params.append("client_id", clientId || "");
+    params.append("client_secret", clientSecret || "");
+    params.append("refresh_token", decryptedRefreshToken);
+    params.append("grant_type", "refresh_token");
+
     const response = await fetch(`https://${shopDomain}/admin/oauth/access_token`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        client_id: clientId,
-        client_secret: clientSecret,
-        refresh_token: decryptedRefreshToken,
-        grant_type: "refresh_token",
-      }),
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
+      },
+      body: params.toString(),
     });
 
     if (!response.ok) {
