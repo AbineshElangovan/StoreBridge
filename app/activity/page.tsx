@@ -68,7 +68,7 @@ export default function ActivityPage() {
   const [debouncedQueryValue, setDebouncedQueryValue] = useState("");
   const [collectionFilter, setCollectionFilter] = useState("");
   const [storeFilter, setStoreFilter] = useState("");
-  const [dateFilter, setDateFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("90days");
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -482,10 +482,10 @@ export default function ActivityPage() {
                 label="Date Range"
                 labelHidden
                 options={[
-                  { label: 'All Time', value: 'all' },
                   { label: 'Last 24 Hours', value: 'today' },
                   { label: 'Last 7 Days', value: 'week' },
                   { label: 'Last 30 Days', value: 'month' },
+                  { label: 'Last 90 Days', value: '90days' },
                 ]}
                 value={dateFilter}
                 onChange={(value) => { setDateFilter(value); setPage(1); }}

@@ -115,6 +115,9 @@ export async function GET(req: NextRequest) {
       } else if (dateRange === 'month') {
         // Last 30 days
         startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      } else if (dateRange === '90days' || dateRange === 'quarter' || dateRange === '90') {
+        // Last 90 days
+        startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
       } else {
         startDate = new Date(0);
       }

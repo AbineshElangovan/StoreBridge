@@ -17,7 +17,7 @@ export function CustomSelect({
   options,
   value,
   onChange,
-  maxHeight = "140px",
+  maxHeight = "240px",
   accentColor = "#6366f1",
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -46,7 +46,7 @@ export function CustomSelect({
     }
   }, [isOpen]);
 
-  const hasActiveFilter = Boolean(value && value !== "ALL");
+  const hasActiveFilter = Boolean(value && value.toUpperCase() !== "ALL" && value !== "");
 
   return (
     <div className="relative w-full text-left" ref={containerRef}>
