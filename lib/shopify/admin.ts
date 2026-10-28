@@ -102,12 +102,16 @@ export async function getAdminClient(shopDomain: string) {
 
   let activeStore = store;
 
-  // Check if we need to refresh the token
-  if (activeStore.expiresAt) {
+  // Check if we need to refresh the token proactively
+  if (activeStore.refreshToken) {
     const now = new Date();
-    const timeUntilExpiry = activeStore.expiresAt.getTime() - now.getTime();
-    if (timeUntilExpiry < 60 * 60 * 1000) {
+    const shouldRefresh =
+      !activeStore.expiresAt ||
+      activeStore.expiresAt.getTime() - now.getTime() < 2 * 60 * 60 * 1000;
+
+    if (shouldRefresh) {
       try {
+        console.log(`[AdminClient] Proactively refreshing token for ${shopDomain}...`);
         const refreshedStore = await refreshOfflineToken(activeStore);
         if (refreshedStore) {
           activeStore = refreshedStore;
@@ -123,7 +127,7 @@ export async function getAdminClient(shopDomain: string) {
     throw new Error(`CRITICAL: Store ${shopDomain} has an empty access token.`);
   }
 
-  let decryptedAccessToken;
+  let decryptedAccessToken: string;
   try {
     decryptedAccessToken = decrypt(activeStore.accessToken);
   } catch (error: any) {
@@ -138,16 +142,68 @@ export async function getAdminClient(shopDomain: string) {
     throw new Error(`CRITICAL: Store ${shopDomain} access token decryption failed.`);
   }
 
-  // 2. Single Source of Truth
-  const session = new Session({
-    id: `offline_${shopDomain}`,
-    shop: shopDomain,
-    state: "offline",
-    isOnline: false,
-    accessToken: decryptedAccessToken,
-  });
+  // 2. Helper to create a native Graphql client
+  const createGraphqlClient = (token: string) => {
+    const session = new Session({
+      id: `offline_${shopDomain}`,
+      shop: shopDomain,
+      state: "offline",
+      isOnline: false,
+      accessToken: token,
+    });
+    return new shopify.clients.Graphql({ session: session as Session });
+  };
 
-  return new shopify.clients.Graphql({ session: session as Session });
+  let client = createGraphqlClient(decryptedAccessToken);
+
+  // 3. Automatic 401 Self-Healing Interceptor on client.request
+  const originalRequest = client.request.bind(client);
+  client.request = (async (query: any, options?: any) => {
+    try {
+      return await originalRequest(query, options);
+    } catch (error: any) {
+      const is401 =
+        error?.response?.code === 401 ||
+        error?.response?.status === 401 ||
+        error?.statusCode === 401 ||
+        error?.networkStatusCode === 401 ||
+        error?.message?.includes("401") ||
+        error?.message?.includes("Unauthorized");
+
+      if (is401) {
+        console.warn(`[AdminClient] 401 Unauthorized encountered for ${shopDomain}. Attempting automatic self-healing token refresh...`);
+        try {
+          const freshStore = await prisma.store.findUnique({ where: { shopDomain } });
+          if (!freshStore || !freshStore.refreshToken) {
+            throw new Error(`Store ${shopDomain} has no refresh token to recover from 401.`);
+          }
+
+          const refreshedStore = await refreshOfflineToken(freshStore);
+          const freshToken = decrypt(refreshedStore.accessToken);
+
+          client = createGraphqlClient(freshToken);
+          console.log(`[AdminClient] Self-healing token refresh succeeded for ${shopDomain}. Retrying request...`);
+          return await client.request(query, options);
+        } catch (retryError: any) {
+          console.error(`[AdminClient] Self-healing retry failed for ${shopDomain}:`, retryError.message);
+          try {
+            await prisma.store.update({
+              where: { shopDomain },
+              data: {
+                authStatus: "REQUIRES_REAUTH",
+                lastAuthFailure: new Date(),
+                authFailureReason: `401 Unauthorized: ${retryError.message}`,
+              },
+            });
+          } catch {}
+          throw error;
+        }
+      }
+      throw error;
+    }
+  }) as typeof client.request;
+
+  return client;
 }
 
 export async function handleGraphQLError(error: any, shopDomain: string) {

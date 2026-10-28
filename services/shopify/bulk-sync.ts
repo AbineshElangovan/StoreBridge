@@ -23,12 +23,10 @@ export async function syncStoreProducts(
 
   try {
     if (!hasValidShopifyAccessToken(store.accessToken)) {
-      console.log("[SyncService] Invalid access token, marking store as inactive:", shopDomain);
-      await prisma.variantMap.deleteMany({ where: { storeId: store.id } });
-      await prisma.productCache.deleteMany({ where: { storeId: store.id } });
+      console.warn("[SyncService] Invalid access token for:", shopDomain);
       await prisma.store.update({
         where: { id: store.id },
-        data: { isActive: false },
+        data: { authStatus: "REQUIRES_REAUTH", authFailureReason: "Invalid or empty access token" },
       });
       throw new Error(`Store ${shopDomain} does not have a valid Shopify access token.`);
     }

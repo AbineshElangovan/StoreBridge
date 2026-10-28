@@ -113,11 +113,10 @@ export async function executeWithRetry(
       const isRetriable = is429 || is5xx || (!is403 && !is401 && !is404 && !isInvalidToken);
 
       if (is401 || is403 || isInvalidToken) {
-        // Pause store, prevent further jobs, mark REQUIRES_REAUTH
+        // Mark REQUIRES_REAUTH without permanently deactivating the store
         await prisma.store.update({
           where: { id: context.targetStoreId },
           data: { 
-            isActive: false,
             authStatus: 'REQUIRES_REAUTH',
             lastAuthFailure: new Date(),
             authFailureReason: errorMessage

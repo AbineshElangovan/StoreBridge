@@ -246,24 +246,30 @@ export function Sidebar() {
                         </svg>
                       </div>
                       {roleLabel && (
-                        <span className="text-[10px] font-extrabold mt-1 tracking-wider uppercase text-[var(--color-primary)] block">
-                          {roleLabel}
-                        </span>
+                        <div className="mt-1">
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-black uppercase tracking-wider ${
+                            isMasterStore
+                              ? 'bg-purple-100 text-purple-900 border border-purple-200/90'
+                              : 'bg-slate-100 text-slate-700 border border-slate-200'
+                          }`}>
+                            {roleLabel}
+                          </span>
+                        </div>
                       )}
                     </div>
                   </button>
 
-                  {/* Custom Purple Floating Dropdown Menu - Aligned 100% to Card Width, Full Name Visible */}
+                  {/* Custom Floating Dropdown Menu - Aligned 100% to Card Width, Full Name Visible */}
                   {storeMenuOpen && (
                     <div 
                       className="absolute left-0 right-0 w-full top-full mt-2 rounded-xl border border-[var(--theme-border-accent)]/80 shadow-2xl py-1.5 z-50 overflow-hidden ring-1 ring-black/10 animate-in fade-in-50 zoom-in-95 duration-150"
                       style={{ backgroundColor: '#ffffff', opacity: 1 }}
                     >
-                      <div className="px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-gray-400 border-b border-gray-100 flex items-center justify-between bg-white">
+                      <div className="px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-slate-500 border-b border-slate-100 flex items-center justify-between bg-slate-50/90">
                         <span>Switch Store</span>
-                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-primary)]"></span>
+                        <span className="w-2 h-2 rounded-full shadow-2xs" style={{ backgroundColor: 'var(--color-primary)' }}></span>
                       </div>
-                      <div className="max-h-72 overflow-y-auto py-1 bg-white divide-y divide-gray-50">
+                      <div className="max-h-72 overflow-y-auto py-1 bg-white divide-y divide-slate-100">
                         {activeStores.map((s) => {
                           const isSelected = s.shopDomain === currentStore?.shopDomain;
                           return (
@@ -276,12 +282,14 @@ export function Sidebar() {
                                   switchStore(s.shopDomain);
                                 }
                               }}
-                              className={`w-full px-3 py-2 text-left flex items-start justify-between gap-2 text-xs transition-all cursor-pointer ${
+                              className={`w-full px-3 py-2.5 text-left flex items-start justify-between gap-2 text-xs transition-all cursor-pointer ${
                                 isSelected
-                                  ? 'bg-[var(--color-primary)] text-[var(--color-primary-text,#000000)] font-bold border-l-4 border-[var(--color-primary-dark)] shadow-2xs'
-                                  : 'text-gray-800 ys-store-switch-item hover:text-black active:bg-[var(--color-primary)]'
+                                  ? 'border-l-4 border-[var(--color-primary)] shadow-2xs'
+                                  : 'hover:bg-slate-50/80 active:bg-slate-100'
                               }`}
-                              style={{ backgroundColor: isSelected ? undefined : '#ffffff' }}
+                              style={{
+                                backgroundColor: isSelected ? 'var(--color-primary-light, #f1f5f9)' : '#ffffff',
+                              }}
                             >
                               <div className="flex items-start gap-2.5 min-w-0 flex-1">
                                 <div className="pt-0.5 shrink-0">
@@ -295,16 +303,16 @@ export function Sidebar() {
                                   />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                  <span className="font-bold text-gray-900 leading-snug break-words block">
+                                  <span className="font-extrabold text-slate-900 leading-snug break-words block">
                                     {s.label || s.shopDomain}
                                   </span>
                                   <div className="flex items-center gap-1.5 mt-1">
                                     {s.isMaster ? (
-                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-[var(--color-primary-light)] text-[var(--color-primary-dark)] border border-[var(--color-primary)]/40 shrink-0">
+                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider bg-purple-100 text-purple-900 border border-purple-200/90 shrink-0">
                                         Master
                                       </span>
                                     ) : !s.isStandalone ? (
-                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold text-gray-600 bg-gray-100 border border-gray-200 shrink-0">
+                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold text-slate-700 bg-slate-100 border border-slate-200 shrink-0">
                                         Connected
                                       </span>
                                     ) : null}
@@ -312,9 +320,15 @@ export function Sidebar() {
                                 </div>
                               </div>
                               {isSelected && (
-                                <div className="pt-0.5 shrink-0 ml-1">
-                                  <svg className="w-4 h-4 text-[var(--color-primary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                <div
+                                  className="w-4 h-4 rounded-full flex items-center justify-center shrink-0 ml-1 mt-0.5 shadow-2xs"
+                                  style={{
+                                    backgroundColor: 'var(--color-primary)',
+                                    color: 'var(--color-primary-text, #ffffff)',
+                                  }}
+                                >
+                                  <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                   </svg>
                                 </div>
                               )}
@@ -342,9 +356,15 @@ export function Sidebar() {
                       {loading ? 'Loading...' : (currentStore?.label || currentStore?.shopDomain || 'ESHAN Store')}
                     </span>
                     {roleLabel && (
-                      <span className="text-[10px] font-extrabold mt-1 tracking-wider uppercase text-[var(--color-primary)] block">
-                        {roleLabel}
-                      </span>
+                      <div className="mt-1">
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-black uppercase tracking-wider ${
+                          isMasterStore
+                            ? 'bg-purple-100 text-purple-900 border border-purple-200/90'
+                            : 'bg-slate-100 text-slate-700 border border-slate-200'
+                        }`}>
+                          {roleLabel}
+                        </span>
+                      </div>
                     )}
                   </div>
                 </div>

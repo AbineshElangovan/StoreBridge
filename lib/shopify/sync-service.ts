@@ -2,7 +2,7 @@ import { prisma } from '@/lib/db/prisma';
 import { createSyncLog } from './sync-log';
 import { setInventoryQuantity } from './inventory';
 import { shopify } from '@/lib/shopify';
-import { Session } from '@shopify/shopify-api';
+import { getAdminClient } from '@/lib/shopify/admin';
 import {
   GET_PRODUCTS_SYNC_QUERY,
   GET_COLLECTIONS_QUERY,
@@ -108,26 +108,7 @@ export async function syncStoreProducts(shopDomain: string) {
     throw new Error(`Store ${shopDomain} is not active or not found.`);
   }
 
-  if (!hasValidShopifyAccessToken(store.accessToken)) {
-    console.log("[Sync] invalid access token detected", { shopDomain });
-    await prisma.variantMap.deleteMany({ where: { storeId: store.id } });
-    await prisma.productCache.deleteMany({ where: { storeId: store.id } });
-    await prisma.store.update({
-      where: { id: store.id },
-      data: { isActive: false },
-    });
-    throw new Error(`Store ${shopDomain} does not have a valid Shopify access token.`);
-  }
-
-  const session = new Session({
-    id: `offline_${shopDomain}`,
-    shop: shopDomain,
-    state: 'offline',
-    isOnline: false,
-    accessToken: store.accessToken,
-  });
-
-  const client = new shopify.clients.Graphql({ session });
+  const client = await getAdminClient(shopDomain);
 
   let products = [];
   try {
@@ -136,8 +117,11 @@ export async function syncStoreProducts(shopDomain: string) {
     console.log(`[SyncService] Fetched ${products.length} products to sync.`);
   } catch (error: any) {
     if (error.message?.includes('Forbidden')) {
-      console.log(`[SyncService] 403 Forbidden for ${shopDomain}. Disabling store.`);
-      await prisma.store.update({ where: { id: store.id }, data: { isActive: false } });
+      console.log(`[SyncService] 403 Forbidden for ${shopDomain}. Marking authStatus.`);
+      await prisma.store.update({ 
+        where: { id: store.id }, 
+        data: { authStatus: 'REQUIRES_REAUTH', authFailureReason: 'Forbidden: 403' } 
+      });
       return { syncedProducts: 0, syncedVariants: 0, error: 'Store token forbidden' };
     }
     throw error;
