@@ -20,6 +20,7 @@ import { useStoreContext } from '@/components/providers/StoreProvider';
 import { useNotifications } from '@/components/providers/NotificationContext';
 import { useTheme } from '@/components/providers/ThemeContext';
 import { StoreLogo } from '@/components/common';
+import { APP_NAME } from '@/lib/constants/app';
 
 interface MenuItem {
   label: string;
@@ -176,8 +177,8 @@ export function Sidebar() {
           suppressHydrationWarning
         >
           <img 
-            src="/logos/storebridge.jpg" 
-            alt="StoreBridge" 
+            src="/logos/storeorbit.jpg" 
+            alt={APP_NAME} 
             className="w-full h-full object-cover rounded-lg"
             onError={(e) => {
               (e.currentTarget as HTMLElement).style.display = 'none';
@@ -189,7 +190,7 @@ export function Sidebar() {
             className="text-gray-950 tracking-tight flex items-center gap-1.5 group-hover:text-black group-hover:-translate-y-0.5 transition-all duration-200 ease-out"
             style={{ fontSize: '20px', fontWeight: 700, lineHeight: 1.1, margin: 0 }}
           >
-            StoreBridge
+            {APP_NAME}
           </h3>
           {!isStandalone && (
             <p className="text-[11px] text-gray-700 leading-tight font-bold mt-1">Multi-store sync</p>

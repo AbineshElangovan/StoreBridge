@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { EmailTemplateStore } from './email-template-store';
+import { APP_NAME } from '@/lib/constants/app';
 
 export interface SendEmailParams {
   to: string;
@@ -122,7 +123,7 @@ async function dispatchEmail(
         text,
         html,
         headers: {
-          'X-Mailer': 'StoreBridge Mailer',
+          'X-Mailer': `${APP_NAME} Mailer`,
           'X-Priority': '3',
         },
       });

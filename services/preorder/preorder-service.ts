@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db/prisma';
+import { APP_NAME } from '@/lib/constants/app';
 
 export interface PreorderMetrics {
   totalPreorders: number;
@@ -788,8 +789,8 @@ export class PreorderService {
 
       const title =
         discountType === 'percentage'
-          ? `StoreBridge Pre-order ${cleanVal}% Discount`
-          : `StoreBridge Pre-order Rs. ${cleanVal} Discount`;
+          ? `${APP_NAME} Pre-order ${cleanVal}% Discount`
+          : `${APP_NAME} Pre-order Rs. ${cleanVal} Discount`;
 
       const variables = {
         basicCodeDiscount: {
@@ -857,8 +858,8 @@ export class PreorderService {
       : 'PREORDER-HALF-DEPOSIT';
 
     const title = isOfferActive
-      ? `StoreBridge Pre-order (${cleanPct}% Offer + 50% Deposit)`
-      : 'StoreBridge Pre-order (50% Initial Deposit)';
+      ? `${APP_NAME} Pre-order (${cleanPct}% Offer + 50% Deposit)`
+      : `${APP_NAME} Pre-order (50% Initial Deposit)`;
 
     const store = await prisma.store.findUnique({
       where: { id: storeId },
@@ -918,7 +919,7 @@ export class PreorderService {
         try {
           const fallbackVariables = {
             basicCodeDiscount: {
-              title: 'StoreBridge Pre-order (50% Initial Deposit)',
+              title: `${APP_NAME} Pre-order (50% Initial Deposit)`,
               code: 'PREORDER-HALF-DEPOSIT',
               startsAt: new Date(Date.now() - 60000).toISOString(),
               customerSelection: { all: true },

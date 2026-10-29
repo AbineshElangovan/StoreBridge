@@ -7,6 +7,7 @@ import { fetchDefaultLocation } from "@/services/shopify/api-helpers";
 import { createNotification } from "@/services/notification-service";
 import { calculateAdjustedPrice } from "@/services/shopify/pricing";
 import { PreorderService } from "@/services/preorder/preorder-service";
+import { APP_NAME } from "@/lib/constants/app";
 
 export const dynamic = 'force-dynamic';
 
@@ -388,7 +389,7 @@ export async function GET(
         title: mainProductTitle,
         sku: targetProduct.sku || 'N/A',
         collection: collectionName,
-        vendor: 'StoreBridge',
+        vendor: APP_NAME,
         basePrice: targetProduct.basePrice || targetProduct.price || 0,
         imageUrl: resolvedProductImage || null,
         status: totalCurrentStock > 0 ? 'Active' : 'Draft',

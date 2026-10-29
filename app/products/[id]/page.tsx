@@ -16,6 +16,7 @@ import { ConfirmToast } from '@/components/ui/ConfirmToast';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 import { useToast } from '@/components/providers/ToastContext';
 import { PreorderAvailabilityCard } from '@/components/products/PreorderAvailabilityCard';
+import { APP_NAME } from '@/lib/constants/app';
 
 export default function ProductDetailsPage() {
   const { isMaster, isStandalone } = useStoreContext();
@@ -230,8 +231,8 @@ export default function ProductDetailsPage() {
           deleteError
             ? `Error: ${deleteError}`
             : isMaster
-            ? "This will permanently remove the product from Master and all connected stores in Shopify and StoreBridge."
-            : "This will permanently remove the product from this store in Shopify and StoreBridge."
+            ? `This will permanently remove the product from Master and all connected stores in Shopify and ${APP_NAME}.`
+            : `This will permanently remove the product from this store in Shopify and ${APP_NAME}.`
         }
         confirmLabel="Yes, Delete"
         cancelLabel="No"

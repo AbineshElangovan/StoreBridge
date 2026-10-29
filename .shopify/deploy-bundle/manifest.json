@@ -1,5 +1,5 @@
 {
-  "name": "StoreBridge",
+  "name": "StoreOrbit",
   "handle": "",
   "modules": [
     {
@@ -26,7 +26,8 @@
         "optional_scopes": [],
         "use_legacy_install_flow": false,
         "redirect_url_allowlist": [
-          "https://dz50mdfc-3000.inc1.devtunnels.ms/api/auth/callback"
+          "https://dz50mdfc-3000.inc1.devtunnels.ms/api/auth/callback",
+          "https://store-bridge-yemi.vercel.app/api/auth/callback"
         ]
       }
     },
@@ -47,7 +48,7 @@
       "assets": "app_home",
       "target": "",
       "config": {
-        "app_url": "https://dz50mdfc-3000.inc1.devtunnels.ms",
+        "app_url": "https://store-bridge-yemi.vercel.app",
         "embedded": true
       }
     },
@@ -58,7 +59,7 @@
       "assets": "branding",
       "target": "",
       "config": {
-        "name": "StoreBridge"
+        "name": "StoreOrbit"
       }
     },
     {
@@ -70,7 +71,7 @@
       "config": {
         "topic": "app/uninstalled",
         "api_version": "2026-10",
-        "uri": "https://dz50mdfc-3000.inc1.devtunnels.ms/api/webhooks/app-uninstalled"
+        "uri": "https://store-bridge-yemi.vercel.app/api/webhooks/app-uninstalled"
       }
     },
     {
@@ -82,7 +83,7 @@
       "config": {
         "topic": "inventory_levels/update",
         "api_version": "2026-10",
-        "uri": "https://dz50mdfc-3000.inc1.devtunnels.ms/api/webhooks/inventory-levels-update"
+        "uri": "https://store-bridge-yemi.vercel.app/api/webhooks/inventory-levels-update"
       }
     },
     {
@@ -94,7 +95,7 @@
       "config": {
         "topic": "products/create",
         "api_version": "2026-10",
-        "uri": "https://dz50mdfc-3000.inc1.devtunnels.ms/api/webhooks/products-create"
+        "uri": "https://store-bridge-yemi.vercel.app/api/webhooks/products-create"
       }
     },
     {
@@ -106,7 +107,7 @@
       "config": {
         "topic": "products/delete",
         "api_version": "2026-10",
-        "uri": "https://dz50mdfc-3000.inc1.devtunnels.ms/api/webhooks/products-delete"
+        "uri": "https://store-bridge-yemi.vercel.app/api/webhooks/products-delete"
       }
     },
     {
@@ -118,7 +119,7 @@
       "config": {
         "topic": "products/update",
         "api_version": "2026-10",
-        "uri": "https://dz50mdfc-3000.inc1.devtunnels.ms/api/webhooks/products-update"
+        "uri": "https://store-bridge-yemi.vercel.app/api/webhooks/products-update"
       }
     }
   ]

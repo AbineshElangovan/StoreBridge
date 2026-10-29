@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Icon } from '@shopify/polaris';
 import { CartIcon, CheckIcon, RefreshIcon } from '@shopify/polaris-icons';
 import { shopifyFetch } from '@/lib/shopify/Client';
+import { APP_NAME } from '@/lib/constants/app';
 
 export interface EmailTemplateConfig {
   subject: string;
@@ -602,7 +603,7 @@ export function EmailTemplateCustomizer({
 
               {/* Footer */}
               <p className="text-[10px] text-gray-400 pt-3 border-t border-gray-100">
-                © {new Date().getFullYear()} {storeName} • Sent automatically via StoreBridge
+                © {new Date().getFullYear()} {storeName} • Sent automatically via {APP_NAME}
               </p>
             </div>
           </div>

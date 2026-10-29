@@ -6,6 +6,7 @@ import {
 } from '@prisma/client';
 import { CustomerNotificationService } from '@/services/notifications';
 import { safeEncrypt, safeDecrypt } from '@/lib/utils/encryption';
+import { APP_NAME } from '@/lib/constants/app';
 
 export interface BackInStockEventParams {
   storeId: string;
@@ -174,7 +175,7 @@ export class BackInStockService {
               variantTitle,
               productUrl: finalProductUrl,
               imageUrl: imageUrl || null,
-              storeName: store?.label || store?.shopDomain || 'StoreBridge Store',
+              storeName: store?.label || store?.shopDomain || `${APP_NAME} Store`,
               customerName: po.customerName,
               orderNumber: po.orderNumber,
             });

@@ -289,7 +289,7 @@ export function PreviewCard({
           <span>One-time Purchase</span>
         </div>
 
-        {/* StoreBridge availability block */}
+        {/* StoreOrbit availability block */}
         {selectedVariant === 'L' ? (
           enabled ? (
             <div className="space-y-3.5 animate-fadeIn">

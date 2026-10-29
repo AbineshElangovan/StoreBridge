@@ -18,13 +18,14 @@ import { NavbarTitleProvider } from '@/components/providers/NavbarTitleContext';
 import { ToastProvider } from '@/components/providers/ToastContext';
 import { ThemeProvider } from '@/components/providers/ThemeContext';
 import { AutoHideScrollbar } from '@/components/providers/AutoHideScrollbar';
+import { APP_NAME } from '@/lib/constants/app';
 
 export const dynamic = 'force-dynamic';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'StoreBridge',
+  title: APP_NAME,
   description: 'Multi-store inventory synchronization',
 };
 

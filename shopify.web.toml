@@ -1,4 +1,4 @@
-name = "StoreBridge"
+name = "StoreOrbit"
 roles = ["frontend", "backend"]
 
 [commands]

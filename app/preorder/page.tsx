@@ -23,6 +23,7 @@ import { useStoreContext } from '@/components/providers/StoreProvider';
 import { PageTabs, PageTab } from '@/components/ui/PageTabs';
 import { PolarisSelect } from '@/components/common';
 import { PreorderPerformanceCard } from '@/components/dashboard/PreorderPerformanceCard';
+import { APP_NAME } from '@/lib/constants/app';
 import type { PreorderMetrics } from '@/services/preorder/preorder-service';
 
 export type PreorderTabId = 'general' | 'offers_payment' | 'orders';
@@ -338,10 +339,10 @@ export default function PreorderAdminPage() {
             <path d="M12 16v-4" />
             <path d="M12 8h.01" />
           </svg>
-          <h4 className="font-bold text-sm text-sky-900">How StoreBridge Pre-order Works on Your Store</h4>
+          <h4 className="font-bold text-sm text-sky-900">How {APP_NAME} Pre-order Works on Your Store</h4>
         </div>
         <p className="text-xs text-sky-800 leading-relaxed">
-          When a customer visits your online store product page, the StoreBridge Theme App Extension reads the selected variant&apos;s inventory. If stock is &le; threshold ({inventoryThreshold}), it seamlessly replaces the theme&apos;s Sold Out button with the Pre-order &amp; Back in Stock UI and applies any configured promotional offer.
+          When a customer visits your online store product page, the {APP_NAME} Theme App Extension reads the selected variant&apos;s inventory. If stock is &le; threshold ({inventoryThreshold}), it seamlessly replaces the theme&apos;s Sold Out button with the Pre-order &amp; Back in Stock UI and applies any configured promotional offer.
         </p>
       </div>
     </div>

@@ -10,6 +10,7 @@ import { StoreRoleBadge } from '@/components/ui/StoreRoleBadge';
 import { useNavbarTitle } from '@/components/providers/NavbarTitleContext';
 import { ThemeSwitcher } from '@/components/layout/ThemeSwitcher';
 import { useStoreContext } from '@/components/providers/StoreProvider';
+import { APP_NAME, APP_INITIALS } from '@/lib/constants/app';
 
 export function ResponsiveLayout({ 
   sidebar, 
@@ -81,9 +82,9 @@ export function ResponsiveLayout({
         <div className="flex items-center gap-2">
           <Link href={createHref('/')} className="flex items-center gap-2">
             <span className="w-7 h-7 rounded-lg bg-[var(--color-primary)] text-black flex items-center justify-center font-black text-xs shadow-2xs">
-              SB
+              {APP_INITIALS}
             </span>
-            <span className="text-sm font-extrabold text-gray-900 tracking-tight">StoreBridge</span>
+            <span className="text-sm font-extrabold text-gray-900 tracking-tight">{APP_NAME}</span>
           </Link>
         </div>
         <div className="flex items-center gap-2">
@@ -144,7 +145,7 @@ export function ResponsiveLayout({
                 <div style={{ width: 15, height: 15 }}>
                   <Icon source={HomeIcon} />
                 </div>
-                <span>StoreBridge</span>
+                <span>{APP_NAME}</span>
               </Link>
 
               <div style={{ width: 12, height: 12 }} className="text-gray-400">

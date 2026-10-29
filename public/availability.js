@@ -2649,7 +2649,7 @@
 
       const msg = (error && error.name === 'AbortError')
         ? 'Request timed out connecting to server. Please try again.'
-        : 'Network error connecting to StoreBridge. Please try again.';
+        : 'Network error connecting to StoreOrbit. Please try again.';
 
       showModalError(msg);
     } finally {

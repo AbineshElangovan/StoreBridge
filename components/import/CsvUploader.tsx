@@ -1,4 +1,5 @@
 import React from 'react';
+import { APP_NAME } from '@/lib/constants/app';
 
 interface CsvUploaderProps {
   file: File | null;
@@ -24,7 +25,7 @@ export function CsvUploader({ file, isValidating, onFileSelect, onValidate, onDi
     e.preventDefault();
     const csvContent = `Title,Description,Price,Inventory tracked,Available,Option1 Name,Option1 Value,Option2 Name,Option2 Value,Option3 Name,Option3 Value,SKU,Vendor,Tags,Status,collection
 Stainless Steel Water Bottle,<p>Durable stainless steel water bottle for daily use.</p>,349,Yes,10,Color,Beige,,,,,,ESHAN Coimbatore Store,Accessories,ACTIVE,MENS ACCESSORIES
-Classic Cotton T-Shirt,<p>Comfortable cotton T-shirt for everyday wear.</p>,499,Yes,10,Color,Blue,Size,M,,,,StoreBridge,T-shirts,ACTIVE,T-SHIRTS
+Classic Cotton T-Shirt,<p>Comfortable cotton T-shirt for everyday wear.</p>,499,Yes,10,Color,Blue,Size,M,,,,${APP_NAME},T-shirts,ACTIVE,T-SHIRTS
 Slim Fit Jeans,<p>Stylish slim-fit denim jeans suitable for casual wear.</p>,999,Yes,10,Color,Black,Size,L,,,,ESHAN Chennai Store,PANTS,ACTIVE,PANTS
 `;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
