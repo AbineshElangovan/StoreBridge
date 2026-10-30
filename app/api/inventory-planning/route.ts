@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { authenticate } from '@/lib/shopify/authenticate';
 import { evaluateForecastStockoutRisks } from '@/services/planning/stockout-risk-service';
+import { PreorderService } from '@/services/preorder/preorder-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -89,6 +90,19 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Query Preorder configs for stores
+    const preorderConfigsByStore = new Map<string, any>();
+    for (const sid of targetStoreIds) {
+      try {
+        const pcfg = await PreorderService.getConfig(sid);
+        if (pcfg && pcfg.enabled) {
+          preorderConfigsByStore.set(sid, pcfg);
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
     // Query sales history from ActivityLog per store over their salesHistoryPeriodDays
     const storeSalesMap = new Map<string, Map<string, number>>(); // storeId -> (titleKey -> unitsSold)
 
@@ -170,6 +184,11 @@ export async function GET(req: NextRequest) {
             id: true,
             label: true,
             shopDomain: true
+          }
+        },
+        collections: {
+          include: {
+            collection: true
           }
         }
       }
@@ -308,6 +327,20 @@ export async function GET(req: NextRequest) {
 
       const mapKey = isAllStores ? titleKey : `${storeId}:${titleKey}`;
 
+      let isPreorderEligible = false;
+      const pcfg = preorderConfigsByStore.get(storeId);
+      if (pcfg && pcfg.enabled) {
+        const prodColls = (p.collections || []).flatMap((cp: any) => [
+          cp.collection?.id,
+          cp.collection?.shopifyCollectionId,
+        ]).filter(Boolean) as string[];
+        const isTargeted = PreorderService.isProductTargeted(pcfg, p.shopifyProductId, prodColls);
+        const threshold = pcfg.inventoryThreshold ?? 0;
+        if (isTargeted && currentStock <= threshold) {
+          isPreorderEligible = true;
+        }
+      }
+
       if (!aggregatedMap.has(mapKey)) {
         const storeBreakdownMap = new Map<string, any>();
         const skus = new Set<string>();
@@ -348,11 +381,13 @@ export async function GET(req: NextRequest) {
           requiredStock,
           recommendedReplenishment,
           risk,
+          isPreorderEligible,
           storeLabels: new Set<string>([storeName]),
           storeBreakdownMap
         });
       } else {
         const existing = aggregatedMap.get(mapKey);
+        existing.isPreorderEligible = Boolean(existing.isPreorderEligible || isPreorderEligible);
         existing.currentStock += currentStock;
         existing.unitsSoldInHistory += unitsSoldInHistory;
         existing.avgDailySales += avgDailySales;

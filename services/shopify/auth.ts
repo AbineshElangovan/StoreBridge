@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+import { Session } from '@shopify/shopify-api';
 import { shopify } from "@/lib/shopify";
 import { prisma } from "@/lib/db/prisma";
 import { AuthStatus } from "@prisma/client";
@@ -101,13 +103,104 @@ export async function handleAuthCallback(req: NextRequest) {
   });
 
   console.log("[OAuthCallback] Validating auth callback...");
-  const callbackResponse = await shopify.auth.callback({
-    rawRequest: cleanRequest,
-    expiring: true,
-  } as any);
-  console.log("[OAuthCallback] OAuth validation succeeded.");
+  let session: Session;
+  let headers: any = {};
 
-  const { session, headers } = callbackResponse;
+  try {
+    const callbackResponse = await shopify.auth.callback({
+      rawRequest: cleanRequest,
+      expiring: true,
+    } as any);
+    console.log("[OAuthCallback] Standard shopify.auth.callback succeeded.");
+    session = callbackResponse.session;
+    headers = callbackResponse.headers || {};
+  } catch (authErr: any) {
+    console.warn("[OAuthCallback] shopify.auth.callback failed, checking cookie/HMAC fallback:", authErr.message);
+    const isCookieErr =
+      authErr.message?.toLowerCase().includes("cookie") ||
+      authErr.name === "CookieNotFound";
+
+    if (!isCookieErr) {
+      throw authErr;
+    }
+
+    console.log("[OAuthCallback] Cookie missing (cross-site/tunnel redirect). Attempting cryptographic HMAC verification...");
+    const searchParams = req.nextUrl.searchParams;
+    const hmac = searchParams.get("hmac");
+    const code = searchParams.get("code");
+    const shopParam = searchParams.get("shop");
+    const cleanShop = shopify.utils.sanitizeShop(shopParam || "", true);
+
+    if (!hmac || !code || !cleanShop) {
+      console.error("[OAuthCallback] Missing required OAuth params for fallback:", { hasHmac: Boolean(hmac), hasCode: Boolean(code), cleanShop });
+      throw authErr;
+    }
+
+    // Verify HMAC cryptographically using SHOPIFY_API_SECRET
+    const params: Record<string, string> = {};
+    for (const [key, val] of searchParams.entries()) {
+      if (key !== "hmac" && key !== "signature") {
+        params[key] = val;
+      }
+    }
+    const message = Object.keys(params).sort().map((k) => `${k}=${params[k]}`).join("&");
+    const secret = process.env.SHOPIFY_API_SECRET || "";
+    const digest = crypto.createHmac("sha256", secret).update(message).digest("hex");
+
+    const isValidHmac =
+      digest.length === hmac.length &&
+      crypto.timingSafeEqual(Buffer.from(digest, "utf8"), Buffer.from(hmac, "utf8"));
+
+    if (!isValidHmac) {
+      console.error("[OAuthCallback] HMAC signature validation failed!");
+      throw authErr;
+    }
+
+    console.log("[OAuthCallback] HMAC cryptographic signature verified! Exchanging authorization code directly with Shopify...");
+    const tokenResponse = await fetch(`https://${cleanShop}/admin/oauth/access_token`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        client_id: process.env.SHOPIFY_API_KEY,
+        client_secret: process.env.SHOPIFY_API_SECRET,
+        code,
+        expiring: "1",
+      }),
+    });
+
+    if (!tokenResponse.ok) {
+      const errText = await tokenResponse.text();
+      console.error("[OAuthCallback] Direct token exchange failed:", tokenResponse.status, errText);
+      throw new Error(`Shopify token exchange failed (HTTP ${tokenResponse.status}): ${errText}`);
+    }
+
+    const tokenData = await tokenResponse.json();
+    console.log("[OAuthCallback] Direct token exchange succeeded! Token received with expiresIn:", tokenData.expires_in);
+
+    const now = new Date();
+    session = new Session({
+      id: `offline_${cleanShop}`,
+      shop: cleanShop,
+      state: searchParams.get("state") || "offline",
+      isOnline: false,
+      accessToken: tokenData.access_token,
+      scope: tokenData.scope,
+      expires: tokenData.expires_in ? new Date(now.getTime() + tokenData.expires_in * 1000) : undefined,
+    });
+
+    if (tokenData.refresh_token) {
+      (session as any).refreshToken = tokenData.refresh_token;
+    }
+    if (tokenData.refresh_token_expires_in) {
+      (session as any).refreshTokenExpires = new Date(
+        now.getTime() + tokenData.refresh_token_expires_in * 1000
+      );
+    }
+  }
+
   const { shop, accessToken, scope } = session;
   console.log("OAuth Session Scope:", scope);
 
@@ -233,15 +326,19 @@ export async function handleAuthCallback(req: NextRequest) {
     });
 
     const encryptedAccessToken = encrypt(accessToken);
-    const encryptedRefreshToken = (session as any).refreshToken ? encrypt((session as any).refreshToken) : null;
+    const encryptedRefreshToken = (session as any).refreshToken
+      ? encrypt((session as any).refreshToken)
+      : null;
 
-    // We can assume session.refreshToken exists since it's verified in Phase 1
     const updateDataToSave: any = {
       ...updateData,
       accessToken: encryptedAccessToken,
       refreshToken: encryptedRefreshToken,
       expiresAt: session.expires || null,
       refreshTokenExpiresAt: (session as any).refreshTokenExpires || null,
+      authStatus: AuthStatus.AUTHENTICATED,
+      lastAuthFailure: null,
+      authFailureReason: null,
     };
 
     const store = await tx.store.upsert({

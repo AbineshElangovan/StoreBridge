@@ -12,6 +12,7 @@ import { useStoreContext } from '@/components/providers/StoreProvider';
 
 import Link from 'next/link';
 import { getProductUrl } from '@/lib/utils/productUrl';
+import { PreorderBadge } from '@/components/preorder/PreorderBadge';
 
 export default function ProductsPage() {
   const searchParams = useSearchParams();
@@ -95,23 +96,24 @@ export default function ProductsPage() {
 
   const mapProductToRow = (item: any) => {
     const prodUrl = getProductUrl(item);
+
     return {
       ...item,
       url: prodUrl,
       title_node: (
-        <Link
-          href={prodUrl}
-          className="font-bold text-gray-900 hover:text-[#6366f1] hover:underline cursor-pointer transition-colors"
-        >
-          {item.title}
-        </Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link
+            href={prodUrl}
+            className="font-bold text-gray-900 hover:text-[#6366f1] hover:underline cursor-pointer transition-colors"
+          >
+            {item.title}
+          </Link>
+          {(isStandalone && item.isPreorderAvailable) && (
+            <PreorderBadge size="sm" />
+          )}
+        </div>
       ),
-      stockLevel_node: (isStandalone && item.isPreorderAvailable) ? (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200 shadow-2xs whitespace-nowrap">
-          <span className="w-1.5 h-1.5 rounded-full bg-purple-600"></span>
-          Pre-order
-        </span>
-      ) : (
+      stockLevel_node: (
         <span
           className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
             item.stockLevel === 'Healthy'

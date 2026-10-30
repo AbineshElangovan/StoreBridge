@@ -188,11 +188,7 @@ export async function GET(req: NextRequest) {
 
         const threshold = preorderConfig.inventoryThreshold ?? 0;
         isPreorderAvailable = isPreorderTargeted && p.inventoryQuantity <= threshold;
-        preorderStatus = isPreorderAvailable
-          ? 'Pre-order Active'
-          : isPreorderTargeted
-          ? 'Pre-order Ready'
-          : null;
+        preorderStatus = isPreorderAvailable ? 'Pre-order' : null;
       }
 
       const item = {

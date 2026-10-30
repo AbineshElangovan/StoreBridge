@@ -15,7 +15,6 @@ import { getCleanProductName } from '@/lib/utils/formatProductTitle';
 import { ConfirmToast } from '@/components/ui/ConfirmToast';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 import { useToast } from '@/components/providers/ToastContext';
-import { PreorderAvailabilityCard } from '@/components/products/PreorderAvailabilityCard';
 import { APP_NAME } from '@/lib/constants/app';
 
 export default function ProductDetailsPage() {
@@ -42,11 +41,13 @@ export default function ProductDetailsPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [activeProductId, setActiveProductId] = useState<string>(productId);
 
-  const fetchProductDetails = useCallback(async () => {
+  const fetchProductDetails = useCallback(async (isBackground: boolean = false) => {
     const idToFetch = activeProductId || productId;
     if (!idToFetch) return;
-    setLoading(true);
-    setError(null);
+    if (!isBackground) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const res = await shopifyFetch(`/api/products/${encodeURIComponent(idToFetch)}`);
       if (res.ok) {
@@ -63,22 +64,28 @@ export default function ProductDetailsPage() {
           // If 404 happens (e.g. after deleting the product or last variant), redirect to products page
           if (productData) {
             router.push('/products');
-          } else {
+          } else if (!isBackground) {
             setError(json.error || 'Product not found');
           }
         }
       } else {
-        if (productData) {
-          router.push('/products');
-        } else {
-          setError('Failed to load product details');
+        if (!isBackground) {
+          if (productData) {
+            router.push('/products');
+          } else {
+            setError('Failed to load product details');
+          }
         }
       }
     } catch (err: any) {
       console.error('[Product Details Page] Fetch error:', err);
-      setError(err.message || 'Network error');
+      if (!isBackground) {
+        setError(err.message || 'Network error');
+      }
     } finally {
-      setLoading(false);
+      if (!isBackground) {
+        setLoading(false);
+      }
     }
   }, [productId, activeProductId, productData, router]);
 
@@ -180,6 +187,7 @@ export default function ProductDetailsPage() {
         sku={productData.sku}
         collection={productData.collection}
         vendor={productData.vendor}
+        isPreorderEligible={Boolean(productData.isPreorderEligible ?? productData.preorder?.isAvailable)}
         onDelete={() => setShowDeleteModal(true)}
         isDeleting={isDeleting}
       />
@@ -198,7 +206,7 @@ export default function ProductDetailsPage() {
             status={productData.status}
             currentStock={productData.currentStock}
             healthStatus={productData.healthStatus}
-            preorderStatus={productData.preorder?.status}
+            preorderStatus={productData.preorder?.status || null}
           />
         </div>
 
@@ -207,17 +215,13 @@ export default function ProductDetailsPage() {
           <ProductVariants
             productId={productData.shopifyProductId || productData.id}
             variants={productData.variants || []}
-            onVariantUpdated={fetchProductDetails}
+            isStandalone={Boolean(productData.isStandalone ?? isStandalone)}
+            onVariantUpdated={() => fetchProductDetails(true)}
           />
 
           <ProductPerformance performance={productData.performance} />
 
-          {isStandalone ? (
-            <PreorderAvailabilityCard
-              preorder={productData.preorder}
-              currentStock={productData.currentStock}
-            />
-          ) : (
+          {!isStandalone && (
             <StoreAvailability stores={productData.storeAvailability || []} />
           )}
         </div>

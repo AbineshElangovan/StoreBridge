@@ -90,22 +90,21 @@ export function ProductInfoCard({
           </div>
         </div>
 
-        {preorderStatus && (
+        {(preorderStatus === 'Pre-order Available' || preorderStatus === 'Available') && (
           <div className="flex items-center justify-between py-1">
             <span className="font-medium text-gray-500">Pre-order</span>
-            <span
-              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                preorderStatus === 'Pre-order Active'
-                  ? 'bg-purple-100 text-purple-800 border-purple-200'
-                  : preorderStatus === 'Pre-order Ready'
-                  ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                  : 'bg-gray-100 text-gray-600 border-gray-200'
-              }`}
-            >
-              {preorderStatus === 'Pre-order Active' && (
-                <span className="w-1.5 h-1.5 rounded-full bg-purple-600 animate-pulse" />
-              )}
-              {preorderStatus}
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+              Available
+            </span>
+          </div>
+        )}
+        {(preorderStatus === 'Pre-order Not Available' || preorderStatus === 'Not Available') && (
+          <div className="flex items-center justify-between py-1">
+            <span className="font-medium text-gray-500">Pre-order</span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
+              Not Available
             </span>
           </div>
         )}

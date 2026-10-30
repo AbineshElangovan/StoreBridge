@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    const { store } = await authenticate(req);
+    const { store, isStandalone } = await authenticate(req);
 
     // Non-blocking auto-purge of activity logs older than 90 days
     cleanupExpiredActivityLogs().catch(() => {});
@@ -177,10 +177,30 @@ export async function GET(req: NextRequest) {
           }
         }
       }
+
+      let isPreorderTargeted = false;
+      let isPreorderAvailable = false;
+      let preorderStatus: string | null = null;
+      if (isStandalone && preorderConfig && preorderConfig.enabled) {
+        const prodColls = (p.collections || []).flatMap((cp: any) => [
+          cp.collection?.id,
+          cp.collection?.shopifyCollectionId,
+        ]).filter(Boolean) as string[];
+        isPreorderTargeted = PreorderService.isProductTargeted(preorderConfig, p.shopifyProductId, prodColls);
+        const threshold = preorderConfig.inventoryThreshold ?? 0;
+        isPreorderAvailable = isPreorderTargeted && (p.inventoryQuantity <= threshold);
+        if (isPreorderAvailable) {
+          preorderStatus = 'Pre-order';
+        }
+      }
+
       return {
         ...p,
         imageUrl: img || null,
-        inventoryQuantity: Math.max(0, p.inventoryQuantity)
+        inventoryQuantity: Math.max(0, p.inventoryQuantity),
+        isPreorderTargeted,
+        isPreorderAvailable,
+        preorderStatus,
       };
     };
 
@@ -226,6 +246,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       currentStoreId: store.id,
+      isStandalone,
       stores: storesWithProducts,
       stats,
       syncStats,

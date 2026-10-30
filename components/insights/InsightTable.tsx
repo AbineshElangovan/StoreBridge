@@ -5,6 +5,7 @@ import { Table, ColumnConfig } from '@/components/common/Table';
 import { StockHealthBadge } from './StockHealthBadge';
 import { InsightTabType } from './InsightTabs';
 import { useStoreContext } from '@/components/providers/StoreProvider';
+import { PreorderBadge } from '@/components/preorder/PreorderBadge';
 
 interface InsightTableProps {
   activeTab: InsightTabType;
@@ -129,8 +130,11 @@ export function InsightTable({
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <div className="text-xs sm:text-sm font-semibold text-gray-900 truncate max-w-full sm:max-w-xs md:max-w-sm" title={p.title}>
-            {p.title}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs sm:text-sm font-semibold text-gray-900 truncate max-w-full sm:max-w-xs md:max-w-sm" title={p.title}>
+              {p.title}
+            </span>
+            {p.isPreorderEligible && <PreorderBadge size="sm" />}
           </div>
           {!isStandalone && p.storeLabel && (
             <div className="mt-1">

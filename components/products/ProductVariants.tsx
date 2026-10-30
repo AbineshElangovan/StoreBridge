@@ -7,6 +7,7 @@ import { shopifyFetch } from '@/lib/shopify/Client';
 import { ConfirmToast } from '@/components/ui/ConfirmToast';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 import { useToast } from '@/components/providers/ToastContext';
+import { PreorderBadge } from '@/components/preorder/PreorderBadge';
 
 export interface ProductVariantItem {
   id: string;
@@ -16,15 +17,19 @@ export interface ProductVariantItem {
   price: number | string;
   quantity: number | string;
   status: string;
+  isPreorderTargeted?: boolean;
+  isPreorderAvailable?: boolean;
+  preorderStatus?: string | null;
 }
 
 interface ProductVariantsProps {
   productId: string;
   variants: ProductVariantItem[];
+  isStandalone?: boolean;
   onVariantUpdated?: () => void;
 }
 
-export function ProductVariants({ productId, variants: initialVariants, onVariantUpdated }: ProductVariantsProps) {
+export function ProductVariants({ productId, variants: initialVariants, isStandalone, onVariantUpdated }: ProductVariantsProps) {
   const { isMaster } = useStoreContext();
   const { showSuccess, showError } = useToast();
   const [variantList, setVariantList] = useState<ProductVariantItem[]>(initialVariants);
@@ -34,15 +39,18 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [reauthUrl, setReauthUrl] = useState<string | null>(null);
 
-  // Sync state if prop changes
+  // Sync state if prop changes (only when there are no pending unsaved edits)
   React.useEffect(() => {
-    setVariantList(initialVariants);
-    setModifiedIds(new Set());
-  }, [initialVariants]);
+    if (modifiedIds.size === 0) {
+      setVariantList(initialVariants);
+    }
+  }, [initialVariants, modifiedIds.size]);
 
   const handlePriceChange = (variantId: string, val: string) => {
     setSaveError(null);
+    setReauthUrl(null);
     const sanitized = val.replace(/[^0-9.]/g, '');
     const parts = sanitized.split('.');
     const cleanStr = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : sanitized;
@@ -60,6 +68,7 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
 
   const handleQuantityChange = (variantId: string, val: string) => {
     setSaveError(null);
+    setReauthUrl(null);
     const onlyDigits = val.replace(/[^\d]/g, '');
     const cleanStr = onlyDigits.replace(/^0+(?=\d)/, '');
     setVariantList(prev => prev.map(v => v.id === variantId ? { ...v, quantity: cleanStr } : v));
@@ -102,6 +111,11 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
         } else {
           hasError = true;
           lastErrorMessage = json.error || `Failed to update variant ${v.variantName} (HTTP ${res.status})`;
+          if (json.reauthUrl) {
+            setReauthUrl(json.reauthUrl);
+          } else if (lastErrorMessage.toLowerCase().includes('authorization expired')) {
+            setReauthUrl('https://admin.shopify.com');
+          }
           break;
         }
       }
@@ -114,17 +128,20 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
 
       if (hasError) {
         setSaveError(lastErrorMessage);
+        showError(lastErrorMessage);
       } else {
         setSaveError(null);
-      }
-
-      // Re-fetch authoritative persisted product details from server
-      if (onVariantUpdated) {
-        onVariantUpdated();
+        showSuccess('Variant(s) updated successfully');
+        // Only re-fetch authoritative persisted product details from server if save succeeded
+        if (onVariantUpdated) {
+          onVariantUpdated();
+        }
       }
     } catch (err: any) {
       console.error('Failed to save variants:', err);
-      setSaveError(err.message || 'Network error while saving variants');
+      const msg = err.message || 'Network error while saving variants';
+      setSaveError(msg);
+      showError(msg);
     } finally {
       setIsSavingAll(false);
     }
@@ -173,8 +190,20 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
           <div className="flex-1">
             <span className="font-bold block">Save Error</span>
             <span>{saveError}</span>
+            {reauthUrl && (
+              <div className="mt-2.5">
+                <a
+                  href={reauthUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs transition-colors shadow-2xs"
+                >
+                  <span>1-Click Re-authenticate with Shopify &rarr;</span>
+                </a>
+              </div>
+            )}
           </div>
-          <button type="button" onClick={() => setSaveError(null)} className="text-rose-500 hover:text-rose-700 p-0.5 flex items-center justify-center cursor-pointer" title="Dismiss error">
+          <button type="button" onClick={() => { setSaveError(null); setReauthUrl(null); }} className="text-rose-500 hover:text-rose-700 p-0.5 flex items-center justify-center cursor-pointer" title="Dismiss error">
             <span className="w-3.5 h-3.5 flex items-center"><Icon source={XIcon} tone="inherit" /></span>
           </button>
         </div>
@@ -237,7 +266,12 @@ export function ProductVariants({ productId, variants: initialVariants, onVarian
                 return (
                   <tr key={v.id} className="hover:bg-gray-50/60 transition-colors">
                     <td className="py-3.5 px-3 font-semibold text-gray-900">
-                      {v.variantName}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span>{v.variantName}</span>
+                        {((v.isPreorderAvailable || v.isPreorderTargeted) && Number(v.quantity) <= 0) && (
+                          <PreorderBadge size="sm" />
+                        )}
+                      </div>
                     </td>
                     <td className="py-3.5 px-3 font-mono text-gray-600">
                       {v.sku}

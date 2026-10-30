@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
 import { authenticate, handleApiError } from '@/lib/shopify/authenticate';
+import { PreorderService } from '@/services/preorder/preorder-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -269,9 +270,25 @@ export async function GET(req: NextRequest) {
             shopDomain: true,
             lowStockThreshold: true
           }
+        },
+        collections: {
+          include: {
+            collection: true
+          }
         }
       }
     });
+
+    // Preorder config per store
+    const preorderConfigsByStore = new Map<string, any>();
+    for (const sid of targetStoreIds) {
+      try {
+        const pcfg = await PreorderService.getConfig(sid);
+        if (pcfg && pcfg.enabled) {
+          preorderConfigsByStore.set(sid, pcfg);
+        }
+      } catch (e) {}
+    }
 
     const storeConfigMap = new Map<string, { bestSellerThreshold: number; deadStockDays: number }>();
     if (targetStoreIds.length > 0) {
@@ -323,6 +340,20 @@ export async function GET(req: NextRequest) {
 
       const calculatedRevenue = sales.revenue > 0 ? sales.revenue : (sales.unitsSold * (p.price || 0));
 
+      let isPreorderEligible = false;
+      const pcfg = preorderConfigsByStore.get(p.storeId);
+      if (pcfg && pcfg.enabled) {
+        const prodColls = (p.collections || []).flatMap((cp: any) => [
+          cp.collection?.id,
+          cp.collection?.shopifyCollectionId,
+        ]).filter(Boolean) as string[];
+        const isTargeted = PreorderService.isProductTargeted(pcfg, p.shopifyProductId, prodColls);
+        const threshold = pcfg.inventoryThreshold ?? 0;
+        if (isTargeted && currentStock <= threshold) {
+          isPreorderEligible = true;
+        }
+      }
+
       if (!enrichedProductsMap.has(mapKey)) {
         let stockHealth: 'OUT_OF_STOCK' | 'CRITICAL' | 'HEALTHY' = 'HEALTHY';
         if (currentStock === 0) {
@@ -353,6 +384,7 @@ export async function GET(req: NextRequest) {
           isSlowMover,
           isDeadStock,
           isOutOfStock,
+          isPreorderEligible,
           lastSoldAt: lastSoldDate ? lastSoldDate.toISOString() : null,
           daysWithoutSale,
           daysUnsold: daysWithoutSale,
@@ -363,6 +395,7 @@ export async function GET(req: NextRequest) {
         const existing = enrichedProductsMap.get(mapKey);
         existing.currentStock += currentStock;
         existing.storeLabels.add(storeName);
+        existing.isPreorderEligible = Boolean(existing.isPreorderEligible || isPreorderEligible);
 
         if (existing.currentStock === 0) {
           existing.stockHealth = 'OUT_OF_STOCK';

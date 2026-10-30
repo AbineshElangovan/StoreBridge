@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticate, handleApiError } from "@/lib/shopify/authenticate";
+import { authenticate, handleApiError, isStoreStandalone } from "@/lib/shopify/authenticate";
 import { prisma } from "@/lib/db/prisma";
 import { getAdminClient } from "@/lib/shopify/admin";
 import { setInventoryQuantity } from "@/lib/shopify/inventory";
@@ -330,10 +330,12 @@ export async function GET(
     // Pre-order calculations for Standalone store
     let preorderConfig: any = null;
     let preorderInfo: any = null;
-    if (isStandalone) {
+    const isProdStoreStandalone = isStandalone || (await isStoreStandalone(targetProduct.storeId));
+    if (isProdStoreStandalone) {
       try {
-        preorderConfig = await PreorderService.getConfig(store.id);
-        if (preorderConfig) {
+        const storeForPreorder = targetProduct.storeId || store.id;
+        preorderConfig = await PreorderService.getConfig(storeForPreorder);
+        if (preorderConfig && preorderConfig.enabled) {
           const productCollectionIds = (targetProduct.collections || []).flatMap((cp: any) => [
             cp.collection?.id,
             cp.collection?.shopifyCollectionId,
@@ -349,37 +351,35 @@ export async function GET(
           );
 
           const threshold = preorderConfig.inventoryThreshold ?? 0;
-          const isAvailable = isTargeted && totalCurrentStock <= threshold;
+          const hasEligibleVariant = variantsInDb.some((v: any) => (v.inventoryQuantity ?? 0) <= threshold);
+          const isAvailable = isTargeted && hasEligibleVariant;
 
-          let status: 'Pre-order Active' | 'Pre-order Ready' | 'Not Targeted' | 'Disabled' = 'Not Targeted';
-          if (!preorderConfig.enabled) {
-            status = 'Disabled';
-          } else if (isAvailable) {
-            status = 'Pre-order Active';
-          } else if (isTargeted) {
-            status = 'Pre-order Ready';
+          if (isTargeted) {
+            preorderInfo = {
+              enabled: true,
+              isTargeted: true,
+              isAvailable,
+              status: isAvailable ? 'Pre-order Available' : 'Pre-order Not Available',
+              inventoryThreshold: threshold,
+              discountType: preorderConfig.discountType || 'none',
+              discountValue: Number(preorderConfig.discountValue) || 0,
+              allowHalfPayment: preorderConfig.allowHalfPayment !== false,
+              allowFullPayment: preorderConfig.allowFullPayment !== false,
+              defaultPaymentOption: preorderConfig.defaultPaymentOption || 'HALF',
+              customerMessage: preorderConfig.customerMessage || "Pre-order before it's gone.",
+              shippingMessage: preorderConfig.shippingMessage || "Shipping: As soon as possible",
+              selectionMode: preorderConfig.selectionMode || 'ALL_PRODUCTS',
+            };
+          } else {
+            preorderInfo = null;
           }
-
-          preorderInfo = {
-            enabled: Boolean(preorderConfig.enabled),
-            isTargeted,
-            isAvailable,
-            status,
-            inventoryThreshold: threshold,
-            discountType: preorderConfig.discountType || 'none',
-            discountValue: Number(preorderConfig.discountValue) || 0,
-            allowHalfPayment: preorderConfig.allowHalfPayment !== false,
-            allowFullPayment: preorderConfig.allowFullPayment !== false,
-            defaultPaymentOption: preorderConfig.defaultPaymentOption || 'HALF',
-            customerMessage: preorderConfig.customerMessage || "Pre-order before it's gone.",
-            shippingMessage: preorderConfig.shippingMessage || "Shipping: As soon as possible",
-            selectionMode: preorderConfig.selectionMode || 'ALL_PRODUCTS',
-          };
         }
       } catch (e) {
         console.warn('[Product Details API] Failed to calculate preorder info:', e);
       }
     }
+
+    const isProductPreorderEligible = Boolean(preorderInfo?.isAvailable);
 
     return NextResponse.json({
       success: true,
@@ -395,7 +395,8 @@ export async function GET(
         status: totalCurrentStock > 0 ? 'Active' : 'Draft',
         currentStock: totalCurrentStock,
         healthStatus: overallHealth,
-        isStandalone,
+        isStandalone: isProdStoreStandalone,
+        isPreorderEligible: isProductPreorderEligible,
         preorder: preorderInfo,
         variants: variantsInDb.map(v => {
           const rawTitle = v.title || '';
@@ -414,6 +415,7 @@ export async function GET(
           ]).filter(Boolean) as string[];
 
           const isVarTargeted = Boolean(
+            isProdStoreStandalone &&
             preorderConfig?.enabled &&
             PreorderService.isProductTargeted(
               preorderConfig,
@@ -422,8 +424,9 @@ export async function GET(
             )
           );
 
+          const threshold = preorderConfig?.inventoryThreshold ?? 0;
           const isVarAvailable =
-            isVarTargeted && (v.inventoryQuantity || 0) <= (preorderConfig?.inventoryThreshold ?? 0);
+            isVarTargeted && (v.inventoryQuantity || 0) <= threshold;
 
           return {
             id: v.id,
@@ -435,10 +438,10 @@ export async function GET(
             status: (v.inventoryQuantity || 0) > 0 ? 'Active' : 'Out of Stock',
             isPreorderTargeted: isVarTargeted,
             isPreorderAvailable: isVarAvailable,
-            preorderStatus: isVarAvailable
-              ? 'Pre-order Active'
-              : isVarTargeted
-              ? 'Pre-order Ready'
+            preorderStatus: isVarTargeted
+              ? isVarAvailable
+                ? 'Pre-order Available'
+                : 'Pre-order Not Available'
               : null,
           };
         }),
@@ -514,7 +517,30 @@ export async function PATCH(
     const formattedVarGid = `gid://shopify/ProductVariant/${numericVarId || variantRecord.shopifyVariantId}`;
 
     // IMPORTANT: Get GraphQL Admin Client for the SPECIFIC productStore (Master, Connected, or Standalone)
-    const client = await getAdminClient(productStore.shopDomain);
+    let client: any;
+    try {
+      client = await getAdminClient(productStore.shopDomain);
+    } catch (clientErr: any) {
+      console.error(`[Product Details API] Failed to get Shopify Admin Client for ${productStore.shopDomain}:`, clientErr.message);
+      const isAuthErr =
+        clientErr.message?.toLowerCase().includes('refresh') ||
+        clientErr.message?.toLowerCase().includes('token') ||
+        clientErr.message?.toLowerCase().includes('unauthorized') ||
+        clientErr.message?.toLowerCase().includes('401') ||
+        clientErr.message?.toLowerCase().includes('403') ||
+        clientErr.message?.toLowerCase().includes('forbidden') ||
+        clientErr.message?.toLowerCase().includes('oauth');
+      const storeName = productStore.label || productStore.shopDomain;
+      const reauthUrl = `/api/auth?shop=${encodeURIComponent(productStore.shopDomain)}`;
+      const errorMsg = isAuthErr
+        ? `Shopify authorization expired for "${storeName}". Click below to re-authenticate with Shopify.`
+        : `Unable to connect to Shopify for store "${storeName}": ${clientErr.message}`;
+      return NextResponse.json({
+        success: false,
+        error: errorMsg,
+        reauthUrl: isAuthErr ? reauthUrl : null,
+      }, { status: 401 });
+    }
 
     // 2. SHOPIFY MUTATION FIRST FOR THE PRODUCT'S STORE
     // A. Price and/or SKU Update
@@ -527,19 +553,39 @@ export async function PATCH(
         variantInput.inventoryItem = { sku: sku.trim() };
       }
 
-      const bulkRes: any = await client.request(`
-        mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-          productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-            productVariants { id price }
-            userErrors { field message }
+      let bulkRes: any;
+      try {
+        bulkRes = await client.request(`
+          mutation productVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+            productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+              productVariants { id price }
+              userErrors { field message }
+            }
           }
-        }
-      `, {
-        variables: {
-          productId: formattedProdGid,
-          variants: [variantInput]
-        }
-      });
+        `, {
+          variables: {
+            productId: formattedProdGid,
+            variants: [variantInput]
+          }
+        });
+      } catch (reqErr: any) {
+        console.error(`[Product Details API] Shopify mutation error for ${productStore.shopDomain}:`, reqErr.message);
+        const isAuthErr =
+          reqErr.message?.toLowerCase().includes('unauthorized') ||
+          reqErr.message?.toLowerCase().includes('401') ||
+          reqErr.message?.toLowerCase().includes('403') ||
+          reqErr.message?.toLowerCase().includes('forbidden');
+        const storeName = productStore.label || productStore.shopDomain;
+        const reauthUrl = `/api/auth?shop=${encodeURIComponent(productStore.shopDomain)}`;
+        const errorMsg = isAuthErr
+          ? `Shopify authorization expired for "${storeName}". Click below to re-authenticate with Shopify.`
+          : `Shopify variant update failed on "${storeName}": ${reqErr.message}`;
+        return NextResponse.json({
+          success: false,
+          error: errorMsg,
+          reauthUrl: isAuthErr ? reauthUrl : null,
+        }, { status: isAuthErr ? 401 : 400 });
+      }
 
       const userErrors = bulkRes?.data?.productVariantsBulkUpdate?.userErrors || bulkRes?.productVariantsBulkUpdate?.userErrors || [];
       if (userErrors.length > 0) {
@@ -591,10 +637,21 @@ export async function PATCH(
         await setInventoryQuantity(productStore.shopDomain, inventoryItemId, locationId, quantity);
       } catch (invErr: any) {
         console.error(`[Product Details API] Shopify inventory update rejected for ${productStore.shopDomain}:`, invErr.message);
+        const isAuthErr =
+          invErr.message?.toLowerCase().includes('unauthorized') ||
+          invErr.message?.toLowerCase().includes('401') ||
+          invErr.message?.toLowerCase().includes('403') ||
+          invErr.message?.toLowerCase().includes('forbidden');
+        const storeName = productStore.label || productStore.shopDomain;
+        const reauthUrl = `/api/auth?shop=${encodeURIComponent(productStore.shopDomain)}`;
+        const errorMsg = isAuthErr
+          ? `Shopify authorization expired for "${storeName}". Click below to re-authenticate with Shopify.`
+          : `Shopify inventory update rejected on "${storeName}": ${invErr.message}`;
         return NextResponse.json({
           success: false,
-          error: `Shopify inventory update rejected on ${productStore.label || productStore.shopDomain}: ${invErr.message}`
-        }, { status: 400 });
+          error: errorMsg,
+          reauthUrl: isAuthErr ? reauthUrl : null,
+        }, { status: isAuthErr ? 401 : 400 });
       }
     }
 
@@ -954,7 +1011,25 @@ export async function DELETE(
       const formattedVarGid = `gid://shopify/ProductVariant/${numericVarId || shopifyVariantId}`;
 
       // 1. SHOPIFY VARIANT DELETE FIRST ON PRODUCT'S STORE
-      const client = await getAdminClient(productStore.shopDomain);
+      let client: any;
+      try {
+        client = await getAdminClient(productStore.shopDomain);
+      } catch (clientErr: any) {
+        console.error(`[Product Details API] Failed to get Shopify Admin Client for ${productStore.shopDomain}:`, clientErr.message);
+        const isAuthErr =
+          clientErr.message?.toLowerCase().includes('refresh') ||
+          clientErr.message?.toLowerCase().includes('token') ||
+          clientErr.message?.toLowerCase().includes('unauthorized') ||
+          clientErr.message?.toLowerCase().includes('oauth');
+        const storeName = productStore.label || productStore.shopDomain;
+        const errorMsg = isAuthErr
+          ? `Shopify authorization expired for "${storeName}". Please open the ${APP_NAME} app from that store's Shopify Admin to re-authenticate.`
+          : `Unable to connect to Shopify for store "${storeName}": ${clientErr.message}`;
+        return NextResponse.json({
+          success: false,
+          error: errorMsg
+        }, { status: 401 });
+      }
 
       // Verify and resolve authoritative product GID directly from Shopify
       let authoritativeProdGid = formattedProdGid;
@@ -1336,7 +1411,30 @@ export async function DELETE(
     const cleanTitle = rawProductTitle.split(' - ')[0].trim();
 
     // 1. SHOPIFY PRODUCT DELETE FIRST ON PRODUCT'S STORE
-    const client = await getAdminClient(productStore.shopDomain);
+    let client: any;
+    try {
+      client = await getAdminClient(productStore.shopDomain);
+    } catch (clientErr: any) {
+      console.error(`[Product Details API] Failed to get Shopify Admin Client for ${productStore.shopDomain}:`, clientErr.message);
+      const isAuthErr =
+        clientErr.message?.toLowerCase().includes('refresh') ||
+        clientErr.message?.toLowerCase().includes('token') ||
+        clientErr.message?.toLowerCase().includes('unauthorized') ||
+        clientErr.message?.toLowerCase().includes('401') ||
+        clientErr.message?.toLowerCase().includes('403') ||
+        clientErr.message?.toLowerCase().includes('forbidden') ||
+        clientErr.message?.toLowerCase().includes('oauth');
+      const storeName = productStore.label || productStore.shopDomain;
+      const reauthUrl = `/api/auth?shop=${encodeURIComponent(productStore.shopDomain)}`;
+      const errorMsg = isAuthErr
+        ? `Shopify authorization expired for "${storeName}". Click below to re-authenticate with Shopify.`
+        : `Unable to connect to Shopify for store "${storeName}": ${clientErr.message}`;
+      return NextResponse.json({
+        success: false,
+        error: errorMsg,
+        reauthUrl: isAuthErr ? reauthUrl : null,
+      }, { status: 401 });
+    }
     const formattedGid = shopifyProductId.startsWith('gid://')
       ? shopifyProductId
       : `gid://shopify/Product/${shopifyProductId}`;

@@ -13,6 +13,12 @@ import { encrypt, decrypt } from "@/lib/utils/encryption";
 const refreshInFlight = new Map<string, Promise<any>>();
 
 export async function refreshOfflineToken(store: any) {
+  // If store has NO expiresAt date or expiresAt is null, it is a permanent non-expiring token
+  if (!store.expiresAt) {
+    console.log(`[AdminClient] Store ${store.shopDomain} has a non-expiring permanent token. Skipping refresh.`);
+    return store;
+  }
+
   if (!store.refreshToken) {
     throw new Error(`Store ${store.shopDomain} has no refresh token.`);
   }
@@ -63,7 +69,9 @@ export async function refreshOfflineToken(store: any) {
 
     // Calculate new expiration dates
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + (data.expires_in * 1000));
+    const expiresAt = data.expires_in
+      ? new Date(now.getTime() + (data.expires_in * 1000))
+      : null;
     
     const refreshTokenExpiresAt = data.refresh_token_expires_in 
       ? new Date(now.getTime() + (data.refresh_token_expires_in * 1000))
@@ -76,6 +84,9 @@ export async function refreshOfflineToken(store: any) {
         refreshToken: data.refresh_token ? encrypt(data.refresh_token) : store.refreshToken,
         expiresAt,
         refreshTokenExpiresAt,
+        authStatus: "AUTHENTICATED",
+        lastAuthFailure: null,
+        authFailureReason: null,
       },
     });
 
@@ -102,16 +113,16 @@ export async function getAdminClient(shopDomain: string) {
 
   let activeStore = store;
 
-  // Check if we need to refresh the token proactively
-  if (activeStore.refreshToken) {
+  // Proactively refresh ONLY temporary tokens that actually expire and are within 5 minutes of expiry
+  if (activeStore.refreshToken && activeStore.expiresAt) {
     const now = new Date();
-    const shouldRefresh =
-      !activeStore.expiresAt ||
-      activeStore.expiresAt.getTime() - now.getTime() < 2 * 60 * 60 * 1000;
+    const timeUntilExpiry = activeStore.expiresAt.getTime() - now.getTime();
+    // Refresh only if expiring within 5 minutes (or already expired)
+    const shouldRefresh = timeUntilExpiry < 5 * 60 * 1000;
 
     if (shouldRefresh) {
       try {
-        console.log(`[AdminClient] Proactively refreshing token for ${shopDomain}...`);
+        console.log(`[AdminClient] Proactively refreshing expiring token for ${shopDomain}...`);
         const refreshedStore = await refreshOfflineToken(activeStore);
         if (refreshedStore) {
           activeStore = refreshedStore;
@@ -165,13 +176,19 @@ export async function getAdminClient(shopDomain: string) {
       const is401 =
         error?.response?.code === 401 ||
         error?.response?.status === 401 ||
+        error?.response?.code === 403 ||
+        error?.response?.status === 403 ||
         error?.statusCode === 401 ||
+        error?.statusCode === 403 ||
         error?.networkStatusCode === 401 ||
+        error?.networkStatusCode === 403 ||
         error?.message?.includes("401") ||
-        error?.message?.includes("Unauthorized");
+        error?.message?.includes("403") ||
+        error?.message?.includes("Unauthorized") ||
+        error?.message?.includes("Forbidden");
 
       if (is401) {
-        console.warn(`[AdminClient] 401 Unauthorized encountered for ${shopDomain}. Attempting automatic self-healing token refresh...`);
+        console.warn(`[AdminClient] Auth error (401/403) encountered for ${shopDomain}. Attempting automatic self-healing token refresh...`);
         try {
           const freshStore = await prisma.store.findUnique({ where: { shopDomain } });
           if (!freshStore || !freshStore.refreshToken) {
@@ -216,9 +233,14 @@ export async function handleGraphQLError(error: any, shopDomain: string) {
   if (
     error.response?.code === 401 ||
     error.response?.status === 401 ||
+    error.response?.code === 403 ||
+    error.response?.status === 403 ||
     error.statusCode === 401 ||
+    error.statusCode === 403 ||
     error.networkStatusCode === 401 ||
-    error.message?.includes("Unauthorized")
+    error.networkStatusCode === 403 ||
+    error.message?.includes("Unauthorized") ||
+    error.message?.includes("Forbidden")
   ) {
     console.error("===== SHOPIFY 401 =====");
     

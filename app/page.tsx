@@ -12,6 +12,7 @@ import { shopifyFetch } from '@/lib/shopify/Client';
 import { LocalizedDate } from '@/components/common/LocalizedDate';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 import { getProductUrl } from '@/lib/utils/productUrl';
+import { PreorderBadge } from '@/components/preorder/PreorderBadge';
 
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
@@ -104,12 +105,17 @@ export default function DashboardPage() {
       url: prodUrl,
       imageUrls: p.imageUrls || (p.imageUrl ? [p.imageUrl] : []),
       title_node: (
-        <Link
-          href={prodUrl}
-          className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
-        >
-          {p.title}
-        </Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link
+            href={prodUrl}
+            className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
+          >
+            {p.title}
+          </Link>
+          {(isStandalone && p.isPreorderAvailable) && (
+            <PreorderBadge size="sm" />
+          )}
+        </div>
       ),
       title: p.title,
       sku: p.sku || 'N/A',
@@ -137,12 +143,17 @@ export default function DashboardPage() {
       url: prodUrl,
       imageUrls: p.imageUrls || (p.imageUrl ? [p.imageUrl] : []),
       title_node: (
-        <Link
-          href={prodUrl}
-          className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
-        >
-          {p.title}
-        </Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link
+            href={prodUrl}
+            className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
+          >
+            {p.title}
+          </Link>
+          {(isStandalone && p.isPreorderAvailable) && (
+            <PreorderBadge size="sm" />
+          )}
+        </div>
       ),
       title: p.title,
       vendor: 'ESHAN',
@@ -184,7 +195,7 @@ export default function DashboardPage() {
         title: p.title,
         sku: p.sku || 'N/A',
         inventoryQuantity: p.inventoryQuantity,
-        preorderStatus: 'Pre-order',
+        preorderStatus: <PreorderBadge size="sm" />,
         updatedDate: <LocalizedDate date={p.updatedAt} format="date" />,
         updatedTime: <LocalizedDate date={p.updatedAt} format="time" />,
       };
@@ -198,10 +209,7 @@ export default function DashboardPage() {
     {
       title: 'Status',
       key: 'preorderStatus',
-      type: 'badge',
-      badgeRules: {
-        'Pre-order': 'warning',
-      },
+      type: 'react_node',
     },
     { title: 'Updated Date', key: 'updatedDate' },
     { title: 'Updated Time', key: 'updatedTime' },

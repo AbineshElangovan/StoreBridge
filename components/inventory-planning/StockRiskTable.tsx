@@ -4,6 +4,7 @@ import React from 'react';
 import { Table, ColumnConfig } from '@/components/common/Table';
 import { RiskBadge } from './RiskBadge';
 import { useStoreContext } from '@/components/providers/StoreProvider';
+import { PreorderBadge } from '@/components/preorder/PreorderBadge';
 
 interface StockRiskTableProps {
   products: any[];
@@ -48,8 +49,11 @@ export function StockRiskTable({
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-bold text-gray-900 leading-snug" title={p.title}>
-            {p.title}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-bold text-gray-900 leading-snug" title={p.title}>
+              {p.title}
+            </span>
+            {p.isPreorderEligible && <PreorderBadge size="sm" />}
           </div>
           {!isStandalone && p.storeLabel && (
             <div className="mt-0.5">

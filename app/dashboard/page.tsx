@@ -8,6 +8,7 @@ import { LocalizedDate } from '@/components/common/LocalizedDate';
 import { TableCard } from '@/components/ui/TableCard';
 import { StoreRoleBadge } from '@/components/ui/StoreRoleBadge';
 import { PreorderService, type PreorderMetrics } from '@/services/preorder/preorder-service';
+import { PreorderBadge } from '@/components/preorder/PreorderBadge';
 
 export const dynamic = 'force-dynamic';
 
@@ -209,11 +210,39 @@ export default async function DashboardPage(props: DashboardPageProps) {
     return null;
   };
 
+  // ── Pre-order config resolution for standalone store ──
+  let preorderConfig: any = null;
+  if (primaryStore && isStandalone) {
+    try {
+      preorderConfig = await PreorderService.getConfig(primaryStore.id);
+    } catch (e) {
+      console.warn('[DashboardPage] Preorder config load error:', e);
+    }
+  }
+
+  const checkPreorderEligible = (p: any) => {
+    if (!preorderConfig || !preorderConfig.enabled || !isStandalone) return false;
+    const prodColls = (p.collections || []).flatMap((cp: any) => [
+      cp.collection?.id,
+      cp.collection?.shopifyCollectionId,
+    ]).filter(Boolean) as string[];
+    const threshold = preorderConfig.inventoryThreshold ?? 0;
+    return (
+      p.inventoryQuantity <= threshold &&
+      PreorderService.isProductTargeted(preorderConfig, p.shopifyProductId, prodColls)
+    );
+  };
+
   // ── Low Stock Products Table ──
   const lowStockRaw = await prisma.productCache.findMany({
     where: { 
       storeId: primaryStore?.id,
       inventoryQuantity: { lte: lowStockThreshold } 
+    },
+    include: {
+      collections: {
+        include: { collection: true }
+      }
     },
     orderBy: { inventoryQuantity: 'asc' },
     take: 100,
@@ -221,17 +250,21 @@ export default async function DashboardPage(props: DashboardPageProps) {
 
   const lowStockProducts = lowStockRaw.map((p) => {
     const prodUrl = getProductUrl(p);
+    const isEligible = checkPreorderEligible(p);
     return {
       id: p.id,
       url: prodUrl,
       imageUrl: resolveImageUrl(p),
       title_node: (
-        <Link 
-          href={prodUrl}
-          className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
-        >
-          {p.title}
-        </Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link 
+            href={prodUrl}
+            className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
+          >
+            {p.title}
+          </Link>
+          {isEligible && <PreorderBadge size="sm" />}
+        </div>
       ),
       title: p.title,
       sku: p.sku || 'N/A',
@@ -255,23 +288,32 @@ export default async function DashboardPage(props: DashboardPageProps) {
   // ── Recently Added Products Table ──
   const recentlyAddedRaw = await prisma.productCache.findMany({
     where: { storeId: primaryStore?.id },
+    include: {
+      collections: {
+        include: { collection: true }
+      }
+    },
     orderBy: { updatedAt: 'desc' },
     take: 100,
   });
 
   const recentlyAddedProducts = recentlyAddedRaw.map((p) => {
     const prodUrl = getProductUrl(p);
+    const isEligible = checkPreorderEligible(p);
     return {
       id: p.id,
       url: prodUrl,
       imageUrl: resolveImageUrl(p),
       title_node: (
-        <Link 
-          href={prodUrl}
-          className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
-        >
-          {p.title}
-        </Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link 
+            href={prodUrl}
+            className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
+          >
+            {p.title}
+          </Link>
+          {isEligible && <PreorderBadge size="sm" />}
+        </div>
       ),
       title: p.title,
       vendor: 'ESHAN',
@@ -296,51 +338,48 @@ export default async function DashboardPage(props: DashboardPageProps) {
 
   // ── Pre-order Eligible Products Table (Standalone only) ──
   let preorderEligibleProducts: any[] = [];
-  if (primaryStore && isStandalone) {
+  if (primaryStore && isStandalone && preorderConfig && preorderConfig.enabled) {
     try {
-      const preorderConfig = await PreorderService.getConfig(primaryStore.id);
-      if (preorderConfig && preorderConfig.enabled) {
-        const primaryProducts = await prisma.productCache.findMany({
-          where: { storeId: primaryStore.id },
-          include: { collections: { include: { collection: true } } },
-        });
-        const threshold = preorderConfig.inventoryThreshold ?? 0;
-        const targeted = primaryProducts.filter((p: any) => {
-          const prodColls = (p.collections || []).flatMap((cp: any) => [
-            cp.collection?.id,
-            cp.collection?.shopifyCollectionId,
-          ]).filter(Boolean) as string[];
-          return (
-            p.inventoryQuantity <= threshold &&
-            PreorderService.isProductTargeted(preorderConfig, p.shopifyProductId, prodColls)
-          );
-        });
+      const primaryProducts = await prisma.productCache.findMany({
+        where: { storeId: primaryStore.id },
+        include: { collections: { include: { collection: true } } },
+      });
+      const threshold = preorderConfig.inventoryThreshold ?? 0;
+      const targeted = primaryProducts.filter((p: any) => {
+        const prodColls = (p.collections || []).flatMap((cp: any) => [
+          cp.collection?.id,
+          cp.collection?.shopifyCollectionId,
+        ]).filter(Boolean) as string[];
+        return (
+          p.inventoryQuantity <= threshold &&
+          PreorderService.isProductTargeted(preorderConfig, p.shopifyProductId, prodColls)
+        );
+      });
 
-        preorderEligibleProducts = targeted
-          .map((p: any) => {
-            const prodUrl = getProductUrl(p);
-            return {
-              id: p.id,
-              url: prodUrl,
-              imageUrl: resolveImageUrl(p),
-              title_node: (
-                <Link
-                  href={prodUrl}
-                  className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
-                >
-                  {p.title}
-                </Link>
-              ),
-              title: p.title,
-              sku: p.sku || 'N/A',
-              inventoryQuantity: p.inventoryQuantity,
-              preorderStatus: 'Pre-order',
-              updatedDate: <LocalizedDate date={p.updatedAt} format="date" />,
-              updatedTime: <LocalizedDate date={p.updatedAt} format="time" />,
-            };
-          })
-          .sort((a: any, b: any) => a.inventoryQuantity - b.inventoryQuantity);
-      }
+      preorderEligibleProducts = targeted
+        .map((p: any) => {
+          const prodUrl = getProductUrl(p);
+          return {
+            id: p.id,
+            url: prodUrl,
+            imageUrl: resolveImageUrl(p),
+            title_node: (
+              <Link
+                href={prodUrl}
+                className="font-bold text-gray-900 hover:text-[#0db69d] hover:underline cursor-pointer transition-colors"
+              >
+                {p.title}
+              </Link>
+            ),
+            title: p.title,
+            sku: p.sku || 'N/A',
+            inventoryQuantity: p.inventoryQuantity,
+            preorderStatus: <PreorderBadge size="sm" />,
+            updatedDate: <LocalizedDate date={p.updatedAt} format="date" />,
+            updatedTime: <LocalizedDate date={p.updatedAt} format="time" />,
+          };
+        })
+        .sort((a: any, b: any) => a.inventoryQuantity - b.inventoryQuantity);
     } catch (e) {
       console.warn('[DashboardPage] Error fetching preorder eligible products:', e);
     }
@@ -354,10 +393,7 @@ export default async function DashboardPage(props: DashboardPageProps) {
     {
       title: 'Status',
       key: 'preorderStatus',
-      type: 'badge',
-      badgeRules: {
-        'Pre-order': 'warning',
-      },
+      type: 'react_node',
     },
     { title: 'Updated Date', key: 'updatedDate' },
     { title: 'Updated Time', key: 'updatedTime' },

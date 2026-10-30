@@ -2,18 +2,20 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
+import { PreorderBadge } from '@/components/preorder/PreorderBadge';
 
 interface ProductHeaderProps {
   title: string;
   sku: string;
   collection: string;
   vendor: string;
+  isPreorderEligible?: boolean;
   onBack?: () => void;
   onDelete?: () => void;
   isDeleting?: boolean;
 }
 
-export function ProductHeader({ title, sku, collection, vendor, onBack, onDelete, isDeleting }: ProductHeaderProps) {
+export function ProductHeader({ title, sku, collection, vendor, isPreorderEligible, onBack, onDelete, isDeleting }: ProductHeaderProps) {
   const router = useRouter();
   const displayCollection = collection ? collection.toUpperCase() : '';
   const displayVendor = vendor ? vendor.toUpperCase() : '';
@@ -29,12 +31,15 @@ export function ProductHeader({ title, sku, collection, vendor, onBack, onDelete
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
       <div>
-        <h1
-          className="!text-2xl sm:!text-3xl lg:!text-4xl !font-extrabold text-gray-900 tracking-tight leading-tight"
-          style={{ fontSize: '2rem', fontWeight: 800, lineHeight: 1.25 }}
-        >
-          {title}
-        </h1>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1
+            className="!text-2xl sm:!text-3xl lg:!text-4xl !font-extrabold text-gray-900 tracking-tight leading-tight"
+            style={{ fontSize: '2rem', fontWeight: 800, lineHeight: 1.25 }}
+          >
+            {title}
+          </h1>
+          {isPreorderEligible && <PreorderBadge size="md" />}
+        </div>
         <p
           className="!text-xs sm:!text-sm md:!text-base !font-bold text-gray-500 mt-1.5 uppercase tracking-wider"
           style={{ fontSize: '0.95rem' }}
