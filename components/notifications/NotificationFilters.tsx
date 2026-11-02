@@ -142,8 +142,8 @@ export function NotificationFilters({
               disabled={isRefreshing}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-[var(--color-primary-dark,#082f49)] hover:opacity-90 transition-all cursor-pointer shadow-xs disabled:opacity-50"
             >
-              <div style={{ width: 14, height: 14 }} className={`flex items-center justify-center text-white fill-white [&_svg]:fill-white [&_path]:fill-white ${isRefreshing ? 'animate-spin' : ''}`}>
-                <RefreshIcon />
+              <div className={`w-3.5 h-3.5 flex items-center justify-center shrink-0 ${isRefreshing ? 'animate-spin origin-center' : ''}`}>
+                <RefreshIcon className="w-3.5 h-3.5 fill-white text-white" />
               </div>
               <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
             </button>

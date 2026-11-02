@@ -247,6 +247,16 @@ export function NotificationCard({
   const storeLabel = (item.recipientStore?.label || item.recipientStore?.shopDomain || 'Store').trim();
   const isMaster = item.recipientStore?.isMaster || false;
 
+  const currentStore = storeContext?.currentStore;
+  const isMasterSession = storeContext?.isMasterSession ?? currentStore?.isMaster ?? false;
+  const isRecipientStore = Boolean(
+    currentStore &&
+    item.recipientStore &&
+    (currentStore.id === item.recipientStore.id || currentStore.shopDomain === item.recipientStore.shopDomain)
+  );
+  // Only the actual connected recipient store (not Master) can accept/decline sync requests
+  const canActOnSync = Boolean(isRecipientStore && !isMasterSession && !currentStore?.isMaster);
+
   const emailMatch = (item.message || '').match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
   const email = emailMatch ? emailMatch[0] : null;
   const orderMatch = (item.message || '').match(/(#\w+(?:-[A-Za-z0-9]+)?)/);
@@ -389,24 +399,33 @@ export function NotificationCard({
 
             {/* Sync Action Buttons: Yes, Sync / No, Skip */}
             {syncStatus === 'PENDING' ? (
-              <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => handleSyncAction('ACCEPT')}
-                  disabled={isSyncing}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[var(--color-primary,#047857)] hover:bg-[var(--color-primary-dark,#022c22)] shadow-2xs transition-all cursor-pointer disabled:opacity-50"
-                >
-                  {isSyncing ? 'Syncing...' : 'Yes, Sync'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSyncAction('DECLINE')}
-                  disabled={isSyncing}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-300 shadow-2xs transition-all cursor-pointer disabled:opacity-50"
-                >
-                  No, Skip
-                </button>
-              </div>
+              canActOnSync ? (
+                <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => handleSyncAction('ACCEPT')}
+                    disabled={isSyncing}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[var(--color-primary,#047857)] hover:bg-[var(--color-primary-dark,#022c22)] shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {isSyncing ? 'Syncing...' : 'Yes, Sync'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSyncAction('DECLINE')}
+                    disabled={isSyncing}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-300 shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    No, Skip
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-2.5">
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                    Awaiting {item.recipientStore?.label || 'connected store'} response
+                  </span>
+                </div>
+              )
             ) : syncStatus === 'ACCEPTED' ? (
               <div className="mt-2">
                 <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">

@@ -47,8 +47,11 @@ export async function GET(request: Request) {
       
       console.error(`[HealthCheck] Store ${store.shopDomain} failed auth check:`, error.message);
       
-      // If it's a 401 or token validation error, mark for reauth
-      if (error.message.includes("401") || error.message.includes("CRITICAL")) {
+      // Only mark for reauth if the store truly has no refresh token or the refresh token itself has expired
+      const isRefreshTokenExpired = store.refreshTokenExpiresAt && store.refreshTokenExpiresAt < new Date();
+      const hasNoRefreshToken = !store.refreshToken;
+
+      if (hasNoRefreshToken || isRefreshTokenExpired) {
         await prisma.store.update({
           where: { id: store.id },
           data: {

@@ -9,23 +9,36 @@ import {
 } from "@/services/shopify/graphql";
 import { encrypt, decrypt } from "@/lib/utils/encryption";
 
-// Per-shop in-flight refresh lock to protect single-use refresh tokens from race conditions
+// Per-shop in-flight refresh lock to protect single-use refresh tokens from race conditions within process
 const refreshInFlight = new Map<string, Promise<any>>();
 
-export async function refreshOfflineToken(store: any) {
-  // If store has NO expiresAt date or expiresAt is null, it is a permanent non-expiring token
+export async function refreshOfflineToken(store: any, force = false) {
+  const shopDomain = store.shopDomain;
+
+  // 1. If store has NO expiresAt date or expiresAt is null, it is a permanent non-expiring token
   if (!store.expiresAt) {
-    console.log(`[AdminClient] Store ${store.shopDomain} has a non-expiring permanent token. Skipping refresh.`);
+    console.log(`[AdminClient] Store ${shopDomain} has a non-expiring permanent token. Skipping refresh.`);
     return store;
   }
 
-  if (!store.refreshToken) {
-    throw new Error(`Store ${store.shopDomain} has no refresh token.`);
+  // 2. Cross-instance race condition protection: Check DB first!
+  // Another serverless instance or background process might have ALREADY refreshed this store's token.
+  const latestStore = await prisma.store.findUnique({ where: { shopDomain } });
+  if (latestStore && latestStore.expiresAt) {
+    const timeUntilExpiry = latestStore.expiresAt.getTime() - Date.now();
+    // If NOT forced: If DB already has a newer token than the passed store AND it is valid for >15m, reuse it immediately!
+    if (!force && timeUntilExpiry > 15 * 60 * 1000 && latestStore.accessToken && latestStore.accessToken !== store.accessToken) {
+      console.log(`[AdminClient] Reusing fresh token from DB for ${shopDomain} (expires in ${Math.round(timeUntilExpiry / 60000)}m)`);
+      return latestStore;
+    }
   }
 
-  const shopDomain = store.shopDomain;
+  const currentStore = latestStore || store;
+  if (!currentStore.refreshToken) {
+    throw new Error(`Store ${shopDomain} has no refresh token.`);
+  }
 
-  // If a refresh is already in flight for this specific shop, await it
+  // 3. Re-use existing in-flight Promise within the current process
   const existingRefresh = refreshInFlight.get(shopDomain);
   if (existingRefresh) {
     console.log(`[AdminClient] Reusing existing in-flight token refresh Promise for ${shopDomain}`);
@@ -33,12 +46,12 @@ export async function refreshOfflineToken(store: any) {
   }
 
   const refreshPromise = (async () => {
-    const clientId = process.env.SHOPIFY_API_KEY;
+    const clientId = process.env.SHOPIFY_API_KEY || process.env.NEXT_PUBLIC_SHOPIFY_API_KEY;
     const clientSecret = process.env.SHOPIFY_API_SECRET;
 
-    let decryptedRefreshToken;
+    let decryptedRefreshToken: string;
     try {
-      decryptedRefreshToken = decrypt(store.refreshToken);
+      decryptedRefreshToken = decrypt(currentStore.refreshToken);
     } catch (error: any) {
       console.error(`[AdminClient] Failed to decrypt refresh token for ${shopDomain}:`, error.message);
       throw new Error("Invalid encrypted refresh token format");
@@ -61,8 +74,16 @@ export async function refreshOfflineToken(store: any) {
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("Refresh failed:", errText);
-      throw new Error("Failed to refresh Shopify token.");
+      console.warn(`[AdminClient] Refresh API response not ok for ${shopDomain}: ${response.status} - ${errText}`);
+
+      // Double-check: Did a peer serverless worker complete the refresh while our request was in flight?
+      const checkAfterFail = await prisma.store.findUnique({ where: { shopDomain } });
+      if (checkAfterFail?.expiresAt && checkAfterFail.expiresAt.getTime() > Date.now()) {
+        console.log(`[AdminClient] Concurrent refresh detected for ${shopDomain}: DB was updated by peer instance.`);
+        return checkAfterFail;
+      }
+
+      throw new Error(`Failed to refresh Shopify token: ${errText}`);
     }
 
     const data = await response.json();
@@ -75,13 +96,13 @@ export async function refreshOfflineToken(store: any) {
     
     const refreshTokenExpiresAt = data.refresh_token_expires_in 
       ? new Date(now.getTime() + (data.refresh_token_expires_in * 1000))
-      : store.refreshTokenExpiresAt;
+      : currentStore.refreshTokenExpiresAt;
 
     const updatedStore = await prisma.store.update({
-      where: { id: store.id },
+      where: { id: currentStore.id },
       data: {
         accessToken: encrypt(data.access_token),
-        refreshToken: data.refresh_token ? encrypt(data.refresh_token) : store.refreshToken,
+        refreshToken: data.refresh_token ? encrypt(data.refresh_token) : currentStore.refreshToken,
         expiresAt,
         refreshTokenExpiresAt,
         authStatus: "AUTHENTICATED",
@@ -89,6 +110,20 @@ export async function refreshOfflineToken(store: any) {
         authFailureReason: null,
       },
     });
+
+    try {
+      await prisma.session.updateMany({
+        where: { shop: shopDomain },
+        data: {
+          accessToken: encrypt(data.access_token),
+          refreshToken: data.refresh_token ? encrypt(data.refresh_token) : undefined,
+          expires: expiresAt,
+          refreshTokenExpires: refreshTokenExpiresAt || undefined,
+        }
+      });
+    } catch (sErr: any) {
+      console.warn(`[AdminClient] Session sync notice for ${shopDomain}:`, sErr.message);
+    }
 
     return updatedStore;
   })();
@@ -113,22 +148,22 @@ export async function getAdminClient(shopDomain: string) {
 
   let activeStore = store;
 
-  // Proactively refresh ONLY temporary tokens that actually expire and are within 5 minutes of expiry
+  // Proactively refresh tokens with 35 minutes buffer so users never experience expiration
   if (activeStore.refreshToken && activeStore.expiresAt) {
     const now = new Date();
     const timeUntilExpiry = activeStore.expiresAt.getTime() - now.getTime();
-    // Refresh only if expiring within 5 minutes (or already expired)
-    const shouldRefresh = timeUntilExpiry < 5 * 60 * 1000;
+    // Refresh if expiring within 35 minutes (or already expired)
+    const shouldRefresh = timeUntilExpiry < 35 * 60 * 1000;
 
     if (shouldRefresh) {
       try {
-        console.log(`[AdminClient] Proactively refreshing expiring token for ${shopDomain}...`);
+        console.log(`[AdminClient] Proactively refreshing expiring token for ${shopDomain} (expires in ${Math.round(timeUntilExpiry / 60000)}m)...`);
         const refreshedStore = await refreshOfflineToken(activeStore);
         if (refreshedStore) {
           activeStore = refreshedStore;
         }
       } catch (error: any) {
-        console.error(`[AdminClient] Failed to refresh token proactively for ${shopDomain}:`, error.message);
+        console.warn(`[AdminClient] Proactive refresh notice for ${shopDomain}:`, error.message);
       }
     }
   }
@@ -143,13 +178,6 @@ export async function getAdminClient(shopDomain: string) {
     decryptedAccessToken = decrypt(activeStore.accessToken);
   } catch (error: any) {
     console.error(`[AdminClient] Failed to decrypt access token for ${shopDomain}:`, error.message);
-    await prisma.store.update({
-      where: { shopDomain },
-      data: { 
-        authStatus: "INVALID_TOKEN",
-        authFailureReason: "Decryption failed: " + error.message
-      },
-    });
     throw new Error(`CRITICAL: Store ${shopDomain} access token decryption failed.`);
   }
 
@@ -195,24 +223,23 @@ export async function getAdminClient(shopDomain: string) {
             throw new Error(`Store ${shopDomain} has no refresh token to recover from 401.`);
           }
 
-          const refreshedStore = await refreshOfflineToken(freshStore);
-          const freshToken = decrypt(refreshedStore.accessToken);
+          // If another instance already saved a newer access token in DB, use it directly!
+          let refreshedStore: any;
+          if (freshStore.accessToken && freshStore.accessToken !== activeStore.accessToken) {
+            console.log(`[AdminClient] DB already has newer token for ${shopDomain}. Using peer-updated token.`);
+            refreshedStore = freshStore;
+          } else {
+            refreshedStore = await refreshOfflineToken(freshStore, true);
+          }
+
+          activeStore = refreshedStore;
+          const freshToken = decrypt(activeStore.accessToken);
 
           client = createGraphqlClient(freshToken);
           console.log(`[AdminClient] Self-healing token refresh succeeded for ${shopDomain}. Retrying request...`);
           return await client.request(query, options);
         } catch (retryError: any) {
-          console.error(`[AdminClient] Self-healing retry failed for ${shopDomain}:`, retryError.message);
-          try {
-            await prisma.store.update({
-              where: { shopDomain },
-              data: {
-                authStatus: "REQUIRES_REAUTH",
-                lastAuthFailure: new Date(),
-                authFailureReason: `401 Unauthorized: ${retryError.message}`,
-              },
-            });
-          } catch {}
+          console.error(`[AdminClient] Self-healing retry notice for ${shopDomain}:`, retryError.message);
           throw error;
         }
       }
@@ -229,8 +256,7 @@ export async function handleGraphQLError(error: any, shopDomain: string) {
     throw new Error(`Shopify GraphQL Error: ${error.message}`);
   }
 
-
-  if (
+  const is401 =
     error.response?.code === 401 ||
     error.response?.status === 401 ||
     error.response?.code === 403 ||
@@ -240,23 +266,19 @@ export async function handleGraphQLError(error: any, shopDomain: string) {
     error.networkStatusCode === 401 ||
     error.networkStatusCode === 403 ||
     error.message?.includes("Unauthorized") ||
-    error.message?.includes("Forbidden")
-  ) {
-    console.error("===== SHOPIFY 401 =====");
-    
-    // We already do proactive refresh in getAdminClient.
-    // If we hit a 401 here, update authStatus without deactivating the store record
-    console.warn(`Access token invalid for ${shopDomain}. Updating authStatus to INVALID_TOKEN.`);
+    error.message?.includes("Forbidden");
+
+  if (is401) {
+    console.warn(`[handleGraphQLError] 401 encountered for ${shopDomain}. Attempting forced token refresh before failing...`);
     try {
-      await prisma.store.update({
-        where: { shopDomain },
-        data: { 
-          authStatus: "INVALID_TOKEN",
-          authFailureReason: error.message || "401 Unauthorized"
-        },
-      });
-    } catch {}
-    throw new Error(`Unauthorized: Store ${shopDomain} token requires re-authentication.`);
+      const store = await prisma.store.findUnique({ where: { shopDomain } });
+      if (store?.refreshToken) {
+        await refreshOfflineToken(store, true);
+      }
+    } catch (refErr: any) {
+      console.warn(`[handleGraphQLError] Token refresh attempt notice:`, refErr.message);
+    }
+    throw new Error(`Unauthorized: Store ${shopDomain} connection temporarily lost.`);
   }
 
   throw error;

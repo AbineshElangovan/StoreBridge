@@ -533,7 +533,7 @@ export async function PATCH(
       const storeName = productStore.label || productStore.shopDomain;
       const reauthUrl = `/api/auth?shop=${encodeURIComponent(productStore.shopDomain)}`;
       const errorMsg = isAuthErr
-        ? `Shopify authorization expired for "${storeName}". Click below to re-authenticate with Shopify.`
+        ? `Shopify connection temporary issue for "${storeName}". Please try again.`
         : `Unable to connect to Shopify for store "${storeName}": ${clientErr.message}`;
       return NextResponse.json({
         success: false,
@@ -578,7 +578,7 @@ export async function PATCH(
         const storeName = productStore.label || productStore.shopDomain;
         const reauthUrl = `/api/auth?shop=${encodeURIComponent(productStore.shopDomain)}`;
         const errorMsg = isAuthErr
-          ? `Shopify authorization expired for "${storeName}". Click below to re-authenticate with Shopify.`
+          ? `Shopify connection temporary issue for "${storeName}". Please try again.`
           : `Shopify variant update failed on "${storeName}": ${reqErr.message}`;
         return NextResponse.json({
           success: false,
@@ -645,7 +645,7 @@ export async function PATCH(
         const storeName = productStore.label || productStore.shopDomain;
         const reauthUrl = `/api/auth?shop=${encodeURIComponent(productStore.shopDomain)}`;
         const errorMsg = isAuthErr
-          ? `Shopify authorization expired for "${storeName}". Click below to re-authenticate with Shopify.`
+          ? `Shopify connection temporary issue for "${storeName}". Please try again.`
           : `Shopify inventory update rejected on "${storeName}": ${invErr.message}`;
         return NextResponse.json({
           success: false,
@@ -1427,7 +1427,7 @@ export async function DELETE(
       const storeName = productStore.label || productStore.shopDomain;
       const reauthUrl = `/api/auth?shop=${encodeURIComponent(productStore.shopDomain)}`;
       const errorMsg = isAuthErr
-        ? `Shopify authorization expired for "${storeName}". Click below to re-authenticate with Shopify.`
+        ? `Shopify connection temporary issue for "${storeName}". Please try again.`
         : `Unable to connect to Shopify for store "${storeName}": ${clientErr.message}`;
       return NextResponse.json({
         success: false,

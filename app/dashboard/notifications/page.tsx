@@ -38,6 +38,7 @@ export default function NotificationsPage() {
   const { showSuccess, showError } = useToast();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
@@ -90,8 +91,9 @@ export default function NotificationsPage() {
   const activeShopDomain = currentStore?.shopDomain;
 
   // Load Notifications
-  const loadNotifications = useCallback(async (isSilent = false) => {
-    if (!isSilent) setLoading(true);
+  const loadNotifications = useCallback(async (isSilent: boolean | any = false) => {
+    const silent = typeof isSilent === 'boolean' ? isSilent : false;
+    if (!silent) setLoading(true);
     try {
       const params = new URLSearchParams();
       params.append('page', page.toString());
@@ -115,16 +117,31 @@ export default function NotificationsPage() {
             window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: unread }));
           }, 0);
         }
-      } else if (!isSilent) {
+      } else if (!silent) {
         setNotifications([]);
       }
     } catch (err) {
       console.error('[NotificationsPage] Error loading notifications:', err);
-      if (!isSilent) setNotifications([]);
+      if (!silent) setNotifications([]);
     } finally {
-      if (!isSilent) setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [page, typeFilter, statusFilter, storeFilter, activeShopDomain]);
+
+  const handleManualRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    const start = Date.now();
+    try {
+      await loadNotifications(false);
+    } finally {
+      const elapsed = Date.now() - start;
+      const minDuration = 800;
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, Math.max(0, minDuration - elapsed));
+    }
+  };
 
   const isLocalActionRef = React.useRef(false);
 
@@ -323,8 +340,8 @@ export default function NotificationsPage() {
               setPage(1);
             }}
             storeOptions={storeOptions}
-            onRefresh={loadNotifications}
-            isRefreshing={loading}
+            onRefresh={handleManualRefresh}
+            isRefreshing={isRefreshing}
             unreadCount={unreadCount}
             totalCount={totalCount}
             onMarkAllRead={handleMarkAllRead}
