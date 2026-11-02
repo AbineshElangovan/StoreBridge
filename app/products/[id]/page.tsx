@@ -187,7 +187,7 @@ export default function ProductDetailsPage() {
         sku={productData.sku}
         collection={productData.collection}
         vendor={productData.vendor}
-        isPreorderEligible={Boolean(productData.isPreorderEligible ?? productData.preorder?.isAvailable)}
+        isPreorderEligible={Boolean(isStandalone && (productData.isPreorderEligible ?? productData.preorder?.isAvailable))}
         onDelete={() => setShowDeleteModal(true)}
         isDeleting={isDeleting}
       />
@@ -206,7 +206,7 @@ export default function ProductDetailsPage() {
             status={productData.status}
             currentStock={productData.currentStock}
             healthStatus={productData.healthStatus}
-            preorderStatus={productData.preorder?.status || null}
+            preorderStatus={isStandalone ? (productData.preorder?.status || null) : null}
           />
         </div>
 

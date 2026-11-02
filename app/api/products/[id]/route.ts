@@ -330,7 +330,7 @@ export async function GET(
     // Pre-order calculations for Standalone store
     let preorderConfig: any = null;
     let preorderInfo: any = null;
-    const isProdStoreStandalone = isStandalone || (await isStoreStandalone(targetProduct.storeId));
+    const isProdStoreStandalone = isStandalone && (await isStoreStandalone(targetProduct.storeId));
     if (isProdStoreStandalone) {
       try {
         const storeForPreorder = targetProduct.storeId || store.id;

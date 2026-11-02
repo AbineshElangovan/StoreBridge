@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    const { store: currentStore, sessionStore, isMasterSession } = await authenticate(req);
+    const { store: currentStore, sessionStore, isMasterSession, isStandalone } = await authenticate(req);
     const { searchParams } = new URL(req.url);
 
     const storeFilter = searchParams.get('store') || 'all';

@@ -11,6 +11,7 @@ import { encrypt, decrypt } from "@/lib/utils/encryption";
 
 // Per-shop in-flight refresh lock to protect single-use refresh tokens from race conditions within process
 const refreshInFlight = new Map<string, Promise<any>>();
+const refreshCooldown = new Map<string, number>();
 
 export async function refreshOfflineToken(store: any, force = false) {
   const shopDomain = store.shopDomain;
@@ -31,6 +32,12 @@ export async function refreshOfflineToken(store: any, force = false) {
       console.log(`[AdminClient] Reusing fresh token from DB for ${shopDomain} (expires in ${Math.round(timeUntilExpiry / 60000)}m)`);
       return latestStore;
     }
+  }
+
+  // Cooldown check: if token refresh was recently rejected with 400/401, don't spam Shopify within 60s
+  const cooldownUntil = refreshCooldown.get(shopDomain);
+  if (cooldownUntil && Date.now() < cooldownUntil) {
+    throw new Error(`Store ${shopDomain} refresh token was recently rejected by Shopify (cooldown active). Requires OAuth handshake.`);
   }
 
   const currentStore = latestStore || store;
@@ -75,6 +82,9 @@ export async function refreshOfflineToken(store: any, force = false) {
     if (!response.ok) {
       const errText = await response.text();
       console.warn(`[AdminClient] Refresh API response not ok for ${shopDomain}: ${response.status} - ${errText}`);
+      if (response.status === 400 || response.status === 401) {
+        refreshCooldown.set(shopDomain, Date.now() + 60 * 1000);
+      }
 
       // Double-check: Did a peer serverless worker complete the refresh while our request was in flight?
       const checkAfterFail = await prisma.store.findUnique({ where: { shopDomain } });
@@ -87,6 +97,7 @@ export async function refreshOfflineToken(store: any, force = false) {
     }
 
     const data = await response.json();
+    refreshCooldown.delete(shopDomain);
 
     // Calculate new expiration dates
     const now = new Date();

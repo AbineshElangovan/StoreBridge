@@ -4,9 +4,12 @@ import { getAdminClient } from "@/lib/shopify/admin";
 import { logAuthEvent } from "@/lib/auth/audit";
 
 export async function GET(request: Request) {
-  // Simple auth for cron jobs (in production, use a secure header)
+  // Allow Vercel Cron or manual invocation with CRON_SECRET
+  const isVercelCron = request.headers.get("x-vercel-cron") === "1";
   const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET || 'dev_cron_secret'}`) {
+  const isAuthorized = isVercelCron || authHeader === `Bearer ${process.env.CRON_SECRET || 'dev_cron_secret'}`;
+
+  if (!isAuthorized) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

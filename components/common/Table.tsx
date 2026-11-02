@@ -435,7 +435,7 @@ export function Table({
                             borderRight: ci < columns.length - 1 ? '1px solid #f8f9ff' : 'none',
                             textAlign: align,
                           }}
-                          className="p-[8px_8px] border-b border-slate-100/80 text-[13px] align-middle overflow-hidden text-ellipsis"
+                          className="p-[10px_12px] border-b border-slate-100/80 text-[13px] align-middle overflow-hidden text-ellipsis"
                         >
                           {col.type === 'react_node' ? (
                             <div className={

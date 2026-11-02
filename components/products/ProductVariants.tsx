@@ -248,7 +248,7 @@ export function ProductVariants({ productId, variants: initialVariants, isStanda
                     <td className="py-3.5 px-3 font-semibold text-gray-900">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span>{v.variantName}</span>
-                        {((v.isPreorderAvailable || v.isPreorderTargeted) && Number(v.quantity) <= 0) && (
+                        {(isStandalone && (v.isPreorderAvailable || v.isPreorderTargeted) && Number(v.quantity) <= 0) && (
                           <PreorderBadge size="sm" />
                         )}
                       </div>

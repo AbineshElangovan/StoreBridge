@@ -55,7 +55,7 @@ export function ForecastTable({
             <span className="text-sm font-bold text-gray-900 leading-snug" title={p.title}>
               {p.title}
             </span>
-            {p.isPreorderEligible && <PreorderBadge size="sm" />}
+            {isStandalone && p.isPreorderEligible && <PreorderBadge size="sm" />}
           </div>
           {!isStandalone && p.storeLabel && (
             <div className="mt-0.5">

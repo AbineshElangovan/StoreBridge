@@ -316,7 +316,6 @@ export default async function DashboardPage(props: DashboardPageProps) {
         </div>
       ),
       title: p.title,
-      vendor: 'ESHAN',
       sku: p.sku || 'N/A',
       inventoryQuantity: p.inventoryQuantity,
       status: 'Active',
@@ -328,7 +327,6 @@ export default async function DashboardPage(props: DashboardPageProps) {
   const recentlyAddedColumns: ColumnConfig[] = [
     { title: 'Image', key: 'imageUrl', type: 'image' },
     { title: 'Product Name', key: 'title_node', type: 'react_node' },
-    { title: 'Vendor', key: 'vendor' },
     { title: 'SKU', key: 'sku' },
     { title: 'Stock', key: 'inventoryQuantity', type: 'bold' },
     { title: 'Status', key: 'status', type: 'badge', badgeRules: { Active: 'success' } },

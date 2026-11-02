@@ -52,13 +52,13 @@ export function InsightTable({
   const headerInfo = getHeaderInfo();
 
   if (activeTab === 'store-comparison') {
-    const columns: ColumnConfig[] = [
-      { title: 'STORE', key: 'store_node', type: 'react_node' },
-      { title: 'DOMAIN', key: 'domain', type: 'text' },
-      { title: 'UNITS SOLD', key: 'units_sold_formatted', type: 'bold' },
-      { title: 'REVENUE', key: 'revenue_formatted', type: 'bold' },
-      { title: 'TOTAL PRODUCTS', key: 'productCount', type: 'text' },
-      { title: 'OUT OF STOCK', key: 'out_of_stock_node', type: 'react_node' },
+        const columns: ColumnConfig[] = [
+      { title: 'STORE', key: 'store_node', type: 'react_node', width: '28%', align: 'left' },
+      { title: 'DOMAIN', key: 'domain', type: 'text', width: '24%', align: 'left' },
+      { title: 'UNITS SOLD', key: 'units_sold_formatted', type: 'bold', width: '12%', align: 'center' },
+      { title: 'REVENUE', key: 'revenue_formatted', type: 'bold', width: '12%', align: 'center' },
+      { title: 'TOTAL PRODUCTS', key: 'productCount', type: 'text', width: '12%', align: 'center' },
+      { title: 'OUT OF STOCK', key: 'out_of_stock_node', type: 'react_node', width: '12%', align: 'center' },
     ];
 
     const formattedItems = data.map((row) => ({
@@ -102,18 +102,18 @@ export function InsightTable({
     );
   }
 
-  const columns: ColumnConfig[] = activeTab === 'dead-stock' ? [
-    { title: 'PRODUCT', key: 'product_node', type: 'react_node' },
-    { title: 'SKU', key: 'sku', type: 'text' },
-    { title: 'UNITS SOLD', key: 'units_sold_formatted', type: 'bold' },
-    { title: 'REVENUE', key: 'revenue_formatted', type: 'bold' },
-    { title: 'DAYS WITHOUT SALE', key: 'unsold_duration_node', type: 'react_node' },
+    const columns: ColumnConfig[] = activeTab === 'dead-stock' ? [
+    { title: 'PRODUCT', key: 'product_node', type: 'react_node', width: '38%', align: 'left' },
+    { title: 'SKU', key: 'sku', type: 'text', width: '20%', align: 'left' },
+    { title: 'UNITS SOLD', key: 'units_sold_formatted', type: 'bold', width: '12%', align: 'center' },
+    { title: 'REVENUE', key: 'revenue_formatted', type: 'bold', width: '14%', align: 'center' },
+    { title: 'DAYS WITHOUT SALE', key: 'unsold_duration_node', type: 'react_node', width: '16%', align: 'center' },
   ] : [
-    { title: 'PRODUCT', key: 'product_node', type: 'react_node' },
-    { title: 'SKU', key: 'sku', type: 'text' },
-    { title: 'UNITS SOLD', key: 'units_sold_formatted', type: 'bold' },
-    { title: 'REVENUE', key: 'revenue_formatted', type: 'bold' },
-    { title: 'CURRENT STOCK', key: 'stock_node', type: 'react_node' },
+    { title: 'PRODUCT', key: 'product_node', type: 'react_node', width: '38%', align: 'left' },
+    { title: 'SKU', key: 'sku', type: 'text', width: '20%', align: 'left' },
+    { title: 'UNITS SOLD', key: 'units_sold_formatted', type: 'bold', width: '12%', align: 'center' },
+    { title: 'REVENUE', key: 'revenue_formatted', type: 'bold', width: '14%', align: 'center' },
+    { title: 'CURRENT STOCK', key: 'stock_node', type: 'react_node', width: '16%', align: 'center' },
   ];
 
   const formattedItems = data.map((p) => ({
@@ -121,7 +121,7 @@ export function InsightTable({
     units_sold_formatted: p.unitsSold?.toLocaleString() || '0',
     revenue_formatted: formatCurrency(p.revenue),
     product_node: (
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-3 min-w-0 text-left w-full">
         {p.imageUrl ? (
           <img src={p.imageUrl} alt={p.title} className="w-8 h-8 rounded-lg object-cover border border-gray-200 flex-shrink-0" />
         ) : (
@@ -134,7 +134,7 @@ export function InsightTable({
             <span className="text-xs sm:text-sm font-semibold text-gray-900 truncate max-w-full sm:max-w-xs md:max-w-sm" title={p.title}>
               {p.title}
             </span>
-            {p.isPreorderEligible && <PreorderBadge size="sm" />}
+            {isStandalone && p.isPreorderEligible && <PreorderBadge size="sm" />}
           </div>
           {!isStandalone && p.storeLabel && (
             <div className="mt-1">

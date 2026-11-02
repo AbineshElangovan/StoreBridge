@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    const { store: currentStore, sessionStore, isMasterSession } = await authenticate(req);
+    const { store: currentStore, sessionStore, isMasterSession, isStandalone } = await authenticate(req);
     // Background evaluation of stockout risks based on current store settings
     evaluateForecastStockoutRisks(currentStore.id).catch(() => {});
     const searchParams = req.nextUrl.searchParams;
