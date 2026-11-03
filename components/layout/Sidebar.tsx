@@ -204,9 +204,11 @@ export function Sidebar() {
           const isMasterStore = currentStore?.isMaster;
           const isConnectedStore = !isMasterStore && !isStandalone;
 
-          let roleLabel = isStandalone 
+          let roleLabel = !currentStore 
             ? null 
-            : (isMasterStore ? 'MASTER STORE' : 'CONNECTED STORE');
+            : isStandalone 
+              ? null 
+              : (isMasterStore ? 'MASTER STORE' : 'CONNECTED STORE');
 
           return (
             <div 
@@ -354,7 +356,7 @@ export function Sidebar() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <span className="text-xs sm:text-sm font-bold text-gray-900 block leading-snug break-words">
-                      {loading ? 'Loading...' : (currentStore?.label || currentStore?.shopDomain || 'ESHAN Store')}
+                      {loading ? 'Loading...' : (currentStore?.label || currentStore?.shopDomain || (activeStores.length > 0 ? (activeStores[0].label || activeStores[0].shopDomain) : 'Not Connected'))}
                     </span>
                     {roleLabel && (
                       <div className="mt-1">

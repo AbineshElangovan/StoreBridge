@@ -813,7 +813,7 @@
 
         try {
           const shop = config.shop || window.Shopify?.shop || 'eshan-inventory-solutions.myshopify.com';
-          const apiUrl = config.apiUrl || 'https://dz50mdfc-3000.inc1.devtunnels.ms';
+          const apiUrl = config.apiUrl || 'https://version-control.d38r9lc5j1o8oj.amplifyapp.com';
 
           fetch(`${apiUrl}/api/storefront/record-preorder`, {
             method: 'POST',
@@ -2529,7 +2529,7 @@
       const root = getRootElement();
       const shop = config.shop || root?.dataset?.shop || window.Shopify?.shop || 'eshan-namakkal.myshopify.com';
       const productId = config.productId || root?.dataset?.productId || '9195393188027';
-      const apiUrl = (config.apiUrl || root?.dataset?.apiUrl || 'https://dz50mdfc-3000.inc1.devtunnels.ms').replace(/\/+$/, '');
+      const apiUrl = (config.apiUrl || root?.dataset?.apiUrl || 'https://version-control.d38r9lc5j1o8oj.amplifyapp.com').replace(/\/+$/, '');
       const endpoint = `${apiUrl}/api/storefront/notify-me`;
 
       const currentVariant = getSelectedVariant(variantId);
@@ -2813,7 +2813,7 @@
      */
     config.apiUrl =
       root?.dataset?.apiUrl ||
-      'https://dz50mdfc-3000.inc1.devtunnels.ms';
+      'https://version-control.d38r9lc5j1o8oj.amplifyapp.com';
 
     config.apiUrl =
       config.apiUrl.replace(
@@ -3017,7 +3017,7 @@
       config.shop = window.Shopify.shop;
     }
     if (!config.apiUrl) {
-      config.apiUrl = 'https://dz50mdfc-3000.inc1.devtunnels.ms';
+      config.apiUrl = 'https://version-control.d38r9lc5j1o8oj.amplifyapp.com';
     }
     config.apiUrl = config.apiUrl.replace(/\/+$/, '');
     if (productVariants.length === 0) {
@@ -4110,7 +4110,7 @@
         try {
           ensureConfig();
           const shopDomain = config.shop || window.Shopify?.shop || window.location.hostname;
-          const apiUrl = (config.apiUrl || 'https://dz50mdfc-3000.inc1.devtunnels.ms').replace(/\/+$/, '');
+          const apiUrl = (config.apiUrl || 'https://version-control.d38r9lc5j1o8oj.amplifyapp.com').replace(/\/+$/, '');
           if (shopDomain) {
             const cfgRes = await fetch(`${apiUrl}/api/storefront/config?shop=${encodeURIComponent(shopDomain)}`);
             if (cfgRes.ok) {
@@ -4186,7 +4186,7 @@
     try {
       const root = getRootElement();
       const shop = root?.dataset?.shop || window.Shopify?.shop || window.location.hostname;
-      const apiUrl = (root?.dataset?.apiUrl || 'https://dz50mdfc-3000.inc1.devtunnels.ms').replace(/\/+$/, '');
+      const apiUrl = (root?.dataset?.apiUrl || 'https://version-control.d38r9lc5j1o8oj.amplifyapp.com').replace(/\/+$/, '');
 
       const res = await fetch(`${apiUrl}/api/storefront/config?shop=${encodeURIComponent(shop)}`, {
         headers: {
@@ -4402,7 +4402,7 @@
       if (sessionStorage.getItem(recordedKey)) return;
       sessionStorage.setItem(recordedKey, 'true');
 
-      const apiUrl = config.apiUrl || 'https://dz50mdfc-3000.inc1.devtunnels.ms';
+      const apiUrl = config.apiUrl || 'https://version-control.d38r9lc5j1o8oj.amplifyapp.com';
       const shop = config.shop || window.Shopify?.shop || 'eshan-inventory-solutions.myshopify.com';
 
       const payload = {

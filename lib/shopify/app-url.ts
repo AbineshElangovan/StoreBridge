@@ -42,7 +42,7 @@ export function getAppHost(req?: Request | NextRequest | null): string {
   }
 
   // 2. AWS Amplify runtime
-  if (process.env.AWS_BRANCH || process.env.AWS_APP_ID) {
+  if (process.env.AWS_BRANCH || process.env.AWS_APP_ID || process.env.AWS_EXECUTION_ENV || process.env.LAMBDA_TASK_ROOT) {
     if (process.env.SHOPIFY_APP_URL) {
       const cleaned = cleanHost(process.env.SHOPIFY_APP_URL);
       if (cleaned.includes("amplifyapp.com") || isValidProductionHost(cleaned)) {
@@ -101,3 +101,4 @@ function isValidProductionHost(host: string): boolean {
     !host.includes("devtunnels.ms")
   );
 }
+

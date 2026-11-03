@@ -26,8 +26,9 @@
         "optional_scopes": [],
         "use_legacy_install_flow": false,
         "redirect_url_allowlist": [
-          "https://dz50mdfc-3000.inc1.devtunnels.ms/api/auth/callback",
-          "https://store-bridge-yemi.vercel.app/api/auth/callback"
+          "https://version-control.d38r9lc5j1o8oj.amplifyapp.com/api/auth/callback",
+          "https://store-bridge-yemi.vercel.app/api/auth/callback",
+          "https://dz50mdfc-3000.inc1.devtunnels.ms/api/auth/callback"
         ]
       }
     },
@@ -48,7 +49,7 @@
       "assets": "app_home",
       "target": "",
       "config": {
-        "app_url": "https://store-bridge-yemi.vercel.app",
+        "app_url": "https://version-control.d38r9lc5j1o8oj.amplifyapp.com",
         "embedded": true
       }
     },
@@ -71,7 +72,7 @@
       "config": {
         "topic": "app/uninstalled",
         "api_version": "2026-10",
-        "uri": "https://store-bridge-yemi.vercel.app/api/webhooks/app-uninstalled"
+        "uri": "https://version-control.d38r9lc5j1o8oj.amplifyapp.com/api/webhooks/app-uninstalled"
       }
     },
     {
@@ -83,7 +84,7 @@
       "config": {
         "topic": "inventory_levels/update",
         "api_version": "2026-10",
-        "uri": "https://store-bridge-yemi.vercel.app/api/webhooks/inventory-levels-update"
+        "uri": "https://version-control.d38r9lc5j1o8oj.amplifyapp.com/api/webhooks/inventory-levels-update"
       }
     },
     {
@@ -95,7 +96,7 @@
       "config": {
         "topic": "products/create",
         "api_version": "2026-10",
-        "uri": "https://store-bridge-yemi.vercel.app/api/webhooks/products-create"
+        "uri": "https://version-control.d38r9lc5j1o8oj.amplifyapp.com/api/webhooks/products-create"
       }
     },
     {
@@ -107,7 +108,7 @@
       "config": {
         "topic": "products/delete",
         "api_version": "2026-10",
-        "uri": "https://store-bridge-yemi.vercel.app/api/webhooks/products-delete"
+        "uri": "https://version-control.d38r9lc5j1o8oj.amplifyapp.com/api/webhooks/products-delete"
       }
     },
     {
@@ -119,7 +120,7 @@
       "config": {
         "topic": "products/update",
         "api_version": "2026-10",
-        "uri": "https://store-bridge-yemi.vercel.app/api/webhooks/products-update"
+        "uri": "https://version-control.d38r9lc5j1o8oj.amplifyapp.com/api/webhooks/products-update"
       }
     }
   ]

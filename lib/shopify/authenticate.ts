@@ -246,7 +246,7 @@ export async function authenticate(req: NextRequest) {
 
 export function handleApiError(error: any) {
   if (error instanceof AuthError) {
-    return NextResponse.json({ success: false, message: error.message }, { status: 401 });
+    return NextResponse.json({ success: false, message: error.message, error: error.message, code: 'UNAUTHENTICATED' }, { status: 401 });
   }
   return NextResponse.json({ success: false, error: error.message }, { status: 500 });
 }
