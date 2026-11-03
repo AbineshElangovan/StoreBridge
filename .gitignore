@@ -56,3 +56,4 @@ prisma/*.db-journal
 # Shopify CLI bundles
 .shopify/deploy-bundle*
 .shopify/dev-bundle*
+.neon

@@ -36,6 +36,7 @@ const nextConfig: NextConfig = {
               "https://*.myshopify.com",
               "https://admin.shopify.com",
               "https://*.devtunnels.ms",
+              "https://*.amplifyapp.com",
             ].join(" "),
           },
           {

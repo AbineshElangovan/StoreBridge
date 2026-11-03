@@ -9,6 +9,14 @@ import path from "path";
 // Extract hostName from SHOPIFY_APP_URL env var, or shopify.app.toml as fallback
 function getAppHostName(): string {
   // When running on Vercel, guarantee production domain is used (never a stale devtunnel)
+  // When running on AWS Amplify
+  if (process.env.AWS_BRANCH || process.env.AWS_APP_ID) {
+    if (process.env.SHOPIFY_APP_URL && !process.env.SHOPIFY_APP_URL.includes("devtunnels.ms") && !process.env.SHOPIFY_APP_URL.includes("localhost")) {
+      return process.env.SHOPIFY_APP_URL.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+    }
+    return "version-control.d38r9lc5j1o8oj.amplifyapp.com";
+  }
+
   if (process.env.VERCEL) {
     if (process.env.SHOPIFY_APP_URL && !process.env.SHOPIFY_APP_URL.includes("devtunnels.ms") && !process.env.SHOPIFY_APP_URL.includes("localhost")) {
       return process.env.SHOPIFY_APP_URL.replace(/^https?:\/\//, "").replace(/\/+$/, "");
