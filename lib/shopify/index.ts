@@ -49,9 +49,9 @@ function getAppHostName(): string {
 // This ensures the adapter import is not tree-shaken
 console.log(`Shopify Web API Adapter Initialized: ${webApiAdapterInitialized}`);
 export const shopify = shopifyApi({
-  apiKey: process.env.SHOPIFY_API_KEY!,
-  apiSecretKey: process.env.SHOPIFY_API_SECRET!,
-  scopes: process.env.SHOPIFY_SCOPES!.split(","),
+  apiKey: process.env.SHOPIFY_API_KEY || "f82dbdee74418429d3510c35ca99aae3",
+  apiSecretKey: process.env.SHOPIFY_API_SECRET || "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",
+  scopes: (process.env.SHOPIFY_SCOPES || "write_inventory,read_inventory,read_products,write_products,read_publications,write_publications,write_discounts,read_discounts,read_orders").split(","),
   hostName: getAppHostName(),
   apiVersion: ApiVersion.July26,
   isEmbeddedApp: true,
