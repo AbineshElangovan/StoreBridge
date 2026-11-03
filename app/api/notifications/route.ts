@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticate } from '@/lib/shopify/authenticate';
+import { authenticate, handleApiError } from '@/lib/shopify/authenticate';
 import { getNotifications, markAllAsRead, deleteAllNotifications, deleteNotification } from '@/services/notification-service';
 import { cleanupExpiredActivityLogs } from '@/lib/services/activityRetention';
 
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
       ...result,
     });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 401 });
+    return handleApiError(err);
   }
 }
 
@@ -48,7 +48,7 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return handleApiError(err);
   }
 }
 
@@ -67,7 +67,7 @@ export async function DELETE(req: NextRequest) {
     await deleteAllNotifications(store.id);
     return NextResponse.json({ success: true, message: 'All notifications deleted successfully' });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return handleApiError(err);
   }
 }
 
@@ -119,6 +119,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: false, error: 'Invalid action' }, { status: 400 });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return handleApiError(err);
   }
 }

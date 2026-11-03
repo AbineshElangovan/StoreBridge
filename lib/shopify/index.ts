@@ -2,57 +2,18 @@ import "@shopify/shopify-api/adapters/web-api";
 import { webApiAdapterInitialized } from "@shopify/shopify-api/adapters/web-api";
 import { shopifyApi, ApiVersion, DeliveryMethod } from "@shopify/shopify-api";
 import { sessionStorage } from "./session-storage";
-
-import fs from "fs";
-import path from "path";
-
-// Extract hostName from SHOPIFY_APP_URL env var, or shopify.app.toml as fallback
-function getAppHostName(): string {
-  // When running on Vercel, guarantee production domain is used (never a stale devtunnel)
-  // When running on AWS Amplify
-  if (process.env.AWS_BRANCH || process.env.AWS_APP_ID) {
-    if (process.env.SHOPIFY_APP_URL && !process.env.SHOPIFY_APP_URL.includes("devtunnels.ms") && !process.env.SHOPIFY_APP_URL.includes("localhost")) {
-      return process.env.SHOPIFY_APP_URL.replace(/^https?:\/\//, "").replace(/\/+$/, "");
-    }
-    return "version-control.d38r9lc5j1o8oj.amplifyapp.com";
-  }
-
-  if (process.env.VERCEL) {
-    if (process.env.SHOPIFY_APP_URL && !process.env.SHOPIFY_APP_URL.includes("devtunnels.ms") && !process.env.SHOPIFY_APP_URL.includes("localhost")) {
-      return process.env.SHOPIFY_APP_URL.replace(/^https?:\/\//, "").replace(/\/+$/, "");
-    }
-    return "store-bridge-yemi.vercel.app";
-  }
-
-  if (process.env.SHOPIFY_APP_URL) {
-    return process.env.SHOPIFY_APP_URL.replace(/^https?:\/\//, "").replace(/\/+$/, "");
-  }
-  try {
-    const rootDir = process.cwd();
-    const files = fs.readdirSync(rootDir);
-    // Find customized configs like shopify.app.eshan-coimbatore-store.toml
-    const activeToml = files.find(f => f.startsWith("shopify.app.") && f.endsWith(".toml") && f !== "shopify.app.toml") || "shopify.app.toml";
-    const tomlPath = path.join(rootDir, activeToml);
-    if (fs.existsSync(tomlPath)) {
-      const content = fs.readFileSync(tomlPath, "utf8");
-      const match = content.match(/application_url\s*=\s*"([^"]+)"/);
-      if (match && match[1]) {
-        return match[1].replace(/^https?:\/\//, "");
-      }
-    }
-  } catch (error) {
-    console.error("Error reading shopify.app config:", error);
-  }
-  return "";
-}
+import { getAppHost } from "./app-url";
 
 // This ensures the adapter import is not tree-shaken
 console.log(`Shopify Web API Adapter Initialized: ${webApiAdapterInitialized}`);
+
+const defaultScopes = "write_inventory,read_inventory,read_products,write_products,read_publications,write_publications,write_discounts,read_discounts,read_orders";
+
 export const shopify = shopifyApi({
-  apiKey: process.env.SHOPIFY_API_KEY || "f82dbdee74418429d3510c35ca99aae3",
-  apiSecretKey: process.env.SHOPIFY_API_SECRET || "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",
-  scopes: (process.env.SHOPIFY_SCOPES || "write_inventory,read_inventory,read_products,write_products,read_publications,write_publications,write_discounts,read_discounts,read_orders").split(","),
-  hostName: getAppHostName(),
+  apiKey: process.env.SHOPIFY_API_KEY || "",
+  apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
+  scopes: (process.env.SHOPIFY_SCOPES || defaultScopes).split(","),
+  hostName: getAppHost(),
   apiVersion: ApiVersion.July26,
   isEmbeddedApp: true,
   sessionStorage,

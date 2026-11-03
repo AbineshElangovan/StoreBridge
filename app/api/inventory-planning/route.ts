@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
-import { authenticate } from '@/lib/shopify/authenticate';
+import { authenticate, handleApiError } from '@/lib/shopify/authenticate';
 import { evaluateForecastStockoutRisks } from '@/services/planning/stockout-risk-service';
 import { PreorderService } from '@/services/preorder/preorder-service';
 
@@ -637,6 +637,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (err: any) {
     console.error('[API:inventory-planning] Error:', err);
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return handleApiError(err);
   }
 }

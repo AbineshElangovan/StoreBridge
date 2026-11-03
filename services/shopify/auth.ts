@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { Session } from '@shopify/shopify-api';
 import { shopify } from "@/lib/shopify";
+import { getAppHost } from "@/lib/shopify/app-url";
 import { prisma } from "@/lib/db/prisma";
 import { AuthStatus } from "@prisma/client";
 import { registerWebhooks } from "@/lib/shopify/webhooks";
@@ -75,7 +76,7 @@ export async function beginAuth(shop: string, rawRequest: NextRequest) {
     throw new Error("Invalid shop domain");
   }
 
-  const hostName = shopify.config.hostName;
+  const hostName = getAppHost(rawRequest);
   const secureUrl = `https://${hostName}${rawRequest.nextUrl.pathname}${rawRequest.nextUrl.search}`;
   console.log("[OAuth] beginAuth creating secure cleanRequest:", { secureUrl, hostName });
   const cleanRequest = new Request(secureUrl, {
@@ -94,7 +95,7 @@ export async function beginAuth(shop: string, rawRequest: NextRequest) {
 export async function handleAuthCallback(req: NextRequest) {
   console.log("[OAuth] callback start in Service", { shop: req.nextUrl.searchParams.get("shop") });
 
-  const hostName = shopify.config.hostName;
+  const hostName = getAppHost(req);
   const secureUrl = `https://${hostName}${req.nextUrl.pathname}${req.nextUrl.search}`;
   console.log("[OAuth] handleAuthCallback creating secure cleanRequest:", { secureUrl });
   const cleanRequest = new Request(secureUrl, {

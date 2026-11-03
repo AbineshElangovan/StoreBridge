@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { beginAuth } from "@/services/shopify";
 import { shopify } from "@/lib/shopify";
+import { getAppHost } from "@/lib/shopify/app-url";
 
 export async function GET(req: NextRequest) {
   const shop = req.nextUrl.searchParams.get("shop");
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
 
   if (embedded === "1" || host) {
     console.log("[Install] Iframe detected in /api/auth. Returning HTML breakout redirect to top-level.");
-    const hostName = shopify.config.hostName || req.headers.get("x-forwarded-host") || req.headers.get("host") || "localhost:3000";
+    const hostName = getAppHost(req);
     const topRedirectUrl = `https://${hostName}/api/auth?shop=${encodeURIComponent(shop)}`;
     
     return new Response(

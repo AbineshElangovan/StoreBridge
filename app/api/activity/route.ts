@@ -309,6 +309,6 @@ export async function GET(req: NextRequest) {
 
   } catch (err: any) {
     console.error("[Activity API] Error:", err);
-    return NextResponse.json({ success: false, error: err.message || err.toString() }, { status: 500 });
+    return handleApiError(err);
   }
 }
