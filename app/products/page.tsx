@@ -102,9 +102,13 @@ export default function ProductsPage() {
 
   const mapProductToRow = (item: any) => {
     const prodUrl = getProductUrl(item);
+    const resolvedSku = (item.sku && item.sku !== 'N/A')
+      ? item.sku
+      : (item.id ? `STB-SKU-${item.id.replace(/[^0-9]/g, '').slice(-4).padStart(4, '0')}` : 'STB-SKU-0001');
 
     return {
       ...item,
+      sku: resolvedSku,
       url: prodUrl,
       title_node: (
         <div className="flex items-center gap-2 flex-wrap">

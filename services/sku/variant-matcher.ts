@@ -78,7 +78,7 @@ export function matchCombinationsWithExisting(
         ...combo,
         status: "Existing",
         existingVariantId: matched.id,
-        existingSku: matched.sku || undefined,
+        existingSku: (matched.sku && matched.sku !== "N/A" && matched.sku.trim() !== "") ? matched.sku : undefined,
         price: matched.price,
         inventoryQuantity: matched.inventoryQuantity,
       };

@@ -73,8 +73,8 @@ export async function POST(req: NextRequest) {
     let maxSeq = 0;
     for (const product of existingProducts) {
       if (!product.sku) continue;
-      const seqPart = product.sku.replace(prefixStr, '');
-      const seqNum = parseInt(seqPart, 10);
+      const match = product.sku.match(/(\d+)$/);
+      const seqNum = match ? parseInt(match[1], 10) : 0;
       if (!isNaN(seqNum) && seqNum > maxSeq) {
         maxSeq = seqNum;
       }

@@ -243,7 +243,9 @@ async function handleProductsCreate(shop: string, payload: any, webhookId: strin
 
   if (!store.isMaster) {
     console.log(`[Worker:products/create] Processing ${isStandalone ? 'Standalone' : 'Sub'} Store product create: ${shop}`);
-    await updateLocalProductCache(shop, payload);
+    let enrichedPayload = payload;
+    enrichedPayload = await generateSkusForProductIfNeeded(shop, enrichedPayload);
+    await updateLocalProductCache(shop, enrichedPayload);
 
     const sku = payload.variants?.[0]?.sku || null;
     const collectionStr = payload.collections?.map((c: any) => c.title).join(', ') || null;
@@ -456,8 +458,11 @@ async function handleProductsUpdate(shop: string, payload: any, webhookId: strin
   if (!store.isMaster) {
     console.log(`[Worker:products/update] Processing ${isStandalone ? 'Standalone' : 'Sub'} Store catalog update: ${shop}`);
 
+    // Auto-generate SKUs for newly added or missing variants before updating cache
+    let currentPayload = payload;
+    currentPayload = await generateSkusForProductIfNeeded(shop, currentPayload);
     // Update local cache for Store
-    await updateLocalProductCache(shop, payload, 'products/update');
+    await updateLocalProductCache(shop, currentPayload, 'products/update');
 
     // Check price changed vs product details changed
     const oldPrice = productCaches[0]?.price;

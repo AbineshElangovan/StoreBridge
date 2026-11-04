@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     const visibleStoreIds = [store.id, ...connectedStoreIds];
 
     // 2. Fetch data ONLY for authorized stores
-    const [productCaches, totalSyncs, successSyncs, latestSync, allStores] = await Promise.all([
+    let [productCaches, totalSyncs, successSyncs, latestSync, allStores] = await Promise.all([
       prisma.productCache.findMany({ 
         where: { storeId: { in: visibleStoreIds } },
         include: {
@@ -47,6 +47,22 @@ export async function GET(req: NextRequest) {
       const diffMins = Math.floor((Date.now() - latestSync.createdAt.getTime()) / 60000);
       lastUpdated =
         diffMins < 1 ? 'Just now' : diffMins < 60 ? `${diffMins} mins ago` : `${Math.floor(diffMins / 60)} hrs ago`;
+    }
+
+    // Auto-heal any products in current store missing a SKU
+    const hasMissingSkus = productCaches.some((p: any) => p.storeId === store.id && (!p.sku || p.sku === 'N/A' || p.sku.trim() === ''));
+    if (hasMissingSkus) {
+      try {
+        const { autoAssignMissingSkus } = require('@/services/sku/generator');
+        await autoAssignMissingSkus(store.id);
+        const refreshed = await prisma.productCache.findMany({
+          where: { storeId: { in: visibleStoreIds } },
+          include: { collections: { include: { collection: true } } }
+        });
+        productCaches = refreshed;
+      } catch (e: any) {
+        console.warn('[Dashboard] SKU auto-heal error:', e?.message || e);
+      }
     }
 
     // Current store metrics
@@ -194,8 +210,12 @@ export async function GET(req: NextRequest) {
         }
       }
 
+      const fallbackSeq = p.id ? p.id.replace(/[^0-9]/g, '').slice(-4).padStart(4, '0') : '0001';
+      const resolvedSku = (p.sku && p.sku !== 'N/A' && p.sku.trim() !== '') ? p.sku : `STB-SKU-${fallbackSeq}`;
+
       return {
         ...p,
+        sku: resolvedSku,
         imageUrl: img || null,
         inventoryQuantity: Math.max(0, p.inventoryQuantity),
         isPreorderTargeted,

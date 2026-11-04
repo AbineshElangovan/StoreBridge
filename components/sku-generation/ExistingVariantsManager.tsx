@@ -146,7 +146,7 @@ export function ExistingVariantsManager({
               <div className="shrink-0 flex items-center gap-2">
                 <span className="text-3xs uppercase tracking-wider text-gray-400 font-semibold hidden sm:inline">SKU:</span>
                 <span className="text-xs font-mono font-bold text-gray-800 bg-gray-100 border border-gray-200 px-2.5 py-1 rounded-lg">
-                  {v.sku || "No SKU"}
+                  {v.sku && v.sku !== "N/A" ? v.sku : "Auto-generated"}
                 </span>
               </div>
             </div>

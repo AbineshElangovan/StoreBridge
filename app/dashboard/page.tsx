@@ -267,7 +267,7 @@ export default async function DashboardPage(props: DashboardPageProps) {
         </div>
       ),
       title: p.title,
-      sku: p.sku || 'N/A',
+      sku: (p.sku && p.sku !== 'N/A') ? p.sku : (p.id ? `STB-SKU-${p.id.replace(/[^0-9]/g, '').slice(-4).padStart(4, '0')}` : 'STB-SKU-0001'),
       inventoryQuantity: p.inventoryQuantity,
       stockLevel: p.inventoryQuantity <= 5 ? 'Critical' : 'Low',
       updatedDate: <LocalizedDate date={p.updatedAt} format="date" />,
@@ -316,7 +316,7 @@ export default async function DashboardPage(props: DashboardPageProps) {
         </div>
       ),
       title: p.title,
-      sku: p.sku || 'N/A',
+      sku: (p.sku && p.sku !== 'N/A') ? p.sku : (p.id ? `STB-SKU-${p.id.replace(/[^0-9]/g, '').slice(-4).padStart(4, '0')}` : 'STB-SKU-0001'),
       inventoryQuantity: p.inventoryQuantity,
       status: 'Active',
       addedDate: <LocalizedDate date={p.createdAt} format="date" />,

@@ -100,7 +100,16 @@ export async function syncStoreProducts(
 
           const variantTitle = variant.title && variant.title !== 'Default Title' ? ` - ${variant.title}` : '';
           const fullTitle = `${product.title}${variantTitle}`;
-          const sku = variant.sku?.trim() || null;
+          let sku = variant.sku?.trim() || null;
+          if (!sku || sku === 'N/A') {
+            try {
+              const { resolveOrGenerateSkuForVariant } = require('@/services/sku/generator');
+              sku = await resolveOrGenerateSkuForVariant(store.id, product.id, variant, product.title);
+              variant.sku = sku;
+            } catch (skuErr: any) {
+              console.warn('[SyncService] SKU generation notice:', skuErr?.message || skuErr);
+            }
+          }
           const imageObj = product.featuredImage || product.images?.edges?.[0]?.node || variant.image;
           const imageUrl = imageObj?.url || null;
           const price = parseFloat(variant.price || '0');

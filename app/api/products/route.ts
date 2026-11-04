@@ -196,7 +196,7 @@ export async function GET(req: NextRequest) {
         shopifyProductId: p.shopifyProductId,
         imageUrls: resolveProductImage(p),
         title: displayTitle,
-        sku: p.sku || 'N/A',
+        sku: (p.sku && p.sku !== 'N/A') ? p.sku : (p.id ? `STB-SKU-${p.id.replace(/[^0-9]/g, '').slice(-4).padStart(4, '0')}` : 'STB-SKU-0001'),
         store: p.store.label || p.store.shopDomain,
         price: p.price,
         priceText: (p.price).toFixed(2),

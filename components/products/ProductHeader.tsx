@@ -19,6 +19,7 @@ export function ProductHeader({ title, sku, collection, vendor, isPreorderEligib
   const router = useRouter();
   const displayCollection = collection ? collection.toUpperCase() : '';
   const displayVendor = vendor ? vendor.toUpperCase() : '';
+  const cleanSku = (sku && sku !== 'N/A' && sku.trim() !== '') ? sku : '';
 
   const handleBack = () => {
     if (onBack) {
@@ -44,7 +45,7 @@ export function ProductHeader({ title, sku, collection, vendor, isPreorderEligib
           className="!text-xs sm:!text-sm md:!text-base !font-bold text-gray-500 mt-1.5 uppercase tracking-wider"
           style={{ fontSize: '0.95rem' }}
         >
-          SKU {sku}{displayCollection ? ` · ${displayCollection}` : ''}{displayVendor ? ` · ${displayVendor}` : ''}
+          {cleanSku && `SKU ${cleanSku}`}{cleanSku && displayCollection && ' · '}{displayCollection}{displayVendor ? ` · ${displayVendor}` : ''}
         </p>
       </div>
 

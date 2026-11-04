@@ -13,7 +13,11 @@ import { SkuGenerationActions } from "./SkuGenerationActions";
 import { ExistingVariantsManager, ExistingVariantItem } from "./ExistingVariantsManager";
 import { useStoreContext } from "@/components/providers/StoreProvider";
 
-export function SkuGeneratorContainer() {
+interface SkuGeneratorContainerProps {
+  onApplied?: () => void;
+}
+
+export function SkuGeneratorContainer({ onApplied }: SkuGeneratorContainerProps = {}) {
   const { canManageSku } = useStoreContext();
   const hasWriteAccess = canManageSku;
 
@@ -188,6 +192,7 @@ export function SkuGeneratorContainer() {
 
         // Refresh preview and product variants
         await loadProductVariantsAndOptions(selectedProduct.shopifyProductId);
+        onApplied?.();
       } else {
         setToast({ message: data.errors?.join("; ") || "Failed to apply SKU generation.", type: "error" });
       }

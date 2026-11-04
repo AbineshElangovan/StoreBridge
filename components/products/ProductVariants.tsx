@@ -326,8 +326,8 @@ export function ProductVariants({ productId, variants: initialVariants, isStanda
           deleteError
             ? `Error: ${deleteError}`
             : isMaster
-            ? `SKU: ${deletingVariant?.sku || 'N/A'}. This will permanently remove this variant from Master and all connected stores.`
-            : `SKU: ${deletingVariant?.sku || 'N/A'}. This will permanently remove this variant from this store.`
+            ? `SKU: ${deletingVariant?.sku && deletingVariant.sku !== 'N/A' ? deletingVariant.sku : 'Selected Variant'}. This will permanently remove this variant from Master and all connected stores.`
+            : `SKU: ${deletingVariant?.sku && deletingVariant.sku !== 'N/A' ? deletingVariant.sku : 'Selected Variant'}. This will permanently remove this variant from this store.`
         }
         confirmLabel="Yes, Delete"
         cancelLabel="No"

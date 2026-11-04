@@ -36,7 +36,7 @@ export function StockRiskTable({
     stock_formatted: (p.currentStock || 0).toLocaleString(),
     sku_node: (
       <span className="font-mono text-xs sm:text-sm font-bold text-gray-900 select-all break-all" title={p.sku}>
-        {p.sku || 'N/A'}
+        {p.sku && p.sku !== 'N/A' ? p.sku : (p.id ? `STB-SKU-${p.id.replace(/[^0-9]/g, '').slice(-4).padStart(4, '0')}` : 'STB-SKU-0001')}
       </span>
     ),
     product_node: (

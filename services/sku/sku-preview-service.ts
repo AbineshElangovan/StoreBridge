@@ -121,7 +121,8 @@ export async function generateSkuPreview(
   // 6. Assign SKUs and check uniqueness
   const skusToCheck: string[] = [];
   const items: PreviewTableItem[] = matchedCombinations.map((combo, idx) => {
-    const candidateSku = combo.existingSku || candidateSkus[idx] || `SKU-${idx + 1}`;
+    const hasValidExistingSku = Boolean(combo.existingSku && combo.existingSku !== "N/A" && combo.existingSku.trim() !== "");
+    const candidateSku: string = (hasValidExistingSku && combo.existingSku) ? combo.existingSku : (candidateSkus[idx] || `SKU-${idx + 1}`);
     skusToCheck.push(candidateSku);
 
     return {

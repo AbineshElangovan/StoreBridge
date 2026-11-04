@@ -94,6 +94,22 @@ export async function updateLocalProductCache(shopDomain: string, payload: any, 
         finalSku = existingCache.sku;
       }
 
+      // Automatically generate SKU from store Global SKU settings & variant options if missing or N/A
+      if (!finalSku || finalSku === 'N/A' || finalSku.trim() === '') {
+        try {
+          const { resolveOrGenerateSkuForVariant } = require('@/services/sku/generator');
+          finalSku = await resolveOrGenerateSkuForVariant(
+            store.id,
+            shopifyProductId,
+            variant,
+            payload.title
+          );
+          variant.sku = finalSku;
+        } catch (skuErr: any) {
+          console.warn('[ProductCache] SKU auto-generation notice:', skuErr?.message || skuErr);
+        }
+      }
+
       const productTags = payload.tags || null;
 
       if (!existingCache) {
