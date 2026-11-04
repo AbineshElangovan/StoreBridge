@@ -39,7 +39,6 @@ export function PreorderProductSelector({
   const [products, setProducts] = useState<ProductSummary[]>([]);
   const [collections, setCollections] = useState<{ id: string; title: string }[]>([]);
   const [selectedCollection, setSelectedCollection] = useState<string>('ALL');
-  const [stockFilter, setStockFilter] = useState<'OOS' | 'ALL'>('OOS');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -105,14 +104,14 @@ export function PreorderProductSelector({
 
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
-      // 1. Stock filter: OOS only vs All Products (selected items are always shown so user can view/unselect them)
       const isEligibleOOS =
         p.totalInventory <= inventoryThreshold ||
         p.hasOutOfStockVariant ||
         p.isOutOfStock;
       const isSelected = normalizedSelected.has(normalizeId(p.shopifyProductId));
 
-      if (stockFilter === 'OOS' && !isEligibleOOS && !isSelected) {
+      // 1. Only out-of-stock products are eligible for pre-order (or already selected)
+      if (!isEligibleOOS && !isSelected) {
         return false;
       }
 
@@ -134,7 +133,7 @@ export function PreorderProductSelector({
 
       return true;
     });
-  }, [products, inventoryThreshold, selectedCollection, searchTerm, stockFilter, normalizedSelected]);
+  }, [products, inventoryThreshold, selectedCollection, searchTerm, normalizedSelected]);
 
   const toggleProduct = (productId: string) => {
     if (disabled) return;
@@ -200,32 +199,6 @@ export function PreorderProductSelector({
           />
         </div>
 
-        {/* Stock Filter Toggle: Out of Stock vs All */}
-        <div className="inline-flex rounded-lg border border-gray-300 bg-gray-50 p-0.5 text-xs font-semibold shrink-0">
-          <button
-            type="button"
-            onClick={() => setStockFilter('OOS')}
-            className={`px-3 py-1.5 rounded-md transition-colors cursor-pointer ${
-              stockFilter === 'OOS'
-                ? 'bg-[var(--color-primary)] toggle-btn-active font-black shadow-xs border border-[var(--color-primary-dark,var(--color-primary))]'
-                : 'text-gray-600 hover:text-black font-semibold'
-            }`}
-          >
-            Out of Stock ({oosCount})
-          </button>
-          <button
-            type="button"
-            onClick={() => setStockFilter('ALL')}
-            className={`px-3 py-1.5 rounded-md transition-colors cursor-pointer ${
-              stockFilter === 'ALL'
-                ? 'bg-[var(--color-primary)] toggle-btn-active font-black shadow-xs border border-[var(--color-primary-dark,var(--color-primary))]'
-                : 'text-gray-600 hover:text-black font-semibold'
-            }`}
-          >
-            All Products ({products.length})
-          </button>
-        </div>
-
         {collections.length > 0 && (
           <div className="w-48">
             <PolarisSelect
@@ -245,12 +218,14 @@ export function PreorderProductSelector({
 
       {/* Action Header & Accurate Counts */}
       <div className="flex items-center justify-between text-xs font-medium text-gray-600 pb-2 border-b border-gray-100">
-        <div>
+        <div className="flex items-center gap-2">
           <span className="font-semibold text-gray-900">
             {selectedCount} product{selectedCount === 1 ? '' : 's'} selected
           </span>
-          <span className="text-gray-400 mx-2">•</span>
-          <span>{oosCount} out-of-stock product{oosCount === 1 ? '' : 's'}</span>
+          <span className="text-gray-400">•</span>
+          <span className="font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 text-[11px]">
+            {oosCount} out of stock
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <button

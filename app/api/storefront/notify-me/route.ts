@@ -101,16 +101,27 @@ export async function POST(req: NextRequest) {
 
     // Securely resolve store by domain
     const cleanShop = shop.trim().toLowerCase().replace(/^https?:\/\//, '').split('/')[0];
+    const shopPrefix = cleanShop.split('.')[0];
+    const myshopifyHost = cleanShop.endsWith('.myshopify.com') ? cleanShop : `${cleanShop}.myshopify.com`;
 
-    const store = await prisma.store.findFirst({
+    let store = await prisma.store.findFirst({
       where: {
         isActive: true,
         OR: [
           { shopDomain: cleanShop },
-          { shopDomain: { contains: cleanShop.split('.')[0], mode: 'insensitive' } },
+          { shopDomain: myshopifyHost },
+          { shopDomain: { contains: shopPrefix, mode: 'insensitive' } },
         ],
       },
     });
+
+    // Fallback if domain formatting differs but store exists
+    if (!store) {
+      const activeCount = await prisma.store.count({ where: { isActive: true } });
+      if (activeCount === 1) {
+        store = await prisma.store.findFirst({ where: { isActive: true } });
+      }
+    }
 
     if (!store) {
       return NextResponse.json(
@@ -258,7 +269,7 @@ export async function POST(req: NextRequest) {
     const storeDisplayName = store.label || store.shopDomain;
 
     let emailDelivered = false;
-    // Dispatch waitlist confirmation email whenever customer provides an email
+    // Dispatch waitlist confirmation email whenever customer provides an email (even on re-subscription)
     if (email) {
       try {
         const emailRes = await EmailNotificationService.sendWaitlistConfirmationEmail({
@@ -337,8 +348,11 @@ export async function POST(req: NextRequest) {
         success: true,
         alreadyRegistered: result.alreadyRegistered || false,
         emailSent: emailDelivered,
+        emailNotice: emailDelivered
+          ? `We sent a confirmation email to ${email}.`
+          : undefined,
         message: result.alreadyRegistered
-          ? "You are already on the waitlist for this item. We will notify you as soon as stock arrives!"
+          ? "You are already on the waitlist for this item. We sent a confirmation to your email and will notify you as soon as stock arrives!"
           : (result.message || "We will notify you when this product is back in stock."),
       },
       { status: 200, headers: corsHeaders(origin) }
@@ -346,7 +360,10 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('[Storefront:NotifyMe:Error]', error);
     return NextResponse.json(
-      { success: false, error: 'Internal server error processing notification registration' },
+      {
+        success: false,
+        error: error?.message || 'Internal server error processing notification registration',
+      },
       { status: 500, headers: corsHeaders(origin) }
     );
   }

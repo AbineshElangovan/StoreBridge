@@ -207,14 +207,30 @@ export class BackInStockService {
     const remainingAvailable = Math.max(0, stockRemainingToAllocate);
 
     // 4. FIND PENDING NOTIFY ME SUBSCRIBERS
+    // Robust multi-format variant & product lookups
+    const numericVariantId = cleanVariantId.replace(/\D/g, '');
+    const numericProductId = cleanProductId.replace(/\D/g, '');
+
+    const variantIdLookups = Array.from(new Set([
+      cleanVariantId,
+      numericVariantId,
+      shopifyVariantId,
+      `gid://shopify/ProductVariant/${cleanVariantId}`,
+      ...(numericVariantId ? [`gid://shopify/ProductVariant/${numericVariantId}`] : []),
+    ].filter(Boolean)));
+
     const pendingRegistrations = await prisma.notifyMeRegistration.findMany({
       where: {
         storeId,
         status: NotifyMeStatus.PENDING,
         OR: [
-          { shopifyVariantId: cleanVariantId },
-          { shopifyVariantId: `gid://shopify/ProductVariant/${cleanVariantId}` },
-          { shopifyVariantId: shopifyVariantId },
+          { shopifyVariantId: { in: variantIdLookups } },
+          ...(numericProductId ? [
+            { shopifyProductId: numericProductId },
+            { shopifyProductId: `gid://shopify/Product/${numericProductId}` },
+            { shopifyProductId: cleanProductId },
+            { shopifyProductId: shopifyProductId },
+          ] : []),
         ],
       },
       orderBy: { createdAt: 'asc' }, // FIFO: First registered, first served
@@ -264,15 +280,19 @@ export class BackInStockService {
     for (const reg of registrationsToNotify) {
       // Create Email job if customer opted in and has email
       if (reg.notifyByEmail && reg.customerEmail) {
-        const recentJob = await prisma.notificationJob.findFirst({
+        const existingJob = await prisma.notificationJob.findFirst({
           where: {
             registrationId: reg.id,
             channel: NotificationChannel.EMAIL,
-            createdAt: { gte: new Date(Date.now() - 60000) },
+            OR: [
+              { status: NotificationJobStatus.SENT },
+              { status: NotificationJobStatus.PROCESSING },
+              { createdAt: { gte: new Date(Date.now() - 300000) } },
+            ],
           },
         });
 
-        if (!recentJob) {
+        if (!existingJob) {
           await prisma.notificationJob.create({
             data: {
               registrationId: reg.id,
@@ -290,15 +310,8 @@ export class BackInStockService {
           createdJobsCount++;
         }
       }
-
-      // Mark registration as NOTIFIED
-      await prisma.notifyMeRegistration.update({
-        where: { id: reg.id },
-        data: {
-          status: NotifyMeStatus.NOTIFIED,
-          notifiedAt: new Date(),
-        },
-      });
+      // Note: Registration status is updated atomically in CustomerNotificationService.processPendingJobs
+      // upon confirmed send, preventing failed emails from being marked as sent.
     }
 
     // 6. Process all pending jobs immediately
@@ -407,7 +420,26 @@ export class BackInStockService {
         return { committedPreorders, preorderOrders };
       }
 
-      // 2. Fallback to Shopify GraphQL orders query
+      // 2. Check if pre-orders are enabled for this store / variant before making external GraphQL calls
+      const preorderConfig = await (prisma as any).preorderConfig.findFirst({
+        where: {
+          storeId,
+          enabled: true,
+          OR: [
+            { selectionMode: 'ALL_PRODUCTS' },
+            { shopifyVariantId: cleanTargetVariantId },
+            { shopifyVariantId: `gid://shopify/ProductVariant/${cleanTargetVariantId}` },
+            { selectedProductIds: { has: cleanTargetVariantId } },
+          ],
+        },
+      });
+
+      if (!preorderConfig) {
+        // Pre-order is not enabled for this variant/store, so no pre-order commitments exist
+        return { committedPreorders: 0, preorderOrders: [] };
+      }
+
+      // 3. Fallback to Shopify GraphQL orders query
       const store = await prisma.store.findUnique({
         where: { id: storeId },
         select: { shopDomain: true, accessToken: true },

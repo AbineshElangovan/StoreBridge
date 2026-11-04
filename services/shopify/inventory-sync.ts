@@ -65,7 +65,10 @@ export async function processInventoryUpdate(
       sourceVariantMap = await prisma.variantMap.findFirst({
         where: {
           storeId: sourceStore.id,
-          inventoryItemId: gidInventoryItemId,
+          OR: [
+            { inventoryItemId: gidInventoryItemId },
+            { inventoryItemId: inventoryItemIdStr },
+          ],
         },
       });
       
@@ -316,6 +319,23 @@ export async function processInventoryUpdate(
 
         const targetProdTitle = targetCachedProduct?.title || productTitle;
         const targetProdId = target.shopifyProductId?.split('/').pop() || '';
+
+        // Trigger restock notification for waitlisted subscribers on target store
+        if (targetNewTotalQuantity > 0) {
+          try {
+            const { BackInStockService } = require('@/services/back-in-stock/back-in-stock-service');
+            await BackInStockService.processBackInStock({
+              storeId: target.store.id,
+              shopifyProductId: target.shopifyProductId,
+              shopifyVariantId: target.shopifyVariantId,
+              available: targetNewTotalQuantity,
+              productTitle: targetProdTitle,
+              imageUrl: targetCachedProduct?.imageUrl || null,
+            });
+          } catch (bisErr: any) {
+            console.error(`[SyncService:BackInStock] Target store ${target.store.shopDomain} restock trigger error:`, bisErr.message);
+          }
+        }
 
         // Notify target store about synchronized stock change
         await createNotification({

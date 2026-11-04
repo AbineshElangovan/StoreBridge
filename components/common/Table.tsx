@@ -48,6 +48,7 @@ export interface TableProps {
   extraControls?: React.ReactNode;
   itemsPerPage?: number;
   onRowClick?: (item: any) => void;
+  tableLayout?: 'auto' | 'fixed';
 }
 
 /* ── Centered full-page spinner ── */
@@ -180,6 +181,7 @@ export function Table({
   extraControls,
   itemsPerPage = 10,
   onRowClick,
+  tableLayout,
 }: TableProps) {
   const { currentTheme } = useTheme();
   const effectiveHeaderColor = headerColor || '#6366f1';
@@ -375,7 +377,7 @@ export function Table({
         </div>
       ) : (
         <div className="relative overflow-x-auto w-full touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
-          <table className="w-full min-w-[640px] border-collapse">
+          <table className="w-full min-w-[850px] border-collapse" style={{ tableLayout: tableLayout || 'auto' }}>
             <thead>
               <tr>
                 {columns.map((col, i) => (
@@ -469,19 +471,28 @@ export function Table({
       )}
 
       {/* ── Pagination ── */}
-      {paginate && totalPages > 1 && (
+      {paginate && (
         <div className="p-3 px-5 border-t border-gray-200 bg-white flex items-center justify-between flex-wrap gap-2">
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-gray-500 font-medium">
             {serverSide ? (
-              `Showing ${(currentPage - 1) * itemsPerPage + 1}–${Math.min(currentPage * itemsPerPage, totalItems ?? items.length)} of ${totalItems ?? items.length} records`
+              (totalItems ?? items.length) === 0 ? (
+                '0 records'
+              ) : (
+                `Showing ${(currentPage - 1) * itemsPerPage + 1}–${Math.min(currentPage * itemsPerPage, totalItems ?? items.length)} of ${totalItems ?? items.length} records`
+              )
             ) : (
-              `Showing ${(currentPage - 1) * itemsPerPage + 1}–${Math.min(currentPage * itemsPerPage, filteredItems.length)} of ${filteredItems.length} records`
+              filteredItems.length === 0 ? (
+                '0 records'
+              ) : (
+                `Showing ${(currentPage - 1) * itemsPerPage + 1}–${Math.min(currentPage * itemsPerPage, filteredItems.length)} of ${filteredItems.length} records`
+              )
             )}
           </span>
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
             onPageChange={handlePageChange}
+            hideOnSinglePage={false}
           />
         </div>
       )}

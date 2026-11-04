@@ -1,42 +1,42 @@
 {
   "default": {
     "notify_me": {
-      "subject": "Good news! {{product_title}} is back in stock",
+      "subject": "Good news! {{product_title}} is back in stock {{store_name}}",
       "bannerText": "Back in Stock • Available Now",
-      "bannerColor": "#d97706",
+      "bannerColor": "#e11d48",
       "headline": "Cotton T-shirt is Back in Stock!",
       "bodyMessage": "The item you requested at {{store_name}} is available now.",
       "buttonText": "Shop Now",
-      "buttonColor": "#e11d48"
+      "buttonColor": "#059669"
     },
     "preorder": {
-      "subject": "Pre-order Ready: {{product_title}} - {{store_name}}",
+      "subject": "[{{store_name}}] Pre-order Ready: {{product_title}}",
       "bannerText": "Pre-order Allocated • Ready for Fulfillment",
-      "bannerColor": "#0284c7",
+      "bannerColor": "#7c3aed",
       "headline": "Your Pre-ordered Item is Ready",
       "bodyMessage": "Stock has arrived at {{store_name}}. Preparing fulfillment.",
       "buttonText": "View Order Status",
-      "buttonColor": "#0284c7"
+      "buttonColor": "#111827"
     }
   },
   "5ac6cdf8-4328-4dca-844b-f864c29ba95b": {
     "notify_me": {
-      "subject": "Good news! {{product_title}} is back in stock",
+      "subject": "Good news! {{product_title}} is back in stock {{store_name}}",
       "bannerText": "Back in Stock • Available Now",
-      "bannerColor": "#d97706",
+      "bannerColor": "#e11d48",
       "headline": "Cotton T-shirt is Back in Stock!",
       "bodyMessage": "The item you requested at {{store_name}} is available now.",
       "buttonText": "Shop Now",
-      "buttonColor": "#e11d48"
+      "buttonColor": "#059669"
     },
     "preorder": {
-      "subject": "Pre-order Ready: {{product_title}} - {{store_name}}",
+      "subject": "[{{store_name}}] Pre-order Ready: {{product_title}}",
       "bannerText": "Pre-order Allocated • Ready for Fulfillment",
-      "bannerColor": "#0284c7",
+      "bannerColor": "#7c3aed",
       "headline": "Your Pre-ordered Item is Ready",
       "bodyMessage": "Stock has arrived at {{store_name}}. Preparing fulfillment.",
       "buttonText": "View Order Status",
-      "buttonColor": "#0284c7"
+      "buttonColor": "#111827"
     }
   }
 }

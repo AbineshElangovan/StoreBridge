@@ -982,8 +982,18 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
   });
 
   if (variantMap && variantMap.shopifyVariantId) {
+    const cleanVId = variantMap.shopifyVariantId.replace(/\D/g, '');
     cache = await prisma.productCache.findFirst({
-      where: { storeId: storeRecord.id, shopifyVariantId: variantMap.shopifyVariantId }
+      where: {
+        storeId: storeRecord.id,
+        OR: [
+          { shopifyVariantId: variantMap.shopifyVariantId },
+          ...(cleanVId ? [
+            { shopifyVariantId: `gid://shopify/ProductVariant/${cleanVId}` },
+            { shopifyVariantId: cleanVId },
+          ] : []),
+        ],
+      },
     });
   }
 
@@ -994,13 +1004,112 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
         OR: [
           { inventoryItemId: inventoryGid },
           { inventoryItemId: String(inventory_item_id) },
-        ]
-      }
+        ],
+      },
     });
     if (pMapping) {
+      const cleanVId = pMapping.shopifyVariantId.replace(/\D/g, '');
       cache = await prisma.productCache.findFirst({
-        where: { storeId: storeRecord.id, shopifyVariantId: pMapping.shopifyVariantId }
+        where: {
+          storeId: storeRecord.id,
+          OR: [
+            { shopifyVariantId: pMapping.shopifyVariantId },
+            ...(cleanVId ? [
+              { shopifyVariantId: `gid://shopify/ProductVariant/${cleanVId}` },
+              { shopifyVariantId: cleanVId },
+            ] : []),
+          ],
+        },
       });
+    }
+  }
+
+  // Fallback: If cache is not found in variantMap or productMapping, query Shopify GraphQL directly
+  if (!cache) {
+    try {
+      const { getAdminClient } = require('@/lib/shopify/admin');
+      const adminClient = await getAdminClient(shop);
+      // Valid Shopify GraphQL query: search productVariants by inventory_item_id
+      const inventoryRes = await adminClient.request(`
+        query getVariantByInventoryItem($query: String!) {
+          productVariants(first: 1, query: $query) {
+            edges {
+              node {
+                id
+                title
+                price
+                sku
+                inventoryItem {
+                  id
+                }
+                product {
+                  id
+                  title
+                  featuredImage {
+                    url
+                  }
+                }
+              }
+            }
+          }
+        }
+      `, { variables: { query: `inventory_item_id:${inventory_item_id}` } });
+
+      const v = inventoryRes.data?.productVariants?.edges?.[0]?.node;
+      if (v) {
+        const p = v.product;
+        const fullTitle = v.title && v.title !== 'Default Title' ? `${p?.title || 'Product'} - ${v.title}` : (p?.title || 'Product');
+        const parsedPrice = parseFloat(v.price || '0');
+
+        await prisma.variantMap.upsert({
+          where: {
+            storeId_shopifyVariantId: {
+              storeId: storeRecord.id,
+              shopifyVariantId: v.id,
+            },
+          },
+          create: {
+            storeId: storeRecord.id,
+            shopifyProductId: p?.id || 'gid://shopify/Product/unknown',
+            shopifyVariantId: v.id,
+            inventoryItemId: inventoryGid,
+            sku: v.sku || '',
+          },
+          update: {
+            shopifyProductId: p?.id || undefined,
+            inventoryItemId: inventoryGid,
+            ...(v.sku ? { sku: v.sku } : {}),
+          },
+        });
+
+        cache = await prisma.productCache.upsert({
+          where: {
+            storeId_shopifyVariantId: {
+              storeId: storeRecord.id,
+              shopifyVariantId: v.id,
+            },
+          },
+          create: {
+            storeId: storeRecord.id,
+            shopifyProductId: p?.id || `gid://shopify/Product/unknown`,
+            shopifyVariantId: v.id,
+            sku: v.sku || null,
+            title: fullTitle,
+            imageUrl: p?.featuredImage?.url || null,
+            inventoryQuantity: safeAvailable,
+            price: parsedPrice,
+            basePrice: parsedPrice,
+          },
+          update: {
+            inventoryQuantity: safeAvailable,
+            title: fullTitle,
+            ...(p?.featuredImage?.url ? { imageUrl: p.featuredImage.url } : {}),
+          },
+        });
+        console.log(`[WebhookWorker:InventoryUpdate] Auto-resolved cache for ${shop} variant ${v.id} (Item: ${inventory_item_id})`);
+      }
+    } catch (graphErr: any) {
+      console.warn(`[WebhookWorker:InventoryItemLookup] Could not resolve item ${inventory_item_id} from Shopify:`, graphErr.message);
     }
   }
 
@@ -1042,8 +1151,8 @@ async function handleInventoryUpdate(shop: string, payload: any, webhookId: stri
     const prodSku = cache.sku || variantMap?.sku || null;
 
     // BACK IN STOCK DETECTION:
-    // When inventory transitions from 0 -> positive, notify pending waitlist subscribers
-    if (safeAvailable > 0) {
+    // Trigger when inventory is positive and was restocked (prevQty <= 0 or diff > 0)
+    if (safeAvailable > 0 && (prevQty <= 0 || diff > 0)) {
       try {
         const { BackInStockService } = require('@/services/back-in-stock/back-in-stock-service');
         await BackInStockService.processBackInStock({

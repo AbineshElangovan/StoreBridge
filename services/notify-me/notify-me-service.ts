@@ -19,7 +19,7 @@ export const DEFAULT_NOTIFY_ME_SETTING = {
   popupMessage: 'Get notified when this item is back in stock.',
   buttonText: 'Notify me',
   successMessage: "You're on the list!",
-  emailSubject: 'Good news! {{product_title}} is back in stock',
+  emailSubject: '[{{store_name}}] In Stock: {{product_title}} is now available',
 };
 
 export interface RegisterCustomerParams {

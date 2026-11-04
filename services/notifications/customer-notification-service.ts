@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db/prisma';
-import { NotificationChannel, NotificationJobStatus } from '@prisma/client';
+import { NotificationChannel, NotificationJobStatus, NotifyMeStatus } from '@prisma/client';
 import { EmailNotificationService } from './email-notification-service';
 import { safeDecrypt } from '@/lib/utils/encryption';
 
@@ -37,7 +37,7 @@ export class CustomerNotificationService {
         },
       });
 
-      const storeName = job.store.label || job.store.shopDomain;
+      const storeName = job.store?.label || job.store?.shopDomain || 'Online Store';
       let sendResult: { success: boolean; error?: string } = { success: false, error: 'Unknown channel' };
 
       let productPrice: string | undefined;
@@ -69,28 +69,38 @@ export class CustomerNotificationService {
 
       const decryptedEmail = safeDecrypt(job.customerEmail);
 
-      if (job.channel === NotificationChannel.EMAIL && decryptedEmail) {
-        let customSubject: string | undefined;
-        try {
-          const setting = await (prisma as any).notifyMeSetting.findUnique({
-            where: { storeId: job.storeId },
-            select: { emailSubject: true },
-          });
-          if (setting?.emailSubject) customSubject = setting.emailSubject;
-        } catch {}
+      if (job.channel === NotificationChannel.EMAIL) {
+        if (decryptedEmail && decryptedEmail.includes('@')) {
+          let customSubject: string | undefined;
+          try {
+            const setting = await (prisma as any).notifyMeSetting.findUnique({
+              where: { storeId: job.storeId },
+              select: { emailSubject: true },
+            });
+            if (setting?.emailSubject) {
+              const rawSub = String(setting.emailSubject);
+              customSubject = rawSub.includes('Good news!')
+                ? rawSub.replace(/Good news!\s*/i, `[${storeName}] `)
+                : rawSub;
+            }
+          } catch {}
 
-        sendResult = await EmailNotificationService.sendBackInStockEmail({
-          to: decryptedEmail,
-          productTitle: job.productTitle,
-          variantTitle: job.variantTitle,
-          productUrl: job.productUrl,
-          imageUrl: finalImageUrl,
-          price: productPrice,
-          storeName,
-          subject: customSubject,
-        });
+          sendResult = await EmailNotificationService.sendBackInStockEmail({
+            to: decryptedEmail.trim(),
+            productTitle: job.productTitle,
+            variantTitle: job.variantTitle,
+            productUrl: job.productUrl,
+            imageUrl: finalImageUrl,
+            price: productPrice,
+            storeName,
+            subject: customSubject,
+          });
+        } else {
+          console.warn(`[CustomerNotificationService] Skipping job ${job.id}: email is invalid or missing (${decryptedEmail})`);
+          sendResult = { success: false, error: 'Customer email format invalid or missing' };
+        }
       } else {
-        // Channel is not EMAIL or phone lead only
+        // Channel is not EMAIL (e.g. phone lead only)
         sendResult = { success: true };
       }
 
@@ -105,6 +115,21 @@ export class CustomerNotificationService {
             lastError: null,
           },
         });
+
+        // Update registration status to NOTIFIED only upon verified successful dispatch
+        if (job.registrationId) {
+          try {
+            await prisma.notifyMeRegistration.update({
+              where: { id: job.registrationId },
+              data: {
+                status: NotifyMeStatus.NOTIFIED,
+                notifiedAt: new Date(),
+              },
+            });
+          } catch (regErr: any) {
+            console.warn('[CustomerNotificationService:RegistrationUpdateError]', regErr.message);
+          }
+        }
       } else {
         failedCount++;
         const isFinal = job.attempts + 1 >= job.maxAttempts;

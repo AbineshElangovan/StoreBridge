@@ -18,16 +18,16 @@ export interface EmailTemplatesState {
 
 export const DEFAULT_EMAIL_TEMPLATES: EmailTemplatesState = {
   notify_me: {
-    subject: 'Good news! {{product_title}} is back in stock',
+    subject: '[{{store_name}}] In Stock: {{product_title}} is now available',
     bannerText: 'Back in Stock • Available Now',
     bannerColor: '#059669', // Emerald Green
-    headline: 'Cotton T-shirt is Back in Stock!',
+    headline: '{{product_title}} is Back in Stock',
     bodyMessage: 'The item you requested at {{store_name}} is available now.',
     buttonText: 'Shop Now',
     buttonColor: '#111827', // Dark Slate
   },
   preorder: {
-    subject: 'Pre-order Ready: {{product_title}} - {{store_name}}',
+    subject: '[{{store_name}}] Pre-order Ready: {{product_title}}',
     bannerText: 'Pre-order Allocated • Ready for Fulfillment',
     bannerColor: '#7c3aed', // Purple
     headline: 'Your Pre-ordered Item is Ready',

@@ -128,7 +128,6 @@ export async function updateLocalProductCache(shopDomain: string, payload: any, 
           }
         });
       } else {
-        const prevQty = existingCache.inventoryQuantity ?? 0;
         const needsUpdate = existingCache.sku !== finalSku ||
           existingCache.title !== fullTitle ||
           existingCache.price !== parsedPrice ||
@@ -152,22 +151,22 @@ export async function updateLocalProductCache(shopDomain: string, payload: any, 
             },
           });
         }
+      }
 
-        // TRIGGER BACK IN STOCK: When variant transitions to positive stock
-        if (trueInventory > 0) {
-          try {
-            const { BackInStockService } = require('@/services/back-in-stock/back-in-stock-service');
-            await BackInStockService.processBackInStock({
-              storeId: store.id,
-              shopifyProductId,
-              shopifyVariantId,
-              available: trueInventory,
-              productTitle: fullTitle,
-              imageUrl: resolvedImageUrl,
-            });
-          } catch (bisErr: any) {
-            console.error('[ProductCache:BackInStock] Restock trigger error:', bisErr.message);
-          }
+      // TRIGGER BACK IN STOCK: When variant has positive stock, notify pending waitlist subscribers
+      if (trueInventory > 0) {
+        try {
+          const { BackInStockService } = require('@/services/back-in-stock/back-in-stock-service');
+          await BackInStockService.processBackInStock({
+            storeId: store.id,
+            shopifyProductId,
+            shopifyVariantId,
+            available: trueInventory,
+            productTitle: fullTitle,
+            imageUrl: resolvedImageUrl,
+          });
+        } catch (bisErr: any) {
+          console.error('[ProductCache:BackInStock] Restock trigger error:', bisErr.message);
         }
       }
 

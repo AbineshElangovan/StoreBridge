@@ -5,6 +5,7 @@ import { Icon } from '@shopify/polaris';
 import { CartIcon, CheckIcon, RefreshIcon } from '@shopify/polaris-icons';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import { APP_NAME } from '@/lib/constants/app';
+import { useTheme } from '@/components/providers/ThemeContext';
 
 export interface EmailTemplateConfig {
   subject: string;
@@ -74,6 +75,15 @@ export function EmailTemplateCustomizer({
   productUrl = '#',
   onSave,
 }: EmailTemplateCustomizerProps) {
+  const { currentTheme } = useTheme();
+  const primaryColor = currentTheme?.primaryColor || '#a7cd18';
+  const darkColor = currentTheme?.darkColor || '#142403';
+  const accentColor = currentTheme?.accentColor || '#f2fadc';
+  const isLimeTheme = currentTheme?.id === 'emerald_forest';
+  const buttonTextColor = isLimeTheme ? '#142403' : '#ffffff';
+
+  const [isResetting, setIsResetting] = useState(false);
+
   const [activeTab, setActiveTab] = useState<'notify_me' | 'preorder'>('notify_me');
   const [templates, setTemplates] = useState<EmailTemplatesState>(DEFAULT_EMAIL_TEMPLATES);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -152,10 +162,12 @@ export function EmailTemplateCustomizer({
   };
 
   const handleResetToDefault = () => {
+    setIsResetting(true);
     setTemplates((prev) => ({
       ...prev,
       [activeTab]: { ...DEFAULT_EMAIL_TEMPLATES[activeTab] },
     }));
+    setTimeout(() => setIsResetting(false), 700);
   };
 
   const handleSave = async () => {
@@ -199,10 +211,15 @@ export function EmailTemplateCustomizer({
     .replace(/\{\{product\}\}/gi, 'Cotton T-shirt')
     .replace(/\{\{store_name\}\}/gi, storeName);
 
-  const previewBodyMessage = currentConfig.bodyMessage.replace(
-    /\{\{store_name\}\}/gi,
-    storeName
-  );
+  const previewHeadline = (currentConfig.headline || 'Colorful T-shirt - M is Back in Stock')
+    .replace(/\{\{product_title\}\}/gi, 'Colorful T-shirt - M')
+    .replace(/\{\{product\}\}/gi, 'Colorful T-shirt')
+    .replace(/\{\{store_name\}\}/gi, storeName);
+
+  const previewBodyMessage = currentConfig.bodyMessage
+    .replace(/\{\{store_name\}\}/gi, storeName)
+    .replace(/\{\{product_title\}\}/gi, 'Cotton T-shirt')
+    .replace(/\{\{product\}\}/gi, 'Cotton T-shirt');
 
   const displayButtonText = cleanButton(currentConfig.buttonText) || (activeTab === 'preorder' ? 'View Order Status' : 'Shop Now');
 
@@ -215,7 +232,14 @@ export function EmailTemplateCustomizer({
             <h3 className="text-lg font-bold text-gray-900 tracking-tight">
               Customer Restock Email Customizer
             </h3>
-            <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full">
+            <span
+              className="text-[11px] font-bold px-2.5 py-0.5 rounded-full border transition-colors shadow-2xs"
+              style={{
+                color: buttonTextColor,
+                backgroundColor: primaryColor,
+                borderColor: `${primaryColor}60`,
+              }}
+            >
               Live Preview & Dispatch Sync
             </span>
           </div>
@@ -225,19 +249,22 @@ export function EmailTemplateCustomizer({
         </div>
 
         {/* Tab Switcher & Save Button */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <div className="inline-flex p-1 bg-gray-100 rounded-xl border border-gray-200 text-xs">
             <button
               type="button"
               onClick={() => setActiveTab('notify_me')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 font-bold rounded-lg transition-all cursor-pointer ${
-                activeTab === 'notify_me'
-                  ? 'bg-white text-gray-900 shadow-2xs'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
+              style={activeTab === 'notify_me' ? {
+                backgroundColor: primaryColor,
+                color: buttonTextColor,
+                boxShadow: `0 1px 3px ${primaryColor}40`,
+              } : {
+                color: '#4b5563',
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 font-bold rounded-lg transition-all cursor-pointer"
             >
               <span
-                className="w-2.5 h-2.5 rounded-full shrink-0"
+                className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10"
                 style={{ backgroundColor: templates.notify_me.bannerColor }}
               />
               <span>Back in Stock (Notify Me)</span>
@@ -245,14 +272,17 @@ export function EmailTemplateCustomizer({
             <button
               type="button"
               onClick={() => setActiveTab('preorder')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 font-bold rounded-lg transition-all cursor-pointer ${
-                activeTab === 'preorder'
-                  ? 'bg-white text-gray-900 shadow-2xs'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
+              style={activeTab === 'preorder' ? {
+                backgroundColor: primaryColor,
+                color: buttonTextColor,
+                boxShadow: `0 1px 3px ${primaryColor}40`,
+              } : {
+                color: '#4b5563',
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 font-bold rounded-lg transition-all cursor-pointer"
             >
               <span
-                className="w-2.5 h-2.5 rounded-full shrink-0"
+                className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10"
                 style={{ backgroundColor: templates.preorder.bannerColor }}
               />
               <span>Pre-order Restock</span>
@@ -263,10 +293,14 @@ export function EmailTemplateCustomizer({
             type="button"
             disabled={saving}
             onClick={handleSave}
-            className={`inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-sm ${
+            style={!savedSuccess ? {
+              backgroundColor: primaryColor,
+              color: buttonTextColor,
+            } : undefined}
+            className={`inline-flex items-center gap-1.5 px-4 py-2 text-xs font-black rounded-xl transition-all cursor-pointer shadow-sm hover:brightness-105 active:scale-95 border border-black/10 ${
               savedSuccess
                 ? 'bg-emerald-600 text-white'
-                : 'bg-gray-900 hover:bg-black text-white'
+                : ''
             }`}
           >
             {savedSuccess ? (
@@ -301,9 +335,14 @@ export function EmailTemplateCustomizer({
             <button
               type="button"
               onClick={handleResetToDefault}
-              className="text-[11px] font-semibold text-gray-500 hover:text-gray-900 flex items-center gap-1 cursor-pointer transition-colors"
+              style={{
+                backgroundColor: primaryColor,
+                color: buttonTextColor,
+              }}
+              className="text-[11px] font-bold px-2.5 py-1 rounded-lg border border-black/10 flex items-center gap-1.5 cursor-pointer transition-all hover:brightness-105 active:scale-95 shadow-2xs"
+              title="Reset template to default settings"
             >
-              <div className="w-3 h-3">
+              <div className={`w-3.5 h-3.5 transition-transform duration-500 ${isResetting ? 'animate-spin' : ''}`} style={{ color: buttonTextColor }}>
                 <Icon source={RefreshIcon} />
               </div>
               <span>Reset default</span>
@@ -507,103 +546,100 @@ export function EmailTemplateCustomizer({
         </div>
 
         {/* RIGHT COLUMN: Live Interactive Email Preview */}
-        <div className="lg:col-span-6 p-5 sm:p-6 bg-gray-50/60 flex flex-col items-center justify-center">
-          {/* Simulated Email Client Container */}
-          <div className="w-full max-w-md bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-center transition-all">
-            {/* Email Header Bar */}
-            <div className="bg-gray-100/80 px-4 py-2 border-b border-gray-200 flex items-center justify-between text-[11px] text-gray-500">
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-400" />
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-                <span className="ml-2 font-mono text-gray-600 font-semibold">Inbox Preview</span>
-              </div>
-              <span className="font-semibold text-gray-400">Just now</span>
-            </div>
-
-            {/* Email Subject Line Bar */}
-            <div className="bg-gray-50/90 border-b border-gray-200 px-4 py-2.5 text-left flex items-start gap-2">
-              <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider shrink-0 mt-0.5">Subject:</span>
-              <span className="text-xs font-bold text-gray-900 leading-tight break-words">
-                {previewSubject}
+        <div className="lg:col-span-6 p-5 sm:p-6 bg-gray-50/60 flex flex-col justify-start">
+          {/* Simulated Email Container */}
+          <div className="w-full max-w-[560px] mx-auto bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden text-center transition-all flex flex-col">
+            
+            {/* 1. Header Bar: Store Name | OFFICIAL STORE */}
+            <div className="bg-[#111827] text-white px-6 py-4 flex items-center justify-between text-xs shrink-0">
+              <span className="font-extrabold text-sm sm:text-base tracking-tight truncate">
+                {storeName}
               </span>
-            </div>
-
-            {/* Store Title Bar */}
-            <div className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between text-xs">
-              <span className="font-extrabold tracking-tight truncate">{storeName}</span>
               <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">
                 OFFICIAL STORE
               </span>
             </div>
 
-            {/* Dynamic Status Banner with Customizable Color & Text */}
-            <div
-              className="text-white text-xs font-bold py-2 px-4 flex items-center justify-center gap-1.5 transition-colors duration-200 shadow-inner"
-              style={{ backgroundColor: currentConfig.bannerColor }}
-            >
-              <span>{currentConfig.bannerText || 'Notification Alert'}</span>
-            </div>
-
-            {/* Body */}
-            <div className="p-6 space-y-4">
-              <div>
-                <h3 className="text-lg font-black text-gray-900 leading-snug">
-                  {currentConfig.headline || 'Product Notification'}
-                </h3>
-                <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                  {previewBodyMessage}
-                </p>
+            {/* 2. Main Email Body */}
+            <div className="p-6 sm:p-8 flex flex-col">
+              {/* Centered Status Pill Badge */}
+              <div className="mb-3.5">
+                <div
+                  className="text-white text-xs font-bold py-1.5 px-4 rounded-full inline-block shadow-xs transition-colors duration-200"
+                  style={{ backgroundColor: currentConfig.bannerColor }}
+                >
+                  <span>{currentConfig.bannerText || 'Back in Stock • Available Now'}</span>
+                </div>
               </div>
 
-              {/* Product Card */}
-              <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 max-w-sm mx-auto flex items-center gap-3 text-left">
-                <div className="w-16 h-16 bg-white rounded-lg border border-gray-200 flex items-center justify-center p-1 shrink-0 overflow-hidden">
+              {/* Headline */}
+              <h1 className="text-xl sm:text-2xl font-black text-gray-900 leading-snug mb-2">
+                {previewHeadline}
+              </h1>
+
+              {/* Subtitle Message */}
+              <p className="text-xs sm:text-sm text-gray-600 leading-relaxed mb-6 max-w-md mx-auto">
+                {previewBodyMessage}
+              </p>
+
+              {/* 3. Product Card Container */}
+              <div className="bg-[#fafafa] border border-gray-200 rounded-2xl p-6 text-center max-w-md mx-auto shadow-2xs w-full">
+                {/* Centered Square Product Image Box */}
+                <div className="w-48 h-48 mx-auto bg-white border border-gray-200 rounded-xl p-3 shadow-2xs mb-4 flex items-center justify-center overflow-hidden">
                   <img
                     src="https://cdn.shopify.com/s/files/1/0836/6748/4891/files/cotton-t-shirt_924bced9-4b4d-4e4f-9f3b-b554623c9e69.png?v=1790857896"
-                    alt="Cotton T-shirt"
-                    className="max-h-full max-w-full object-contain"
+                    alt="Colorful T-shirt"
+                    className="max-h-full max-w-full object-contain rounded-lg"
                   />
                 </div>
 
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-xs font-bold text-gray-900 truncate">Cotton T-shirt</h4>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-[10px] font-semibold text-gray-600 bg-gray-200 px-1.5 py-0.5 rounded">
-                      White / M
-                    </span>
-                    <span className="text-[10px] font-bold text-gray-900">
-                      ₹1,240
-                    </span>
-                  </div>
-                  <p
-                    className="text-[10px] font-bold mt-1"
-                    style={{ color: currentConfig.bannerColor }}
-                  >
-                    {activeTab === 'preorder' ? 'Reserved & in stock' : 'Ready to order'}
-                  </p>
+                {/* Product Title */}
+                <h3 className="text-base font-extrabold text-gray-900 mb-2">
+                  Colorful T-shirt
+                </h3>
+
+                {/* Variant Pill Badge */}
+                <div className="mb-3">
+                  <span className="inline-block bg-gray-200 text-gray-700 text-xs font-bold px-3 py-0.5 rounded-full">
+                    M
+                  </span>
                 </div>
-              </div>
 
-              {/* Dynamic CTA Button with Constant Arrow */}
-              <div className="pt-1">
-                <a
-                  href={productUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 py-2.5 px-6 font-bold text-xs rounded-xl shadow-sm transition-all duration-150 hover:opacity-90 active:scale-95 text-white"
-                  style={{ backgroundColor: currentConfig.buttonColor }}
-                >
-                  <div className="w-3.5 h-3.5 text-white">
-                    <Icon source={CartIcon} />
-                  </div>
-                  <span>{displayButtonText} →</span>
-                </a>
-              </div>
+                {/* Price */}
+                <p className="text-base font-black text-gray-900 mb-4">
+                  Price: ₹720
+                </p>
 
-              {/* Footer */}
-              <p className="text-[10px] text-gray-400 pt-3 border-t border-gray-100">
-                © {new Date().getFullYear()} {storeName} • Sent automatically via {APP_NAME}
+                {/* Dynamic CTA Button with Constant Arrow */}
+                <div className="mb-3">
+                  <a
+                    href={productUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block text-white text-sm font-bold py-3 px-8 rounded-xl shadow-md transition-all hover:opacity-90 active:scale-95 cursor-pointer"
+                    style={{ backgroundColor: currentConfig.buttonColor }}
+                  >
+                    {displayButtonText} →
+                  </a>
+                </div>
+
+                {/* Inventory Availability Note */}
+                <p className="text-[11px] text-gray-400 m-0">
+                  Available while current inventory lasts.
+                </p>
+              </div>
+            </div>
+
+            {/* 4. Footer */}
+            <div className="p-6 bg-[#f9fafb] border-t border-gray-100 text-center text-xs text-gray-500 leading-relaxed space-y-1 shrink-0">
+              <p className="m-0">
+                You received this alert because you requested notifications on <strong>{storeName}</strong>.
+              </p>
+              <p className="m-0">
+                If you did not request this notification, you can safely disregard this email.
+              </p>
+              <p className="m-0 text-[11px] text-gray-400">
+                © {new Date().getFullYear()} {storeName}. All rights reserved.
               </p>
             </div>
           </div>

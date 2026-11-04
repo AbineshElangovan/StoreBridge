@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useTheme } from '@/components/providers/ThemeContext';
 
 export interface PageTab<T extends string = string> {
   id: T;
@@ -21,6 +22,11 @@ export function PageTabs<T extends string = string>({
   onTabChange,
   className = '',
 }: PageTabsProps<T>) {
+  const { currentTheme } = useTheme();
+  const isLimeTheme = currentTheme?.id === 'emerald_forest';
+  const buttonTextColor = isLimeTheme ? '#142403' : '#ffffff';
+  const primaryColor = currentTheme?.primaryColor || 'var(--color-primary)';
+
   return (
     <div className="w-full max-w-full overflow-hidden">
       <div
@@ -39,17 +45,25 @@ export function PageTabs<T extends string = string>({
               key={tab.id}
               type="button"
               onClick={() => onTabChange(tab.id)}
+              style={isActive ? {
+                backgroundColor: primaryColor,
+                color: buttonTextColor,
+              } : undefined}
               className={`px-3.5 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all duration-150 cursor-pointer shrink-0 flex items-center gap-2 select-none ${
                 isActive
-                  ? 'bg-[var(--color-primary)] text-[var(--color-primary-text,#000000)] font-black shadow-xs'
+                  ? 'font-black shadow-xs'
                   : 'text-gray-700 hover:text-gray-900 hover:bg-black/5 font-semibold'
               }`}
             >
               <span>{tab.label}</span>
               {typeof tab.badge === 'number' && tab.badge > 0 && (
                 <span
+                  style={isActive ? {
+                    color: buttonTextColor,
+                    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                  } : undefined}
                   className={`px-2 py-0.5 text-[10px] font-black rounded-full ${
-                    isActive ? 'bg-black/15 text-[var(--color-primary-text,#000000)]' : 'bg-gray-100 text-gray-700'
+                    isActive ? '' : 'bg-gray-100 text-gray-700'
                   }`}
                 >
                   {tab.badge}

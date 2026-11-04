@@ -62,6 +62,8 @@ export default function PreorderAdminPage() {
   const primaryColor = currentTheme?.primaryColor || '#047857';
   const accentColor = currentTheme?.accentColor || '#d1fae5';
   const darkColor = currentTheme?.darkColor || '#022c22';
+  const isLimeTheme = currentTheme?.id === 'emerald_forest';
+  const buttonTextColor = isLimeTheme ? '#142403' : '#ffffff';
 
   // Navigation tab state: 1. Setup & Products, 2. Offer & Payment, 3. Pre-order Orders
   const [activeTab, setActiveTab] = useState<PreorderTabId>('general');
@@ -586,21 +588,21 @@ export default function PreorderAdminPage() {
                       ? `${selectedProductIds.length} product${selectedProductIds.length === 1 ? '' : 's'} selected`
                       : 'All catalog products targeted'}
                   </span>
-                  <button
+                                    <button
                     type="button"
                     onClick={handleSave}
                     disabled={saving}
-                    style={{ backgroundColor: primaryColor }}
-                    className="px-4 py-2 text-xs font-black text-black rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
+                    style={{ backgroundColor: primaryColor, color: buttonTextColor }}
+                    className="px-4 py-2 text-xs font-black rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
                   >
                     {saving ? (
                       <>
-                        <span className="inline-block w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin"></span>
+                        <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
                         Saving...
                       </>
                     ) : (
                       <>
-                        <svg className="w-3.5 h-3.5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5" style={{ color: buttonTextColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
                         </svg>
                         Save Selection
@@ -828,21 +830,21 @@ export default function PreorderAdminPage() {
                       ? 'Half payment (50% deposit) active'
                       : 'Full payment (100%) active'}
                   </span>
-                  <button
+                                    <button
                     type="button"
                     onClick={handleSave}
                     disabled={saving}
-                    style={{ backgroundColor: primaryColor }}
-                    className="px-4 py-2 text-xs font-black text-black rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
+                    style={{ backgroundColor: primaryColor, color: buttonTextColor }}
+                    className="px-4 py-2 text-xs font-black rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
                   >
                     {saving ? (
                       <>
-                        <span className="inline-block w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin"></span>
+                        <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
                         Saving...
                       </>
                     ) : (
                       <>
-                        <svg className="w-3.5 h-3.5 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-3.5 h-3.5" style={{ color: buttonTextColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
                         </svg>
                         Save Payment &amp; Discount

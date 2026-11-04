@@ -11,6 +11,8 @@ import { Icon } from '@shopify/polaris';
 import {
   EmailIcon,
   NotificationIcon,
+  ClockIcon,
+  CheckCircleIcon,
   CheckIcon,
   AlertCircleIcon,
   StoreIcon,
@@ -18,7 +20,9 @@ import {
   RefreshIcon,
 } from '@shopify/polaris-icons';
 import { StandaloneGuard } from '@/components/ui/StandaloneGuard';
+import { StatCard } from '@/components/ui/StatCard';
 import { useStoreContext } from '@/components/providers/StoreProvider';
+import { useTheme } from '@/components/providers/ThemeContext';
 import { EmailTemplateCustomizer } from '@/components/customer-experience/shared';
 
 function ProductThumbnail({ src, alt, href }: { src?: string | null; alt?: string; href?: string }) {
@@ -51,6 +55,9 @@ function ProductThumbnail({ src, alt, href }: { src?: string | null; alt?: strin
 
 export default function BackInStockAdminPage() {
   const { isStandalone } = useStoreContext();
+  const { currentTheme } = useTheme();
+  const primaryColor = currentTheme?.primaryColor || '#a7cd18';
+  const darkColor = currentTheme?.darkColor || '#142403';
   const [loading, setLoading] = useState(true);
   const [tableLoading, setTableLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -60,8 +67,7 @@ export default function BackInStockAdminPage() {
 
   // Template preview tab & collapsible toggle
   const [previewTab, setPreviewTab] = useState<'notify_me' | 'preorder'>('notify_me');
-  const [showEmailPreview, setShowEmailPreview] = useState(false);
-
+  
   // Stats
   const [stats, setStats] = useState({
     totalSubscribers: 0,
@@ -225,43 +231,47 @@ export default function BackInStockAdminPage() {
     loadData(newPage, statusFilter, search, batchFilter);
   };
 
-  const columns: ColumnConfig[] = [
+    const columns: ColumnConfig[] = [
     {
       title: 'Product & SKU',
       key: 'productInfo',
       type: 'react_node',
       width: '28%',
+      align: 'left',
     },
     {
       title: 'Restock Type',
       key: 'sourceTypeBadge',
       type: 'react_node',
       width: '14%',
+      align: 'left',
     },
     {
       title: 'Quantity',
       key: 'quantityBadge',
       type: 'react_node',
       width: '10%',
+      align: 'center',
     },
     {
       title: 'Customer Recipient',
       key: 'recipient',
       type: 'react_node',
-      width: '22%',
+      width: '20%',
+      align: 'left',
     },
     {
       title: 'Registration Date',
       key: 'registrationDate',
       type: 'react_node',
-      width: '13%',
+      width: '14%',
       align: 'center',
     },
     {
-      title: 'Order / Action Status',
+      title: 'Status / Action',
       key: 'orderStatusBadge',
       type: 'react_node',
-      width: '13%',
+      width: '14%',
       align: 'center',
     },
   ];
@@ -467,78 +477,43 @@ export default function BackInStockAdminPage() {
         />
       )}
 
-      {/* Page Title & Real-Time Sync Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-gray-200">
-        <div>
-          <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Back in Stock Monitor</h1>
-          <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
-            Track real-time restock alerts and customer notification logs.
-          </p>
-        </div>
-        <div className="flex items-center gap-3 self-start sm:self-auto">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold shadow-2xs">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <span>Live Auto-Sync</span>
-          </div>
-          <button
-            type="button"
-            onClick={handleManualRefresh}
-            disabled={tableLoading || isRefreshing}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 text-xs font-bold transition shadow-2xs disabled:opacity-50 cursor-pointer"
-            title="Refresh now"
-          >
-            <div className={`w-3.5 h-3.5 text-gray-600 ${isRefreshing ? 'animate-spin' : ''}`}>
-              <Icon source={RefreshIcon} />
-            </div>
-            <span>Refresh</span>
-          </button>
-        </div>
+      {/* Page Title Header */}
+      <div className="pb-6 border-b border-gray-200">
+        <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Back in Stock Monitor</h1>
+        <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
+          Track real-time restock alerts and customer notification logs.
+        </p>
       </div>
-
       {/* KPI Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Total Subscribers</span>
-            <div className="w-4 h-4 text-gray-400">
-              <Icon source={NotificationIcon} />
-            </div>
-          </div>
-          <p className="text-3xl font-black text-gray-900 mt-1">{stats.totalSubscribers}</p>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider block">Notifications Sent</span>
-            <div className="w-4 h-4 text-emerald-600">
-              <Icon source={CheckIcon} />
-            </div>
-          </div>
-          <p className="text-3xl font-black text-emerald-900 mt-1">{stats.notificationsSent}</p>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-amber-600 uppercase tracking-wider block">Pending Queue</span>
-            <div className="w-4 h-4 text-amber-600">
-              <Icon source={AlertCircleIcon} />
-            </div>
-          </div>
-          <p className="text-3xl font-black text-amber-900 mt-1">{stats.pending}</p>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-rose-600 uppercase tracking-wider block">Failed / Errors</span>
-            <div className="w-4 h-4 text-rose-600">
-              <Icon source={AlertCircleIcon} />
-            </div>
-          </div>
-          <p className="text-3xl font-black text-rose-900 mt-1">{stats.failed}</p>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
+        <StatCard
+          title="Total Subscribers"
+          value={stats.totalSubscribers}
+          description="Registered restock customers"
+          icon={NotificationIcon}
+          color="purple"
+        />
+        <StatCard
+          title="Notifications Sent"
+          value={stats.notificationsSent}
+          description="Alert emails delivered"
+          icon={CheckCircleIcon}
+          color="success"
+        />
+        <StatCard
+          title="Pending Queue"
+          value={stats.pending}
+          description="Subscribers waiting on inventory"
+          icon={ClockIcon}
+          color="warning"
+        />
+        <StatCard
+          title="Failed / Errors"
+          value={stats.failed}
+          description="Delivery attempts needing retry"
+          icon={AlertCircleIcon}
+          color="danger"
+        />
       </div>
 
       {/* Interactive Email Template Customizer & Live Preview */}
@@ -551,6 +526,7 @@ export default function BackInStockAdminPage() {
 
       {/* Activity / Notification History Table */}
       <Table
+        tableLayout="fixed"
         title="Recent Restock Notifications"
         columns={columns}
         items={formattedItems}

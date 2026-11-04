@@ -13,9 +13,14 @@ import {
   SettingsInput,
   SaveButton,
   NotifyMeModalPreview,
-  EmailTemplateCustomizer,
 } from '@/components/customer-experience/shared';
 import { StandaloneGuard } from '@/components/ui/StandaloneGuard';
+import { StatCard } from '@/components/ui/StatCard';
+import {
+  NotificationIcon,
+  ClockIcon,
+  CheckCircleIcon,
+} from '@shopify/polaris-icons';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 
 function ProductThumbnail({ src, alt, href }: { src?: string | null; alt?: string; href?: string }) {
@@ -175,30 +180,34 @@ export default function NotifyMeAdminPage() {
     loadData(newPage, statusFilter, search);
   };
 
-  const columns: ColumnConfig[] = [
+    const columns: ColumnConfig[] = [
     {
       title: 'Product & SKU',
       key: 'productInfo',
       type: 'react_node',
       width: '32%',
+      align: 'left',
     },
     {
       title: 'Customer Contact',
       key: 'customerContact',
       type: 'react_node',
       width: '24%',
+      align: 'left',
     },
     {
       title: 'Channel',
       key: 'channels',
       type: 'react_node',
       width: '12%',
+      align: 'center',
     },
     {
       title: 'Quantity',
       key: 'quantityBadge',
       type: 'react_node',
       width: '10%',
+      align: 'center',
     },
     {
       title: 'Status',
@@ -210,12 +219,14 @@ export default function NotifyMeAdminPage() {
         CANCELLED: 'critical',
       },
       width: '10%',
+      align: 'center',
     },
     {
       title: 'Registered Date',
       key: 'formattedDate',
       type: 'text',
       width: '12%',
+      align: 'center',
     },
   ];
 
@@ -327,21 +338,29 @@ export default function NotifyMeAdminPage() {
             Capture interested buyers with an out-of-stock waitlist modal on your storefront product pages.
           </p>
         </div>
-
         {/* Quick Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full min-w-0">
-          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs min-w-0">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider truncate">Total Waitlist Registrations</p>
-            <p className="text-2xl font-black text-gray-900 mt-1">{stats.totalSubscribers}</p>
-          </div>
-          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs min-w-0">
-            <p className="text-xs font-bold text-amber-600 uppercase tracking-wider truncate">Pending Notifications</p>
-            <p className="text-2xl font-black text-amber-900 mt-1">{stats.pending}</p>
-          </div>
-          <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-2xs min-w-0">
-            <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider truncate">Back in Stock Alerts Sent</p>
-            <p className="text-2xl font-black text-emerald-900 mt-1">{stats.notified}</p>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
+          <StatCard
+            title="Total Waitlist"
+            value={stats.totalSubscribers}
+            description="Customers waiting for restock"
+            icon={NotificationIcon}
+            color="purple"
+          />
+          <StatCard
+            title="Pending Queue"
+            value={stats.pending}
+            description="Awaiting inventory replenishment"
+            icon={ClockIcon}
+            color="warning"
+          />
+          <StatCard
+            title="Alerts Sent"
+            value={stats.notified}
+            description="Back in stock emails dispatched"
+            icon={CheckCircleIcon}
+            color="success"
+          />
         </div>
 
         {/* Action Bar Under Cards */}
@@ -424,11 +443,6 @@ export default function NotifyMeAdminPage() {
           </div>
         </div>
 
-        {/* Customer Restock Email Customizer & Live Email Preview */}
-        <EmailTemplateCustomizer
-          onSave={() => setToast({ message: 'Email template customized and saved successfully!', type: 'success' })}
-        />
-
         {/* Customer Registrations Table */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
           <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -441,6 +455,7 @@ export default function NotifyMeAdminPage() {
           </div>
 
           <Table
+            tableLayout="fixed"
             columns={columns}
             items={formattedItems}
             loading={tableLoading}
@@ -462,6 +477,7 @@ export default function NotifyMeAdminPage() {
               { label: 'Cancelled', value: 'CANCELLED' },
             ]}
             itemsPerPage={10}
+            paginate={true}
           />
         </div>
       </div>

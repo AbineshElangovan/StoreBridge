@@ -38,7 +38,11 @@ export async function POST(req: NextRequest) {
         },
       });
       console.log(`[Webhook:${topic}] Queued ${webhookId} (Event: ${eventId}) for ${shop}`);
-      processWebhookQueue().catch(console.error);
+      // Await queue processing immediately with a 3.5s race timeout so serverless runtimes don't freeze/drop execution
+      await Promise.race([
+        processWebhookQueue(),
+        new Promise((resolve) => setTimeout(resolve, 3500)),
+      ]).catch((err) => console.error('[Webhook:QueueProcessingError]', err));
     } catch (e: any) {
       if (e.code === 'P2002') {
         console.log(`[Webhook:Ignored] WebhookId: ${webhookId} | Reason: duplicate_webhook_id`);
