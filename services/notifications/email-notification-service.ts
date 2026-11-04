@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import { EmailTemplateStore } from './email-template-store';
 import { APP_NAME } from '@/lib/constants/app';
 
@@ -25,56 +25,93 @@ export interface NotificationResult {
   error?: string;
 }
 
-function getSmtpConfig() {
-  let host = process.env.SMTP_HOST;
-  let user = process.env.SMTP_USER;
-  let pass = process.env.SMTP_PASS;
-  let port = Number(process.env.SMTP_PORT) || 465;
-  let secure = process.env.SMTP_SECURE === 'true' || port === 465;
+export interface SesConfig {
+  fromEmail: string;
+  accessKeyId?: string;
+  secretAccessKey?: string;
+  region: string;
+}
 
-  if (!host || !user || !pass) {
+let cachedSesConfig: SesConfig | null = null;
+
+export function getSesConfig(): SesConfig | null {
+  if (cachedSesConfig) return cachedSesConfig;
+
+  let fromEmail = process.env.SES_MAIL || process.env.AWS_SES_MAIL;
+  let accessKeyId = process.env.SES_ACCESS_KEY_ID || process.env.AWS_SES_ACCESS_KEY_ID;
+  let secretAccessKey = process.env.SES_SECRET_ACCESS_KEY || process.env.AWS_SES_SECRET_ACCESS_KEY;
+  let region = process.env.SES_REGION || process.env.AWS_SES_REGION || process.env.AWS_REGION;
+
+  if (!fromEmail || !accessKeyId || !secretAccessKey) {
     try {
       const fs = require('fs');
       const path = require('path');
-      const envPath = path.join(process.cwd(), '.env');
-      if (fs.existsSync(envPath)) {
-        const content = fs.readFileSync(envPath, 'utf8');
-        const hMatch = content.match(/SMTP_HOST=["']?([^"'\r\n]+)/);
-        const uMatch = content.match(/SMTP_USER=["']?([^"'\r\n]+)/);
-        const pMatch = content.match(/SMTP_PASS=["']?([^"'\r\n]+)/);
-        const portMatch = content.match(/SMTP_PORT=["']?([^"'\r\n]+)/);
-        const secMatch = content.match(/SMTP_SECURE=["']?([^"'\r\n]+)/);
-        if (hMatch) host = hMatch[1];
-        if (uMatch) user = uMatch[1];
-        if (pMatch) pass = pMatch[1];
-        if (portMatch) port = Number(portMatch[1]);
-        if (secMatch) secure = secMatch[1] === 'true';
+      const envFiles = ['.env', '.env.local', '.env.production'];
+      for (const file of envFiles) {
+        const envPath = path.join(process.cwd(), file);
+        if (fs.existsSync(envPath)) {
+          const content = fs.readFileSync(envPath, 'utf8');
+          if (!fromEmail) {
+            const m = content.match(/(?:SES_MAIL|AWS_SES_MAIL)=["']?([^"'\r\n]+)/);
+            if (m) fromEmail = m[1].trim();
+          }
+          if (!accessKeyId) {
+            const m = content.match(/(?:SES_ACCESS_KEY_ID|AWS_SES_ACCESS_KEY_ID)=["']?([^"'\r\n]+)/);
+            if (m) accessKeyId = m[1].trim();
+          }
+          if (!secretAccessKey) {
+            const m = content.match(/(?:SES_SECRET_ACCESS_KEY|AWS_SES_SECRET_ACCESS_KEY)=["']?([^"'\r\n]+)/);
+            if (m) secretAccessKey = m[1].trim();
+          }
+          if (!region) {
+            const m = content.match(/(?:SES_REGION|AWS_SES_REGION|AWS_REGION)=["']?([^"'\r\n]+)/);
+            if (m) region = m[1].trim();
+          }
+        }
       }
     } catch {}
   }
 
-  if (host && user && pass) {
-    return { host, port, secure, user, pass };
+  // Fallback to legacy EMAIL_FROM if SES_MAIL was not set
+  if (!fromEmail && process.env.EMAIL_FROM) {
+    fromEmail = process.env.EMAIL_FROM;
   }
+
+  if (fromEmail) {
+    const bracketMatch = fromEmail.match(/<([^>]+)>/);
+    const cleanFrom = (bracketMatch ? bracketMatch[1] : fromEmail).replace(/["']/g, '').trim();
+
+    cachedSesConfig = {
+      fromEmail: cleanFrom,
+      accessKeyId: accessKeyId ? accessKeyId.trim() : undefined,
+      secretAccessKey: secretAccessKey ? secretAccessKey.trim() : undefined,
+      region: (region || 'us-east-1').trim(),
+    };
+    return cachedSesConfig;
+  }
+
   return null;
 }
 
-let smtpTransporter: any = null;
-function getTransporter() {
-  const config = getSmtpConfig();
+let sesClientInstance: SESClient | null = null;
+
+export function getSesClient(): SESClient | null {
+  const config = getSesConfig();
   if (!config) return null;
-  if (!smtpTransporter) {
-    smtpTransporter = nodemailer.createTransport({
-      host: config.host,
-      port: config.port,
-      secure: config.secure,
-      auth: {
-        user: config.user,
-        pass: config.pass,
-      },
-    });
+
+  if (!sesClientInstance) {
+    const clientParams: any = {
+      region: config.region,
+    };
+    if (config.accessKeyId && config.secretAccessKey) {
+      clientParams.credentials = {
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
+      };
+    }
+    sesClientInstance = new SESClient(clientParams);
   }
-  return smtpTransporter;
+  return sesClientInstance;
 }
 
 function stripHtmlToPlainText(html: string): string {
@@ -107,98 +144,70 @@ async function dispatchEmail(
   const cleanSubject = subject.replace(/[\r\n]+/g, ' ').replace(/["']/g, '').trim();
   const text = (plainText && plainText.trim()) || stripHtmlToPlainText(html);
 
-  // 1. Try Gmail / Custom SMTP if credentials exist
-  const transporter = getTransporter();
-  const smtpConfig = getSmtpConfig();
-  if (transporter && smtpConfig) {
+  const sesConfig = getSesConfig();
+  const client = getSesClient();
+
+  if (sesConfig && client) {
     try {
-      const storeName = fromEmail.replace(/<.*>/, '').replace(/["']/g, '').trim() || 'Online Store';
-      const cleanFrom = `${storeName} <${smtpConfig.user}>`;
+      // Build SES Source header: "Store Name" <AWS_SES_MAIL>
+      let sourceHeader = sesConfig.fromEmail;
+      const storeNameMatch = fromEmail.match(/^"?([^"<]+)"?\s*</);
+      const storeName = storeNameMatch
+        ? storeNameMatch[1].trim()
+        : fromEmail.replace(/<.*>/, '').replace(/["']/g, '').trim();
 
-      const info = await transporter.sendMail({
-        from: cleanFrom,
-        to,
-        replyTo: cleanFrom,
-        subject: cleanSubject,
-        text,
-        html,
-        headers: {
-          'X-Mailer': `${APP_NAME} Mailer`,
-          'X-Priority': '3',
-        },
-      });
-      console.log(`[EmailNotificationService:SMTP:Success] To: ${to} | ID: ${info.messageId}`);
-      return { success: true, messageId: info.messageId };
-    } catch (smtpErr: any) {
-      console.error(`[EmailNotificationService:SMTP:Error] Failed to send to ${to}:`, smtpErr.message);
-    }
-  }
-
-  // 2. Try Resend API
-  const resendKey = getResendApiKey();
-  if (resendKey) {
-    try {
-      const response = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${resendKey}`,
-        },
-        body: JSON.stringify({
-          from: fromEmail.includes('@gmail.com') ? 'onboarding@resend.dev' : fromEmail,
-          to,
-          reply_to: smtpConfig?.user || fromEmail,
-          subject: cleanSubject,
-          text,
-          html,
-        }),
-      });
-
-      if (!response.ok) {
-        const errData = await response.text();
-        throw new Error(`Resend API error: ${errData}`);
+      if (storeName && storeName !== sesConfig.fromEmail) {
+        sourceHeader = `"${storeName.replace(/"/g, '')}" <${sesConfig.fromEmail}>`;
       }
 
-      const data = await response.json();
-      console.log(`[EmailNotificationService:Resend:Success] To: ${to} | ID: ${data.id}`);
-      return { success: true, messageId: data.id };
-    } catch (resendErr: any) {
-      console.error(`[EmailNotificationService:Resend:Error] Failed to send to ${to}:`, resendErr.message);
+      const command = new SendEmailCommand({
+        Source: sourceHeader,
+        Destination: {
+          ToAddresses: [to],
+        },
+        Message: {
+          Subject: {
+            Data: cleanSubject,
+            Charset: 'UTF-8',
+          },
+          Body: {
+            Html: {
+              Data: html,
+              Charset: 'UTF-8',
+            },
+            Text: {
+              Data: text,
+              Charset: 'UTF-8',
+            },
+          },
+        },
+        ReplyToAddresses: [sesConfig.fromEmail],
+      });
+
+      const response = await client.send(command);
+      console.log(`[EmailNotificationService:SES:Success] To: ${to} | ID: ${response.MessageId}`);
+      return { success: true, messageId: response.MessageId };
+    } catch (sesErr: any) {
+      console.error(`[EmailNotificationService:SES:Error] Failed to send to ${to}:`, sesErr.message);
       return {
         success: false,
-        error: resendErr.message || 'Email delivery failed',
+        error: sesErr.message || 'AWS SES email delivery failed',
       };
     }
   }
 
-  console.log(`[EmailNotificationService:Dispatched] To: ${to} | Subject: "${cleanSubject}" | Target: ${fallbackUrl}`);
+  console.warn(`[EmailNotificationService:Simulated] AWS SES credentials not configured. Dispatched to: ${to} | Subject: "${cleanSubject}" | Target: ${fallbackUrl}`);
   return {
     success: true,
-    messageId: `em_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+    messageId: `ses_sim_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
   };
 }
 
-function getResendApiKey(): string | null {
-  if (process.env.RESEND_API_KEY) return process.env.RESEND_API_KEY;
-  try {
-    const fs = require('fs');
-    const path = require('path');
-    const envPath = path.join(process.cwd(), '.env');
-    if (fs.existsSync(envPath)) {
-      const content = fs.readFileSync(envPath, 'utf8');
-      const match = content.match(/RESEND_API_KEY=["']?([^"'\r\n]+)/);
-      if (match) return match[1];
-    }
-  } catch {}
-  return null;
-}
-
 function getEmailFrom(storeDisplayName?: string): string {
-  const envFrom = process.env.EMAIL_FROM;
-  const targetEmail = envFrom ? (envFrom.match(/<([^>]+)>/)?.[1] || envFrom.replace(/.*<|>.*|"/g, '').trim()) : 'onboarding@resend.dev';
-  const cleanEmail = targetEmail.includes('@') ? targetEmail : 'onboarding@resend.dev';
+  const sesConfig = getSesConfig();
+  const cleanEmail = sesConfig?.fromEmail || 'notifications@example.com';
   const brandName = storeDisplayName?.trim() || 'Online Store';
-  return `${brandName} <${cleanEmail}>`;
+  return `"${brandName.replace(/"/g, '')}" <${cleanEmail}>`;
 }
 
 const VERIFIED_PRODUCT_FALLBACK_IMAGE = 'https://cdn.shopify.com/s/files/1/0758/9848/6975/files/classic-cotton-t-shirt.png?v=1786435001';
@@ -646,6 +655,20 @@ export class EmailNotificationService {
     const preorderButtonLabel = `${rawPreorderBtn} &rarr;`;
     const preorderButtonColor = preorderTmpl.buttonColor || '#111827';
 
+    const plainText = [
+      `Hi ${greetingName},`,
+      ``,
+      preorderBodyMessage,
+      ``,
+      `Order Number: ${orderDisplay}`,
+      `Product: ${fullTitle}`,
+      `Price: ${displayPrice}`,
+      `View Order: ${fallbackUrl}`,
+      ``,
+      `You received this message regarding your pre-order on ${storeDisplayName}.`,
+      `© ${new Date().getFullYear()} ${storeDisplayName}. All rights reserved.`,
+    ].join('\n');
+
     const html = `
 <!DOCTYPE html>
 <html>
@@ -763,7 +786,7 @@ export class EmailNotificationService {
     `;
 
     const fromEmail = getEmailFrom(storeDisplayName);
-    return dispatchEmail(to, fromEmail, subject, html, fallbackUrl);
+    return dispatchEmail(to, fromEmail, subject, html, fallbackUrl, plainText);
   }
 
   /**
@@ -781,7 +804,35 @@ export class EmailNotificationService {
     const greetingName = customerName && customerName.trim() ? customerName.trim() : 'Customer';
     const orderDisplay = orderNumber ? (orderNumber.startsWith('#') ? orderNumber : `#${orderNumber}`) : '#1234';
 
-    const subject = `Pre-order Confirmed: Order ${orderDisplay} - ${storeDisplayName}`;
+    let emailSubject = params.subject?.trim();
+    if (emailSubject) {
+      emailSubject = emailSubject
+        .replace(/\{\{order_number\}\}/gi, orderDisplay)
+        .replace(/\{\{product_title\}\}/gi, fullTitle)
+        .replace(/\{\{product\}\}/gi, fullTitle)
+        .replace(/\{\{store_name\}\}/gi, storeDisplayName)
+        .replace(/\{\{store\}\}/gi, storeDisplayName)
+        .replace(/["']/g, '');
+    } else {
+      emailSubject = `Pre-order Confirmed: Order ${orderDisplay} - ${storeDisplayName}`;
+    }
+
+    const subject = emailSubject;
+
+    const plainText = [
+      `Hi ${greetingName},`,
+      ``,
+      `Your pre-order has been successfully placed at ${storeDisplayName}.`,
+      ``,
+      `Order Number: ${orderDisplay}`,
+      `Product: ${fullTitle}`,
+      `Price: ${displayPrice}`,
+      `Status: Confirmed • Awaiting Restock`,
+      `View Order Details: ${fallbackUrl}`,
+      ``,
+      `You are receiving this pre-order confirmation because you completed a pre-order on ${storeDisplayName}.`,
+      `© ${new Date().getFullYear()} ${storeDisplayName}. All rights reserved.`,
+    ].join('\n');
 
     const html = `
 <!DOCTYPE html>
@@ -914,7 +965,7 @@ export class EmailNotificationService {
     `;
 
     const fromEmail = getEmailFrom(storeDisplayName);
-    return dispatchEmail(to, fromEmail, subject, html, fallbackUrl);
+    return dispatchEmail(to, fromEmail, subject, html, fallbackUrl, plainText);
   }
 }
 

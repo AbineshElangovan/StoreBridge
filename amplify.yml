@@ -6,7 +6,7 @@ frontend:
         - npm ci --cache .npm --prefer-offline
     build:
       commands:
-        - env | grep -E '^(SHOPIFY_|DATABASE_|DIRECT_|ENCRYPTION_|RESEND_|SMTP_|NEXT_PUBLIC_|AWS_)' >> .env.production
+        - env | grep -E '^(SHOPIFY_|DATABASE_|DIRECT_|ENCRYPTION_|NEXT_PUBLIC_|SES_|AWS_)' >> .env.production
         - npx prisma generate
         - npm run build
   artifacts:
