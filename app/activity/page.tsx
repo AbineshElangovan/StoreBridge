@@ -1,5 +1,6 @@
 "use client";
 
+import { PageHeader } from '@/components/ui/PageHeader';
 import { useState, useCallback, useEffect } from "react";
 import {
   ResourceList,

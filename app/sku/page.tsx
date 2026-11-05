@@ -1,4 +1,5 @@
 "use client";
+import { PageHeader } from '@/components/ui/PageHeader';
 import React, { useState, useEffect, useRef } from "react";
 import { shopifyFetch } from "@/lib/shopify/Client";
 import { Loading } from "@/components/common";
@@ -124,15 +125,10 @@ export default function SkuSettingsPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden space-y-6">
       {/* Header Banner */}
-      <div className="border-b border-gray-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">
-            SKU Management & Variant Generator
-          </h1>
-          <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
-          Build dynamic SKUs by variant with flexible global prefix settings.          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="SKU Management & Variant Generator"
+        subtitle="Build dynamic SKUs by variant with flexible global prefix settings."
+      />
 
       {!hasWriteAccess && (
         <div className="p-4 rounded-md font-medium shadow-sm border bg-red-50 text-red-800 border-red-200 text-xs sm:text-sm flex items-center gap-2">

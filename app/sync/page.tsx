@@ -1,5 +1,6 @@
 "use client";
 
+import { PageHeader } from '@/components/ui/PageHeader';
 import React, { useState, useEffect } from 'react';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import { useStoreContext } from '@/components/providers/StoreProvider';
@@ -94,16 +95,15 @@ export default function SyncPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden">
-      <div className="mb-6 pb-2">
-        <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">
-          {isStandalone ? 'Product Import' : 'Import & Sync'}
-        </h1>
-        <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
-          {isStandalone 
+      <PageHeader
+        title={isStandalone ? 'Product Import' : 'Import & Sync'}
+        subtitle={
+          isStandalone 
             ? 'Import products and inventory from CSV or Excel files into your store catalog.' 
-            : 'Manage product imports and monitor synchronization between your stores.'}
-        </p>
-      </div>
+            : 'Manage product imports and monitor synchronization between your stores.'
+        }
+        className="mb-6"
+      />
 
       {!isStandalone && (
         <SyncStats 

@@ -16,6 +16,7 @@ import {
 } from '@/components/customer-experience/shared';
 import { StandaloneGuard } from '@/components/ui/StandaloneGuard';
 import { StatCard } from '@/components/ui/StatCard';
+import { PageHeader } from '@/components/ui/PageHeader';
 import {
   NotificationIcon,
   ClockIcon,
@@ -255,16 +256,11 @@ export default function NotifyMeAdminPage() {
               </p>
             )}
             <p className="text-[11px] text-gray-500 truncate">
-              {r.variantTitle && r.variantTitle !== 'Default Title'
-                ? r.variantTitle
-                : (r.shopifyVariantId ? `Var ID: ${r.shopifyVariantId.replace(/^gid:\/\/shopify\/ProductVariant\//, '')}` : '')}
+              {r.variantTitle && r.variantTitle !== 'Default Title' ? r.variantTitle : ''}
             </p>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
                 SKU: {r.sku || '-'}
-              </span>
-              <span className="text-[10px] text-gray-400 font-mono">
-                ID: {r.shopifyVariantId?.replace(/^gid:\/\/shopify\/ProductVariant\//, '') || '-'}
               </span>
             </div>
           </div>
@@ -332,12 +328,10 @@ export default function NotifyMeAdminPage() {
         )}
 
         {/* Page Header */}
-        <div>
-          <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Notify Me</h1>
-          <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
-            Capture interested buyers with an out-of-stock waitlist modal on your storefront product pages.
-          </p>
-        </div>
+        <PageHeader
+          title="Notify Me"
+          subtitle="Capture interested buyers with an out-of-stock waitlist modal on your storefront product pages."
+        />
         {/* Quick Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
           <StatCard

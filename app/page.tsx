@@ -1,5 +1,6 @@
 "use client";
 
+import { PageHeader } from '@/components/ui/PageHeader';
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -216,18 +217,14 @@ export default function DashboardPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden">
       <div className="flex flex-col gap-8 min-w-0 w-full">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">
-              Inventory Dashboard
-            </h1>
-            <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
-              {isStandalone
-                ? "Live overview of your Shopify store."
-                : "Live overview of your connected Shopify store."}
-            </p>
-          </div>
-        </div>
+        <PageHeader
+          title="Inventory Dashboard"
+          subtitle={
+            isStandalone
+              ? "Live overview of your Shopify store."
+              : "Live overview of your connected Shopify store."
+          }
+        />
 
         <DashboardCards stats={stats} lowStockThreshold={lowStockThreshold} isStandalone={isStandalone} />
 

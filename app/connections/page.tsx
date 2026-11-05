@@ -1,4 +1,5 @@
 "use client";
+import { PageHeader } from '@/components/ui/PageHeader';
 import React, { useState, useEffect } from 'react';
 import { Table, Loading, StoreLogo } from '@/components/common';
 import {
@@ -312,12 +313,11 @@ export default function ConnectionsPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
-        <div>
-          <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Store Connections</h1>
-          <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">One master, unlimited connected stores</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Store Connections"
+        subtitle="One master, unlimited connected stores"
+        className="mb-6 sm:mb-8"
+      />
 
       {!isMaster && currentStoreUniqueId && (
         <div className="mb-6 sm:mb-8 p-4 sm:p-6 bg-white border border-primary-200 rounded-2xl shadow-sm text-center">

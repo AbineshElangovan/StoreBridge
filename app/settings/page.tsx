@@ -1,5 +1,6 @@
 "use client";
 
+import { PageHeader } from '@/components/ui/PageHeader';
 import React, { useState, useEffect } from 'react';
 import { Input, Checkbox, Select } from '@/components/forms';
 import { useRouter } from 'next/navigation';
@@ -416,16 +417,10 @@ export default function SettingsPage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden">
       <div className="flex flex-col gap-6 sm:gap-8">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">
-              Settings
-            </h1>
-            <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
-              Manage store connections, threshold alerts, and synchronization rules.
-            </p>
-          </div>
-        </div>
+        <PageHeader
+          title="Settings"
+          subtitle="Manage store connections, threshold alerts, and synchronization rules."
+        />
 
         {/* ── 4-SECTION NAVIGATION BAR TABS ── */}
         <PageTabs

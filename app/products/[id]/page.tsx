@@ -1,5 +1,6 @@
 'use client';
 
+import { PageHeader } from '@/components/ui/PageHeader';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -172,14 +173,11 @@ export default function ProductDetailsPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full min-w-0 overflow-x-hidden mb-16">
       {/* Top Page Heading & Subheading */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-gray-200 mb-6 gap-4">
-        <div>
-          <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Product Details</h1>
-          <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
-            Real-time inventory status, variant pricing, performance analytics, and store synchronization.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Product Details"
+        subtitle="Real-time inventory status, variant pricing, performance analytics, and store synchronization."
+        className="mb-6"
+      />
 
       {/* Reusable Product Header */}
       <ProductHeader

@@ -26,9 +26,9 @@
         "optional_scopes": [],
         "use_legacy_install_flow": false,
         "redirect_url_allowlist": [
-          "https://version-control.d38r9lc5j1o8oj.amplifyapp.com/api/auth/callback",
+          "https://dz50mdfc-3000.inc1.devtunnels.ms/api/auth/callback",
           "https://store-bridge-yemi.vercel.app/api/auth/callback",
-          "https://dz50mdfc-3000.inc1.devtunnels.ms/api/auth/callback"
+          "https://version-control.d38r9lc5j1o8oj.amplifyapp.com/api/auth/callback"
         ]
       }
     },

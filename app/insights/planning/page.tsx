@@ -1,5 +1,6 @@
 'use client';
 
+import { PageHeader } from '@/components/ui/PageHeader';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { shopifyFetch } from '@/lib/shopify/Client';
@@ -183,14 +184,11 @@ export default function InventoryPlanningPage() {
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full min-w-0 overflow-x-hidden">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">
-          Inventory Planning
-        </h1>
-        <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
-          What is likely to happen next, and what you should prepare for.
-        </p>
-      </div>
+      <PageHeader
+        title="Inventory Planning"
+        subtitle="What is likely to happen next, and what you should prepare for."
+        className="mb-6"
+      />
 
       {/* Reusable Stats Cards */}
       <PlanningStats stats={stats} />

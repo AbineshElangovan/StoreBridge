@@ -21,6 +21,7 @@ import { PreorderCollectionSelector } from '@/components/preorder/PreorderCollec
 import { StandaloneGuard } from '@/components/ui/StandaloneGuard';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 import { PageTabs, PageTab } from '@/components/ui/PageTabs';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { PolarisSelect } from '@/components/common';
 import { PreorderPerformanceCard } from '@/components/dashboard/PreorderPerformanceCard';
 import { APP_NAME } from '@/lib/constants/app';
@@ -367,12 +368,10 @@ export default function PreorderAdminPage() {
       )}
 
       {/* Page Header */}
-      <div>
-        <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Pre-order</h1>
-        <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
-          Allow customers to pre-order items when stock drops to or below the configured inventory threshold.
-        </p>
-      </div>
+      <PageHeader
+        title="Pre-order"
+        subtitle="Allow customers to pre-order items when stock drops to or below the configured inventory threshold."
+      />
 
       {/* Pre-order Performance Overview: 4 database-driven cards (Total Pre-orders, Pending Pre-orders, Pre-order Revenue, Pending Revenue) at the top of the navbar */}
       <PreorderPerformanceCard metrics={preorderMetrics || undefined} />

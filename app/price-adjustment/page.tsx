@@ -1,5 +1,6 @@
 "use client";
 
+import { PageHeader } from '@/components/ui/PageHeader';
 import React, { useState, useEffect } from 'react';
 import { Icon } from '@shopify/polaris';
 import { XIcon } from '@shopify/polaris-icons';

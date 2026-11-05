@@ -1,3 +1,4 @@
+import { PageHeader } from '@/components/ui/PageHeader';
 import { prisma } from '@/lib/db/prisma';
 import Link from 'next/link';
 import { getProductUrl } from '@/lib/utils/productUrl';
@@ -401,24 +402,25 @@ export default async function DashboardPage(props: DashboardPageProps) {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full overflow-x-hidden">
       <div className="flex flex-col min-w-0 w-full">
       {/* Top Bar matching new layout */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-6 border-b border-gray-200 mb-8 gap-4 sm:gap-0">
-          <div>
-            <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Dashboard</h1>
-            <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">Everything syncing across {stores.length} stores, in real time</p>
-          </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-full text-xs font-medium border border-green-100">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-            Live · {timeStr}
-          </div>
-          <button className="flex items-center gap-2 px-4 py-1.5 bg-[var(--color-primary,#a7cd18)] text-[var(--color-primary-text,#000000)] font-black text-sm rounded-lg hover:bg-[var(--color-primary-hover,#96bb13)] border border-[var(--theme-sidebar-border,#91b212)] transition-colors shadow-sm cursor-pointer">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-current" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Run sync
-          </button>
-        </div>
-      </div>
+        <PageHeader
+          title="Dashboard"
+          subtitle={`Everything syncing across ${stores.length} stores, in real time`}
+          className="mb-8"
+          actions={
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-full text-xs font-medium border border-green-100">
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                Live · {timeStr}
+              </div>
+              <button className="flex items-center gap-2 px-4 py-1.5 bg-[var(--color-primary,#a7cd18)] text-[var(--color-primary-text,#000000)] font-black text-sm rounded-lg hover:bg-[var(--color-primary-hover,#96bb13)] border border-[var(--theme-sidebar-border,#91b212)] transition-colors shadow-sm cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-current" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Run sync
+              </button>
+            </div>
+          }
+        />
 
       <div className="flex flex-col gap-8">
         {/* ── Page heading ── */}

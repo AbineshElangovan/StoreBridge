@@ -1,5 +1,6 @@
 'use client';
 
+import { PageHeader } from '@/components/ui/PageHeader';
 import React, { useState, useEffect, useCallback } from 'react';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import { PageLoader } from '@/components/common/PageLoader';
@@ -282,16 +283,11 @@ export default function NotificationsPage() {
   return (
     <Page>
       {/* Custom Green Themed Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">
-            Notifications
-          </h1>
-          <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
-            Real-time alerts for inventory updates, stock thresholds, and store sync events.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Notifications"
+        subtitle="Real-time alerts for inventory updates, stock thresholds, and store sync events."
+        className="mb-6"
+      />
 
       <ConfirmToast
         open={showDeleteAllConfirm}

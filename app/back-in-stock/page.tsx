@@ -21,6 +21,7 @@ import {
 } from '@shopify/polaris-icons';
 import { StandaloneGuard } from '@/components/ui/StandaloneGuard';
 import { StatCard } from '@/components/ui/StatCard';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 import { useTheme } from '@/components/providers/ThemeContext';
 import { EmailTemplateCustomizer } from '@/components/customer-experience/shared';
@@ -301,7 +302,7 @@ export default function BackInStockAdminPage() {
               </p>
             )}
             <p className="text-[11px] text-gray-500 truncate">
-              {job.variantTitle && job.variantTitle !== 'Default Title' ? job.variantTitle : (job.shopifyVariantId ? `ID: ${job.shopifyVariantId}` : '')}
+              {job.variantTitle && job.variantTitle !== 'Default Title' ? job.variantTitle : ''}
             </p>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
@@ -478,12 +479,10 @@ export default function BackInStockAdminPage() {
       )}
 
       {/* Page Title Header */}
-      <div className="pb-6 border-b border-gray-200">
-        <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">Back in Stock Monitor</h1>
-        <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
-          Track real-time restock alerts and customer notification logs.
-        </p>
-      </div>
+      <PageHeader
+        title="Back in Stock Monitor"
+        subtitle="Track real-time restock alerts and customer notification logs."
+      />
       {/* KPI Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
         <StatCard
