@@ -1,3 +1,4 @@
+import { logUserActivity } from '@/lib/activity/user-activity';
 import { NextRequest, NextResponse } from "next/server";
 import { authenticate } from "@/lib/shopify/authenticate";
 import { prisma } from "@/lib/db/prisma";
@@ -420,6 +421,17 @@ export async function PUT(req: NextRequest) {
       } catch {}
     }
     
+    await logUserActivity({
+      action: 'STORE_SETTINGS_UPDATED',
+      shopDomain: store.shopDomain,
+      storeId: selectedStoreId,
+      merchantId: store.shopifyStoreId || store.id,
+      actorType: 'SHOPIFY_USER',
+      entityType: 'SETTINGS',
+      description: `Updated store thresholds: Low Stock = ${lowStockThreshold ?? 'unchanged'}, Best Seller = ${bestSellerThreshold ?? 'unchanged'}, Dead Stock = ${deadStockDays ?? 'unchanged'} days.`,
+      metadata: { lowStockThreshold, bestSellerThreshold, deadStockDays },
+    });
+
     const currentStoreRefreshed = await prisma.store.findUnique({ where: { id: store.id } });
     const refreshedStores = await getAuthorizedStores(store);
 

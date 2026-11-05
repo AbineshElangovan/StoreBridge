@@ -1,3 +1,4 @@
+import { logUserActivity } from '@/lib/activity/user-activity';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticate, handleApiError } from '@/lib/shopify/authenticate';
 import { PreorderService } from '@/services/preorder/preorder-service';
@@ -219,6 +220,17 @@ export async function POST(req: NextRequest) {
     }
 
     const updated = await PreorderService.upsertConfig(store.id, parsed.data);
+
+    await logUserActivity({
+      action: 'PREORDER_SETTINGS_CHANGED',
+      shopDomain: store.shopDomain,
+      storeId: store.id,
+      merchantId: store.shopifyStoreId || store.id,
+      actorType: 'SHOPIFY_USER',
+      entityType: 'SETTINGS',
+      description: `Pre-order updated: ${parsed.data.enabled !== undefined ? (parsed.data.enabled ? 'Enabled' : 'Disabled') : 'Configured'} (Mode: ${parsed.data.selectionMode || 'ALL_PRODUCTS'}).`,
+      metadata: { enabled: parsed.data.enabled, selectionMode: parsed.data.selectionMode },
+    });
     const effectiveDiscountType = (updated as any).discountType || parsed.data.discountType || 'none';
     const effectiveDiscountValue = (updated as any).discountValue !== undefined ? Number((updated as any).discountValue) : Number(parsed.data.discountValue || 0);
 

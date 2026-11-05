@@ -69,6 +69,7 @@ model Store {
   notifyMeRegistrations      NotifyMeRegistration[]
   notificationJobs           NotificationJob[]
   preorderRecords            PreorderRecord[]
+  userActivities             UserActivity[]
 
   @@map("stores")
 }
@@ -698,3 +699,40 @@ model PreorderRecord {
   @@map("preorder_records")
 }
 
+// -----------------------------------------------------------------------------
+// USER ACTIVITY (INTERNAL AUDIT LOGS)
+// -----------------------------------------------------------------------------
+
+enum ActorType {
+  SHOPIFY_USER
+  WEBHOOK
+  SYSTEM
+  UNKNOWN
+}
+
+model UserActivity {
+  id             String    @id @default(uuid())
+  idempotencyKey String?   @unique
+  merchantId     String?
+  storeId        String?
+  shopDomain     String
+  userId         String?
+  userType       String?   @default("UNKNOWN")
+  actorType      ActorType @default(UNKNOWN)
+  action         String
+  entityType     String?
+  entityId       String?
+  description    String    @db.Text
+  metadata       Json?
+  createdAt      DateTime  @default(now())
+
+  store Store? @relation(fields: [storeId], references: [id], onDelete: SetNull)
+
+  @@index([storeId])
+  @@index([merchantId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([shopDomain])
+  @@map("user_activities")
+}

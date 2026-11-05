@@ -1,3 +1,4 @@
+import { logUserActivity } from '@/lib/activity/user-activity';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticate, handleApiError } from '@/lib/shopify/authenticate';
 import { NotifyMeService } from '@/services/notify-me/notify-me-service';
@@ -71,6 +72,17 @@ export async function POST(req: NextRequest) {
     }
 
     const updated = await NotifyMeService.updateSettings(store.id, parsed.data);
+
+    await logUserActivity({
+      action: 'NOTIFY_ME_SETTINGS_CHANGED',
+      shopDomain: store.shopDomain,
+      storeId: store.id,
+      merchantId: store.shopifyStoreId || store.id,
+      actorType: 'SHOPIFY_USER',
+      entityType: 'SETTINGS',
+      description: `Back-in-stock modal updated: ${parsed.data.enabled !== undefined ? (parsed.data.enabled ? 'Enabled' : 'Disabled') : 'Configured'} (Email alerts: ${parsed.data.notifyEmail ? 'ON' : 'OFF'}).`,
+      metadata: { enabled: parsed.data.enabled, notifyEmail: parsed.data.notifyEmail },
+    });
 
     return NextResponse.json({
       success: true,

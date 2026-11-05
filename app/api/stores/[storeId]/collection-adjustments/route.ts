@@ -1,3 +1,4 @@
+import { logUserActivity } from '@/lib/activity/user-activity';
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
 import { getAdminClient } from "@/lib/shopify/admin";
@@ -160,6 +161,20 @@ export async function PUT(
     await applyPriceAdjustmentToStore(storeId).catch((err: any) => {
       console.error(`[CollectionAdjustments:PUT] Failed to apply price adjustments for store ${storeId}:`, err.message);
     });
+
+    const targetStoreRec = await prisma.store.findUnique({ where: { id: storeId }, select: { shopDomain: true, shopifyStoreId: true } });
+    if (targetStoreRec) {
+      await logUserActivity({
+        action: 'PRICE_ADJUSTMENTS_UPDATED',
+        shopDomain: targetStoreRec.shopDomain,
+        storeId,
+        merchantId: targetStoreRec.shopifyStoreId || storeId,
+        actorType: 'SHOPIFY_USER',
+        entityType: 'PRICE_ADJUSTMENT',
+        description: `Collection price adjustments updated for ${updatedAdjustments.length} collections.`,
+        metadata: { adjustmentCount: updatedAdjustments.length },
+      });
+    }
 
     return NextResponse.json({ success: true, count: updatedAdjustments.length });
   } catch (error: any) {

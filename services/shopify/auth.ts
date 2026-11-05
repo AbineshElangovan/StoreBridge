@@ -1,3 +1,4 @@
+import { logUserActivity } from '@/lib/activity/user-activity';
 import crypto from 'crypto';
 import { Session } from '@shopify/shopify-api';
 import { shopify } from "@/lib/shopify";
@@ -387,6 +388,18 @@ export async function handleAuthCallback(req: NextRequest) {
     });
 
     return store;
+  });
+
+  await logUserActivity({
+    action: isReinstall ? 'STORE_RECONNECTED' : 'STORE_CONNECTED',
+    shopDomain: normalizedShop,
+    storeId: storedShop.id,
+    merchantId: storedShop.shopifyStoreId || storedShop.id,
+    actorType: 'SHOPIFY_USER',
+    entityType: 'STORE',
+    entityId: storedShop.id,
+    description: `Shopify store ${normalizedShop} (${shopLabel}) successfully ${isReinstall ? 'reconnected' : 'installed & connected'}.`,
+    metadata: { isMaster: storedShop.isMaster, label: shopLabel },
   });
 
   console.log("[OAuth] Store record and audit log persisted successfully:", {

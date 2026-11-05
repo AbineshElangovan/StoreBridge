@@ -1,3 +1,4 @@
+import { logUserActivity } from '@/lib/activity/user-activity';
 import { prisma } from "@/lib/db/prisma";
 import { WebhookStatus } from "@prisma/client";
 import { createNotification } from "@/services/notification-service";
@@ -157,15 +158,55 @@ export async function processWebhookQueue() {
         switch (job.topic) {
           case 'products/create':
             await handleProductsCreate(job.shopDomain, payload, job.webhookId);
+            await logUserActivity({
+              action: 'PRODUCT_CREATED',
+              shopDomain: job.shopDomain,
+              actorType: 'WEBHOOK',
+              idempotencyKey: `wh_prod_create_${job.webhookId}`,
+              entityType: 'PRODUCT',
+              entityId: String(payload?.id || ''),
+              description: `Product "${payload?.title || 'Untitled'}" created via Shopify webhook in ${job.shopDomain}`,
+              metadata: { productId: payload?.id, title: payload?.title, variantsCount: payload?.variants?.length },
+            });
             break;
           case 'products/update':
             await handleProductsUpdate(job.shopDomain, payload, job.webhookId);
+            await logUserActivity({
+              action: 'PRODUCT_UPDATED',
+              shopDomain: job.shopDomain,
+              actorType: 'WEBHOOK',
+              idempotencyKey: `wh_prod_update_${job.webhookId}`,
+              entityType: 'PRODUCT',
+              entityId: String(payload?.id || ''),
+              description: `Product "${payload?.title || 'Untitled'}" updated via Shopify webhook in ${job.shopDomain}`,
+              metadata: { productId: payload?.id, title: payload?.title, variantsCount: payload?.variants?.length },
+            });
             break;
           case 'products/delete':
             await handleProductsDelete(job.shopDomain, payload, job.webhookId);
+            await logUserActivity({
+              action: 'PRODUCT_DELETED',
+              shopDomain: job.shopDomain,
+              actorType: 'WEBHOOK',
+              idempotencyKey: `wh_prod_delete_${job.webhookId}`,
+              entityType: 'PRODUCT',
+              entityId: String(payload?.id || ''),
+              description: `Product ID ${payload?.id || 'Unknown'} deleted via Shopify webhook in ${job.shopDomain}`,
+              metadata: { productId: payload?.id },
+            });
             break;
           case 'inventory_levels/update':
             await handleInventoryUpdate(job.shopDomain, payload, job.webhookId);
+            await logUserActivity({
+              action: 'INVENTORY_UPDATED',
+              shopDomain: job.shopDomain,
+              actorType: 'WEBHOOK',
+              idempotencyKey: `wh_inv_update_${job.webhookId}`,
+              entityType: 'INVENTORY',
+              entityId: String(payload?.inventory_item_id || ''),
+              description: `Inventory level updated for item ${payload?.inventory_item_id} (Available: ${payload?.available}) in ${job.shopDomain}`,
+              metadata: { inventoryItemId: payload?.inventory_item_id, locationId: payload?.location_id, available: payload?.available },
+            });
             break;
           default:
             console.log(`[WebhookWorker] Unhandled topic: ${job.topic}`);

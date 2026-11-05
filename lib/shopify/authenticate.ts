@@ -1,3 +1,14 @@
+export interface AuthenticatedSession {
+  shop: string;
+  store: any;
+  sessionStore: any;
+  isMasterSession: boolean;
+  isStandalone: boolean;
+  sessionUser?: {
+    userId: string | null;
+    userType: string;
+  };
+}
 import { NextRequest, NextResponse } from "next/server";
 import { shopify } from "@/lib/shopify";
 import { prisma } from "@/lib/db/prisma";
@@ -55,6 +66,8 @@ export async function authenticate(req: NextRequest) {
   }
 
   // Helper to match store in DB by domain, label, or ID
+  let verifiedUserId: string | null = null;
+
   async function findStore(shopStr: string | null) {
     if (!shopStr) return null;
     const clean = shopStr.trim().toLowerCase();
@@ -94,6 +107,9 @@ export async function authenticate(req: NextRequest) {
   if (token && token !== "dev_fallback_token") {
     try {
       const payload = await shopify.session.decodeSessionToken(token);
+      if (payload?.sub) {
+        verifiedUserId = String(payload.sub);
+      }
       if (payload?.dest) {
         const tokenShop = payload.dest.replace(/^https?:\/\//, "");
         const sessionStore = await findStore(tokenShop);
@@ -119,6 +135,7 @@ export async function authenticate(req: NextRequest) {
                     sessionStore,
                     isMasterSession: true,
                     isStandalone: targetStandalone,
+                    sessionUser: { userId: verifiedUserId, userType: 'UNKNOWN' },
                   };
                 }
 
@@ -131,6 +148,7 @@ export async function authenticate(req: NextRequest) {
                     sessionStore: targetStore,
                     isMasterSession: false,
                     isStandalone: true,
+                    sessionUser: { userId: verifiedUserId, userType: 'UNKNOWN' },
                   };
                 }
               }
@@ -141,6 +159,7 @@ export async function authenticate(req: NextRequest) {
               sessionStore,
               isMasterSession: true,
               isStandalone: false,
+              sessionUser: { userId: verifiedUserId, userType: 'UNKNOWN' },
             };
           } else {
             // CONNECTED STORE SESSION:
@@ -152,6 +171,7 @@ export async function authenticate(req: NextRequest) {
               sessionStore,
               isMasterSession: false,
               isStandalone: standalone,
+              sessionUser: { userId: verifiedUserId, userType: 'UNKNOWN' },
             };
           }
         }
@@ -190,12 +210,13 @@ export async function authenticate(req: NextRequest) {
           const targetStandalone = await isStoreStandalone(targetStore.id);
           if (targetStandalone) {
             return {
-              shop: targetStore.shopDomain,
-              store: targetStore,
-              sessionStore: targetStore,
-              isMasterSession: false,
-              isStandalone: true,
-            };
+                    shop: targetStore.shopDomain,
+                    store: targetStore,
+                    sessionStore: targetStore,
+                    isMasterSession: false,
+                    isStandalone: true,
+                    sessionUser: { userId: verifiedUserId, userType: 'UNKNOWN' },
+                  };
           }
         }
       }
@@ -238,6 +259,7 @@ export async function authenticate(req: NextRequest) {
       sessionStore: store,
       isMasterSession: Boolean(store.isMaster),
       isStandalone: standalone,
+      sessionUser: { userId: verifiedUserId, userType: 'UNKNOWN' },
     };
   }
 

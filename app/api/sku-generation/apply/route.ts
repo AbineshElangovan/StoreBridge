@@ -1,3 +1,4 @@
+import { logUserActivity } from '@/lib/activity/user-activity';
 import { NextRequest, NextResponse } from "next/server";
 import { authenticate, handleApiError } from "@/lib/shopify/authenticate";
 import { applySkuGeneration } from "@/services/sku/sku-application-service";
@@ -22,6 +23,18 @@ export async function POST(req: NextRequest) {
       customPrice,
       customQuantity
     );
+
+    await logUserActivity({
+      action: 'SKU_GENERATED',
+      shopDomain: store.shopDomain,
+      storeId: store.id,
+      merchantId: store.shopifyStoreId || store.id,
+      actorType: 'SHOPIFY_USER',
+      entityType: 'SKU',
+      entityId: shopifyProductId,
+      description: `SKU generation applied for product ${shopifyProductId}`,
+      metadata: { shopifyProductId, customPrice, customQuantity },
+    });
 
     return NextResponse.json(result);
   } catch (err: any) {

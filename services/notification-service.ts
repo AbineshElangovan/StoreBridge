@@ -157,27 +157,29 @@ export async function createNotification(params: CreateNotificationParams) {
     });
     const isStandalone = !store.isMaster && connectionCount === 0;
 
-    // Standalone stores cannot receive CONNECTED_STORE_UPDATE
-    if (type === 'CONNECTED_STORE_UPDATE') {
-      if (isStandalone) {
-        console.log(`[NotificationService] Standalone store ${store.id} cannot receive CONNECTED_STORE_UPDATE. Skipping.`);
+    // Enforce cross-store notification boundaries:
+    // If sourceStoreId is different from recipientStoreId, they MUST have an active store connection.
+    // Standalone stores (like Chennai) have 0 connections, so any cross-store notification
+    // between a standalone store and another store (e.g. Master Store) is strictly forbidden and suppressed.
+    if (sourceStoreId && sourceStoreId !== recipientStoreId) {
+      const isConnected = await prisma.storeConnection.findFirst({
+        where: {
+          OR: [
+            { sourceStoreId: sourceStoreId, targetStoreId: recipientStoreId },
+            { sourceStoreId: recipientStoreId, targetStoreId: sourceStoreId },
+          ],
+        },
+      });
+      if (!isConnected) {
+        console.log(`[NotificationService] Suppressing cross-store notification (${type}): Store ${sourceStoreId} has no connection with recipient ${recipientStoreId}. Skipping.`);
         return null;
       }
-      // Ensure sourceStoreId and recipientStoreId have an active store connection
-      if (sourceStoreId && sourceStoreId !== recipientStoreId) {
-        const isConnected = await prisma.storeConnection.findFirst({
-          where: {
-            OR: [
-              { sourceStoreId: sourceStoreId, targetStoreId: recipientStoreId },
-              { sourceStoreId: recipientStoreId, targetStoreId: sourceStoreId },
-            ],
-          },
-        });
-        if (!isConnected) {
-          console.log(`[NotificationService] Suppressing CONNECTED_STORE_UPDATE: Store ${sourceStoreId} is not connected to recipient ${recipientStoreId}. Skipping.`);
-          return null;
-        }
-      }
+    }
+
+    // Standalone stores cannot receive CONNECTED_STORE_UPDATE
+    if (type === 'CONNECTED_STORE_UPDATE' && isStandalone) {
+      console.log(`[NotificationService] Standalone store ${store.id} cannot receive CONNECTED_STORE_UPDATE. Skipping.`);
+      return null;
     }
 
     // 4. Anti-Spam De-duplication for notifications

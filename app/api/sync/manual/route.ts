@@ -1,3 +1,4 @@
+import { logUserActivity } from '@/lib/activity/user-activity';
 import { NextRequest, NextResponse } from "next/server";
 import { authenticate, handleApiError } from "@/lib/shopify/authenticate";
 import { prisma } from "@/lib/db/prisma";

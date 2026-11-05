@@ -1,3 +1,4 @@
+import { logUserActivity } from '@/lib/activity/user-activity';
 import { NextRequest, NextResponse } from "next/server";
 import { verifyWebhook } from "@/lib/shopify/webhooks";
 import { prisma } from "@/lib/db/prisma";
@@ -62,6 +63,19 @@ export async function POST(req: NextRequest) {
       });
 
       await logAuthEvent(shop, "App Uninstalled", true, "App uninstalled webhook processed");
+
+      await logUserActivity({
+        action: 'STORE_DISCONNECTED',
+        shopDomain: shop,
+        storeId: store.id,
+        merchantId: store.shopifyStoreId || store.id,
+        actorType: 'WEBHOOK',
+        idempotencyKey: `uninstalled_${shop}_${webhookId}`,
+        entityType: 'STORE',
+        entityId: store.id,
+        description: `Store ${shop} uninstalled the app and was deactivated.`,
+        metadata: { webhookId, previousStoreUniqueId: store.uniqueStoreId },
+      });
     }
 
     return new NextResponse("Webhook processed successfully", { status: 200 });
