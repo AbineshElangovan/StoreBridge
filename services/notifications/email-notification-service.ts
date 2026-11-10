@@ -1,28 +1,38 @@
-import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
+import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
+import { EmailActivityService } from './email-activity-service';
 import { EmailTemplateStore } from './email-template-store';
 import { APP_NAME } from '@/lib/constants/app';
 
-export interface SendEmailParams {
-  to: string;
-  productTitle: string;
-  variantTitle?: string | null;
-  productUrl?: string | null;
-  imageUrl?: string | null;
-  storeName?: string | null;
-  price?: string | null;
-  customerName?: string | null;
-  orderNumber?: string | null;
-  subject?: string | null;
-  paymentOption?: string | null;
-  depositAmount?: number | null;
-  remainingBalance?: number | null;
-  totalAmount?: number | null;
-}
-
-export interface NotificationResult {
-  success: boolean;
-  messageId?: string;
-  error?: string;
+export interface SendEmailParams {
+  to: string;
+  productTitle: string;
+  variantTitle?: string | null;
+  productUrl?: string | null;
+  imageUrl?: string | null;
+  storeName?: string | null;
+  price?: string | null;
+  customerName?: string | null;
+  orderNumber?: string | null;
+  subject?: string | null;
+  paymentOption?: string | null;
+  depositAmount?: number | null;
+  remainingBalance?: number | null;
+  totalAmount?: number | null;
+  // Enhanced tracking context
+  storeId?: string | null;
+  shopDomain?: string | null;
+  merchantId?: string | null;
+  emailType?: string | null;
+  relatedEntityId?: string | null;
+  relatedEntityType?: string | null;
+  metadata?: Record<string, any> | null;
+}
+
+export interface NotificationResult {
+  success: boolean;
+  messageId?: string;
+  error?: string;
+  activityId?: string | null;
 }
 
 export interface SesConfig {
@@ -133,74 +143,156 @@ function stripHtmlToPlainText(html: string): string {
     .trim();
 }
 
-async function dispatchEmail(
-  to: string,
-  fromEmail: string,
-  subject: string,
-  html: string,
-  fallbackUrl?: string,
-  plainText?: string
-): Promise<NotificationResult> {
-  const cleanSubject = (subject && subject.replace(/[\r\n]+/g, ' ').replace(/["']/g, '').trim()) || `Product Notification | StoreOrbit`;
-  const text = (plainText && plainText.trim()) || stripHtmlToPlainText(html);
-
-  const sesConfig = getSesConfig();
-  const client = getSesClient();
-
-  if (sesConfig && client) {
-    try {
-      // Build SES Source header: "Store Name" <AWS_SES_MAIL>
-      let sourceHeader = sesConfig.fromEmail;
-      const storeNameMatch = fromEmail.match(/^"?([^"<]+)"?\s*</);
-      const storeName = storeNameMatch
-        ? storeNameMatch[1].trim()
-        : fromEmail.replace(/<.*>/, '').replace(/["']/g, '').trim();
-
-      if (storeName && storeName !== sesConfig.fromEmail) {
-        sourceHeader = `"${storeName.replace(/"/g, '')}" <${sesConfig.fromEmail}>`;
-      }
-
-      const command = new SendEmailCommand({
-        Source: sourceHeader,
-        Destination: {
-          ToAddresses: [to],
-        },
-        Message: {
-          Subject: {
-            Data: cleanSubject,
-            Charset: 'UTF-8',
-          },
-          Body: {
-            Html: {
-              Data: html,
-              Charset: 'UTF-8',
-            },
-            Text: {
-              Data: text,
-              Charset: 'UTF-8',
-            },
-          },
-        },
-        ReplyToAddresses: [sesConfig.fromEmail],
-      });
-
-      const response = await client.send(command);
-      console.log(`[EmailNotificationService:SES:Success] To: ${to} | ID: ${response.MessageId}`);
-      return { success: true, messageId: response.MessageId };
-    } catch (sesErr: any) {
-      console.error(`[EmailNotificationService:SES:Error] Failed to send to ${to}:`, sesErr.message);
-      return {
-        success: false,
-        error: sesErr.message || 'AWS SES email delivery failed',
-      };
-    }
-  }
-
-  console.warn(`[EmailNotificationService:Simulated] AWS SES credentials not configured. Dispatched to: ${to} | Subject: "${cleanSubject}" | Target: ${fallbackUrl}`);
-  return {
-    success: true,
-    messageId: `ses_sim_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
-  };
+async function dispatchEmail(
+  to: string,
+  fromEmail: string,
+  subject: string,
+  html: string,
+  fallbackUrl?: string,
+  plainText?: string,
+  trackingParams?: {
+    storeId?: string | null;
+    shopDomain?: string | null;
+    merchantId?: string | null;
+    emailType?: string | null;
+    relatedEntityId?: string | null;
+    relatedEntityType?: string | null;
+    metadata?: Record<string, any> | null;
+  }
+): Promise<NotificationResult> {
+  const cleanSubject = (subject && subject.replace(/[\r\n]+/g, ' ').replace(/["']/g, '').trim()) || `Product Notification | StoreOrbit`;
+  const text = (plainText && plainText.trim()) || stripHtmlToPlainText(html);
+
+  // 1. Resolve store domain if missing
+  let resolvedShopDomain = trackingParams?.shopDomain;
+  let resolvedStoreId = trackingParams?.storeId;
+
+  if (!resolvedShopDomain && resolvedStoreId) {
+    try {
+      const { prisma } = await import('@/lib/db/prisma');
+      const store = await prisma.store.findUnique({
+        where: { id: resolvedStoreId },
+        select: { shopDomain: true },
+      });
+      if (store?.shopDomain) resolvedShopDomain = store.shopDomain;
+    } catch {}
+  }
+
+  if (!resolvedShopDomain) {
+    try {
+      const { prisma } = await import('@/lib/db/prisma');
+      const firstStore = await prisma.store.findFirst({
+        select: { id: true, shopDomain: true },
+      });
+      if (firstStore) {
+        resolvedShopDomain = firstStore.shopDomain;
+        if (!resolvedStoreId) resolvedStoreId = firstStore.id;
+      }
+    } catch {}
+  }
+
+  if (!resolvedShopDomain) {
+    resolvedShopDomain = 'storeorbit.myshopify.com';
+  }
+
+  // 2. Record QUEUED email activity
+  let activityId: string | null = null;
+  try {
+    activityId = await EmailActivityService.recordQueued({
+      merchantId: trackingParams?.merchantId,
+      storeId: resolvedStoreId,
+      shopDomain: resolvedShopDomain,
+      recipient: to,
+      emailType: trackingParams?.emailType || 'NOTIFICATION',
+      relatedEntityId: trackingParams?.relatedEntityId,
+      relatedEntityType: trackingParams?.relatedEntityType,
+      metadata: {
+        subject: cleanSubject,
+        ...(trackingParams?.metadata || {}),
+      },
+    });
+  } catch (logErr: any) {
+    console.warn('[EmailNotificationService:ActivityLog:QueuedError]', logErr.message);
+  }
+
+  const sesConfig = getSesConfig();
+  const client = getSesClient();
+
+  if (sesConfig && client) {
+    try {
+      // Build SES Source header: "Store Name" <AWS_SES_MAIL>
+      let sourceHeader = sesConfig.fromEmail;
+      const storeNameMatch = fromEmail.match(/^"?([^"<]+)"?\s*</);
+      const storeName = storeNameMatch
+        ? storeNameMatch[1].trim()
+        : fromEmail.replace(/<.*>/, '').replace(/["']/g, '').trim();
+
+      if (storeName && storeName !== sesConfig.fromEmail) {
+        sourceHeader = `"${storeName.replace(/"/g, '')}" <${sesConfig.fromEmail}>`;
+      }
+
+      const command = new SendEmailCommand({
+        Source: sourceHeader,
+        Destination: {
+          ToAddresses: [to],
+        },
+        Message: {
+          Subject: {
+            Data: cleanSubject,
+            Charset: 'UTF-8',
+          },
+          Body: {
+            Html: {
+              Data: html,
+              Charset: 'UTF-8',
+            },
+            Text: {
+              Data: text,
+              Charset: 'UTF-8',
+            },
+          },
+        },
+        ReplyToAddresses: [sesConfig.fromEmail],
+      });
+
+      const response = await client.send(command);
+      console.log(`[EmailNotificationService:SES:Success] To: ${to} | ID: ${response.MessageId}`);
+
+      // Record SENT status with providerMessageId
+      if (activityId && response.MessageId) {
+        await EmailActivityService.recordSent(activityId, response.MessageId);
+      }
+
+      return { success: true, messageId: response.MessageId, activityId };
+    } catch (sesErr: any) {
+      console.error(`[EmailNotificationService:SES:Error] Failed to send to ${to}:`, sesErr.message);
+
+      // Record FAILED status with error details
+      if (activityId) {
+        await EmailActivityService.recordFailed(activityId, sesErr.message || 'AWS SES delivery failed');
+      }
+
+      return {
+        success: false,
+        error: sesErr.message || 'AWS SES email delivery failed',
+        activityId,
+      };
+    }
+  }
+
+  console.warn(`[EmailNotificationService:Simulated] AWS SES credentials not configured. Dispatched to: ${to} | Subject: "${cleanSubject}" | Target: ${fallbackUrl}`);
+  const simMessageId = `ses_sim_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+  // Record SENT status for simulated/dev dispatch
+  if (activityId) {
+    await EmailActivityService.recordSent(activityId, simMessageId, { simulated: true });
+  }
+
+  return {
+    success: true,
+    messageId: simMessageId,
+    activityId,
+  };
 }
 
 function getEmailFrom(storeDisplayName?: string): string {
@@ -452,7 +544,7 @@ export class EmailNotificationService {
     `;
 
     const fromEmail = getEmailFrom(storeDisplayName);
-    return dispatchEmail(to, fromEmail, subject, html, fallbackUrl, plainText);
+    return dispatchEmail(to, fromEmail, subject, html, fallbackUrl, plainText, { ...params, emailType: params.emailType || 'BACK_IN_STOCK' });
   }
 
   /**
@@ -605,7 +697,7 @@ export class EmailNotificationService {
     `;
 
     const fromEmail = getEmailFrom(storeDisplayName);
-    return dispatchEmail(to, fromEmail, subject, html, fallbackUrl, plainText);
+    return dispatchEmail(to, fromEmail, subject, html, fallbackUrl, plainText, { ...params, emailType: params.emailType || 'WAITLIST_CONFIRMATION' });
   }
 
   /**
@@ -780,7 +872,7 @@ export class EmailNotificationService {
     `;
 
     const fromEmail = getEmailFrom(storeDisplayName);
-    return dispatchEmail(to, fromEmail, subject, html, fallbackUrl, plainText);
+    return dispatchEmail(to, fromEmail, subject, html, fallbackUrl, plainText, { ...params, emailType: params.emailType || 'PREORDER_IN_STOCK' });
   }
 
   /**
@@ -962,7 +1054,7 @@ export class EmailNotificationService {
     `;
 
     const fromEmail = getEmailFrom(storeDisplayName);
-    return dispatchEmail(to, fromEmail, subject, html, fallbackUrl, plainText);
+    return dispatchEmail(to, fromEmail, subject, html, fallbackUrl, plainText, { ...params, emailType: params.emailType || 'PREORDER_CONFIRMATION' });
   }
 }
 

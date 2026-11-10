@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authenticate, handleApiError } from '@/lib/shopify/authenticate';
 import { getNotifications, markAllAsRead, deleteAllNotifications, deleteNotification } from '@/services/notification-service';
 import { cleanupExpiredActivityLogs } from '@/lib/services/activityRetention';
+import { BackInStockService } from '@/services/back-in-stock/back-in-stock-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +10,12 @@ export async function GET(req: NextRequest) {
   try {
     const { store } = await authenticate(req);
     cleanupExpiredActivityLogs().catch(() => {});
+    
+    // Transparently sync any live pre-orders from Shopify so notifications are real-time
+    try {
+      await BackInStockService.syncLivePreordersFromShopify(store.id);
+    } catch (_) {}
+
     const searchParams = req.nextUrl.searchParams;
 
     const type = searchParams.get('type') || undefined;
@@ -30,6 +37,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       ...result,
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+        Pragma: 'no-cache',
+        Expires: '0',
+      }
     });
   } catch (err: any) {
     return handleApiError(err);

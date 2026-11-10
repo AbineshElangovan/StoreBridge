@@ -1,5 +1,5 @@
 {{ 'availability.css' | asset_url | stylesheet_tag }}
-<script src="{{ 'availability.js' | asset_url }}" defer></script>
+<script src="{{ 'availability.js' | asset_url }}?v={{ 'now' | date: '%s' }}" defer></script>
 
 {%- assign raw_image = product.featured_image | image_url: width: 600 -%}
 {%- assign secure_image = raw_image -%}

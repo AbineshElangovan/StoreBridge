@@ -1,6 +1,6 @@
 {%- if request.page_type == 'cart' -%}
   {{ 'availability.css' | asset_url | stylesheet_tag }}
-  <script src="{{ 'availability.js' | asset_url }}" defer></script>
+  <script src="{{ 'availability.js' | asset_url }}?v={{ 'now' | date: '%s' }}" defer></script>
 
   <div
     id="storebridge-cart-embed"

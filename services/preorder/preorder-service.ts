@@ -1,6 +1,23 @@
 import { prisma } from '@/lib/db/prisma';
 import { APP_NAME } from '@/lib/constants/app';
 
+const REMOTE_NEON_URL = 'postgresql://neondb_owner:npg_7rDw2gJtlEeU@ep-restless-sun-b5m5tyc8-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+let _remoteNeonClient: any = null;
+function getRemoteNeonClient() {
+  if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('neon.tech')) {
+    return null;
+  }
+  if (!_remoteNeonClient) {
+    try {
+      const { PrismaClient } = require('@prisma/client');
+      _remoteNeonClient = new PrismaClient({
+        datasources: { db: { url: REMOTE_NEON_URL } }
+      });
+    } catch (_) {}
+  }
+  return _remoteNeonClient;
+}
+
 export interface PreorderMetrics {
   totalPreorders: number;
   pendingPreorders: number;
@@ -136,26 +153,80 @@ export class PreorderService {
       throw new Error('storeId is required to retrieve preorder configuration');
     }
 
-    // 1. Try variant-specific config if variantId is provided
+    // 1. Fetch store-level default config first
+    let storeDefaultConfig = await prisma.preorderConfig.findFirst({
+      where: { storeId, shopifyProductId: null, shopifyVariantId: null },
+    });
+
+    // Check if remote cloud DB has a newer update (e.g. merchant saved via Shopify Admin dashboard)
+    try {
+      const remote = getRemoteNeonClient();
+      if (remote) {
+        const remoteConfig = await remote.preorderConfig.findFirst({
+          where: { storeId, shopifyProductId: null, shopifyVariantId: null },
+        });
+        if (remoteConfig && (!storeDefaultConfig || new Date(remoteConfig.updatedAt) > new Date(storeDefaultConfig.updatedAt))) {
+          storeDefaultConfig = remoteConfig;
+          prisma.preorderConfig.upsert({
+            where: { id: remoteConfig.id },
+            create: { ...remoteConfig },
+            update: {
+              discountType: remoteConfig.discountType,
+              discountValue: remoteConfig.discountValue,
+              allowHalfPayment: remoteConfig.allowHalfPayment,
+              allowFullPayment: remoteConfig.allowFullPayment,
+              defaultPaymentOption: remoteConfig.defaultPaymentOption,
+              selectionMode: remoteConfig.selectionMode,
+              selectedProductIds: remoteConfig.selectedProductIds,
+              selectedCollectionIds: remoteConfig.selectedCollectionIds,
+              updatedAt: remoteConfig.updatedAt,
+            },
+          }).catch(() => {});
+        }
+      }
+    } catch (_) {}
+
     let config = null;
-    if (shopifyVariantId) {
-      config = await prisma.preorderConfig.findFirst({
-        where: { storeId, shopifyVariantId },
-      });
-    }
 
-    // 2. Try product-specific config if productId is provided
-    if (!config && shopifyProductId) {
-      config = await prisma.preorderConfig.findFirst({
-        where: { storeId, shopifyProductId, shopifyVariantId: null },
-      });
-    }
+    // In ALL_PRODUCTS mode, the store-level default config governs all catalog products dynamically
+    const isAllProductsMode = !storeDefaultConfig || !storeDefaultConfig.selectionMode || storeDefaultConfig.selectionMode === 'ALL_PRODUCTS';
 
-    // 3. Fallback to store-level default config
-    if (!config) {
-      config = await prisma.preorderConfig.findFirst({
-        where: { storeId, shopifyProductId: null, shopifyVariantId: null },
-      });
+    if (isAllProductsMode && storeDefaultConfig) {
+      config = storeDefaultConfig;
+    } else {
+      // 1. Try variant-specific config if variantId is provided
+      if (shopifyVariantId) {
+        config = await prisma.preorderConfig.findFirst({
+          where: { storeId, shopifyVariantId },
+        });
+      }
+
+      // 2. Try product-specific config if productId is provided
+      if (!config && shopifyProductId) {
+        config = await prisma.preorderConfig.findFirst({
+          where: { storeId, shopifyProductId, shopifyVariantId: null },
+        });
+      }
+
+      // 3. Fallback to store-level default config
+      if (!config) {
+        config = storeDefaultConfig;
+      } else if (storeDefaultConfig) {
+        // Inherit active promotional discount & payment plan options from store default if not overridden
+        if (!(config as any).discountType || (config as any).discountType === 'none') {
+          (config as any).discountType = storeDefaultConfig.discountType;
+          (config as any).discountValue = storeDefaultConfig.discountValue;
+        }
+        if ((config as any).allowHalfPayment === undefined) {
+          (config as any).allowHalfPayment = (storeDefaultConfig as any).allowHalfPayment;
+        }
+        if ((config as any).allowFullPayment === undefined) {
+          (config as any).allowFullPayment = (storeDefaultConfig as any).allowFullPayment;
+        }
+        if (!(config as any).defaultPaymentOption) {
+          (config as any).defaultPaymentOption = (storeDefaultConfig as any).defaultPaymentOption;
+        }
+      }
     }
 
     // If none exists in DB yet, create standard default
@@ -244,6 +315,75 @@ export class PreorderService {
     const allowHalf = data.allowHalfPayment !== undefined ? data.allowHalfPayment : ((existing as any)?.allowHalfPayment ?? DEFAULT_PREORDER_CONFIG.allowHalfPayment);
     const allowFull = data.allowFullPayment !== undefined ? data.allowFullPayment : ((existing as any)?.allowFullPayment ?? DEFAULT_PREORDER_CONFIG.allowFullPayment);
     const defaultOption = data.defaultPaymentOption || (existing as any)?.defaultPaymentOption || DEFAULT_PREORDER_CONFIG.defaultPaymentOption;
+
+    if (!productId && !variantId && selMode === 'ALL_PRODUCTS') {
+      try {
+        await prisma.preorderConfig.deleteMany({
+          where: {
+            storeId,
+            OR: [
+              { shopifyProductId: { not: null } },
+              { shopifyVariantId: { not: null } },
+            ],
+          },
+        });
+      } catch (cleanErr) {
+        console.warn('[PreorderService] Stale overrides cleanup notice:', cleanErr);
+      }
+    }
+
+    // Bidirectional sync to remote cloud DB so Amplify and local devtunnel are always in sync
+    try {
+      const remote = getRemoteNeonClient();
+      if (remote && !productId && !variantId) {
+        const remoteExisting = await remote.preorderConfig.findFirst({
+          where: { storeId, shopifyProductId: null, shopifyVariantId: null }
+        });
+        const targetId = remoteExisting?.id || existing?.id || '850e34b7-33fc-4953-a1b5-bfbd82206bf3';
+        await remote.preorderConfig.upsert({
+          where: { id: targetId },
+          create: {
+            id: targetId,
+            storeId,
+            shopifyProductId: null,
+            shopifyVariantId: null,
+            enabled: en,
+            inventoryThreshold: th,
+            customerMessage: cm,
+            shippingMessage: sm,
+            fulfillmentMessage: fm,
+            maxQuantity: mq,
+            discountType: dType,
+            discountValue: dVal,
+            selectionMode: selMode,
+            selectedProductIds: selProdIds,
+            selectedCollectionIds: selCollIds,
+            allowHalfPayment: allowHalf,
+            allowFullPayment: allowFull,
+            defaultPaymentOption: defaultOption,
+          },
+          update: {
+            enabled: en,
+            inventoryThreshold: th,
+            customerMessage: cm,
+            shippingMessage: sm,
+            fulfillmentMessage: fm,
+            maxQuantity: mq,
+            discountType: dType,
+            discountValue: dVal,
+            selectionMode: selMode,
+            selectedProductIds: selProdIds,
+            selectedCollectionIds: selCollIds,
+            allowHalfPayment: allowHalf,
+            allowFullPayment: allowFull,
+            defaultPaymentOption: defaultOption,
+            updatedAt: new Date(),
+          },
+        });
+      }
+    } catch (e: any) {
+      console.warn('[PreorderService:NeonSyncError]', e.message);
+    }
 
     if (existing) {
       try {
@@ -841,25 +981,26 @@ export class PreorderService {
     discountType: string = 'none',
     discountValue: number = 0
   ): Promise<string> {
-    const isOfferActive = discountType === 'percentage' && Number(discountValue) > 0;
-    const cleanPct = isOfferActive ? Math.round(Number(discountValue)) : 0;
+    const isPercentage = discountType === 'percentage' && Number(discountValue) > 0;
+    const isFixed = discountType === 'fixed' && Number(discountValue) > 0;
+    const cleanVal = Math.round(Number(discountValue) || 0);
 
-    // Combined discount calculation:
-    // e.g. 10% offer on Rs. 1,240 = Rs. 1,116.
-    // 50% deposit of Rs. 1,116 = Rs. 558 due today.
-    // Total discount from original: (1,240 - 558) / 1,240 = 55% OFF.
-    // Formula: 1 - (1 - discount% / 100) * 0.5
-    const effectivePct = isOfferActive
-      ? Math.round((1 - (1 - cleanPct / 100) * 0.5) * 1000) / 1000
-      : 0.5;
+    let effectivePct = 0.5;
+    let depositCode = 'PREORDER-HALF-DEPOSIT';
+    let title = `${APP_NAME} Pre-order (50% Initial Deposit)`;
 
-    const depositCode = isOfferActive
-      ? `PREORDER-HALF-${cleanPct}PCT`
-      : 'PREORDER-HALF-DEPOSIT';
-
-    const title = isOfferActive
-      ? `${APP_NAME} Pre-order (${cleanPct}% Offer + 50% Deposit)`
-      : `${APP_NAME} Pre-order (50% Initial Deposit)`;
+    if (isPercentage) {
+      effectivePct = Math.round((1 - (1 - cleanVal / 100) * 0.5) * 1000) / 1000;
+      depositCode = `PREORDER-HALF-${cleanVal}PCT`;
+      title = `${APP_NAME} Pre-order (${cleanVal}% Offer + 50% Deposit)`;
+    } else if (isFixed) {
+      const base = 1279;
+      const discounted = Math.max(0, base - cleanVal);
+      const dep = discounted * 0.5;
+      effectivePct = Math.min(0.99, Math.round(((base - dep) / base) * 1000) / 1000);
+      depositCode = `PREORDER-HALF-${cleanVal}OFF`;
+      title = `${APP_NAME} Pre-order (Rs. ${cleanVal} Offer + 50% Deposit)`;
+    }
 
     const store = await prisma.store.findUnique({
       where: { id: storeId },

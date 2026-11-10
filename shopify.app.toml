@@ -12,29 +12,28 @@ automatically_update_urls_on_dev = false
 api_version = "2026-10"
 
   [[webhooks.subscriptions]]
-  uri = "/api/webhooks/app-uninstalled"
-  topics = [ "app/uninstalled" ]
-
-  [[webhooks.subscriptions]]
   uri = "/api/webhooks/inventory-levels-update"
   topics = [ "inventory_levels/update" ]
-
-  [[webhooks.subscriptions]]
-  uri = "/api/webhooks/products-create"
-  topics = [ "products/create" ]
 
   [[webhooks.subscriptions]]
   uri = "/api/webhooks/products-delete"
   topics = [ "products/delete" ]
 
   [[webhooks.subscriptions]]
+  uri = "/api/webhooks/app-uninstalled"
+  topics = [ "app/uninstalled" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/api/webhooks/products-create"
+  topics = [ "products/create" ]
+
+  [[webhooks.subscriptions]]
   uri = "/api/webhooks/products-update"
   topics = [ "products/update" ]
 
-
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_inventory,read_inventory,read_products,write_products,read_publications,write_publications,write_discounts,read_discounts,read_orders"
+scopes = "read_discounts,read_inventory,read_orders,read_products,read_publications,write_discounts,write_inventory,write_products,write_publications"
 optional_scopes = [ ]
 use_legacy_install_flow = false
 
@@ -42,5 +41,5 @@ use_legacy_install_flow = false
 redirect_urls = [
   "https://dz50mdfc-3000.inc1.devtunnels.ms/api/auth/callback",
   "https://store-bridge-yemi.vercel.app/api/auth/callback",
-  "https://version-control.d38r9lc5j1o8oj.amplifyapp.com/api/auth/callback",
+  "https://version-control.d38r9lc5j1o8oj.amplifyapp.com/api/auth/callback"
 ]

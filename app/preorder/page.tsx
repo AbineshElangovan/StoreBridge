@@ -207,16 +207,26 @@ export default function PreorderAdminPage() {
     window.addEventListener('focus', handleSync);
     document.addEventListener('visibilitychange', handleSync);
 
+    // Auto-poll for new real-time preorder orders every 5 seconds
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchRecords(recordsPage, recordsSearch, recordsStatus, true);
+      }
+    }, 5000);
+
     return () => {
       window.removeEventListener('focus', handleSync);
       document.removeEventListener('visibilitychange', handleSync);
+      clearInterval(interval);
     };
   }, [activeTab, recordsPage, recordsSearch, recordsStatus]);
 
   const fetchConfig = async () => {
     try {
       setLoading(true);
-      const url = currentStore?.shopDomain ? `/api/preorder?shop=${encodeURIComponent(currentStore.shopDomain)}` : '/api/preorder';
+      const url = currentStore?.shopDomain 
+        ? `/api/preorder?shop=${encodeURIComponent(currentStore.shopDomain)}&_t=${Date.now()}` 
+        : `/api/preorder?_t=${Date.now()}`;
       const res = await shopifyFetch(url);
       const data = await res.json();
       if (data.success && data.config) {
@@ -292,7 +302,11 @@ export default function PreorderAdminPage() {
         defaultPaymentOption: paymentType,
       };
 
-      const res = await shopifyFetch('/api/preorder', {
+      const saveUrl = currentStore?.shopDomain
+        ? `/api/preorder?shop=${encodeURIComponent(currentStore.shopDomain)}`
+        : '/api/preorder';
+
+      const res = await shopifyFetch(saveUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -302,6 +316,12 @@ export default function PreorderAdminPage() {
       if (data.success) {
         if (data.calculation) setCalculation(data.calculation);
         if (data.sample100) setSample100(data.sample100);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('storeorbit_config_version', Date.now().toString());
+            window.dispatchEvent(new CustomEvent('storeorbit-config-updated'));
+          } catch (_) {}
+        }
         setToast({ message: 'Pre-order settings saved successfully!', type: 'success' });
       } else {
         setToast({ message: data.error || 'Failed to save settings', type: 'error' });

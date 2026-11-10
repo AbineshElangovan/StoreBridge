@@ -155,8 +155,16 @@ export default function NotificationsPage() {
     };
     window.addEventListener('notification-updated', handleUpdate);
 
+    // Auto-poll for new real-time notifications every 5 seconds
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        loadNotifications(true);
+      }
+    }, 5000);
+
     return () => {
       window.removeEventListener('notification-updated', handleUpdate);
+      clearInterval(interval);
     };
   }, [loadNotifications]);
 

@@ -94,6 +94,16 @@ export class CustomerNotificationService {
             price: productPrice,
             storeName,
             subject: customSubject,
+            storeId: job.storeId,
+            shopDomain: job.store?.shopDomain,
+            relatedEntityId: job.id,
+            relatedEntityType: 'NotificationJob',
+            metadata: {
+              jobId: job.id,
+              registrationId: job.registrationId,
+              shopifyVariantId: job.shopifyVariantId,
+              attempts: job.attempts,
+            },
           });
         } else {
           console.warn(`[CustomerNotificationService] Skipping job ${job.id}: email is invalid or missing (${decryptedEmail})`);

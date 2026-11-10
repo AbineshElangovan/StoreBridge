@@ -811,41 +811,51 @@
         };
         localStorage.setItem('storebridge_pending_preorder', JSON.stringify(pendingItem));
 
-        try {
-          const shop = config.shop || window.Shopify?.shop || 'eshan-inventory-solutions.myshopify.com';
-          const apiUrl = config.apiUrl || 'https://version-control.d38r9lc5j1o8oj.amplifyapp.com';
+        const shop = config.shop || window.Shopify?.shop || 'eshan-inventory-solutions.myshopify.com';
+        const apiUrl = (config.apiUrl || 'https://version-control.d38r9lc5j1o8oj.amplifyapp.com').replace(/\/+$/, '');
 
-          fetch(`${apiUrl}/api/storefront/record-preorder`, {
-            method: 'POST',
-            keepalive: true,
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Shopify-Shop-Domain': shop,
-              'X-Tunnel-Skip-Anti-Phishing-Page': '1',
-              Accept: 'application/json'
-            },
-            body: JSON.stringify({
-              shop,
-              orderNumber: 'auto',
-              variantId: String(variantId),
-              customerName: window.Shopify?.customer?.name || (customerEmail ? customerEmail.split('@')[0] : 'Customer'),
-              customerEmail: customerEmail,
-              customerPhone: null,
-              quantity: finalQuantity,
-              productTitle: pendingItem.productTitle,
-              variantTitle: pendingItem.variantTitle,
-              paymentOption: pendingItem.paymentOption,
-              totalAmount: pendingItem.totalAmount,
-              depositAmount: pendingItem.depositAmount,
-              remainingBalance: pendingItem.remainingBalance,
-              paymentStatus: isHalf ? 'PARTIALLY_PAID' : 'PAID',
-              currency: 'INR'
-            })
-          }).catch(function() {});
-        } catch (postErr) {}
+        fetch(`${apiUrl}/api/storefront/record-preorder`, {
+          method: 'POST',
+          keepalive: true,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Shop-Domain': shop,
+            'X-Tunnel-Skip-Anti-Phishing-Page': '1',
+            Accept: 'application/json'
+          },
+          body: JSON.stringify({
+            shop,
+            orderNumber: 'auto',
+            variantId: String(variantId),
+            customerName: window.Shopify?.customer?.name || (customerEmail ? customerEmail.split('@')[0] : 'Customer'),
+            customerEmail: customerEmail,
+            customerPhone: null,
+            quantity: finalQuantity,
+            productTitle: pendingItem.productTitle,
+            variantTitle: pendingItem.variantTitle,
+            paymentOption: pendingItem.paymentOption,
+            totalAmount: pendingItem.totalAmount,
+            depositAmount: pendingItem.depositAmount,
+            remainingBalance: pendingItem.remainingBalance,
+            paymentStatus: isHalf ? 'PARTIALLY_PAID' : 'PAID',
+            currency: 'INR'
+          })
+        }).catch(function() {});
       } catch (e) {}
 
-      window.location.href = cartUrl;
+      // Automatically apply pre-order discount code / deposit discount to checkout
+      const discountToApply = isHalf
+        ? (config.preorder.depositDiscountCode || 'PREORDER-HALF-DEPOSIT')
+        : (hasOffer ? config.preorder.discountCode : '');
+
+      if (discountToApply) {
+        try {
+          await fetch(`/discount/${encodeURIComponent(discountToApply)}`);
+        } catch (e) {}
+        window.location.href = `/discount/${encodeURIComponent(discountToApply)}?redirect=/checkout`;
+      } else {
+        window.location.href = '/checkout';
+      }
     } catch (error) {
       console.error(
         '[StoreBridge:Preorder]',
@@ -1098,6 +1108,30 @@
                 Only 50% payment required today to reserve your item.
               </div>
             ` : ''}
+          </div>
+        </div>
+      ` : (!allowHalf && allowFull) ? `
+        <div class="storebridge-breakdown-card" style="background: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 12px; padding: 12px 14px; font-size: 12px; display: flex; flex-direction: column; gap: 6px; margin: 12px 0;">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px;">
+            <span style="font-weight: 800; color: #0f172a; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+              <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #047857;"></span>
+              Pre-order Pricing
+            </span>
+            <span style="background: #0f172a; color: #ffffff; padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: 800; text-transform: uppercase;">Full Payment</span>
+          </div>
+          ${hasOffer ? `
+            <div style="display: flex; justify-content: space-between; color: #64748b; font-size: 12px; margin-top: 2px;">
+              <span>Original Price:</span>
+              <span style="text-decoration: line-through; color: #94a3b8; font-weight: 600;">${formatMoney(numPrice)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; color: #047857; font-size: 12px; font-weight: 700;">
+              <span>Pre-order Discount (${config.preorder.discountType === 'percentage' ? `${escapeHtml(config.preorder.discountValue)}% OFF` : `Rs. ${escapeHtml(config.preorder.discountValue)} OFF`}):</span>
+              <span>- ${formatMoney(discountAmt)}</span>
+            </div>
+          ` : ''}
+          <div style="display: flex; justify-content: space-between; color: #0f172a; font-size: 13px; font-weight: 800; border-top: 1px dashed #cbd5e1; padding-top: 6px;">
+            <span>Final Price (Due Today):</span>
+            <span style="color: #047857;">${formatMoney(finalPrice)}</span>
           </div>
         </div>
       ` : ''}
@@ -1503,41 +1537,9 @@
   // FETCH CONFIG
   // ============================================================
 
-  async function fetchConfig(
-    variantId,
-    forceRefresh = false
-  ) {
+  async function fetchConfig(variantId, forceRefresh = true) {
     const cleanVariantId =
       normalizeId(variantId);
-
-    if (
-      !forceRefresh &&
-      configCache.has(cleanVariantId)
-    ) {
-      const cached =
-        configCache.get(
-          cleanVariantId
-        );
-
-      config.preorder = {
-        ...DEFAULT_CONFIG.preorder,
-        ...cached.preorder
-      };
-
-      config.notifyMe = {
-        ...DEFAULT_CONFIG.notifyMe,
-        ...cached.notifyMe
-      };
-
-      if (cached.variantsInventory) {
-        config.variantsInventory = {
-          ...(config.variantsInventory || {}),
-          ...cached.variantsInventory
-        };
-      }
-
-      return;
-    }
 
     if (!config.apiUrl) {
       warn(
@@ -1551,10 +1553,8 @@
       const params =
         new URLSearchParams();
 
-      params.set(
-        'shop',
-        config.shop
-      );
+      params.set('shop', config.shop);
+      params.set('_t', Date.now().toString());
 
       if (config.productId && config.productId !== 'undefined') {
         params.set(
@@ -1578,9 +1578,9 @@
         endpoint
       );
 
-      const response =
-        await fetch(endpoint, {
+      const response = await fetch(endpoint, {
           method: 'GET',
+          cache: 'no-store',
           headers: {
             'X-Shopify-Shop-Domain':
               config.shop,
@@ -3026,6 +3026,31 @@
   }
 
   function attachGlobalDelegatedListeners() {
+    // Real-time synchronization when merchant updates configuration in admin or switches tabs
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && isProductPage()) {
+          const currentForm = getProductForm();
+          const currentVariantId = getSelectedVariantId(currentForm);
+          fetchConfig(currentVariantId, true);
+        }
+      });
+      window.addEventListener('focus', () => {
+        if (isProductPage()) {
+          const currentForm = getProductForm();
+          const currentVariantId = getSelectedVariantId(currentForm);
+          fetchConfig(currentVariantId, true);
+        }
+      });
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'storeorbit_config_version') {
+          const currentForm = getProductForm();
+          const currentVariantId = getSelectedVariantId(currentForm);
+          fetchConfig(currentVariantId, true);
+        }
+      });
+    }
+
     document.addEventListener('click', (event) => {
       const target = event.target;
       if (!target) return;
@@ -3602,30 +3627,31 @@
       // Pre-order item
       preorderItemCount += qty;
 
-      let offer = parseOffer(
-        getItemProperty(item, 'Pre-order Offer') ||
-        getItemProperty(item, 'Offer') ||
-        ''
-      );
-
-      if (offer.type === 'none') {
-        const savingsProp = getItemProperty(item, 'Offer Savings');
-        if (savingsProp) {
-          offer = parseOffer(savingsProp);
+      // Real-time offer calculation: prioritize live store preorder configuration
+      let offer = { type: 'none', value: 0 };
+      if (cachedRemoteCartConfig?.preorder) {
+        if (
+          cachedRemoteCartConfig.preorder.discountType &&
+          cachedRemoteCartConfig.preorder.discountType !== 'none' &&
+          Number(cachedRemoteCartConfig.preorder.discountValue) > 0
+        ) {
+          offer = {
+            type: cachedRemoteCartConfig.preorder.discountType,
+            value: Number(cachedRemoteCartConfig.preorder.discountValue)
+          };
         }
-      }
-
-      // Fallback: check remote store config
-      if (
-        offer.type === 'none' &&
-        cachedRemoteCartConfig?.preorder?.discountType &&
-        cachedRemoteCartConfig.preorder.discountType !== 'none' &&
-        Number(cachedRemoteCartConfig.preorder.discountValue) > 0
-      ) {
-        offer = {
-          type: cachedRemoteCartConfig.preorder.discountType,
-          value: Number(cachedRemoteCartConfig.preorder.discountValue)
-        };
+      } else {
+        offer = parseOffer(
+          getItemProperty(item, 'Pre-order Offer') ||
+          getItemProperty(item, 'Offer') ||
+          ''
+        );
+        if (offer.type === 'none') {
+          const savingsProp = getItemProperty(item, 'Offer Savings');
+          if (savingsProp) {
+            offer = parseOffer(savingsProp);
+          }
+        }
       }
 
       if (offer.type !== 'none' && offer.value > 0) {
@@ -4034,15 +4060,22 @@
           if (hasHalf) {
             const offers = root._currentDetectedOffers || [];
             let offerPct = 0;
+            let offerOff = 0;
             if (offers.length > 0 && offers[0].type === 'percentage') {
               offerPct = Math.round(Number(offers[0].value));
+            } else if (offers.length > 0 && offers[0].type === 'fixed') {
+              offerOff = Math.round(Number(offers[0].value));
             } else if (cachedRemoteCartConfig?.preorder?.discountType === 'percentage') {
               offerPct = Math.round(Number(cachedRemoteCartConfig.preorder.discountValue || 0));
+            } else if (cachedRemoteCartConfig?.preorder?.discountType === 'fixed') {
+              offerOff = Math.round(Number(cachedRemoteCartConfig.preorder.discountValue || 0));
             }
 
             const halfCode = offerPct > 0
               ? `PREORDER-HALF-${offerPct}PCT`
-              : (cachedRemoteCartConfig?.preorder?.depositDiscountCode || 'PREORDER-HALF-DEPOSIT');
+              : (offerOff > 0
+                ? `PREORDER-HALF-${offerOff}OFF`
+                : (cachedRemoteCartConfig?.preorder?.depositDiscountCode || 'PREORDER-HALF-DEPOSIT'));
 
             window.location.href = `/discount/${encodeURIComponent(halfCode)}?redirect=/checkout`;
             return;
@@ -4060,7 +4093,7 @@
           }
 
           if (codeToApply) {
-            window.location.href = `/checkout?discount=${encodeURIComponent(codeToApply)}`;
+            window.location.href = `/discount/${encodeURIComponent(codeToApply)}?redirect=/checkout`;
           } else {
             window.location.href = '/checkout';
           }
@@ -4105,24 +4138,24 @@
         return;
       }
 
-      // Fetch live StoreBridge store configuration if not cached yet
-      if (!cachedRemoteCartConfig) {
-        try {
-          ensureConfig();
-          const shopDomain = config.shop || window.Shopify?.shop || window.location.hostname;
-          const apiUrl = (config.apiUrl || 'https://version-control.d38r9lc5j1o8oj.amplifyapp.com').replace(/\/+$/, '');
-          if (shopDomain) {
-            const cfgRes = await fetch(`${apiUrl}/api/storefront/config?shop=${encodeURIComponent(shopDomain)}`);
-            if (cfgRes.ok) {
-              const cfgData = await cfgRes.json();
-              if (cfgData?.success) {
-                cachedRemoteCartConfig = cfgData;
-              }
+      // Fetch live StoreBridge store configuration in real-time
+      try {
+        ensureConfig();
+        const shopDomain = config.shop || window.Shopify?.shop || window.location.hostname;
+        const apiUrl = (config.apiUrl || 'https://version-control.d38r9lc5j1o8oj.amplifyapp.com').replace(/\/+$/, '');
+        if (shopDomain) {
+          const cfgRes = await fetch(`${apiUrl}/api/storefront/config?shop=${encodeURIComponent(shopDomain)}&_t=${Date.now()}`, {
+            cache: 'no-store'
+          });
+          if (cfgRes.ok) {
+            const cfgData = await cfgRes.json();
+            if (cfgData?.success) {
+              cachedRemoteCartConfig = cfgData;
             }
           }
-        } catch (err) {
-          // Graceful fallback
         }
+      } catch (err) {
+        // Graceful fallback
       }
 
       renderStoreBridgeCart(cart);
@@ -4178,6 +4211,95 @@
         debouncedEnhanceCart();
       }
     });
+
+    // Universal checkout click listener for any native theme checkout buttons / drawers
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[name="checkout"], #checkout, [name="checkout"], a[href*="/checkout"], .cart__checkout-button');
+      if (btn && !btn.closest('#storebridge-checkout-action-btn')) {
+        const rootEl = document.getElementById('storebridge-cart-page');
+        const cards = rootEl ? Array.from(rootEl.querySelectorAll('.storebridge-cart-item-card')) : [];
+        const hasHalf = cards.some(c => c.getAttribute('data-is-half') === '1');
+        const offers = rootEl?._currentDetectedOffers || [];
+
+        let codeToApply = activeDiscountCode;
+        if (hasHalf) {
+          let offerPct = 0;
+          let offerOff = 0;
+          if (offers.length > 0 && offers[0].type === 'percentage') {
+            offerPct = Math.round(Number(offers[0].value));
+          } else if (offers.length > 0 && offers[0].type === 'fixed') {
+            offerOff = Math.round(Number(offers[0].value));
+          } else if (cachedRemoteCartConfig?.preorder?.discountType === 'percentage') {
+            offerPct = Math.round(Number(cachedRemoteCartConfig.preorder.discountValue || 0));
+          } else if (cachedRemoteCartConfig?.preorder?.discountType === 'fixed') {
+            offerOff = Math.round(Number(cachedRemoteCartConfig.preorder.discountValue || 0));
+          }
+          codeToApply = offerPct > 0
+            ? `PREORDER-HALF-${offerPct}PCT`
+            : (offerOff > 0
+              ? `PREORDER-HALF-${offerOff}OFF`
+              : (cachedRemoteCartConfig?.preorder?.depositDiscountCode || 'PREORDER-HALF-DEPOSIT'));
+        } else if (!codeToApply && offers.length > 0) {
+          const firstOffer = offers[0];
+          const cleanVal = Math.round(Number(firstOffer.value));
+          codeToApply = firstOffer.type === 'percentage' ? `PREORDER-${cleanVal}PCT` : `PREORDER-${cleanVal}OFF`;
+        } else if (!codeToApply && cachedRemoteCartConfig?.preorder?.discountCode) {
+          codeToApply = cachedRemoteCartConfig.preorder.discountCode;
+        }
+
+        if (codeToApply) {
+          e.preventDefault();
+          e.stopPropagation();
+          window.location.href = `/discount/${encodeURIComponent(codeToApply)}?redirect=/checkout`;
+        }
+      }
+    }, true);
+
+    // Universal checkout form submit listener
+    document.addEventListener('submit', (e) => {
+      const form = e.target;
+      if (form && form.action && form.action.includes('/cart')) {
+        const submitter = e.submitter;
+        if (submitter && submitter.name === 'checkout') {
+          const rootEl = document.getElementById('storebridge-cart-page');
+          const cards = rootEl ? Array.from(rootEl.querySelectorAll('.storebridge-cart-item-card')) : [];
+          const hasHalf = cards.some(c => c.getAttribute('data-is-half') === '1');
+          const offers = rootEl?._currentDetectedOffers || [];
+
+          let codeToApply = activeDiscountCode;
+          if (hasHalf) {
+          let offerPct = 0;
+          let offerOff = 0;
+          if (offers.length > 0 && offers[0].type === 'percentage') {
+            offerPct = Math.round(Number(offers[0].value));
+          } else if (offers.length > 0 && offers[0].type === 'fixed') {
+            offerOff = Math.round(Number(offers[0].value));
+          } else if (cachedRemoteCartConfig?.preorder?.discountType === 'percentage') {
+            offerPct = Math.round(Number(cachedRemoteCartConfig.preorder.discountValue || 0));
+          } else if (cachedRemoteCartConfig?.preorder?.discountType === 'fixed') {
+            offerOff = Math.round(Number(cachedRemoteCartConfig.preorder.discountValue || 0));
+          }
+          codeToApply = offerPct > 0
+            ? `PREORDER-HALF-${offerPct}PCT`
+            : (offerOff > 0
+              ? `PREORDER-HALF-${offerOff}OFF`
+              : (cachedRemoteCartConfig?.preorder?.depositDiscountCode || 'PREORDER-HALF-DEPOSIT'));
+          } else if (!codeToApply && offers.length > 0) {
+            const firstOffer = offers[0];
+            const cleanVal = Math.round(Number(firstOffer.value));
+            codeToApply = firstOffer.type === 'percentage' ? `PREORDER-${cleanVal}PCT` : `PREORDER-${cleanVal}OFF`;
+          } else if (!codeToApply && cachedRemoteCartConfig?.preorder?.discountCode) {
+            codeToApply = cachedRemoteCartConfig.preorder.discountCode;
+          }
+
+          if (codeToApply) {
+            e.preventDefault();
+            e.stopPropagation();
+            window.location.href = `/discount/${encodeURIComponent(codeToApply)}?redirect=/checkout`;
+          }
+        }
+      }
+    }, true);
   }
 
 
@@ -4188,7 +4310,7 @@
       const shop = root?.dataset?.shop || window.Shopify?.shop || window.location.hostname;
       const apiUrl = (root?.dataset?.apiUrl || 'https://version-control.d38r9lc5j1o8oj.amplifyapp.com').replace(/\/+$/, '');
 
-      const res = await fetch(`${apiUrl}/api/storefront/config?shop=${encodeURIComponent(shop)}`, {
+      const res = await fetch(`${apiUrl}/api/storefront/config?shop=${encodeURIComponent(shop)}&_t=${Date.now()}`, {
         headers: {
           'X-Shopify-Shop-Domain': shop,
           'X-Tunnel-Skip-Anti-Phishing-Page': '1',

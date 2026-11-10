@@ -178,6 +178,10 @@ export class BackInStockService {
               storeName: store?.label || store?.shopDomain || `${APP_NAME} Store`,
               customerName: po.customerName,
               orderNumber: po.orderNumber,
+              storeId,
+              shopDomain: store?.shopDomain,
+              relatedEntityId: po.orderId,
+              relatedEntityType: 'PreorderRecord',
             });
 
             // Log dispatched job in DB with encrypted customer email & phone
@@ -624,6 +628,13 @@ export class BackInStockService {
                 }
                 createdAt
                 displayFulfillmentStatus
+                displayFinancialStatus
+                totalPriceSet {
+                  shopMoney {
+                    amount
+                    currencyCode
+                  }
+                }
                 customer {
                   firstName
                   lastName
@@ -636,9 +647,22 @@ export class BackInStockService {
                       variant {
                         id
                         title
+                        image {
+                          url
+                        }
                       }
                       title
                       quantity
+                      originalUnitPriceSet {
+                        shopMoney {
+                          amount
+                        }
+                      }
+                      discountedUnitPriceSet {
+                        shopMoney {
+                          amount
+                        }
+                      }
                       customAttributes {
                         key
                         value
@@ -683,10 +707,34 @@ export class BackInStockService {
           for (const attr of attrs) {
             const k = (attr.key || '').toLowerCase();
             const v = String(attr.value || '').trim();
-            if (k === '_paymentoption' && v.toUpperCase().includes('HALF')) paymentOption = 'HALF';
+            if ((k === '_paymentoption' || k === 'payment option') && (v.toUpperCase().includes('HALF') || v.includes('50%'))) {
+              paymentOption = 'HALF';
+            }
             if (k === '_totalamount' && !isNaN(parseFloat(v))) totalAmount = parseFloat(v);
             if (k === '_depositamount' && !isNaN(parseFloat(v))) depositAmount = parseFloat(v);
             if (k === '_remainingamount' && !isNaN(parseFloat(v))) remainingBalance = parseFloat(v);
+          }
+
+          const orderTotal = parseFloat(order.totalPriceSet?.shopMoney?.amount || '0');
+          const unitPrice = parseFloat(item.discountedUnitPriceSet?.shopMoney?.amount || item.originalUnitPriceSet?.shopMoney?.amount || '0');
+          const lineItemTotal = unitPrice * (item.quantity || 1);
+
+          if (paymentOption === 'HALF') {
+            if (depositAmount <= 0) {
+              depositAmount = orderTotal > 0 ? orderTotal : lineItemTotal;
+            }
+            if (totalAmount <= 0) {
+              totalAmount = Math.round(depositAmount * 2 * 100) / 100;
+            }
+            if (remainingBalance <= 0) {
+              remainingBalance = Math.max(0, Math.round((totalAmount - depositAmount) * 100) / 100);
+            }
+          } else {
+            if (totalAmount <= 0) {
+              totalAmount = orderTotal > 0 ? orderTotal : lineItemTotal;
+            }
+            depositAmount = totalAmount;
+            remainingBalance = 0;
           }
 
           const existingRecord = await (prisma as any).preorderRecord.findUnique({
@@ -751,10 +799,49 @@ export class BackInStockService {
             },
             update: {
               orderNumber: formattedOrderNum,
+              customerName: customerName ? safeEncrypt(customerName) : undefined,
+              customerEmail: customerEmail ? safeEncrypt(customerEmail) : undefined,
               customerPhone: customerPhone ? safeEncrypt(customerPhone) : undefined,
+              quantity: item.quantity || 1,
+              productTitle: item.title,
+              variantTitle: item.variant?.title || null,
+              paymentOption,
+              totalAmount,
+              depositAmount,
+              remainingBalance,
+              paymentStatus: paymentOption === 'HALF' ? 'PARTIALLY_PAID' : 'PAID',
               status: targetStatus,
             },
           });
+
+          if (!existingRecord) {
+            try {
+              const { PreorderNotificationService } = require('@/services/preorder/preorder-notifications');
+              await PreorderNotificationService.notifyNewPreorder({
+                storeId,
+                orderNumber: formattedOrderNum,
+                productTitle: item.title,
+                variantTitle: item.variant?.title,
+                quantity: item.quantity || 1,
+                paymentOption,
+                depositAmount,
+                totalAmount,
+                remainingBalance,
+                customerName,
+                customerEmail,
+                paymentStatus: paymentOption === 'HALF' ? 'PARTIALLY_PAID' : 'PAID',
+                productId: cleanVariantId,
+              });
+              await PreorderNotificationService.notifyAwaitingStock({
+                storeId,
+                orderNumber: formattedOrderNum,
+                productTitle: item.title,
+                variantTitle: item.variant?.title,
+                quantity: item.quantity || 1,
+                productId: cleanVariantId,
+              });
+            } catch (_) {}
+          }
 
           // Detect fulfillment or cancellation lifecycle event
           if (existingRecord && existingRecord.status !== targetStatus && (targetStatus === 'FULFILLED' || targetStatus === 'CANCELLED')) {
@@ -1280,6 +1367,10 @@ export class BackInStockService {
         imageUrl: cached?.imageUrl || null,
         price,
         storeName,
+        storeId,
+        shopDomain: store?.shopDomain,
+        relatedEntityId: reg.id,
+        relatedEntityType: 'NotifyMeRegistration',
       });
 
       if (!emailRes.success) {
@@ -1372,6 +1463,10 @@ export class BackInStockService {
         imageUrl: cached?.imageUrl || null,
         price,
         storeName,
+        storeId,
+        shopDomain: store?.shopDomain,
+        relatedEntityId: po.id,
+        relatedEntityType: 'PreorderRecord',
       });
 
       if (!emailRes.success) {

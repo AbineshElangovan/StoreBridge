@@ -159,6 +159,12 @@ export async function GET(req: NextRequest) {
         success: true,
         ...records,
         metrics,
+      }, {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          Pragma: 'no-cache',
+          Expires: '0',
+        }
       });
     }
 
@@ -167,6 +173,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         success: true,
         metrics,
+      }, {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+          Pragma: 'no-cache',
+          Expires: '0',
+        }
       });
     }
 
@@ -200,6 +212,12 @@ export async function GET(req: NextRequest) {
       sample500Half,
       sample500Full,
       overrides,
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+        Pragma: 'no-cache',
+        Expires: '0',
+      }
     });
   } catch (error: any) {
     return handleApiError(error);

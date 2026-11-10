@@ -70,6 +70,7 @@ model Store {
   notificationJobs           NotificationJob[]
   preorderRecords            PreorderRecord[]
   userActivities             UserActivity[]
+  emailActivities            EmailActivity[]
 
   @@map("stores")
 }
@@ -736,3 +737,47 @@ model UserActivity {
   @@index([shopDomain])
   @@map("user_activities")
 }
+
+// -----------------------------------------------------------------------------
+// EMAIL ACTIVITY LOGGING
+// -----------------------------------------------------------------------------
+
+enum EmailActivityStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  FAILED
+  BOUNCED
+}
+
+model EmailActivity {
+  id                String              @id @default(uuid())
+  merchantId        String?
+  storeId           String?
+  shopDomain        String
+  recipient         String              // Privacy-protected / encrypted with AES-256-GCM
+  emailType         String              @default("NOTIFICATION")
+  relatedEntityId   String?
+  relatedEntityType String?
+  status            EmailActivityStatus @default(QUEUED)
+  providerMessageId String?
+  errorMessage      String?             @db.Text
+  metadata          Json?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  store Store? @relation(fields: [storeId], references: [id], onDelete: SetNull)
+
+  @@index([storeId])
+  @@index([merchantId])
+  @@index([shopDomain])
+  @@index([emailType])
+  @@index([status])
+  @@index([providerMessageId])
+  @@index([createdAt])
+  @@map("email_activities")
+}
+
+
+
+

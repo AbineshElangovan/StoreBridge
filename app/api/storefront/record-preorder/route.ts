@@ -79,19 +79,27 @@ export async function POST(req: NextRequest) {
     let formattedOrderNumber = data.orderNumber ? data.orderNumber.trim() : 'auto';
     let cleanOrderId = data.orderId || '';
 
-    // If order number is 'auto' or temporary, automatically compute the exact next sequential order number
+    // If order number is 'auto' or missing, compute the sequential order number with deduplication
     if (!cleanOrderId || cleanOrderId.startsWith('storefront_') || formattedOrderNumber === 'auto' || formattedOrderNumber.toLowerCase() === 'pre-auto') {
       const latestRecord = await prisma.preorderRecord.findFirst({
         where: { storeId: store.id },
         orderBy: { createdAt: 'desc' },
-        select: { orderNumber: true, shopifyOrderId: true },
+        select: { orderNumber: true, shopifyVariantId: true, createdAt: true },
       });
 
-      let nextNum = 1060;
+      let nextNum = 1072;
       if (latestRecord?.orderNumber) {
         const match = latestRecord.orderNumber.match(/\d+/);
         if (match) {
-          nextNum = parseInt(match[0], 10) + 1;
+          const currentNum = parseInt(match[0], 10);
+          const ageMs = Date.now() - new Date(latestRecord.createdAt).getTime();
+          // Only reuse the order number if the EXACT SAME variant was clicked within 30 seconds (double-click debounce)
+          const isSameVariantRapidClick = latestRecord.shopifyVariantId === cleanVariantId && ageMs < 30 * 1000;
+          if (isSameVariantRapidClick) {
+            nextNum = currentNum;
+          } else {
+            nextNum = currentNum + 1;
+          }
         }
       }
 
@@ -184,6 +192,63 @@ export async function POST(req: NextRequest) {
 
     console.log(`[Storefront:RecordPreorder] Saved preorder for order ${formattedOrderNumber} (Variant: ${cleanVariantId})`);
 
+    // Bidirectional sync to Neon DB so Amplify and Local are always in sync
+    try {
+      if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('neon.tech')) {
+        const { PrismaClient } = require('@prisma/client');
+        const remoteNeon = new PrismaClient({
+          datasources: { db: { url: 'postgresql://neondb_owner:npg_7rDw2gJtlEeU@ep-restless-sun-b5m5tyc8-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require' } }
+        });
+        await remoteNeon.preorderRecord.upsert({
+          where: {
+            storeId_shopifyOrderId_shopifyVariantId: {
+              storeId: store.id,
+              shopifyOrderId: cleanOrderId,
+              shopifyVariantId: cleanVariantId,
+            },
+          },
+          create: {
+            storeId: store.id,
+            shopifyOrderId: cleanOrderId,
+            orderNumber: formattedOrderNumber,
+            shopifyVariantId: cleanVariantId,
+            customerName: customerName ? safeEncrypt(customerName) : null,
+            customerEmail: customerEmail ? safeEncrypt(customerEmail) : null,
+            customerPhone: customerPhone ? safeEncrypt(customerPhone) : null,
+            quantity: data.quantity,
+            whatsappOptIn: false,
+            status: 'UNFULFILLED',
+            productTitle: data.productTitle || null,
+            variantTitle: data.variantTitle || null,
+            paymentOption: data.paymentOption,
+            totalAmount: data.totalAmount,
+            depositAmount: data.depositAmount,
+            remainingBalance: data.remainingBalance,
+            paymentStatus: data.paymentStatus,
+            currency: data.currency,
+          },
+          update: {
+            orderNumber: formattedOrderNumber,
+            customerName: customerName ? safeEncrypt(customerName) : null,
+            customerEmail: customerEmail ? safeEncrypt(customerEmail) : null,
+            customerPhone: customerPhone ? safeEncrypt(customerPhone) : null,
+            quantity: data.quantity,
+            status: 'UNFULFILLED',
+            productTitle: data.productTitle || null,
+            variantTitle: data.variantTitle || null,
+            paymentOption: data.paymentOption,
+            totalAmount: data.totalAmount,
+            depositAmount: data.depositAmount,
+            remainingBalance: data.remainingBalance,
+            paymentStatus: data.paymentStatus,
+          },
+        });
+        await remoteNeon.$disconnect();
+      }
+    } catch (neonErr: any) {
+      console.warn('[Storefront:RecordPreorder:NeonSyncWarn]', neonErr.message);
+    }
+
     // Dispatch Pre-order confirmation email to customer
     if (data.customerEmail) {
       try {
@@ -214,8 +279,10 @@ export async function POST(req: NextRequest) {
         productTitle: data.productTitle || 'Pre-order Item',
         quantity: data.quantity,
         paymentOption: (data as any).paymentOption || 'FULL',
-        customerName: data.customerName,
-        customerEmail: data.customerEmail,
+        depositAmount: Number(data.depositAmount) || 0,
+        remainingBalance: Number(data.remainingBalance) || 0,
+        customerName: customerName,
+        customerEmail: customerEmail,
         productId: cleanVariantId,
       });
 

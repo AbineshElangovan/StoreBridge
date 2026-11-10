@@ -47,11 +47,12 @@ export class PreorderNotificationService {
     const fullTitle = variantTitle ? `${productTitle} - ${variantTitle}` : productTitle;
     const title = `New Pre-order: ${orderNumber}`;
 
-    // Prevent duplicate: check if notification already exists for this order
+    // Prevent duplicate: check if notification already exists for this order and product
     const existing = await prisma.notification.findFirst({
       where: {
         recipientStoreId: storeId,
         title,
+        productTitle: fullTitle,
       },
     });
 
@@ -106,6 +107,7 @@ export class PreorderNotificationService {
       where: {
         recipientStoreId: storeId,
         title,
+        productTitle: fullTitle,
       },
     });
 
@@ -152,6 +154,7 @@ export class PreorderNotificationService {
       where: {
         recipientStoreId: storeId,
         title,
+        productTitle: fullTitle,
       },
     });
 
@@ -199,6 +202,7 @@ export class PreorderNotificationService {
       where: {
         recipientStoreId: storeId,
         title,
+        productTitle: fullTitle,
       },
     });
 
@@ -257,6 +261,7 @@ export class PreorderNotificationService {
       where: {
         recipientStoreId: storeId,
         title,
+        productTitle: fullTitle,
       },
     });
 
