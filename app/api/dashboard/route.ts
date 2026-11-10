@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db/prisma';
 import { authenticate, handleApiError } from '@/lib/shopify/authenticate';
 import { cleanupExpiredActivityLogs } from '@/lib/services/activityRetention';
 import { PreorderService } from '@/services/preorder/preorder-service';
+import { WishlistService } from '@/services/wishlist/wishlist-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -126,12 +127,20 @@ export async function GET(req: NextRequest) {
       console.warn('[Dashboard] Could not fetch preorder active count:', e);
     }
 
+    let wishlistCount = 0;
+    try {
+      wishlistCount = await WishlistService.getWishlistCount(store.id);
+    } catch (e) {
+      console.warn('[Dashboard] Could not fetch wishlist count:', e);
+    }
+
     const stats = {
       totalProducts,
       totalInventory,
       activeProducts,
       lowStock: lowStockCount,
       preorderActive: preorderActiveCount,
+      wishlistCount,
       lastUpdated,
     };
 

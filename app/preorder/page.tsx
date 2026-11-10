@@ -207,17 +207,9 @@ export default function PreorderAdminPage() {
     window.addEventListener('focus', handleSync);
     document.addEventListener('visibilitychange', handleSync);
 
-    // Auto-poll for new real-time preorder orders every 5 seconds
-    const interval = setInterval(() => {
-      if (typeof document !== 'undefined' && !document.hidden) {
-        fetchRecords(recordsPage, recordsSearch, recordsStatus, true);
-      }
-    }, 5000);
-
     return () => {
       window.removeEventListener('focus', handleSync);
       document.removeEventListener('visibilitychange', handleSync);
-      clearInterval(interval);
     };
   }, [activeTab, recordsPage, recordsSearch, recordsStatus]);
 

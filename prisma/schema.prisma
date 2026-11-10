@@ -71,6 +71,7 @@ model Store {
   preorderRecords            PreorderRecord[]
   userActivities             UserActivity[]
   emailActivities            EmailActivity[]
+  wishlistItems              WishlistItem[]
 
   @@map("stores")
 }
@@ -776,6 +777,34 @@ model EmailActivity {
   @@index([providerMessageId])
   @@index([createdAt])
   @@map("email_activities")
+}
+
+// -----------------------------------------------------------------------------
+// CUSTOMER EXPERIENCE: WISHLIST (USER / SINGLE STORE)
+// -----------------------------------------------------------------------------
+
+model WishlistItem {
+  id                String   @id @default(uuid())
+  storeId           String
+  shopifyProductId  String
+  shopifyVariantId  String?
+  productTitle      String
+  variantTitle      String?
+  sku               String?
+  price             Float    @default(0.0)
+  imageUrl          String?
+  inventoryQuantity Int      @default(0)
+  note              String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, shopifyProductId, shopifyVariantId])
+  @@index([storeId])
+  @@index([shopifyProductId])
+  @@index([createdAt])
+  @@map("wishlist_items")
 }
 
 

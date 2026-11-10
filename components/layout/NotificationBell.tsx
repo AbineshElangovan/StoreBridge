@@ -17,6 +17,7 @@ import {
 } from '@shopify/polaris-icons';
 import { useNotifications, NotificationItem } from '@/components/providers/NotificationContext';
 import { useStoreContext } from '@/components/providers/StoreProvider';
+import { useTheme } from '@/components/providers/ThemeContext';
 
 function getRelativeTime(dateString: string): string {
   const date = new Date(dateString);
@@ -90,6 +91,10 @@ function getTypeStyle(type: string, title?: string, metadata?: any) {
 
 export function NotificationBell() {
   const { isStandalone } = useStoreContext();
+  const { currentTheme } = useTheme();
+  const primaryColor = currentTheme?.primaryColor || '#0db69d';
+  const darkColor = currentTheme?.darkColor || '#142403';
+  const [isHovered, setIsHovered] = useState<boolean>(false);
   const {
     notifications,
     unreadCount,
@@ -149,24 +154,55 @@ export function NotificationBell() {
   ];
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      {/* Bell Trigger Button */}
+    <div className="relative shrink-0 flex items-center justify-center w-10 h-10 min-w-10 min-h-10" ref={dropdownRef}>
+      {/* Bell Trigger Button - White outer background, theme-colored bell icon matching WishlistNavButton */}
       <button
+        type="button"
         onClick={() => {
           setIsOpen(!isOpen);
           if (!isOpen) fetchNotifications(activeFilter);
         }}
-        className="relative w-10 h-10 bg-[#0db69d] hover:bg-[#0b9c87] text-white border border-[#0db69d]/40 rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-[#0db69d]/50 flex items-center justify-center shadow-xs cursor-pointer"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        style={{
+          width: '40px',
+          height: '40px',
+          minWidth: '40px',
+          minHeight: '40px',
+          maxWidth: '40px',
+          maxHeight: '40px',
+          boxSizing: 'border-box',
+          padding: 0,
+          border: `2px solid ${primaryColor}`,
+          borderRadius: '9999px',
+          backgroundColor: isHovered || isOpen ? `${primaryColor}20` : '#ffffff',
+          boxShadow: `0 2px 8px -1px ${primaryColor}40`,
+        }}
+        className="relative shrink-0 rounded-full transition-all duration-200 focus:outline-none flex items-center justify-center cursor-pointer group"
         aria-label="Notifications"
+        title={unreadCount > 0 ? `Notifications (${unreadCount} unread)` : 'Notifications'}
       >
-        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        {/* Theme-colored Notification Bell Icon (24x24 viewBox matching Wishlist Heart) */}
+        <svg
+          style={{
+            color: primaryColor,
+            fill: primaryColor,
+            filter: `drop-shadow(0 1px 3px ${primaryColor}60)`,
+          }}
+          className="w-5 h-5 transition-transform duration-200 group-hover:scale-110"
+          viewBox="0 0 24 24"
+        >
+          <path
+            fillRule="evenodd"
+            d="M5.25 9a6.75 6.75 0 0 1 13.5 0v.75c0 2.123.8 4.057 2.118 5.52a.75.75 0 0 1-.297 1.206c-1.544.57-3.16.99-4.831 1.243a3.75 3.75 0 1 1-7.48 0 24.585 24.585 0 0 1-4.831-1.244.75.75 0 0 1-.298-1.205A8.217 8.217 0 0 0 5.25 9.75V9Zm4.502 8.9a2.25 2.25 0 1 0 4.496 0 25.057 25.057 0 0 1-4.496 0Z"
+            clipRule="evenodd"
+          />
         </svg>
         {/* Only render badge if unreadCount > 0 */}
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 flex h-[18px] min-w-[18px]">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-            <span className="relative inline-flex min-w-[18px] h-[18px] px-1 bg-red-600 text-white text-[10px] font-extrabold rounded-full items-center justify-center shadow-sm border border-white">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-500 opacity-75" />
+            <span className="relative inline-flex min-w-[18px] h-[18px] px-1 bg-rose-600 text-white text-[10px] font-black rounded-full items-center justify-center shadow-xs border border-white">
               {unreadCount > 99 ? '99+' : unreadCount}
             </span>
           </span>

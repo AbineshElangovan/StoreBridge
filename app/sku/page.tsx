@@ -7,6 +7,9 @@ import CollectionSkuRule from "@/components/stores/CollectionSkuRule";
 import { Input } from "@/components/forms/Input";
 import { useStoreContext } from "@/components/providers/StoreProvider";
 import { SkuGeneratorContainer } from "@/components/sku-generation/SkuGeneratorContainer";
+import { Icon } from '@shopify/polaris';
+import { ProductIcon, CollectionIcon } from '@shopify/polaris-icons';
+import { useTheme } from '@/components/providers/ThemeContext';
 
 export default function SkuSettingsPage() {
   const [activeTab, setActiveTab] = useState<"global_rules" | "variant_generator">("global_rules");
@@ -29,6 +32,9 @@ export default function SkuSettingsPage() {
   const [copied, setCopied] = useState(false);
 
   const { canManageSku } = useStoreContext();
+  const { currentTheme } = useTheme();
+  const primaryColor = currentTheme?.primaryColor || '#a7cd18';
+  const buttonTextColor = currentTheme?.id === 'emerald_forest' ? '#142403' : '#ffffff';
   const hasWriteAccess = canManageSku;
 
   const collectionRuleRef = useRef<any>(null);
@@ -190,7 +196,7 @@ export default function SkuSettingsPage() {
             </div>
 
             <div
-              className={`flex items-center gap-1.5 p-1 bg-gray-100 rounded-xl border border-gray-200 shrink-0 self-start md:self-auto ${
+              className={`inline-flex items-center gap-1.5 p-1 bg-gray-100 rounded-xl border border-gray-200 shrink-0 self-start md:self-auto ${
                 !hasWriteAccess ? "opacity-60 cursor-not-allowed" : ""
               }`}
             >
@@ -202,22 +208,42 @@ export default function SkuSettingsPage() {
                     setSelectedCollectionPrefix("");
                   }
                 }}
-                className={`px-3.5 sm:px-4 py-1.5 text-xs sm:text-sm font-black rounded-lg transition-all cursor-pointer ${
-                  skuMode === "default" ? "bg-[var(--color-primary)] toggle-btn-active shadow-xs" : "text-gray-700 hover:bg-gray-200/70"
+                className={`inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 text-xs sm:text-sm font-bold rounded-lg transition-all cursor-pointer ${
+                  skuMode === "default"
+                    ? "shadow-xs"
+                    : "text-gray-600 hover:text-gray-900"
                 }`}
+                style={
+                  skuMode === "default"
+                    ? { backgroundColor: primaryColor, color: buttonTextColor }
+                    : {}
+                }
                 disabled={!hasWriteAccess}
               >
-                Default SKU
+                <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 flex items-center justify-center">
+                  <Icon source={ProductIcon} tone="inherit" />
+                </div>
+                <span>Default SKU</span>
               </button>
               <button
                 type="button"
                 onClick={() => hasWriteAccess && setSkuMode("collection")}
-                className={`px-3.5 sm:px-4 py-1.5 text-xs sm:text-sm font-black rounded-lg transition-all cursor-pointer ${
-                  skuMode === "collection" ? "bg-[var(--color-primary)] toggle-btn-active shadow-xs" : "text-gray-700 hover:bg-gray-200/70"
+                className={`inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 text-xs sm:text-sm font-bold rounded-lg transition-all cursor-pointer ${
+                  skuMode === "collection"
+                    ? "shadow-xs"
+                    : "text-gray-600 hover:text-gray-900"
                 }`}
+                style={
+                  skuMode === "collection"
+                    ? { backgroundColor: primaryColor, color: buttonTextColor }
+                    : {}
+                }
                 disabled={!hasWriteAccess}
               >
-                Collection SKU
+                <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 flex items-center justify-center">
+                  <Icon source={CollectionIcon} tone="inherit" />
+                </div>
+                <span>Collection SKU</span>
               </button>
             </div>
           </div>

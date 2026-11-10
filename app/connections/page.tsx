@@ -196,7 +196,6 @@ export default function ConnectionsPage() {
       const data = await res.json();
       if (data.success) {
         showSuccess(`Store connection "${removingConnection.name}" removed successfully.`);
-        setRemovingConnection(null);
         await fetchData();
         if (refreshStores) {
           await refreshStores();
@@ -208,6 +207,7 @@ export default function ConnectionsPage() {
       showError('Error: ' + err.message);
     } finally {
       setIsRemoving(false);
+      setRemovingConnection(null);
     }
   };
 

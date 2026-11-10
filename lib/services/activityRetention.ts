@@ -9,6 +9,10 @@ export interface RetentionCleanupResult {
   totalPurged: number;
 }
 
+// In-memory throttle to prevent running retention queries on every incoming API request
+let lastCleanupTimestamp = 0;
+const RETENTION_COOLDOWN_MS = 6 * 60 * 60 * 1000; // Run at most once every 6 hours
+
 /**
  * Automatically purges activity logs, notifications, sync logs, import histories,
  * and finished notification jobs older than 90 days for all stores
@@ -23,6 +27,12 @@ export async function cleanupExpiredActivityLogs(): Promise<RetentionCleanupResu
     notificationJobs: 0,
     totalPurged: 0,
   };
+
+  const now = Date.now();
+  if (now - lastCleanupTimestamp < RETENTION_COOLDOWN_MS) {
+    return summary;
+  }
+  lastCleanupTimestamp = now;
 
   try {
     const ninetyDaysAgo = new Date();

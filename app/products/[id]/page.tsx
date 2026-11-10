@@ -181,11 +181,16 @@ export default function ProductDetailsPage() {
 
       {/* Reusable Product Header */}
       <ProductHeader
+        productId={productData.shopifyProductId || productData.id || productId}
         title={productData.title}
         sku={productData.sku}
         collection={productData.collection}
         vendor={productData.vendor}
         isPreorderEligible={Boolean(isStandalone && (productData.isPreorderEligible ?? productData.preorder?.isAvailable))}
+        price={productData.basePrice || productData.variants?.[0]?.price || 0}
+        imageUrl={productData.imageUrl || productData.images?.[0]?.src || null}
+        currentStock={productData.currentStock ?? productData.totalInventory ?? 0}
+        variantTitle={productData.variants?.[0]?.title || null}
         onDelete={() => setShowDeleteModal(true)}
         isDeleting={isDeleting}
       />
@@ -195,6 +200,7 @@ export default function ProductDetailsPage() {
         {/* Left Column: Product Info Card */}
         <div className="lg:col-span-4 space-y-6 w-full">
           <ProductInfoCard
+            productId={productData.shopifyProductId || productData.id || productId}
             imageUrl={productData.imageUrl}
             title={productData.title}
             sku={productData.sku}
@@ -205,6 +211,7 @@ export default function ProductDetailsPage() {
             currentStock={productData.currentStock}
             healthStatus={productData.healthStatus}
             preorderStatus={isStandalone ? (productData.preorder?.status || null) : null}
+            variantTitle={productData.variants?.[0]?.title || null}
           />
         </div>
 

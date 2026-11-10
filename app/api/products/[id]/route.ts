@@ -1514,6 +1514,19 @@ export async function DELETE(
       });
     }
 
+    // Auto-remove from wishlist when product is deleted
+    const cleanDeletedProdId = shopifyProductId.replace(/^gid:\/\/shopify\/Product\//i, '');
+    await prisma.wishlistItem.deleteMany({
+      where: {
+        storeId: productStore.id,
+        OR: [
+          { shopifyProductId: shopifyProductId },
+          { shopifyProductId: cleanDeletedProdId },
+          { shopifyProductId: `gid://shopify/Product/${cleanDeletedProdId}` },
+        ],
+      },
+    }).catch(() => {});
+
     // 3. STORE ROLE REPLICATION & SYNC REQUEST NOTIFICATIONS FOR PRODUCT DELETE
     const targetStoreResults: Array<{ storeId: string; shopDomain: string; success: boolean; error?: string }> = [];
 
@@ -1716,6 +1729,16 @@ export async function DELETE(
                   ]
                 }
               });
+              await prisma.wishlistItem.deleteMany({
+                where: {
+                  storeId: targetStore.id,
+                  OR: [
+                    { shopifyProductId: targetProd.shopifyProductId },
+                    { shopifyProductId: targetProdGid },
+                    { shopifyProductId: targetNumericProdId }
+                  ]
+                }
+              }).catch(() => {});
               console.log(`[Product Details API] Successfully replicated product delete for "${cleanTitle}" to ${targetStore.shopDomain}`);
               targetStoreResults.push({ storeId: targetStore.id, shopDomain: targetStore.shopDomain, success: true });
             }

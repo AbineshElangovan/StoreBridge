@@ -226,6 +226,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           if (!isDisposed && fetchNotificationsRef.current) {
             // Immediate silent check when stream notifies of a new item
             fetchNotificationsRef.current(undefined, true);
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('notification-updated'));
+            }
           }
         });
 

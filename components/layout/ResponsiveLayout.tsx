@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Icon } from '@shopify/polaris';
 import { MenuIcon, XIcon, HomeIcon, ChevronRightIcon, CheckCircleIcon } from '@shopify/polaris-icons';
 import { NotificationBell } from '@/components/layout/NotificationBell';
+import { WishlistNavButton } from '@/components/layout/WishlistNavButton';
 import { StoreRoleBadge } from '@/components/ui/StoreRoleBadge';
 import { useNavbarTitle } from '@/components/providers/NavbarTitleContext';
 import { ThemeSwitcher } from '@/components/layout/ThemeSwitcher';
@@ -89,6 +90,7 @@ export function ResponsiveLayout({
         </div>
         <div className="flex items-center gap-2">
           <ThemeSwitcher />
+          <WishlistNavButton />
           <NotificationBell />
           <button 
             onClick={() => setIsSidebarOpen(true)}
@@ -166,6 +168,9 @@ export function ResponsiveLayout({
 
             {/* Store Role Badge */}
             <StoreRoleBadge />
+
+            {/* Wishlist Nav Button */}
+            <WishlistNavButton />
 
             {/* Notification Bell */}
             <NotificationBell />

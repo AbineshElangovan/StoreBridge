@@ -155,16 +155,18 @@ export default function NotificationsPage() {
     };
     window.addEventListener('notification-updated', handleUpdate);
 
-    // Auto-poll for new real-time notifications every 5 seconds
-    const interval = setInterval(() => {
+    const handleFocus = () => {
       if (typeof document !== 'undefined' && !document.hidden) {
         loadNotifications(true);
       }
-    }, 5000);
+    };
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
 
     return () => {
       window.removeEventListener('notification-updated', handleUpdate);
-      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
     };
   }, [loadNotifications]);
 
@@ -243,7 +245,6 @@ export default function NotificationsPage() {
       if (res.ok) {
         showSuccess('Notification deleted');
         notifyBellUpdate();
-        setDeletingNotification(null);
       } else {
         const errJson = await res.json().catch(() => ({}));
         showError(errJson.error || 'Failed to delete notification');
@@ -255,6 +256,7 @@ export default function NotificationsPage() {
       loadNotifications();
     } finally {
       setIsDeletingSingle(false);
+      setDeletingNotification(null);
     }
   };
 

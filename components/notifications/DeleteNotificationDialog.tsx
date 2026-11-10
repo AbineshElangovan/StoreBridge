@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Modal, Text, BlockStack, Banner } from '@shopify/polaris';
 import { Button } from '@/components/common/Button';
 
@@ -17,6 +17,25 @@ export function DeleteNotificationDialog({
   onConfirm,
   loading = false,
 }: DeleteNotificationDialogProps) {
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!loading) onConfirm();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!loading) onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [open, loading, onConfirm, onClose]);
+
   return (
     <Modal
       open={open}

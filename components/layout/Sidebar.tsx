@@ -113,6 +113,13 @@ export function Sidebar() {
       title: 'INVENTORY',
       items: [
         { label: 'Products', href: '/products', icon: ProductIcon },
+        ...(isStandalone ? [
+          {
+            label: 'Wishlist',
+            href: '/wishlist',
+            icon: HeartIcon,
+          }
+        ] : []),
       ]
     },
     {

@@ -771,6 +771,18 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
       where: { storeId: store.id, shopifyProductId: deletedGid },
     });
 
+    const numProdId = String(payload.id).replace(/^gid:\/\/shopify\/Product\//i, '');
+    await prisma.wishlistItem.deleteMany({
+      where: {
+        storeId: store.id,
+        OR: [
+          { shopifyProductId: deletedGid },
+          { shopifyProductId: numProdId },
+          { shopifyProductId: String(payload.id) }
+        ]
+      }
+    }).catch(() => {});
+
     // Create ActivityLog for DELETE (with deduplication & imageUrl)
     const imgUrl = cacheForLog?.imageUrl || payload.image?.src || payload.images?.[0]?.src || payload.featuredImage?.url || null;
     const existingLog = await prisma.activityLog.findFirst({
@@ -967,6 +979,20 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
   await prisma.productCache.deleteMany({
     where: { storeId: store?.id, shopifyProductId: deletedGid },
   });
+
+  if (store?.id) {
+    const numProdId = String(payload.id).replace(/^gid:\/\/shopify\/Product\//i, '');
+    await prisma.wishlistItem.deleteMany({
+      where: {
+        storeId: store.id,
+        OR: [
+          { shopifyProductId: deletedGid },
+          { shopifyProductId: numProdId },
+          { shopifyProductId: String(payload.id) }
+        ]
+      }
+    }).catch(() => {});
+  }
   console.log(`[Worker:products/delete] Cleaned up local cache for Master Store: ${shop}`);
 }
 

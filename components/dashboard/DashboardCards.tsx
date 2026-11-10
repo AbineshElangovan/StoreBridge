@@ -6,6 +6,7 @@ import {
   AlertTriangleIcon,
   CheckCircleIcon,
   CartIcon,
+  HeartIcon,
 } from '@shopify/polaris-icons';
 import { StatCard } from '@/components/ui/StatCard';
 
@@ -17,6 +18,7 @@ export interface DashboardCardsProps {
     activeProducts: number;
     lastUpdated: string;
     preorderActive?: number;
+    wishlistCount?: number;
   };
   lowStockThreshold?: number;
   crossStore?: boolean;
@@ -134,12 +136,19 @@ export function DashboardCards({
           icon: CartIcon,
           color: 'purple' as const,
         },
+        {
+          key: 'wishlistCount' as const,
+          title: 'Wishlist',
+          description: 'Curated products',
+          icon: HeartIcon,
+          color: 'danger' as const,
+        },
       ];
 
-  const isFiveCards = isStandalone && !isProductsPage;
+  const isSixCards = isStandalone && !isProductsPage;
 
-  const gridClass = isFiveCards
-    ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-3.5'
+  const gridClass = isSixCards
+    ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-3.5'
     : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4';
 
   return (
@@ -152,7 +161,7 @@ export function DashboardCards({
             value={(stats[key] ?? 0).toLocaleString('en-US')}
             icon={icon}
             color={color}
-            compact={isFiveCards}
+            compact={isSixCards}
           />
         </div>
       ))}

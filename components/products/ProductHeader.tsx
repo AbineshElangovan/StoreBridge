@@ -3,19 +3,39 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { PreorderBadge } from '@/components/preorder/PreorderBadge';
+import { WishlistHeartButton } from '@/components/wishlist/WishlistHeartButton';
 
 interface ProductHeaderProps {
+  productId?: string;
   title: string;
   sku: string;
   collection: string;
   vendor: string;
   isPreorderEligible?: boolean;
+  price?: number;
+  imageUrl?: string | null;
+  currentStock?: number;
+  variantTitle?: string | null;
   onBack?: () => void;
   onDelete?: () => void;
   isDeleting?: boolean;
 }
 
-export function ProductHeader({ title, sku, collection, vendor, isPreorderEligible, onBack, onDelete, isDeleting }: ProductHeaderProps) {
+export function ProductHeader({
+  productId,
+  title,
+  sku,
+  collection,
+  vendor,
+  isPreorderEligible,
+  price,
+  imageUrl,
+  currentStock,
+  variantTitle,
+  onBack,
+  onDelete,
+  isDeleting,
+}: ProductHeaderProps) {
   const router = useRouter();
   const displayCollection = collection ? collection.toUpperCase() : '';
   const displayVendor = vendor ? vendor.toUpperCase() : '';
@@ -50,6 +70,19 @@ export function ProductHeader({ title, sku, collection, vendor, isPreorderEligib
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {productId && (
+          <WishlistHeartButton
+            productId={productId}
+            productTitle={title}
+            sku={sku}
+            price={price}
+            imageUrl={imageUrl}
+            inventoryQuantity={currentStock}
+            variantTitle={variantTitle}
+            showLabel={true}
+          />
+        )}
+
         {onDelete && (
           <button
             type="button"

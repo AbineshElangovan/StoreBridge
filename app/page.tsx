@@ -18,9 +18,30 @@ import { PreorderBadge } from '@/components/preorder/PreorderBadge';
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [wishlistItems, setWishlistItems] = useState<any[]>([]);
   const { isStandalone, loading: contextLoading } = useStoreContext();
   const router = useRouter();
   const hasLoadedRef = React.useRef(false);
+
+  const loadWishlist = React.useCallback(async () => {
+    if (!isStandalone) return;
+    try {
+      const res = await shopifyFetch('/api/wishlist');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.items)) {
+          setWishlistItems(json.items);
+        }
+      }
+    } catch (_) {}
+  }, [isStandalone]);
+
+  useEffect(() => {
+    loadWishlist();
+    const handleWishlistUpdate = () => loadWishlist();
+    window.addEventListener('wishlist-updated', handleWishlistUpdate);
+    return () => window.removeEventListener('wishlist-updated', handleWishlistUpdate);
+  }, [loadWishlist]);
 
   useEffect(() => {
     if (hasLoadedRef.current) return;
@@ -71,7 +92,10 @@ export default function DashboardPage() {
     return <Loading label="Loading dashboard..." />;
   }
 
-  const stats = data?.stats || { totalProducts: 0, totalInventory: 0, lowStock: 0, activeProducts: 0, preorderActive: 0, lastUpdated: 'Never' };
+  const stats = {
+    ...(data?.stats || { totalProducts: 0, totalInventory: 0, lowStock: 0, activeProducts: 0, preorderActive: 0, lastUpdated: 'Never' }),
+    wishlistCount: wishlistItems.length > 0 ? wishlistItems.length : (data?.stats?.wishlistCount ?? 0),
+  };
   const lowStockThreshold = data?.lowStockThreshold ?? 10;
   const storeSummaryData = (data?.stores && data.stores.length > 0)
     ? data.stores.map((store: any) => ({
@@ -214,6 +238,92 @@ export default function DashboardPage() {
     { title: 'Updated Time', key: 'updatedTime' },
   ];
 
+  const handleUncheckWishlist = async (itemId: string, shopifyProductId: string) => {
+    // Optimistic UI update
+    setWishlistItems((prev) => prev.filter((i) => i.id !== itemId && i.shopifyProductId !== shopifyProductId));
+    try {
+      await shopifyFetch(`/api/wishlist?id=${encodeURIComponent(itemId)}`, {
+        method: 'DELETE',
+      });
+      window.dispatchEvent(
+        new CustomEvent('wishlist-updated', {
+          detail: { action: 'removed', shopifyProductId },
+        })
+      );
+    } catch (err) {
+      console.error('Failed to uncheck wishlist item:', err);
+      loadWishlist();
+    }
+  };
+
+  const wishlistColumns: ColumnConfig[] = [
+    { title: 'Image', key: 'imageUrls', type: 'image' },
+    { title: 'Product Name', key: 'title_node', type: 'react_node' },
+    { title: 'SKU', key: 'sku' },
+    { title: 'Price', key: 'priceText', type: 'bold' },
+    { title: 'Stock Status', key: 'stockStatus_node', type: 'react_node' },
+    { title: 'Action', key: 'action_node', type: 'react_node' },
+    { title: 'Updated Date', key: 'updatedDate' },
+    { title: 'Updated Time', key: 'updatedTime' },
+  ];
+
+  const wishlistTableItems = wishlistItems.map((item) => {
+    const cleanId = String(item.shopifyProductId).replace(/^gid:\/\/shopify\/Product\//i, '');
+    const prodUrl = `/products/${cleanId}`;
+    const isAvail = item.inventoryQuantity > 0;
+
+    return {
+      id: item.id,
+      url: prodUrl,
+      title: item.productTitle,
+      imageUrls: item.imageUrl ? [item.imageUrl] : [],
+      title_node: (
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link
+            href={prodUrl}
+            className="font-bold text-gray-900 hover:text-rose-600 hover:underline cursor-pointer transition-colors"
+          >
+            {item.productTitle}
+          </Link>
+          {item.variantTitle && (
+            <span className="text-xs text-gray-500 font-medium">({item.variantTitle})</span>
+          )}
+        </div>
+      ),
+      sku: item.sku || '—',
+      priceText: `₹${Number(item.price || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+      stockStatus_node: (
+        <span
+          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+            isAvail
+              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              : 'bg-rose-50 text-rose-700 border border-rose-200'
+          }`}
+        >
+          {isAvail ? `${item.inventoryQuantity} in stock` : 'Out of stock'}
+        </span>
+      ),
+      action_node: (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleUncheckWishlist(item.id, item.shopifyProductId);
+          }}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 hover:border-rose-300 transition-all cursor-pointer shadow-2xs group active:scale-95"
+          title="Click to uncheck / remove from wishlist"
+        >
+          <svg className="w-3.5 h-3.5 fill-rose-500 text-rose-500 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+            <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+          </svg>
+          <span>Wishlisted</span>
+        </button>
+      ),
+      updatedDate: <LocalizedDate date={item.createdAt || item.updatedAt} format="date" />,
+      updatedTime: <LocalizedDate date={item.createdAt || item.updatedAt} format="time" />,
+    };
+  });
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden">
       <div className="flex flex-col gap-8 min-w-0 w-full">
@@ -355,6 +465,29 @@ export default function DashboardPage() {
             />
           </div>
         </div>
+
+        {isStandalone && wishlistItems.length > 0 && (
+          <div className="w-full overflow-hidden">
+            <div className="overflow-x-auto w-full max-w-full">
+              <Table
+                title="Curated Wishlist"
+                headerColor="#e11d48"
+                columns={wishlistColumns}
+                items={wishlistTableItems}
+                searchable
+                searchKey="title"
+                filterable={false}
+                paginate={true}
+                itemsPerPage={5}
+                emptyState={
+                  <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
+                    No items in your wishlist yet.
+                  </div>
+                }
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

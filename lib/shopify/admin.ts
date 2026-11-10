@@ -159,7 +159,7 @@ export async function getAdminClient(shopDomain: string) {
 
   let activeStore = store;
 
-  // Proactively refresh tokens with 60 minutes buffer (or if 90-day refresh token has <14 days left)
+  // Proactively refresh tokens with 10 minutes buffer (or if 90-day refresh token has <14 days left)
   // so stores stay continuously rolled and users never experience expiration
   if (activeStore.refreshToken && activeStore.expiresAt) {
     const now = new Date();
@@ -168,8 +168,8 @@ export async function getAdminClient(shopDomain: string) {
       ? activeStore.refreshTokenExpiresAt.getTime() - now.getTime()
       : Infinity;
 
-    // Refresh if access token expires within 60 minutes OR refresh token is within 14 days of expiry
-    const shouldRefresh = timeUntilExpiry < 60 * 60 * 1000 || refreshTimeUntilExpiry < 14 * 24 * 60 * 60 * 1000;
+    // Refresh if access token expires within 10 minutes OR refresh token is within 14 days of expiry
+    const shouldRefresh = timeUntilExpiry < 10 * 60 * 1000 || refreshTimeUntilExpiry < 14 * 24 * 60 * 60 * 1000;
 
     if (shouldRefresh) {
       try {
