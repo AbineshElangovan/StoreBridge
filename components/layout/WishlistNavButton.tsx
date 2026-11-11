@@ -131,7 +131,7 @@ export function WishlistNavButton() {
   // Only show the badge number if there are newly added items AND user is NOT on /wishlist
   const unreadCount = isWishlistPage || count <= seenCount ? 0 : Math.max(0, count - seenCount);
 
-  // Wishlist is strictly for Standalone stores. Hidden completely for Master and Connected stores.
+  // Wishlist is strictly for Standalone stores (like Chennai). Hidden completely for Master and Connected stores.
   if (!isStandalone) {
     return null;
   }

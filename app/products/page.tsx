@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Table, ColumnConfig } from '@/components/common/Table';
-import { Loading, RefreshButton } from '@/components/common';
+import { Loading } from '@/components/common';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import { DashboardCards } from '@/components/dashboard/DashboardCards';
 import { LocalizedDate } from '@/components/common/LocalizedDate';
@@ -55,30 +55,10 @@ export default function ProductsPage() {
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   const groupedProducts = data?.groupedProducts || {};
-
-  const handleRefresh = async () => {
-    try {
-      setIsRefreshing(true);
-      const url = currentShop
-        ? `/api/products?shop=${encodeURIComponent(currentShop)}&t=${Date.now()}`
-        : `/api/products?t=${Date.now()}`;
-      const res = await shopifyFetch(url);
-      if (res.ok) {
-        const json = await res.json();
-        setData(json);
-        setError(null);
-      }
-    } catch (err) {
-      console.error("Error refreshing products:", err);
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
 
   const allProducts = useMemo(() => {
     if (!groupedProducts) return [];
@@ -183,12 +163,12 @@ export default function ProductsPage() {
     },
     ...(isStandalone
       ? [
-          {
-            title: 'Wishlist',
-            key: 'wishlist_node',
-            type: 'react_node' as const,
-          },
-        ]
+        {
+          title: 'Wishlist',
+          key: 'wishlist_node',
+          type: 'react_node' as const,
+        },
+      ]
       : []),
     { title: 'Updated Date', key: 'updatedDate' },
   ];
@@ -218,13 +198,12 @@ export default function ProductsPage() {
       ),
       stockLevel_node: (
         <span
-          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
-            item.stockLevel === 'Healthy'
+          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${item.stockLevel === 'Healthy'
               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
               : item.stockLevel === 'Low'
-              ? 'bg-amber-50 text-amber-700 border border-amber-200'
-              : 'bg-rose-50 text-rose-700 border border-rose-200'
-          }`}
+                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                : 'bg-rose-50 text-rose-700 border border-rose-200'
+            }`}
         >
           {item.stockLevel || '—'}
         </span>
@@ -286,11 +265,10 @@ export default function ProductsPage() {
             {/* Stock Badge Overlay */}
             <div className="absolute top-2.5 left-2.5 pointer-events-none">
               <span
-                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
-                  isAvail
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${isAvail
                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs'
                     : 'bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs'
-                }`}
+                  }`}
               >
                 {isAvail ? `${qty} In Stock` : 'Out of Stock'}
               </span>
@@ -342,22 +320,20 @@ export default function ProductsPage() {
           {/* Stock Level & Status */}
           <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-gray-50">
             <span
-              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                item.stockLevel === 'Healthy'
+              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${item.stockLevel === 'Healthy'
                   ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                   : item.stockLevel === 'Low'
-                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                  : 'bg-rose-50 text-rose-700 border border-rose-200'
-              }`}
+                    ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                    : 'bg-rose-50 text-rose-700 border border-rose-200'
+                }`}
             >
               {item.stockLevel || (isAvail ? 'Healthy' : 'Out of Stock')}
             </span>
             <span
-              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                String(item.status).toLowerCase() === 'active'
+              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${String(item.status).toLowerCase() === 'active'
                   ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                   : 'bg-gray-100 text-gray-700 border border-gray-200'
-              }`}
+                }`}
             >
               {item.status || 'Active'}
             </span>
@@ -381,17 +357,7 @@ export default function ProductsPage() {
               ? "Manage your products and collections effortlessly."
               : "Manage your store's products and collections effortlessly."
           }
-          actions={
-            <RefreshButton
-              onClick={handleRefresh}
-              isRefreshing={isRefreshing}
-              size="md"
-              variant="white"
-              title="Refresh products & collections"
-            />
-          }
         />
-
         <div className="flex flex-col gap-8 min-w-0 w-full">
           {error && (
             <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/90 text-amber-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
@@ -443,11 +409,10 @@ export default function ProductsPage() {
               <button
                 type="button"
                 onClick={() => setViewMode('card')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                  viewMode === 'card'
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${viewMode === 'card'
                     ? 'shadow-xs'
                     : 'text-gray-600 hover:text-gray-900'
-                }`}
+                  }`}
                 style={
                   viewMode === 'card'
                     ? { backgroundColor: primaryColor, color: buttonTextColor }
@@ -462,11 +427,10 @@ export default function ProductsPage() {
               <button
                 type="button"
                 onClick={() => setViewMode('table')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                  viewMode === 'table'
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${viewMode === 'table'
                     ? 'shadow-xs'
                     : 'text-gray-600 hover:text-gray-900'
-                }`}
+                  }`}
                 style={
                   viewMode === 'table'
                     ? { backgroundColor: primaryColor, color: buttonTextColor }
