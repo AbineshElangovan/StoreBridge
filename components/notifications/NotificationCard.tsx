@@ -259,8 +259,12 @@ export function NotificationCard({
 
   const emailMatch = (item.message || '').match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
   const email = emailMatch ? emailMatch[0] : null;
+  const metaOrderVal = (item.metadata as any)?.orderNumber;
+  const rawMetaOrder = metaOrderVal ? String(metaOrderVal).replace(/^PRE-/, '') : null;
   const orderMatch = (item.message || '').match(/(#\w+(?:-[A-Za-z0-9]+)?)/);
-  const orderNumber = orderMatch ? orderMatch[0] : null;
+  const orderNumber = rawMetaOrder
+    ? (rawMetaOrder.startsWith('#') ? rawMetaOrder : `#${rawMetaOrder}`)
+    : (orderMatch ? orderMatch[0] : null);
   const qtyMatch = (item.message || '').match(/(\d+)\s+units?/i);
   const quantity = qtyMatch ? qtyMatch[0] : null;
 

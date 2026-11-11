@@ -178,7 +178,7 @@ export function NotificationBell() {
           backgroundColor: isHovered || isOpen ? `${primaryColor}20` : '#ffffff',
           boxShadow: `0 2px 8px -1px ${primaryColor}40`,
         }}
-        className="relative shrink-0 rounded-full transition-all duration-200 focus:outline-none flex items-center justify-center cursor-pointer group"
+        className="relative shrink-0 rounded-full transition-all duration-200 ease-out focus:outline-none flex items-center justify-center cursor-pointer group hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-95"
         aria-label="Notifications"
         title={unreadCount > 0 ? `Notifications (${unreadCount} unread)` : 'Notifications'}
       >

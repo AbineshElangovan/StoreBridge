@@ -212,7 +212,7 @@ export function WishlistHeartButton({
               transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
               overflow: 'visible',
             }}
-            className="group hover:border-rose-300 hover:shadow-md hover:shadow-rose-500/10 active:scale-95 transition-all"
+            className="group hover:border-rose-300 hover:shadow-md hover:shadow-rose-500/10 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-200 ease-out"
           >
             {/* Animative Ripple Ring when tapped */}
             {isAnimating && isWishlisted && (

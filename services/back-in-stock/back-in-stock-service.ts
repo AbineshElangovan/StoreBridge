@@ -82,6 +82,7 @@ export class BackInStockService {
     // has actually been allocated to that order, not merely because inventory increased!
     let stockRemainingToAllocate = available;
     const allocatedPreorders: Array<{
+      id?: string;
       orderId: string;
       orderNumber: string;
       customerName?: string | null;
@@ -89,6 +90,11 @@ export class BackInStockService {
       phone?: string | null;
       quantity: number;
       whatsappOptIn: boolean;
+      productTitle?: string | null;
+      variantTitle?: string | null;
+      paymentStatus?: string | null;
+      paymentOption?: string | null;
+      shopifyVariantId?: string | null;
     }> = [];
 
     for (const po of preorderOrders) {
@@ -106,13 +112,35 @@ export class BackInStockService {
       const { EmailNotificationService } = require('@/services/notifications/email-notification-service');
 
       for (const po of allocatedPreorders) {
-        // Update PreorderRecord status in DB
+        // Update PreorderRecord status in DB to ALLOCATED immediately
         try {
+          if (po.id) {
+            await (prisma as any).preorderRecord.update({
+              where: { id: po.id },
+              data: {
+                status: 'ALLOCATED',
+                notifiedAt: new Date(),
+              },
+            });
+          }
+
+          const rawOrderId = (po.orderId || '').replace(/\D/g, '');
+          const cleanVarNum = cleanVariantId.replace(/\D/g, '');
           await (prisma as any).preorderRecord.updateMany({
             where: {
               storeId,
-              shopifyOrderId: po.orderId,
-              shopifyVariantId: cleanVariantId,
+              OR: [
+                ...(po.id ? [{ id: po.id }] : []),
+                ...(rawOrderId ? [
+                  { shopifyOrderId: po.orderId },
+                  { shopifyOrderId: rawOrderId },
+                  { shopifyOrderId: `gid://shopify/Order/${rawOrderId}` },
+                ] : []),
+                { orderNumber: po.orderNumber },
+              ],
+              shopifyVariantId: {
+                in: [cleanVariantId, cleanVarNum, `gid://shopify/ProductVariant/${cleanVarNum}`],
+              },
             },
             data: {
               status: 'ALLOCATED',
@@ -131,20 +159,20 @@ export class BackInStockService {
           await PreorderNotificationService.notifyStockAllocated({
             storeId,
             orderNumber: cleanOrderNum,
-            productTitle: (po as any).productTitle || productTitle,
-            variantTitle: (po as any).variantTitle || variantTitle,
+            productTitle: po.productTitle || productTitle,
+            variantTitle: po.variantTitle || variantTitle,
             quantity: po.quantity || 1,
             productId: cleanVariantId,
           });
 
-          if ((po as any).paymentStatus === 'PAID' || (po as any).paymentOption === 'FULL') {
+          if (po.paymentStatus === 'PAID' || po.paymentOption === 'FULL') {
             await PreorderNotificationService.notifyReadyForFulfillment({
               storeId,
               orderNumber: cleanOrderNum,
-              productTitle: (po as any).productTitle || productTitle,
-              variantTitle: (po as any).variantTitle || variantTitle,
-              paymentOption: (po as any).paymentOption,
-              paymentStatus: (po as any).paymentStatus || 'PAID',
+              productTitle: po.productTitle || productTitle,
+              variantTitle: po.variantTitle || variantTitle,
+              paymentOption: po.paymentOption || undefined,
+              paymentStatus: po.paymentStatus || 'PAID',
               productId: cleanVariantId,
             });
           }
@@ -398,30 +426,115 @@ export class BackInStockService {
       const dbPreorders: any[] = await (prisma as any).preorderRecord.findMany({
         where: {
           storeId,
-          shopifyVariantId: cleanTargetVariantId,
+          shopifyVariantId: {
+            in: [cleanTargetVariantId, `gid://shopify/ProductVariant/${cleanTargetVariantId}`],
+          },
           status: 'UNFULFILLED',
+          notifiedAt: null,
         },
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: 'desc' }, // Latest active pre-orders get allocated first
       });
 
       if (dbPreorders.length > 0) {
-        let committedPreorders = 0;
-        const preorderOrders = dbPreorders.map((po: any) => {
-          const qty = po.quantity || 1;
-          committedPreorders += qty;
-          return {
-            orderId: po.shopifyOrderId,
-            orderNumber: po.orderNumber,
-            customerName: safeDecrypt(po.customerName),
-            email: safeDecrypt(po.customerEmail),
-            phone: safeDecrypt(po.customerPhone),
-            quantity: qty,
-            whatsappOptIn: po.whatsappOptIn || false,
-          };
+        // Auto-reconcile: If any record already has an existing 'Stock Allocated' notification in the database,
+        // mark it as ALLOCATED and exclude it so old notifications don't re-trigger repeatedly
+        const validPreorders: any[] = [];
+        for (const po of dbPreorders) {
+          const cleanOrderNum = (po.orderNumber || '').trim();
+          const existingNotif = cleanOrderNum ? await prisma.notification.findFirst({
+            where: {
+              recipientStoreId: storeId,
+              title: { contains: cleanOrderNum },
+              type: 'INVENTORY_UPDATE',
+            },
+            select: { id: true },
+          }) : null;
+
+          if (existingNotif) {
+            try {
+              await (prisma as any).preorderRecord.update({
+                where: { id: po.id },
+                data: { status: 'ALLOCATED', notifiedAt: new Date() },
+              });
+            } catch (_) {}
+            continue;
+          }
+
+          validPreorders.push(po);
+        }
+
+        // Live check against Shopify to eliminate cancelled or already-fulfilled orders
+        const store = await prisma.store.findUnique({
+          where: { id: storeId },
+          select: { shopDomain: true, accessToken: true },
         });
 
-        console.log(`[BackInStockService:getPreorderCommitments] Found ${preorderOrders.length} unfulfilled pre-orders in DB (Total units: ${committedPreorders})`);
-        return { committedPreorders, preorderOrders };
+        if (store?.shopDomain && store?.accessToken && validPreorders.length > 0) {
+          try {
+            const { getAdminClient } = require('@/lib/shopify/admin');
+            const client = await getAdminClient(store.shopDomain);
+            for (const po of [...validPreorders]) {
+              const rawId = (po.shopifyOrderId || '').replace(/\D/g, '');
+              if (!rawId) continue;
+              const orderCheckQuery = `
+                query checkOrderFulfillment {
+                  order(id: "gid://shopify/Order/${rawId}") {
+                    id
+                    displayFulfillmentStatus
+                    cancelledAt
+                  }
+                }
+              `;
+              const checkRes: any = await client.request(orderCheckQuery).catch(() => null);
+              const shopifyOrder = checkRes?.data?.order;
+              if (shopifyOrder) {
+                if (shopifyOrder.cancelledAt) {
+                  await (prisma as any).preorderRecord.update({
+                    where: { id: po.id },
+                    data: { status: 'CANCELLED' },
+                  }).catch(() => {});
+                  const idx = validPreorders.indexOf(po);
+                  if (idx !== -1) validPreorders.splice(idx, 1);
+                } else if (shopifyOrder.displayFulfillmentStatus === 'FULFILLED') {
+                  await (prisma as any).preorderRecord.update({
+                    where: { id: po.id },
+                    data: { status: 'FULFILLED' },
+                  }).catch(() => {});
+                  const idx = validPreorders.indexOf(po);
+                  if (idx !== -1) validPreorders.splice(idx, 1);
+                }
+              }
+            }
+          } catch (shopifyCheckErr: any) {
+            console.warn('[BackInStockService:ShopifyOrderCheckError]', shopifyCheckErr.message);
+          }
+        }
+
+        if (validPreorders.length > 0) {
+          let committedPreorders = 0;
+          const preorderOrders = validPreorders.map((po: any) => {
+            const qty = po.quantity || 1;
+            committedPreorders += qty;
+            return {
+              id: po.id,
+              orderId: po.shopifyOrderId,
+              orderNumber: po.orderNumber,
+              customerName: safeDecrypt(po.customerName),
+              email: safeDecrypt(po.customerEmail),
+              phone: safeDecrypt(po.customerPhone),
+              quantity: qty,
+              whatsappOptIn: po.whatsappOptIn || false,
+              productTitle: po.productTitle,
+              variantTitle: po.variantTitle,
+              paymentStatus: po.paymentStatus,
+              paymentOption: po.paymentOption,
+              shopifyVariantId: po.shopifyVariantId,
+            };
+          });
+
+          console.log(`[BackInStockService:getPreorderCommitments] Found ${preorderOrders.length} unfulfilled pre-orders in DB (Total units: ${committedPreorders})`);
+          return { committedPreorders, preorderOrders };
+        }
       }
 
       // 2. Check if pre-orders are enabled for this store / variant before making external GraphQL calls
@@ -458,11 +571,12 @@ export class BackInStockService {
 
       const query = `
         query getUnfulfilledOrders {
-          orders(first: 50, query: "fulfillment_status:unfulfilled") {
+          orders(first: 50, query: "status:open AND fulfillment_status:unfulfilled", reverse: true) {
             edges {
               node {
                 id
                 name
+                cancelledAt
                 email
                 phone
                 customer {
@@ -510,6 +624,8 @@ export class BackInStockService {
 
       for (const orderEdge of orders) {
         const orderNode = orderEdge.node;
+        if (orderNode.cancelledAt) continue;
+
         let orderPreorderQuantity = 0;
 
         for (const lineEdge of orderNode.lineItems?.edges || []) {
@@ -616,13 +732,14 @@ export class BackInStockService {
 
       const query = `
         query getRecentPreorderOrders {
-          orders(first: 25, reverse: true) {
+          orders(first: 50, reverse: true) {
             edges {
               node {
                 id
                 name
                 email
                 phone
+                cancelledAt
                 shippingAddress {
                   phone
                 }
@@ -751,6 +868,8 @@ export class BackInStockService {
           let targetStatus = order.displayFulfillmentStatus || 'UNFULFILLED';
           if (order.displayFulfillmentStatus === 'FULFILLED') {
             targetStatus = 'FULFILLED';
+          } else if (order.cancelledAt) {
+            targetStatus = 'CANCELLED';
           } else if (existingRecord?.status === 'ALLOCATED') {
             targetStatus = 'ALLOCATED';
           }
@@ -787,7 +906,7 @@ export class BackInStockService {
               customerPhone: customerPhone ? safeEncrypt(customerPhone) : null,
               quantity: item.quantity || 1,
               whatsappOptIn: false,
-              status: order.displayFulfillmentStatus || 'UNFULFILLED',
+              status: targetStatus,
               productTitle: item.title,
               variantTitle: item.variant?.title || null,
               paymentOption,

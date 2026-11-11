@@ -931,5 +931,38 @@ canvas {
   max-width: calc(100vw - 24px) !important;
 }
 
+/* ==========================================================================
+   Global Button Hover Pop-up / Lift Micro-Interaction
+   Like cards: subtle upward adjustment (-2px) and shadow lift on hover
+   ========================================================================== */
+
+button:not(:disabled):not([disabled]):not([aria-disabled="true"]):not([role="switch"]):not([role="menuitem"]),
+.Polaris-Button:not(.Polaris-Button--disabled),
+[role="button"]:not([aria-disabled="true"]):not(:disabled):not([role="switch"]):not([role="menuitem"]),
+a[class*="rounded-"][class*="px-"][class*="py-"]:not([class*="table"]):not([class*="flex-col"]):not([class*="line-clamp"]),
+.btn {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), filter 0.22s ease !important;
+  will-change: transform;
+}
+
+button:not(:disabled):not([disabled]):not([aria-disabled="true"]):not([role="switch"]):not([role="menuitem"]):hover,
+.Polaris-Button:not(.Polaris-Button--disabled):hover,
+[role="button"]:not([aria-disabled="true"]):not(:disabled):not([role="switch"]):not([role="menuitem"]):hover,
+a[class*="rounded-"][class*="px-"][class*="py-"]:not([class*="table"]):not([class*="flex-col"]):not([class*="line-clamp"]):hover,
+.btn:hover {
+  transform: translateY(-2px) !important;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.09));
+}
+
+button:not(:disabled):not([disabled]):not([aria-disabled="true"]):not([role="switch"]):not([role="menuitem"]):active,
+.Polaris-Button:not(.Polaris-Button--disabled):active,
+[role="button"]:not([aria-disabled="true"]):not(:disabled):not([role="switch"]):not([role="menuitem"]):active,
+a[class*="rounded-"][class*="px-"][class*="py-"]:not([class*="table"]):not([class*="flex-col"]):not([class*="line-clamp"]):active,
+.btn:active {
+  transform: translateY(0.5px) scale(0.97) !important;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.05));
+}
+
+
 
 

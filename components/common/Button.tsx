@@ -22,7 +22,7 @@ export function Button({
   ...rest
 }: ButtonProps) {
   // Base styles
-  let baseClass = "inline-flex items-center justify-center font-semibold transition-all rounded-lg select-none cursor-pointer focus:outline-none";
+  let baseClass = "inline-flex items-center justify-center font-semibold transition-all duration-200 ease-out rounded-lg select-none cursor-pointer focus:outline-none hover:-translate-y-0.5 hover:shadow-md active:translate-y-0 active:scale-95";
 
   // Size styles
   let sizeClass = "px-3.5 py-1.5 text-xs gap-1.5";
