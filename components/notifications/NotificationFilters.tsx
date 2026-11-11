@@ -8,6 +8,7 @@ import {
   Select,
   Box,
   Text,
+  Icon,
 } from '@shopify/polaris';
 import { RefreshIcon, DeleteIcon, CheckIcon } from '@shopify/polaris-icons';
 import { RefreshButton } from '@/components/common/RefreshButton';
@@ -23,6 +24,8 @@ interface NotificationFiltersProps {
   onRefresh: () => void;
   isRefreshing?: boolean;
   unreadCount: number;
+  readCount?: number;
+  allCount?: number;
   totalCount: number;
   onMarkAllRead: () => void;
   onOpenDeleteAllModal: () => void;
@@ -40,6 +43,8 @@ export function NotificationFilters({
   onRefresh,
   isRefreshing = false,
   unreadCount,
+  readCount,
+  allCount,
   totalCount,
   onMarkAllRead,
   onOpenDeleteAllModal,
@@ -100,11 +105,11 @@ export function NotificationFilters({
                 }}
                 className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                   statusFilter === 'all'
-                    ? 'bg-[var(--color-primary)] toggle-btn-active font-black shadow-xs'
+                    ? 'bg-[var(--color-primary)] text-white toggle-btn-active font-black shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                 }`}
               >
-                {`All (${totalCount})`}
+                {statusFilter === 'all' ? `All (${allCount ?? totalCount})` : 'All'}
               </button>
               <button
                 type="button"
@@ -113,11 +118,11 @@ export function NotificationFilters({
                 }}
                 className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                   statusFilter === 'unread'
-                    ? 'bg-[var(--color-primary)] toggle-btn-active font-black shadow-xs'
+                    ? 'bg-[var(--color-primary)] text-white toggle-btn-active font-black shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                 }`}
               >
-                {unreadCount > 0 ? `Unread (${unreadCount})` : 'Unread'}
+                {statusFilter === 'unread' ? `Unread (${unreadCount})` : 'Unread'}
               </button>
               <button
                 type="button"
@@ -126,11 +131,11 @@ export function NotificationFilters({
                 }}
                 className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer ${
                   statusFilter === 'read'
-                    ? 'bg-[var(--color-primary)] toggle-btn-active font-black shadow-xs'
+                    ? 'bg-[var(--color-primary)] text-white toggle-btn-active font-black shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                 }`}
               >
-                Read
+                {statusFilter === 'read' ? `Read (${readCount ?? Math.max(0, (allCount ?? totalCount) - unreadCount)})` : 'Read'}
               </button>
             </div>
           </div>
@@ -159,12 +164,12 @@ export function NotificationFilters({
                 <button
                   type="button"
                   onClick={onMarkAllRead}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[var(--color-primary-dark,#082f49)] hover:opacity-90 transition-colors shadow-2xs cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[var(--color-primary-dark,#082f49)] hover:opacity-90 transition-colors shadow-2xs cursor-pointer active:scale-95"
                 >
-                  <div style={{ width: 14, height: 14 }}>
-                    <CheckIcon />
+                  <div style={{ width: 14, height: 14 }} className="flex items-center justify-center">
+                    <Icon source={CheckIcon} />
                   </div>
-                  Mark all as read
+                  <span>Mark all as read</span>
                 </button>
               )}
 
@@ -172,10 +177,10 @@ export function NotificationFilters({
                 <button
                   type="button"
                   onClick={onOpenDeleteAllModal}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors shadow-2xs cursor-pointer border border-red-100"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors shadow-2xs cursor-pointer border border-red-100 active:scale-95"
                 >
-                  <div style={{ width: 14, height: 14 }} className="[&_svg]:fill-red-600 [&_svg]:text-red-600 text-red-600 flex items-center justify-center">
-                    <DeleteIcon />
+                  <div style={{ width: 14, height: 14 }} className="flex items-center justify-center">
+                    <Icon source={DeleteIcon} tone="critical" />
                   </div>
                   <span>Delete all</span>
                 </button>

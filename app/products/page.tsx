@@ -117,11 +117,40 @@ export default function ProductsPage() {
     loadProducts();
   }, [currentShop]);
 
+  useEffect(() => {
+    const handleWishlistUpdate = (e: any) => {
+      const isWishlisted = Boolean(e?.detail?.wishlisted);
+      setData((prev: any) => {
+        if (!prev?.stats) return prev;
+        const currentCount = prev.stats.wishlistCount ?? 0;
+        return {
+          ...prev,
+          stats: {
+            ...prev.stats,
+            wishlistCount: Math.max(0, currentCount + (isWishlisted ? 1 : -1)),
+          },
+        };
+      });
+    };
+
+    window.addEventListener('wishlist-updated', handleWishlistUpdate);
+    return () => {
+      window.removeEventListener('wishlist-updated', handleWishlistUpdate);
+    };
+  }, []);
+
   if (loading) {
     return <Loading label="Loading products..." />;
   }
 
-  const stats = data?.stats || { totalProducts: 0, activeProducts: 0, totalInventory: 0, lowStock: 0 };
+  const stats = data?.stats || {
+    totalProducts: 0,
+    activeProducts: 0,
+    totalInventory: 0,
+    lowStock: 0,
+    preorderActive: 0,
+    wishlistCount: 0,
+  };
 
   const filterProducts = (products: any[]) => {
     return products.filter((p) => {

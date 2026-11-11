@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { authenticate, handleApiError } from "@/lib/shopify/authenticate";
 import { prisma } from "@/lib/db/prisma";
 import { syncStoreProducts } from "@/services/shopify";
-import { normalizeTagOrCollection } from "@/lib/utils/categoryNormalization";
+import { normalizeTagOrCollection, findCanonicalGroupKey, isCategoryMatch } from "@/lib/utils/categoryNormalization";
 import { PreorderService } from "@/services/preorder/preorder-service";
+import { WishlistService } from "@/services/wishlist/wishlist-service";
 
 export const dynamic = 'force-dynamic';
 
@@ -84,7 +85,7 @@ export async function GET(req: NextRequest) {
       include: { collections: { include: { collection: true } } },
     });
 
-    const skuCategories: { [sku: string]: string[] } = {};
+    const skuFallbackCollections: { [sku: string]: string[] } = {};
     const skuFallbackImages: { [sku: string]: string } = {};
     const titleFallbackImages: { [title: string]: string } = {};
     
@@ -103,28 +104,14 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      if (p.sku) {
-        if (!skuCategories[p.sku]) skuCategories[p.sku] = [];
-        
-        if (p.collections) {
-          p.collections.forEach(cp => {
-             if (!skuCategories[p.sku!].includes(cp.collection.title)) {
-               skuCategories[p.sku!].push(cp.collection.title);
-             }
-          });
-        }
-        
-        if (p.tags) {
-          const tagList = p.tags.split(',').map((t: string) => t.trim().toUpperCase()).filter(Boolean);
-          
-          tagList.forEach(tag => {
-            // Case-insensitive deduplication
-            const existing = skuCategories[p.sku!].map(c => c.toUpperCase());
-            if (!existing.includes(tag)) {
-              skuCategories[p.sku!].push(tag);
-            }
-          });
-        }
+      // Collect ONLY true collection titles across stores (never pollutes with tags)
+      if (p.sku && p.collections && p.collections.length > 0) {
+        if (!skuFallbackCollections[p.sku]) skuFallbackCollections[p.sku] = [];
+        p.collections.forEach(cp => {
+          if (cp.collection?.title && !skuFallbackCollections[p.sku!].includes(cp.collection.title)) {
+            skuFallbackCollections[p.sku!].push(cp.collection.title);
+          }
+        });
       }
     });
 
@@ -217,42 +204,71 @@ export async function GET(req: NextRequest) {
         updatedTime: p.updatedAt.toISOString(),
       };
 
-      let rawCategories: string[] = [];
-      
+      // 1. Resolve collection-based categories first (strictly real collections)
+      let resolvedCollections: string[] = [];
+
+      // A. Direct store product collections
       if (p.collections && p.collections.length > 0) {
-        rawCategories = rawCategories.concat(p.collections.map(cp => cp.collection.title));
+        resolvedCollections = p.collections
+          .map((cp: any) => cp.collection?.title)
+          .filter(Boolean);
       }
-      if (p.sku && skuCategories[p.sku] && skuCategories[p.sku].length > 0) {
-        rawCategories = rawCategories.concat(skuCategories[p.sku]);
+
+      // B. Cross-store collection fallback for this SKU (only if no local collections)
+      if (
+        resolvedCollections.length === 0 &&
+        p.sku &&
+        skuFallbackCollections[p.sku] &&
+        skuFallbackCollections[p.sku].length > 0
+      ) {
+        resolvedCollections = [...skuFallbackCollections[p.sku]];
       }
-      if (p.tags) {
+
+      // 2. Determine final category titles:
+      // - If product has collections, use ONLY collection names (NEVER mix with tags).
+      // - If product has NO collections anywhere, fallback to primary tag (showcase only ONCE).
+      // - Otherwise, fallback to 'Uncategorized'.
+      let candidateCategories: string[] = [];
+      if (resolvedCollections.length > 0) {
+        candidateCategories = resolvedCollections;
+      } else if (p.tags) {
         const tagList = p.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
-        rawCategories = rawCategories.concat(tagList);
-      }
-      
-      let categoryTitles: string[] = [];
-      
-      for (let rawCat of rawCategories) {
-        if (!rawCat) continue;
-        const finalCat = normalizeTagOrCollection(rawCat);
-        if (finalCat && !categoryTitles.includes(finalCat)) {
-          categoryTitles.push(finalCat);
+        if (tagList.length > 0) {
+          candidateCategories = [tagList[0]]; // Showcase only one time under primary tag
         }
       }
 
-      // Deduplicate category titles to prevent pushing the same item multiple times
-      categoryTitles = Array.from(new Set(categoryTitles));
-      if (categoryTitles.length === 0) {
-        categoryTitles = ['Uncategorized'];
+      if (candidateCategories.length === 0) {
+        candidateCategories = ['Uncategorized'];
       }
 
-      categoryTitles.forEach((title) => {
-        if (!groupedProducts[title]) {
-          groupedProducts[title] = [];
+      // 3. Normalize and canonicalize category titles to merge singular/plural and duplicate stems
+      const targetGroupKeys: string[] = [];
+      for (const rawCat of candidateCategories) {
+        if (!rawCat) continue;
+        const existingKeys = Object.keys(groupedProducts);
+        // Find existing matching group (e.g. "T-SHIRTS" matches "T-SHIRT", "ACCESSORIES" matches "MENS ACCESSORIES")
+        const canonicalKey = findCanonicalGroupKey(rawCat, existingKeys);
+
+        // Also check against keys already selected for this product
+        const alreadySelected = targetGroupKeys.some(k => isCategoryMatch(k, canonicalKey));
+        if (!alreadySelected) {
+          targetGroupKeys.push(canonicalKey);
+        }
+      }
+
+      // Ensure every product has at least one valid group
+      if (targetGroupKeys.length === 0) {
+        targetGroupKeys.push('Uncategorized');
+      }
+
+      targetGroupKeys.forEach((groupKey) => {
+        if (!groupedProducts[groupKey]) {
+          groupedProducts[groupKey] = [];
         }
         
-        // Show each and every variant individually without collapsing or summing quantities
-        groupedProducts[title].push(item);
+        // Show each variant in its canonical collection group
+        groupedProducts[groupKey].push(item);
       });
     });
 
@@ -270,6 +286,13 @@ export async function GET(req: NextRequest) {
         }).length
       : 0;
 
+    let wishlistCount = 0;
+    try {
+      wishlistCount = await WishlistService.getWishlistCount(store.id);
+    } catch (err) {
+      console.warn("[Products API] Could not fetch wishlist count:", err);
+    }
+
     return NextResponse.json({
       success: true,
       stats: {
@@ -278,6 +301,7 @@ export async function GET(req: NextRequest) {
         activeProducts,
         lowStock,
         preorderActive: preorderActiveCount,
+        wishlistCount,
       },
       lowStockThreshold: store.lowStockThreshold,
       isStandalone,

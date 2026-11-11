@@ -290,7 +290,7 @@ export function NotificationBell() {
                 return (
                   <div
                     key={item.id}
-                    className={`p-3 flex items-start gap-3 transition-colors hover:bg-gray-50 cursor-pointer ${
+                    className={`p-3 flex items-center gap-3 transition-colors hover:bg-gray-50 cursor-pointer ${
                       !item.isRead ? 'bg-teal-50/40' : ''
                     }`}
                     onClick={() => {

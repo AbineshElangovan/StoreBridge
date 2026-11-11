@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
-  HomeIcon, ProductIcon, ImportIcon, HeartIcon,
+  HomeIcon, ProductIcon, ImportIcon, HeartIcon, ChartVerticalIcon,
   DiscountIcon,
   CashDollarIcon,
   SettingsIcon,
@@ -125,7 +125,7 @@ export function Sidebar() {
     {
       title: 'ANALYTICS',
       items: [
-        { label: 'Product Insights', href: '/insights', icon: HeartIcon },
+        { label: 'Product Insights', href: '/insights', icon: ChartVerticalIcon },
         { label: 'Inventory Planning', href: '/insights/planning', icon: ClockIcon },
       ]
     },

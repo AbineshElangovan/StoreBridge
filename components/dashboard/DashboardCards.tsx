@@ -35,7 +35,7 @@ export function DashboardCards({
 }: DashboardCardsProps) {
   const isProductsPage = page === 'products';
 
-  // If NOT standalone, both sides (dashboard & products) show the same original 4 cards
+  // If NOT standalone, both sides (dashboard & products) show 5 cards (including Wishlist)
   const statsConfig = !isStandalone
     ? [
         {
@@ -66,10 +66,17 @@ export function DashboardCards({
           icon: CheckCircleIcon,
           color: 'success' as const,
         },
+        {
+          key: 'wishlistCount' as const,
+          title: 'Wishlist',
+          description: 'Curated products',
+          icon: HeartIcon,
+          color: 'danger' as const,
+        },
       ]
     : isProductsPage
     ? [
-        // Standalone Products Page: 4 cards (Pre-order Products replaces Low Stock)
+        // Standalone Products Page: 5 cards (including Wishlist)
         {
           key: 'totalProducts' as const,
           title: 'Total Products',
@@ -97,6 +104,13 @@ export function DashboardCards({
           description: 'Products with available inventory',
           icon: CheckCircleIcon,
           color: 'success' as const,
+        },
+        {
+          key: 'wishlistCount' as const,
+          title: 'Wishlist',
+          description: 'Curated products',
+          icon: HeartIcon,
+          color: 'danger' as const,
         },
       ]
     : [
@@ -145,10 +159,13 @@ export function DashboardCards({
         },
       ];
 
-  const isSixCards = isStandalone && !isProductsPage;
+  const isSixCards = statsConfig.length === 6;
+  const isFiveCards = statsConfig.length === 5;
 
   const gridClass = isSixCards
     ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-3.5'
+    : isFiveCards
+    ? 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-4'
     : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4';
 
   return (
@@ -161,7 +178,7 @@ export function DashboardCards({
             value={(stats[key] ?? 0).toLocaleString('en-US')}
             icon={icon}
             color={color}
-            compact={isSixCards}
+            compact={isSixCards || isFiveCards}
           />
         </div>
       ))}

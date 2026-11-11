@@ -42,6 +42,8 @@ export default function NotificationsPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const [allCount, setAllCount] = useState(0);
+  const [readCount, setReadCount] = useState(0);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -109,8 +111,13 @@ export default function NotificationsPage() {
       if (res.ok) {
         const data = await res.json();
         setNotifications(data.notifications || []);
-        setTotalCount(data.total || 0);
+        const total = data.total || 0;
+        setTotalCount(total);
         const unread = data.unreadCount || 0;
+        const all = data.allCount ?? (statusFilter === 'all' ? total : undefined);
+        if (all !== undefined) setAllCount(all);
+        const read = data.readCount ?? (statusFilter === 'read' ? total : (all !== undefined ? Math.max(0, all - unread) : undefined));
+        if (read !== undefined) setReadCount(read);
         setUnreadCount(unread);
         setTotalPages(data.totalPages || 1);
         if (typeof window !== 'undefined') {
@@ -190,11 +197,17 @@ export default function NotificationsPage() {
   const handleMarkAsRead = async (id: string) => {
     try {
       // Optimistic update
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-      );
+      if (statusFilter === 'unread') {
+        setNotifications((prev) => prev.filter((n) => n.id !== id));
+        setTotalCount((c) => Math.max(0, c - 1));
+      } else {
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+        );
+      }
       const nextUnread = Math.max(0, unreadCount - 1);
       setUnreadCount(nextUnread);
+      setReadCount((c) => c + 1);
       notifyBellUpdate(nextUnread);
 
       await shopifyFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
@@ -207,7 +220,12 @@ export default function NotificationsPage() {
   // Mark all notifications as read
   const handleMarkAllRead = async () => {
     try {
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      if (statusFilter === 'unread') {
+        setNotifications([]);
+        setTotalCount(0);
+      } else {
+        setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      }
       setUnreadCount(0);
       notifyBellUpdate(0);
 
@@ -349,6 +367,8 @@ export default function NotificationsPage() {
             onRefresh={handleManualRefresh}
             isRefreshing={isRefreshing}
             unreadCount={unreadCount}
+            readCount={readCount}
+            allCount={allCount}
             totalCount={totalCount}
             onMarkAllRead={handleMarkAllRead}
             onOpenDeleteAllModal={() => setShowDeleteAllConfirm(true)}
@@ -377,7 +397,7 @@ export default function NotificationsPage() {
             </Card>
           ) : (
             <div className={loading ? 'opacity-70 transition-opacity' : 'transition-opacity'}>
-              <BlockStack gap="300">
+              <div className="flex flex-col gap-4">
                 {notifications.map((item) => (
                   <NotificationCard
                     key={item.id}
@@ -388,14 +408,15 @@ export default function NotificationsPage() {
                   />
                 ))}
 
-                {/* Reusable Pagination Controls */}
-                <Pagination
-                  page={page}
-                  totalPages={totalPages}
-                  onPageChange={setPage}
-                  className="py-4"
-                />
-              </BlockStack>
+                {/* Reusable Pagination Controls Centered with Balanced Spacing */}
+                <div className="flex justify-center pt-6 pb-2">
+                  <Pagination
+                    page={page}
+                    totalPages={totalPages}
+                    onPageChange={setPage}
+                  />
+                </div>
+              </div>
             </div>
           )}
         </Layout.Section>

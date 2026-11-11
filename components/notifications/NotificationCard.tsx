@@ -335,9 +335,9 @@ export function NotificationCard({
         </InlineStack>
 
         {/* Middle Section: Product Image + Message Details */}
-        <div className="flex items-start gap-3 mt-1">
+        <div className="flex items-center gap-3.5 py-1">
           {item.imageUrl && !imgError ? (
-            <div className="w-12 h-12 rounded-lg bg-gray-50 flex-shrink-0 border border-gray-200 overflow-hidden shadow-2xs flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-gray-50 flex-shrink-0 border border-gray-200/80 overflow-hidden shadow-2xs flex items-center justify-center">
               <img
                 src={item.imageUrl}
                 alt=""
@@ -346,20 +346,20 @@ export function NotificationCard({
               />
             </div>
           ) : (
-            <div className={`w-12 h-12 rounded-lg flex-shrink-0 border flex items-center justify-center ${
+            <div className={`w-12 h-12 rounded-xl flex-shrink-0 border flex items-center justify-center shadow-2xs ${
               isPreorder
                 ? 'bg-purple-50 border-purple-200 text-purple-700'
                 : isNotifyMe
                 ? 'bg-sky-50 border-sky-200 text-sky-700'
                 : 'bg-[var(--color-primary-light,#d1fae5)]/40 border-[var(--border-color,#34d399)]/40 text-[var(--color-primary,#047857)]'
             }`}>
-              <div style={{ width: 22, height: 22 }}>
+              <div style={{ width: 22, height: 22 }} className="flex items-center justify-center">
                 <Icon source={badgeInfo.iconSource} />
               </div>
             </div>
           )}
 
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 flex flex-col justify-center">
             {item.productTitle && (
               <Text variant="bodyMd" fontWeight="semibold" as="p">
                 {item.productTitle}
@@ -376,7 +376,7 @@ export function NotificationCard({
 
             {/* Structured Customer & Order Metadata Tags */}
             {(email || isPreorder || isNotifyMe) && (
-              <div className="flex flex-wrap items-center gap-1.5 mt-2.5 pt-2 border-t border-gray-100">
+              <div className="flex flex-wrap items-center gap-1.5 mt-2 pt-2 border-t border-gray-100">
                 {email && (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-gray-100 border border-gray-300 text-[11px] font-mono text-gray-900 font-bold shadow-2xs">
                     <span className="text-gray-500">✉</span>
@@ -449,23 +449,26 @@ export function NotificationCard({
         </div>
 
         {/* Bottom Actions: Read Status & Delete */}
-        <Box paddingBlockStart="200" borderBlockStartWidth="025" borderColor="border-secondary">
+        <Box paddingBlockStart="300" borderBlockStartWidth="025" borderColor="border-secondary">
           <InlineStack align="space-between" blockAlign="center">
             <div>
               {item.isRead ? (
-                <span className="text-xs text-gray-400 font-medium">
-                  Read
+                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-400 select-none">
+                  <div style={{ width: 14, height: 14 }} className="flex items-center justify-center opacity-60">
+                    <Icon source={CheckIcon} tone="subdued" />
+                  </div>
+                  <span>Read</span>
                 </span>
               ) : (
                 <button
                   type="button"
                   onClick={() => onMarkAsRead(item.id)}
-                  className="inline-flex items-center gap-1 text-xs font-bold text-[var(--color-primary,#047857)] hover:text-[var(--color-primary-dark,#022c22)] transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 transition-colors border border-teal-200/80 shadow-2xs cursor-pointer active:scale-95"
                 >
-                  <div style={{ width: 14, height: 14 }}>
-                    <CheckIcon />
+                  <div style={{ width: 14, height: 14 }} className="flex items-center justify-center">
+                    <Icon source={CheckIcon} tone="success" />
                   </div>
-                  Mark as read
+                  <span>Mark as read</span>
                 </button>
               )}
             </div>
@@ -473,10 +476,10 @@ export function NotificationCard({
             <button
               type="button"
               onClick={() => onDelete(item.id)}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors cursor-pointer border border-red-100 shadow-2xs"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors cursor-pointer border border-red-100 shadow-2xs active:scale-95"
             >
-              <div style={{ width: 14, height: 14 }} className="[&_svg]:fill-red-600 [&_svg]:text-red-600 text-red-600 flex items-center justify-center">
-                <DeleteIcon />
+              <div style={{ width: 14, height: 14 }} className="flex items-center justify-center">
+                <Icon source={DeleteIcon} tone="critical" />
               </div>
               <span>Delete</span>
             </button>

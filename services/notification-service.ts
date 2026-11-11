@@ -376,12 +376,6 @@ export async function getNotifications(recipientStoreId: string, options: Notifi
     }
   }
 
-  if (status === 'unread') {
-    andConditions.push({ isRead: false });
-  } else if (status === 'read') {
-    andConditions.push({ isRead: true });
-  }
-
   if (search && search.trim() !== '') {
     const query = search.trim();
     andConditions.push({
@@ -394,15 +388,20 @@ export async function getNotifications(recipientStoreId: string, options: Notifi
     });
   }
 
+  // Base filter conditions before status is applied
+  const baseConditions = [...andConditions];
+
+  if (status === 'unread') {
+    andConditions.push({ isRead: false });
+  } else if (status === 'read') {
+    andConditions.push({ isRead: true });
+  }
+
   const whereClause: any = andConditions.length > 0 ? { AND: andConditions } : {};
+  const allWhere: any = baseConditions.length > 0 ? { AND: baseConditions } : {};
+  const unreadWhere: any = { AND: [...baseConditions, { isRead: false }] };
 
-  // Unread count is strictly per recipient store so badges don't bleed across stores
-  const storeUnreadWhere: any = {
-    recipientStoreId,
-    isRead: false,
-  };
-
-  const [rawNotifications, total, unreadCount] = await Promise.all([
+  const [rawNotifications, total, unreadCount, allCount] = await Promise.all([
     prisma.notification.findMany({
       where: whereClause,
       include: {
@@ -415,10 +414,11 @@ export async function getNotifications(recipientStoreId: string, options: Notifi
       skip: calculatedOffset,
     }),
     prisma.notification.count({ where: whereClause }),
-    prisma.notification.count({
-      where: storeUnreadWhere,
-    }),
+    prisma.notification.count({ where: unreadWhere }),
+    prisma.notification.count({ where: allWhere }),
   ]);
+
+  const readCount = Math.max(0, allCount - unreadCount);
 
   // Enrich notifications with Product Image from ProductCache if not present in metadata
   const enrichedNotifications = await Promise.all(
@@ -470,11 +470,13 @@ export async function getNotifications(recipientStoreId: string, options: Notifi
 
   return {
     notifications: uniqueNotifications,
-    total: uniqueNotifications.length,
+    total: total,
+    allCount: allCount,
+    unreadCount: unreadCount,
+    readCount: readCount,
     page: pageNum,
     limit: pageSize,
     totalPages,
-    unreadCount,
   };
 }
 
@@ -518,7 +520,11 @@ export async function markAsRead(recipientStoreId: string, notificationId: strin
     return await prisma.notification.updateMany({
       where: {
         id: notificationId,
-        recipientStoreId: { in: targetStoreIds },
+        OR: [
+          { recipientStoreId: { in: targetStoreIds } },
+          { sourceStoreId: { in: targetStoreIds } },
+          { targetStoreId: { in: targetStoreIds } },
+        ],
       },
       data: {
         isRead: true,
@@ -538,8 +544,12 @@ export async function markAllAsRead(recipientStoreId: string) {
     const targetStoreIds = await getTargetStoreIds(recipientStoreId);
     return await prisma.notification.updateMany({
       where: {
-        recipientStoreId: { in: targetStoreIds },
         isRead: false,
+        OR: [
+          { recipientStoreId: { in: targetStoreIds } },
+          { sourceStoreId: { in: targetStoreIds } },
+          { targetStoreId: { in: targetStoreIds } },
+        ],
       },
       data: {
         isRead: true,
@@ -560,7 +570,11 @@ export async function deleteNotification(recipientStoreId: string, notificationI
     return await prisma.notification.deleteMany({
       where: {
         id: notificationId,
-        recipientStoreId: { in: targetStoreIds },
+        OR: [
+          { recipientStoreId: { in: targetStoreIds } },
+          { sourceStoreId: { in: targetStoreIds } },
+          { targetStoreId: { in: targetStoreIds } },
+        ],
       },
     });
   } catch (error) {
@@ -577,7 +591,11 @@ export async function deleteAllNotifications(recipientStoreId: string) {
     const targetStoreIds = await getTargetStoreIds(recipientStoreId);
     return await prisma.notification.deleteMany({
       where: {
-        recipientStoreId: { in: targetStoreIds },
+        OR: [
+          { recipientStoreId: { in: targetStoreIds } },
+          { sourceStoreId: { in: targetStoreIds } },
+          { targetStoreId: { in: targetStoreIds } },
+        ],
       },
     });
   } catch (error) {
