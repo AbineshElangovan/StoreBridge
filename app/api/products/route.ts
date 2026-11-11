@@ -130,7 +130,32 @@ export async function GET(req: NextRequest) {
     const dedupedProducts: typeof products = [];
     const seenTitles = new Map<string, any>();
     for (const p of products) {
-      const normKey = (p.sku || p.shopifyVariantId || '') + '|||' + p.title.trim().toLowerCase();
+      const baseTitle = p.title.trim().toLowerCase();
+      const normKey = (p.sku || p.shopifyVariantId || '') + '|||' + baseTitle;
+      
+      // If product has no variant suffix, also check if same title already exists in another record
+      if (!p.title.includes(' - ')) {
+        const existingEntry = Array.from(seenTitles.entries()).find(([k, v]) => {
+          return !v.title.includes(' - ') && v.title.trim().toLowerCase() === baseTitle;
+        });
+
+        if (existingEntry) {
+          const [oldKey, oldP] = existingEntry;
+          const oldHasColl = oldP.collections && oldP.collections.length > 0;
+          const newHasColl = p.collections && p.collections.length > 0;
+
+          if (!oldHasColl && newHasColl) {
+            // Replace uncategorized duplicate with categorized product
+            seenTitles.delete(oldKey);
+            seenTitles.set(normKey, p);
+            continue;
+          } else if (oldHasColl && !newHasColl) {
+            // Keep the categorized one, skip the uncategorized duplicate
+            continue;
+          }
+        }
+      }
+
       if (!seenTitles.has(normKey)) {
         seenTitles.set(normKey, p);
       } else {

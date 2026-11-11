@@ -181,15 +181,15 @@ export default function NotificationsPage() {
   const notifyBellUpdate = (newCount?: number) => {
     if (typeof window !== 'undefined') {
       isLocalActionRef.current = true;
+      if (typeof newCount === 'number') {
+        window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: newCount }));
+      }
       setTimeout(() => {
-        if (typeof newCount === 'number') {
-          window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: newCount }));
-        }
         window.dispatchEvent(new CustomEvent('notification-updated'));
         setTimeout(() => {
           isLocalActionRef.current = false;
-        }, 100);
-      }, 0);
+        }, 300);
+      }, 50);
     }
   };
 
@@ -208,9 +208,17 @@ export default function NotificationsPage() {
       const nextUnread = Math.max(0, unreadCount - 1);
       setUnreadCount(nextUnread);
       setReadCount((c) => c + 1);
-      notifyBellUpdate(nextUnread);
 
-      await shopifyFetch(`/api/notifications/${id}/read`, { method: 'PUT' });
+      // Immediately update badge on Bell icon and Sidebar
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: nextUnread }));
+      }
+
+      const shopParam = activeShopDomain ? `?shop=${encodeURIComponent(activeShopDomain)}` : '';
+      const res = await shopifyFetch(`/api/notifications/${id}/read${shopParam}`, { method: 'PUT' });
+      if (res.ok) {
+        notifyBellUpdate(nextUnread);
+      }
     } catch (err) {
       console.error('[NotificationsPage] Error marking as read:', err);
       loadNotifications();
@@ -220,6 +228,7 @@ export default function NotificationsPage() {
   // Mark all notifications as read
   const handleMarkAllRead = async () => {
     try {
+      const previousUnread = unreadCount;
       if (statusFilter === 'unread') {
         setNotifications([]);
         setTotalCount(0);
@@ -227,15 +236,24 @@ export default function NotificationsPage() {
         setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       }
       setUnreadCount(0);
-      notifyBellUpdate(0);
+      setReadCount((c) => c + previousUnread);
 
-      const res = await shopifyFetch('/api/notifications', {
+      // Immediately clear red badge on Bell icon and Sidebar
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: 0 }));
+      }
+
+      const shopParam = activeShopDomain ? `?shop=${encodeURIComponent(activeShopDomain)}` : '';
+      const res = await shopifyFetch(`/api/notifications${shopParam}`, {
         method: 'PUT',
         body: JSON.stringify({ action: 'markAllRead' }),
       });
 
       if (res.ok) {
         showSuccess('All notifications marked as read');
+        notifyBellUpdate(0);
+      } else {
+        throw new Error('Failed to mark all as read');
       }
     } catch (err) {
       console.error('[NotificationsPage] Error marking all as read:', err);

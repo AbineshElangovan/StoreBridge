@@ -111,7 +111,6 @@ export async function handleAuthCallback(req: NextRequest) {
   try {
     const callbackResponse = await shopify.auth.callback({
       rawRequest: cleanRequest,
-      expiring: true,
     } as any);
     console.log("[OAuthCallback] Standard shopify.auth.callback succeeded.");
     session = callbackResponse.session;
@@ -169,7 +168,6 @@ export async function handleAuthCallback(req: NextRequest) {
         client_id: process.env.SHOPIFY_API_KEY,
         client_secret: process.env.SHOPIFY_API_SECRET,
         code,
-        expiring: "1",
       }),
     });
 

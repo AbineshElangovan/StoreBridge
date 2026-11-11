@@ -323,14 +323,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         window.dispatchEvent(
           new CustomEvent('notification-count-changed', { detail: nextCount })
         );
+      }
+      const shopParam = activeShopDomain ? `?shop=${encodeURIComponent(activeShopDomain)}` : '';
+      const res = await shopifyFetch(`/api/notifications/${id}/read${shopParam}`, { method: 'PUT' });
+      if (res.ok && typeof window !== 'undefined') {
         isInternalFetchRef.current = true;
         window.dispatchEvent(new CustomEvent('notification-updated'));
         setTimeout(() => {
           isInternalFetchRef.current = false;
-        }, 100);
+        }, 300);
       }
-      const shopParam = activeShopDomain ? `?shop=${encodeURIComponent(activeShopDomain)}` : '';
-      await shopifyFetch(`/api/notifications/${id}/read${shopParam}`, { method: 'PUT' });
     } catch (err) {
       console.error('[NotificationProvider] Error marking read:', err);
     }
@@ -344,17 +346,19 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         window.dispatchEvent(
           new CustomEvent('notification-count-changed', { detail: 0 })
         );
+      }
+      const shopParam = activeShopDomain ? `?shop=${encodeURIComponent(activeShopDomain)}` : '';
+      const res = await shopifyFetch(`/api/notifications${shopParam}`, {
+        method: 'PUT',
+        body: JSON.stringify({ action: 'markAllRead' }),
+      });
+      if (res.ok && typeof window !== 'undefined') {
         isInternalFetchRef.current = true;
         window.dispatchEvent(new CustomEvent('notification-updated'));
         setTimeout(() => {
           isInternalFetchRef.current = false;
-        }, 100);
+        }, 300);
       }
-      const shopParam = activeShopDomain ? `?shop=${encodeURIComponent(activeShopDomain)}` : '';
-      await shopifyFetch(`/api/notifications${shopParam}`, {
-        method: 'PUT',
-        body: JSON.stringify({ action: 'markAllRead' }),
-      });
     } catch (err) {
       console.error('[NotificationProvider] Error marking all read:', err);
     }
