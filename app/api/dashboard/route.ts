@@ -129,7 +129,9 @@ export async function GET(req: NextRequest) {
 
     let wishlistCount = 0;
     try {
-      wishlistCount = await WishlistService.getWishlistCount(store.id);
+      if (isStandalone) {
+        wishlistCount = await WishlistService.getWishlistCount(store.id);
+      }
     } catch (e) {
       console.warn('[Dashboard] Could not fetch wishlist count:', e);
     }

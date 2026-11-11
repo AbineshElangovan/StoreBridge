@@ -39,7 +39,7 @@ export function ProductInfoCard({
   const [isWishlisted, setIsWishlisted] = React.useState(false);
 
   React.useEffect(() => {
-    if (!productId) return;
+    if (!productId || !isStandalone) return;
     const cleanId = String(productId).replace(/^gid:\/\/shopify\/Product\//i, '');
 
     // Check initial wishlist status
@@ -190,8 +190,8 @@ export function ProductInfoCard({
           </div>
         )}
 
-        {/* Wishlist Status Banner */}
-        {isWishlisted && (
+        {/* Wishlist Status Banner (Standalone store only) */}
+        {isStandalone && isWishlisted && (
           <div className="flex items-center justify-between py-2 px-3 rounded-xl bg-rose-50 border border-rose-200 mt-3 transition-all">
             <span className="font-bold text-rose-800 text-xs flex items-center gap-1.5">
               <span className="text-rose-500 text-sm">♥</span> Wishlisted
