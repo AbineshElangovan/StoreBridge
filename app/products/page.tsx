@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Table, ColumnConfig } from '@/components/common/Table';
-import { Loading } from '@/components/common';
+import { Loading, RefreshButton } from '@/components/common';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import { DashboardCards } from '@/components/dashboard/DashboardCards';
 import { LocalizedDate } from '@/components/common/LocalizedDate';
@@ -55,10 +55,30 @@ export default function ProductsPage() {
   const [viewMode, setViewMode] = useState<'card' | 'table'>('table');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   const groupedProducts = data?.groupedProducts || {};
+
+  const handleRefresh = async () => {
+    try {
+      setIsRefreshing(true);
+      const url = currentShop
+        ? `/api/products?shop=${encodeURIComponent(currentShop)}&t=${Date.now()}`
+        : `/api/products?t=${Date.now()}`;
+      const res = await shopifyFetch(url);
+      if (res.ok) {
+        const json = await res.json();
+        setData(json);
+        setError(null);
+      }
+    } catch (err) {
+      console.error("Error refreshing products:", err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const allProducts = useMemo(() => {
     if (!groupedProducts) return [];
@@ -331,6 +351,15 @@ export default function ProductsPage() {
             isStandalone
               ? "Manage your products and collections effortlessly."
               : "Manage your store's products and collections effortlessly."
+          }
+          actions={
+            <RefreshButton
+              onClick={handleRefresh}
+              isRefreshing={isRefreshing}
+              size="md"
+              variant="white"
+              title="Refresh products & collections"
+            />
           }
         />
 

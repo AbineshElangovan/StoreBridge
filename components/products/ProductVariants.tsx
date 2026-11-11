@@ -39,6 +39,7 @@ export function ProductVariants({ productId, variants: initialVariants, isStanda
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [reauthUrl, setReauthUrl] = useState<string | null>(null);
 
   // Sync state if prop changes (only when there are no pending unsaved edits)
   React.useEffect(() => {
@@ -84,10 +85,12 @@ export function ProductVariants({ productId, variants: initialVariants, isStanda
     if (modifiedIds.size === 0) return;
     setIsSavingAll(true);
     setSaveError(null);
+    setReauthUrl(null);
     try {
       const modifiedVariants = variantList.filter(v => modifiedIds.has(v.id));
       let hasError = false;
       let lastErrorMessage = '';
+      let targetReauthUrl: string | null = null;
       const successfullySavedIds = new Set<string>();
 
       for (const v of modifiedVariants) {
@@ -108,6 +111,9 @@ export function ProductVariants({ productId, variants: initialVariants, isStanda
         } else {
           hasError = true;
           lastErrorMessage = json.error || `Failed to update variant ${v.variantName} (HTTP ${res.status})`;
+          if (json.reauthUrl) {
+            targetReauthUrl = json.reauthUrl;
+          }
           break;
         }
       }
@@ -120,9 +126,13 @@ export function ProductVariants({ productId, variants: initialVariants, isStanda
 
       if (hasError) {
         setSaveError(lastErrorMessage);
+        if (targetReauthUrl) {
+          setReauthUrl(targetReauthUrl);
+        }
         showError(lastErrorMessage);
       } else {
         setSaveError(null);
+        setReauthUrl(null);
         showSuccess('Variant(s) updated successfully');
         // Only re-fetch authoritative persisted product details from server if save succeeded
         if (onVariantUpdated) {
@@ -182,8 +192,19 @@ export function ProductVariants({ productId, variants: initialVariants, isStanda
           <div className="flex-1">
             <span className="font-bold block">Save Error</span>
             <span>{saveError}</span>
+            {reauthUrl && (
+              <div className="mt-2.5">
+                <a
+                  href={reauthUrl}
+                  target="_top"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg text-xs shadow-2xs transition-colors"
+                >
+                  Reconnect Store with Shopify &rarr;
+                </a>
+              </div>
+            )}
           </div>
-          <button type="button" onClick={() => setSaveError(null)} className="text-rose-500 hover:text-rose-700 p-0.5 flex items-center justify-center cursor-pointer" title="Dismiss error">
+          <button type="button" onClick={() => { setSaveError(null); setReauthUrl(null); }} className="text-rose-500 hover:text-rose-700 p-0.5 flex items-center justify-center cursor-pointer" title="Dismiss error">
             <span className="w-3.5 h-3.5 flex items-center"><Icon source={XIcon} tone="inherit" /></span>
           </button>
         </div>

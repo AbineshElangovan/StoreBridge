@@ -15,3 +15,4 @@ export * from './StatCard';
 export * from './LocalizedDate';
 export * from './StoreLogo';
 export * from './PolarisSelect';
+export * from './RefreshButton';

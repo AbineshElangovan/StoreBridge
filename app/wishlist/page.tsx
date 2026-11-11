@@ -9,6 +9,7 @@ import { StatCard } from '@/components/ui/StatCard';
 import { Table, ColumnConfig } from '@/components/common/Table';
 import { Loading } from '@/components/common/Loading';
 import { PolarisSelect } from '@/components/common/PolarisSelect';
+import { RefreshButton } from '@/components/common/RefreshButton';
 import { ConfirmToast } from '@/components/ui/ConfirmToast';
 import { useToast } from '@/components/providers/ToastContext';
 import { useTheme } from '@/components/providers/ThemeContext';
@@ -329,29 +330,14 @@ export default function WishlistPage() {
           subtitle="Keep track of products you love and want to revisit."
           actions={
             <div className="flex items-center gap-3">
-              {/* Animated Refresh Button */}
-              <button
-                type="button"
+              {/* Reusable Animated Refresh Button */}
+              <RefreshButton
                 onClick={handleRefresh}
-                disabled={isRefreshing}
-                className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 shadow-2xs hover:shadow-xs transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                isRefreshing={isRefreshing}
+                size="md"
+                variant="white"
                 title="Refresh wishlist data"
-              >
-                <svg
-                  className={`w-4 h-4 text-gray-600 ${isRefreshing ? 'animate-spin' : ''}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
-                <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
-              </button>
+              />
 
               {/* Themed Primary Browse Products Button */}
               <Link

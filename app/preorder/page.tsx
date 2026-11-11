@@ -22,7 +22,7 @@ import { StandaloneGuard } from '@/components/ui/StandaloneGuard';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 import { PageTabs, PageTab } from '@/components/ui/PageTabs';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { PolarisSelect } from '@/components/common';
+import { PolarisSelect, RefreshButton } from '@/components/common';
 import { PreorderPerformanceCard } from '@/components/dashboard/PreorderPerformanceCard';
 import { APP_NAME } from '@/lib/constants/app';
 import type { PreorderMetrics } from '@/services/preorder/preorder-service';
@@ -880,22 +880,15 @@ export default function PreorderAdminPage() {
                 Track initial deposits, outstanding customer balances, and payment statuses.
               </p>
             </div>
-            <button
-              type="button"
+            <RefreshButton
               onClick={() => fetchRecords(recordsPage, recordsSearch, recordsStatus)}
-              disabled={recordsLoading}
-              className="self-start sm:self-auto px-3.5 py-1.5 text-xs font-bold text-slate-700 bg-white border border-gray-300 rounded-lg shadow-2xs hover:bg-gray-50 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-            >
-              <svg
-                className={`w-3.5 h-3.5 ${recordsLoading ? 'animate-spin text-emerald-600' : 'text-slate-500'}`}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Refresh Orders
-            </button>
+              isRefreshing={recordsLoading}
+              size="sm"
+              variant="white"
+              label="Refresh Orders"
+              refreshingLabel="Refreshing Orders..."
+              className="self-start sm:self-auto font-bold"
+            />
           </div>
 
           <Table

@@ -6,6 +6,7 @@ import { shopifyFetch } from '@/lib/shopify/Client';
 import { Loading } from '@/components/common/Loading';
 import { Toast } from '@/components/common/Toast';
 import { Table, ColumnConfig } from '@/components/common/Table';
+import { RefreshButton } from '@/components/common/RefreshButton';
 import { getProductUrl } from '@/lib/utils/productUrl';
 import { Icon } from '@shopify/polaris';
 import {
@@ -561,17 +562,14 @@ export default function BackInStockAdminPage() {
           { label: 'Failed Alerts', value: 'FAILED' },
         ]}
         extraControls={
-          <button
-            type="button"
+          <RefreshButton
             onClick={handleManualRefresh}
-            disabled={tableLoading || isRefreshing}
-            className="p-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 transition shadow-2xs disabled:opacity-50 cursor-pointer flex items-center justify-center"
+            isRefreshing={isRefreshing || tableLoading}
+            iconOnly
+            size="sm"
+            variant="white"
             title="Refresh table data"
-          >
-            <div className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`}>
-              <Icon source={RefreshIcon} />
-            </div>
-          </button>
+          />
         }
         itemsPerPage={10}
         paginate={true}

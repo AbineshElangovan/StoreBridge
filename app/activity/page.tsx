@@ -17,7 +17,7 @@ import {
 import { ProductAddIcon, EditIcon, DeleteIcon, CartIcon, InfoIcon, SearchIcon, ExportIcon } from "@shopify/polaris-icons";
 import { shopifyFetch } from "@/lib/shopify/Client";
 import { StoreRoleBadge } from '@/components/ui/StoreRoleBadge';
-import { Loading, SearchBar, CustomSelect, Pagination } from '@/components/common';
+import { Loading, SearchBar, CustomSelect, Pagination, RefreshButton } from '@/components/common';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 
 function ProductThumbnail({ src, title }: { src?: string | null; title?: string | null }) {
@@ -412,6 +412,13 @@ export default function ActivityPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            <RefreshButton
+              onClick={fetchActivities}
+              isRefreshing={loading}
+              size="md"
+              variant="white"
+              title="Refresh activity logs"
+            />
             <button
               onClick={exportToPDF}
               disabled={isExporting}

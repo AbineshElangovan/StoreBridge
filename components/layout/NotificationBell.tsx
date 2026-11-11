@@ -18,6 +18,7 @@ import {
 import { useNotifications, NotificationItem } from '@/components/providers/NotificationContext';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 import { useTheme } from '@/components/providers/ThemeContext';
+import { RefreshButton } from '@/components/common/RefreshButton';
 
 function getRelativeTime(dateString: string): string {
   const date = new Date(dateString);
@@ -211,7 +212,7 @@ export function NotificationBell() {
 
       {/* Notifications Popover Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-84 sm:w-96 bg-white rounded-2xl shadow-xl border border-gray-200 z-50 overflow-hidden transition-all duration-200 animate-in fade-in slide-in-from-top-2">
+        <div className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] max-w-sm sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 z-50 overflow-hidden transition-all duration-200 animate-in fade-in slide-in-from-top-2">
           {/* Header with Title, Refresh & Read All */}
           <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -224,17 +225,15 @@ export function NotificationBell() {
             </div>
 
             <div className="flex items-center gap-2">
-              <button
+              <RefreshButton
                 onClick={() => fetchNotifications(activeFilter)}
+                isRefreshing={loading}
+                iconOnly
+                variant="ghost"
+                size="xs"
+                iconSize={14}
                 title="Refresh notifications"
-                className={`p-1 text-gray-500 hover:text-gray-900 rounded hover:bg-gray-200/60 transition-colors ${
-                  loading ? 'animate-spin text-[var(--color-primary)]' : ''
-                }`}
-              >
-                <div style={{ width: 14, height: 14 }}>
-                  <Icon source={RefreshIcon} />
-                </div>
-              </button>
+              />
 
               {unreadCount > 0 && (
                 <button
@@ -330,16 +329,16 @@ export function NotificationBell() {
           </div>
 
           {/* Footer Link & Refresh */}
-          <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
-            <button
+          <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+            <RefreshButton
               onClick={() => fetchNotifications(activeFilter)}
-              className="text-xs text-gray-600 hover:text-gray-900 font-medium flex items-center gap-1"
-            >
-              <div style={{ width: 13, height: 13 }}>
-                <Icon source={RefreshIcon} />
-              </div>
-              Refresh
-            </button>
+              isRefreshing={loading}
+              variant="ghost"
+              size="xs"
+              iconSize={13}
+              label="Refresh"
+              refreshingLabel="Refreshing..."
+            />
 
             <Link
               href={createHref('/dashboard/notifications')}

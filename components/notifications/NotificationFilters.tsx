@@ -10,6 +10,7 @@ import {
   Text,
 } from '@shopify/polaris';
 import { RefreshIcon, DeleteIcon, CheckIcon } from '@shopify/polaris-icons';
+import { RefreshButton } from '@/components/common/RefreshButton';
 
 interface NotificationFiltersProps {
   typeFilter: string;
@@ -136,17 +137,13 @@ export function NotificationFilters({
 
           {/* 3. Right: Refresh Button (Theme Dark) */}
           <div className="flex items-center justify-end">
-            <button
-              type="button"
+            <RefreshButton
               onClick={onRefresh}
-              disabled={isRefreshing}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-[var(--color-primary-dark,#082f49)] hover:opacity-90 transition-all cursor-pointer shadow-xs disabled:opacity-50"
-            >
-              <div className={`w-3.5 h-3.5 flex items-center justify-center shrink-0 ${isRefreshing ? 'animate-spin origin-center' : ''}`}>
-                <RefreshIcon className="w-3.5 h-3.5 fill-white text-white" />
-              </div>
-              <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
-            </button>
+              isRefreshing={isRefreshing}
+              size="sm"
+              variant="dark"
+              className="bg-[var(--color-primary-dark,#082f49)] hover:opacity-90 shadow-xs"
+            />
           </div>
         </div>
 
