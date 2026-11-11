@@ -35,7 +35,7 @@ export function DashboardCards({
 }: DashboardCardsProps) {
   const isProductsPage = page === 'products';
 
-  // If NOT standalone, both sides (dashboard & products) show 5 cards (including Wishlist)
+  // If NOT standalone (Master & Connected Stores), strictly 4 cards (no Wishlist)
   const statsConfig = !isStandalone
     ? [
         {
@@ -65,13 +65,6 @@ export function DashboardCards({
           description: 'Products with available inventory',
           icon: CheckCircleIcon,
           color: 'success' as const,
-        },
-        {
-          key: 'wishlistCount' as const,
-          title: 'Wishlist',
-          description: 'Curated products',
-          icon: HeartIcon,
-          color: 'danger' as const,
         },
       ]
     : isProductsPage
