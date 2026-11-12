@@ -1,23 +1,6 @@
 import { prisma } from '@/lib/db/prisma';
 import { APP_NAME } from '@/lib/constants/app';
 
-const REMOTE_NEON_URL = 'postgresql://neondb_owner:npg_7rDw2gJtlEeU@ep-restless-sun-b5m5tyc8-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
-let _remoteNeonClient: any = null;
-function getRemoteNeonClient() {
-  if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('neon.tech')) {
-    return null;
-  }
-  if (!_remoteNeonClient) {
-    try {
-      const { PrismaClient } = require('@prisma/client');
-      _remoteNeonClient = new PrismaClient({
-        datasources: { db: { url: REMOTE_NEON_URL } }
-      });
-    } catch (_) {}
-  }
-  return _remoteNeonClient;
-}
-
 export interface PreorderMetrics {
   totalPreorders: number;
   pendingPreorders: number;
@@ -157,34 +140,6 @@ export class PreorderService {
     let storeDefaultConfig = await prisma.preorderConfig.findFirst({
       where: { storeId, shopifyProductId: null, shopifyVariantId: null },
     });
-
-    // Check if remote cloud DB has a newer update (e.g. merchant saved via Shopify Admin dashboard)
-    try {
-      const remote = getRemoteNeonClient();
-      if (remote) {
-        const remoteConfig = await remote.preorderConfig.findFirst({
-          where: { storeId, shopifyProductId: null, shopifyVariantId: null },
-        });
-        if (remoteConfig && (!storeDefaultConfig || new Date(remoteConfig.updatedAt) > new Date(storeDefaultConfig.updatedAt))) {
-          storeDefaultConfig = remoteConfig;
-          prisma.preorderConfig.upsert({
-            where: { id: remoteConfig.id },
-            create: { ...remoteConfig },
-            update: {
-              discountType: remoteConfig.discountType,
-              discountValue: remoteConfig.discountValue,
-              allowHalfPayment: remoteConfig.allowHalfPayment,
-              allowFullPayment: remoteConfig.allowFullPayment,
-              defaultPaymentOption: remoteConfig.defaultPaymentOption,
-              selectionMode: remoteConfig.selectionMode,
-              selectedProductIds: remoteConfig.selectedProductIds,
-              selectedCollectionIds: remoteConfig.selectedCollectionIds,
-              updatedAt: remoteConfig.updatedAt,
-            },
-          }).catch(() => {});
-        }
-      }
-    } catch (_) {}
 
     let config = null;
 
@@ -330,59 +285,6 @@ export class PreorderService {
       } catch (cleanErr) {
         console.warn('[PreorderService] Stale overrides cleanup notice:', cleanErr);
       }
-    }
-
-    // Bidirectional sync to remote cloud DB so Amplify and local devtunnel are always in sync
-    try {
-      const remote = getRemoteNeonClient();
-      if (remote && !productId && !variantId) {
-        const remoteExisting = await remote.preorderConfig.findFirst({
-          where: { storeId, shopifyProductId: null, shopifyVariantId: null }
-        });
-        const targetId = remoteExisting?.id || existing?.id || '850e34b7-33fc-4953-a1b5-bfbd82206bf3';
-        await remote.preorderConfig.upsert({
-          where: { id: targetId },
-          create: {
-            id: targetId,
-            storeId,
-            shopifyProductId: null,
-            shopifyVariantId: null,
-            enabled: en,
-            inventoryThreshold: th,
-            customerMessage: cm,
-            shippingMessage: sm,
-            fulfillmentMessage: fm,
-            maxQuantity: mq,
-            discountType: dType,
-            discountValue: dVal,
-            selectionMode: selMode,
-            selectedProductIds: selProdIds,
-            selectedCollectionIds: selCollIds,
-            allowHalfPayment: allowHalf,
-            allowFullPayment: allowFull,
-            defaultPaymentOption: defaultOption,
-          },
-          update: {
-            enabled: en,
-            inventoryThreshold: th,
-            customerMessage: cm,
-            shippingMessage: sm,
-            fulfillmentMessage: fm,
-            maxQuantity: mq,
-            discountType: dType,
-            discountValue: dVal,
-            selectionMode: selMode,
-            selectedProductIds: selProdIds,
-            selectedCollectionIds: selCollIds,
-            allowHalfPayment: allowHalf,
-            allowFullPayment: allowFull,
-            defaultPaymentOption: defaultOption,
-            updatedAt: new Date(),
-          },
-        });
-      }
-    } catch (e: any) {
-      console.warn('[PreorderService:NeonSyncError]', e.message);
     }
 
     if (existing) {

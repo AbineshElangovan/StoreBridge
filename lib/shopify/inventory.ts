@@ -1,6 +1,7 @@
 import { getAdminClient } from './admin';
 import crypto from 'crypto';
 import { INVENTORY_SET_MUTATION, GET_INVENTORY_ITEM_QUERY, INVENTORY_ADJUST_MUTATION } from '@/services/shopify/graphql';
+import { isShopifySafeMode, logSafeModeIntercept } from './safe-mode';
 
 export async function setInventoryQuantity(
   shopDomain: string,
@@ -8,8 +9,6 @@ export async function setInventoryQuantity(
   locationId: string,
   quantity: number
 ) {
-  const client = await getAdminClient(shopDomain);
-  
   const formattedInventoryItemId = inventoryItemId.startsWith('gid://')
     ? inventoryItemId
     : `gid://shopify/InventoryItem/${inventoryItemId.replace(/\D/g, '') || inventoryItemId}`;
@@ -17,6 +16,22 @@ export async function setInventoryQuantity(
   const formattedLocationId = locationId.startsWith('gid://')
     ? locationId
     : `gid://shopify/Location/${locationId.replace(/\D/g, '') || locationId}`;
+
+  // Safe Mode Guard: Intercept mutation during local development
+  if (isShopifySafeMode()) {
+    logSafeModeIntercept('setInventoryQuantity', {
+      shopDomain,
+      inventoryItemId: formattedInventoryItemId,
+      locationId: formattedLocationId,
+      quantity,
+    });
+    return {
+      id: `safe-mode-mock-${Date.now()}`,
+      reason: 'safe_mode_mock',
+    };
+  }
+
+  const client = await getAdminClient(shopDomain);
 
   try {
     const response: any = await client.request(INVENTORY_SET_MUTATION, {
@@ -69,6 +84,20 @@ export async function adjustInventoryQuantity(
   locationId: string,
   delta: number
 ) {
+  // Safe Mode Guard: Intercept mutation during local development
+  if (isShopifySafeMode()) {
+    logSafeModeIntercept('adjustInventoryQuantity', {
+      shopDomain,
+      inventoryItemId,
+      locationId,
+      delta,
+    });
+    return {
+      id: `safe-mode-mock-${Date.now()}`,
+      reason: 'safe_mode_mock',
+    };
+  }
+
   const client = await getAdminClient(shopDomain);
   
   try {

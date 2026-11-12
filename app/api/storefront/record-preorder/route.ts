@@ -192,63 +192,6 @@ export async function POST(req: NextRequest) {
 
     console.log(`[Storefront:RecordPreorder] Saved preorder for order ${formattedOrderNumber} (Variant: ${cleanVariantId})`);
 
-    // Bidirectional sync to Neon DB so Amplify and Local are always in sync
-    try {
-      if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('neon.tech')) {
-        const { PrismaClient } = require('@prisma/client');
-        const remoteNeon = new PrismaClient({
-          datasources: { db: { url: 'postgresql://neondb_owner:npg_7rDw2gJtlEeU@ep-restless-sun-b5m5tyc8-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require' } }
-        });
-        await remoteNeon.preorderRecord.upsert({
-          where: {
-            storeId_shopifyOrderId_shopifyVariantId: {
-              storeId: store.id,
-              shopifyOrderId: cleanOrderId,
-              shopifyVariantId: cleanVariantId,
-            },
-          },
-          create: {
-            storeId: store.id,
-            shopifyOrderId: cleanOrderId,
-            orderNumber: formattedOrderNumber,
-            shopifyVariantId: cleanVariantId,
-            customerName: customerName ? safeEncrypt(customerName) : null,
-            customerEmail: customerEmail ? safeEncrypt(customerEmail) : null,
-            customerPhone: customerPhone ? safeEncrypt(customerPhone) : null,
-            quantity: data.quantity,
-            whatsappOptIn: false,
-            status: 'UNFULFILLED',
-            productTitle: data.productTitle || null,
-            variantTitle: data.variantTitle || null,
-            paymentOption: data.paymentOption,
-            totalAmount: data.totalAmount,
-            depositAmount: data.depositAmount,
-            remainingBalance: data.remainingBalance,
-            paymentStatus: data.paymentStatus,
-            currency: data.currency,
-          },
-          update: {
-            orderNumber: formattedOrderNumber,
-            customerName: customerName ? safeEncrypt(customerName) : null,
-            customerEmail: customerEmail ? safeEncrypt(customerEmail) : null,
-            customerPhone: customerPhone ? safeEncrypt(customerPhone) : null,
-            quantity: data.quantity,
-            status: 'UNFULFILLED',
-            productTitle: data.productTitle || null,
-            variantTitle: data.variantTitle || null,
-            paymentOption: data.paymentOption,
-            totalAmount: data.totalAmount,
-            depositAmount: data.depositAmount,
-            remainingBalance: data.remainingBalance,
-            paymentStatus: data.paymentStatus,
-          },
-        });
-        await remoteNeon.$disconnect();
-      }
-    } catch (neonErr: any) {
-      console.warn('[Storefront:RecordPreorder:NeonSyncWarn]', neonErr.message);
-    }
-
     // Dispatch Pre-order confirmation email to customer
     if (data.customerEmail) {
       try {

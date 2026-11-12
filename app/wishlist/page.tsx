@@ -14,6 +14,7 @@ import { ConfirmToast } from '@/components/ui/ConfirmToast';
 import { useToast } from '@/components/providers/ToastContext';
 import { useTheme } from '@/components/providers/ThemeContext';
 import { shopifyFetch } from '@/lib/shopify/Client';
+import { Card, EmptyState } from '@shopify/polaris';
 import {
   HeartIcon,
   CheckCircleIcon,
@@ -494,29 +495,23 @@ export default function WishlistPage() {
 
         {/* Main Content Area */}
         {filteredItems.length === 0 ? (
-          /* StoreOrbit Styled Empty State */
-          <div className="bg-white rounded-3xl border border-gray-200 p-12 text-center shadow-2xs flex flex-col items-center justify-center max-w-2xl mx-auto">
-            <div className="w-20 h-20 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center mb-5 shadow-inner">
-              <svg className="w-10 h-10 text-rose-500 fill-rose-500/20" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">
-              {items.length === 0 ? 'Your wishlist is empty' : 'No matching items found'}
-            </h2>
-            <p className="text-sm text-gray-500 max-w-md mb-6">
-              {items.length === 0
-                ? 'Click the heart icon on any product page or catalog list to save items to your personal wishlist.'
-                : 'Try adjusting your search query or filter options to locate your saved products.'}
-            </p>
-            <Link
-              href="/products"
-              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-xs sm:text-sm shadow-xs transition-all hover:brightness-105 active:scale-95 cursor-pointer"
-              style={{ backgroundColor: primaryColor, color: buttonTextColor }}
+          <Card>
+            <EmptyState
+              heading={items.length === 0 ? 'Your wishlist is empty' : 'No matching items found'}
+              action={{
+                content: 'Explore Products',
+                url: '/products',
+                onAction: () => router.push('/products'),
+              }}
+              image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
             >
-              Explore Products
-            </Link>
-          </div>
+              <p>
+                {items.length === 0
+                  ? 'Click the heart icon on any product page or catalog list to save items to your personal wishlist.'
+                  : 'Try adjusting your search query or filter options to locate your saved products.'}
+              </p>
+            </EmptyState>
+          </Card>
         ) : viewMode === 'card' ? (
           /* CARD VIEW: Responsive Grid of StoreOrbit Cards */
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

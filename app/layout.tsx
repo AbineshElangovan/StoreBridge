@@ -18,6 +18,7 @@ import { NavbarTitleProvider } from '@/components/providers/NavbarTitleContext';
 import { ToastProvider } from '@/components/providers/ToastContext';
 import { ThemeProvider } from '@/components/providers/ThemeContext';
 import { AutoHideScrollbar } from '@/components/providers/AutoHideScrollbar';
+import { LocalStoreSwitcher } from '@/components/dev/LocalStoreSwitcher';
 import { APP_NAME } from '@/lib/constants/app';
 
 export const dynamic = 'force-dynamic';
@@ -82,6 +83,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       </TimezoneProvider>
                     </ResponsiveLayout>
                   </NavbarTitleProvider>
+                  <LocalStoreSwitcher />
                 </ThemeProvider>
               </NotificationProvider>
             </ToastProvider>
