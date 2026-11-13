@@ -83,7 +83,17 @@ export async function refreshOfflineToken(store: any, force = false) {
       const errText = await response.text();
       console.warn(`[AdminClient] Refresh API response not ok for ${shopDomain}: ${response.status} - ${errText}`);
       if (response.status === 400 || response.status === 401) {
-        refreshCooldown.set(shopDomain, Date.now() + 60 * 1000);
+        refreshCooldown.set(shopDomain, Date.now() + 5 * 60 * 1000);
+        try {
+          await prisma.store.update({
+            where: { shopDomain },
+            data: {
+              authStatus: "REQUIRES_REAUTH",
+              lastAuthFailure: new Date(),
+              authFailureReason: `Shopify OAuth refresh rejected: ${errText}`,
+            }
+          });
+        } catch (_) {}
       }
 
       // Double-check: Did a peer serverless worker complete the refresh while our request was in flight?
@@ -121,6 +131,7 @@ export async function refreshOfflineToken(store: any, force = false) {
         authFailureReason: null,
       },
     });
+
 
     try {
       await prisma.session.updateMany({

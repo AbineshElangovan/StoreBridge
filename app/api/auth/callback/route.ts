@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { handleAuthCallback } from "@/services/shopify";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   console.log("[OAuthCallback] Incoming Callback URL:", req.url);
   console.log("[OAuthCallback] Query Parameters:", Object.fromEntries(req.nextUrl.searchParams.entries()));
@@ -23,4 +25,4 @@ export async function GET(req: NextRequest) {
     });
     return new NextResponse(`Failed to complete OAuth process: ${error.message}`, { status: 500 });
   }
-}
+}

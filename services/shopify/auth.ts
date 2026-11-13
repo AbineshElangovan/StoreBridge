@@ -424,6 +424,30 @@ export async function handleAuthCallback(req: NextRequest) {
     console.error("[DBVerification] Error querying Store table post-write:", dbErr.message);
   }
 
+
+  // Automatically sync discount codes for this store now that it is authenticated!
+  try {
+    const { PreorderService } = require('@/services/preorder/preorder-service');
+    const storePreorderConfig = await PreorderService.getConfig(storedShop.id);
+    if (storePreorderConfig?.enabled) {
+      await PreorderService.syncShopifyDiscount(
+        storedShop.id,
+        storePreorderConfig.discountType,
+        storePreorderConfig.discountValue
+      );
+      if (storePreorderConfig.allowHalfPayment) {
+        await PreorderService.syncShopifyDepositDiscount(
+          storedShop.id,
+          storePreorderConfig.discountType,
+          storePreorderConfig.discountValue
+        );
+      }
+      console.log(`[OAuth] Automatically pre-created discount codes for ${normalizedShop}`);
+    }
+  } catch (discErr: any) {
+    console.warn('[OAuth] Pre-create discount notice:', discErr.message);
+  }
+
   // Register Shopify webhooks
   try {
     await registerWebhooks(session);

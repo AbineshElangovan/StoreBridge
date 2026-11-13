@@ -30,6 +30,32 @@ export interface PreorderConfigInput {
   allowHalfPayment?: boolean;
   allowFullPayment?: boolean;
   defaultPaymentOption?: 'HALF' | 'FULL';
+  // Status & Scheduling
+  statusScheduleType?: 'AVAILABLE_NOW' | 'FROM_START_DATE' | 'UNTIL_END_DATE' | 'BETWEEN_DATES' | 'NOT_AVAILABLE';
+  startDate?: string | Date | null;
+  endDate?: string | Date | null;
+  // Countdown Timer
+  showTimer?: boolean;
+  timerDisplayMode?: string;
+  timerStartDateMode?: string;
+  timerCustomStartDate?: string | Date | null;
+  timerDateMode?: string;
+  timerCustomDate?: string | Date | null;
+  timerHeading?: string;
+  timerTextColor?: string;
+  timerBgColor?: string;
+  timerHeadingEnd?: string;
+  timerTextColorEnd?: string;
+  timerBgColorEnd?: string;
+  timerBorderRadius?: number;
+  timerShowDays?: boolean;
+  timerShowHours?: boolean;
+  timerShowMinutes?: boolean;
+  timerShowSeconds?: boolean;
+  timerDaysLabel?: string;
+  timerHoursLabel?: string;
+  timerMinutesLabel?: string;
+  timerSecondsLabel?: string;
 }
 
 export interface PreorderPriceCalculation {
@@ -60,6 +86,32 @@ export const DEFAULT_PREORDER_CONFIG = {
   allowHalfPayment: true,
   allowFullPayment: true,
   defaultPaymentOption: 'HALF' as 'HALF' | 'FULL',
+  // Status & Scheduling defaults
+  statusScheduleType: 'AVAILABLE_NOW' as 'AVAILABLE_NOW' | 'FROM_START_DATE' | 'UNTIL_END_DATE' | 'BETWEEN_DATES' | 'NOT_AVAILABLE',
+  startDate: null as Date | null,
+  endDate: null as Date | null,
+  // Countdown Timer defaults
+  showTimer: false,
+  timerDisplayMode: 'BEFORE_PREORDER' as 'BEFORE_PREORDER' | 'WHILE_PREORDER',
+  timerStartDateMode: 'USE_STATUS_DATE' as 'USE_STATUS_DATE' | 'CUSTOM_DATES',
+  timerCustomStartDate: null as Date | null,
+  timerDateMode: 'USE_STATUS_DATE' as 'USE_STATUS_DATE' | 'CUSTOM_DATE',
+  timerCustomDate: null as Date | null,
+  timerHeading: 'Preorder starts in',
+  timerTextColor: '#000000',
+  timerBgColor: '#f5f5f5',
+  timerHeadingEnd: 'Hurry up! Pre-order ending soon',
+  timerTextColorEnd: '#000000',
+  timerBgColorEnd: '#fee2e2',
+  timerBorderRadius: 8,
+  timerShowDays: true,
+  timerShowHours: true,
+  timerShowMinutes: true,
+  timerShowSeconds: true,
+  timerDaysLabel: 'Days',
+  timerHoursLabel: 'Hours',
+  timerMinutesLabel: 'Mins',
+  timerSecondsLabel: 'Secs',
 };
 
 export class PreorderService {
@@ -137,11 +189,20 @@ export class PreorderService {
     }
 
     // 1. Fetch store-level default config first
-    let storeDefaultConfig = await prisma.preorderConfig.findFirst({
-      where: { storeId, shopifyProductId: null, shopifyVariantId: null },
-    });
+    let storeDefaultConfig: any = null;
+    try {
+      const rows = await prisma.$queryRawUnsafe(
+        `SELECT * FROM "preorder_configs" WHERE "storeId" = $1 AND "shopifyProductId" IS NULL AND "shopifyVariantId" IS NULL LIMIT 1`,
+        storeId
+      ) as any[];
+      storeDefaultConfig = rows[0] || null;
+    } catch {
+      storeDefaultConfig = await prisma.preorderConfig.findFirst({
+        where: { storeId, shopifyProductId: null, shopifyVariantId: null },
+      });
+    }
 
-    let config = null;
+    let config: any = null;
 
     // In ALL_PRODUCTS mode, the store-level default config governs all catalog products dynamically
     const isAllProductsMode = !storeDefaultConfig || !storeDefaultConfig.selectionMode || storeDefaultConfig.selectionMode === 'ALL_PRODUCTS';
@@ -151,16 +212,32 @@ export class PreorderService {
     } else {
       // 1. Try variant-specific config if variantId is provided
       if (shopifyVariantId) {
-        config = await prisma.preorderConfig.findFirst({
-          where: { storeId, shopifyVariantId },
-        });
+        try {
+          const vRows = await prisma.$queryRawUnsafe(
+            `SELECT * FROM "preorder_configs" WHERE "storeId" = $1 AND "shopifyVariantId" = $2 LIMIT 1`,
+            storeId, shopifyVariantId
+          ) as any[];
+          config = vRows[0] || null;
+        } catch {
+          config = await prisma.preorderConfig.findFirst({
+            where: { storeId, shopifyVariantId },
+          });
+        }
       }
 
       // 2. Try product-specific config if productId is provided
       if (!config && shopifyProductId) {
-        config = await prisma.preorderConfig.findFirst({
-          where: { storeId, shopifyProductId, shopifyVariantId: null },
-        });
+        try {
+          const pRows = await prisma.$queryRawUnsafe(
+            `SELECT * FROM "preorder_configs" WHERE "storeId" = $1 AND "shopifyProductId" = $2 AND "shopifyVariantId" IS NULL LIMIT 1`,
+            storeId, shopifyProductId
+          ) as any[];
+          config = pRows[0] || null;
+        } catch {
+          config = await prisma.preorderConfig.findFirst({
+            where: { storeId, shopifyProductId, shopifyVariantId: null },
+          });
+        }
       }
 
       // 3. Fallback to store-level default config
@@ -216,7 +293,7 @@ export class PreorderService {
       // Ensure fields are populated from raw query if needed
       try {
         const rows: any[] = await prisma.$queryRawUnsafe(
-          'SELECT "discountType", "discountValue", "selectionMode", "selectedProductIds", "selectedCollectionIds", "allowHalfPayment", "allowFullPayment", "defaultPaymentOption" FROM "preorder_configs" WHERE "id" = $1 LIMIT 1',
+          'SELECT "discountType", "discountValue", "selectionMode", "selectedProductIds", "selectedCollectionIds", "allowHalfPayment", "allowFullPayment", "defaultPaymentOption", "statusScheduleType", "startDate", "endDate", "showTimer", "timerDisplayMode", "timerDateMode", "timerCustomDate", "timerHeading", "timerTextColor", "timerBgColor", "timerHeadingEnd", "timerTextColorEnd", "timerBgColorEnd", "timerBorderRadius", "timerShowDays", "timerShowHours", "timerShowMinutes", "timerShowSeconds", "timerDaysLabel", "timerHoursLabel", "timerMinutesLabel", "timerSecondsLabel" FROM "preorder_configs" WHERE "id" = $1 LIMIT 1',
           config.id
         );
         if (rows && rows[0]) {
@@ -228,6 +305,28 @@ export class PreorderService {
           (config as any).allowHalfPayment = rows[0].allowHalfPayment !== undefined && rows[0].allowHalfPayment !== null ? rows[0].allowHalfPayment : DEFAULT_PREORDER_CONFIG.allowHalfPayment;
           (config as any).allowFullPayment = rows[0].allowFullPayment !== undefined && rows[0].allowFullPayment !== null ? rows[0].allowFullPayment : DEFAULT_PREORDER_CONFIG.allowFullPayment;
           (config as any).defaultPaymentOption = rows[0].defaultPaymentOption || DEFAULT_PREORDER_CONFIG.defaultPaymentOption;
+          (config as any).statusScheduleType = rows[0].statusScheduleType || DEFAULT_PREORDER_CONFIG.statusScheduleType;
+          (config as any).startDate = rows[0].startDate || null;
+          (config as any).endDate = rows[0].endDate || null;
+          (config as any).showTimer = rows[0].showTimer !== undefined && rows[0].showTimer !== null ? rows[0].showTimer : DEFAULT_PREORDER_CONFIG.showTimer;
+          (config as any).timerDisplayMode = rows[0].timerDisplayMode || DEFAULT_PREORDER_CONFIG.timerDisplayMode;
+          (config as any).timerDateMode = rows[0].timerDateMode || DEFAULT_PREORDER_CONFIG.timerDateMode;
+          (config as any).timerCustomDate = rows[0].timerCustomDate || null;
+          (config as any).timerHeading = rows[0].timerHeading || DEFAULT_PREORDER_CONFIG.timerHeading;
+          (config as any).timerTextColor = rows[0].timerTextColor || DEFAULT_PREORDER_CONFIG.timerTextColor;
+          (config as any).timerBgColor = rows[0].timerBgColor || DEFAULT_PREORDER_CONFIG.timerBgColor;
+          (config as any).timerHeadingEnd = rows[0].timerHeadingEnd || DEFAULT_PREORDER_CONFIG.timerHeadingEnd;
+          (config as any).timerTextColorEnd = rows[0].timerTextColorEnd || DEFAULT_PREORDER_CONFIG.timerTextColorEnd;
+          (config as any).timerBgColorEnd = rows[0].timerBgColorEnd || DEFAULT_PREORDER_CONFIG.timerBgColorEnd;
+          (config as any).timerBorderRadius = rows[0].timerBorderRadius !== undefined && rows[0].timerBorderRadius !== null ? Number(rows[0].timerBorderRadius) : DEFAULT_PREORDER_CONFIG.timerBorderRadius;
+          (config as any).timerShowDays = rows[0].timerShowDays !== undefined && rows[0].timerShowDays !== null ? rows[0].timerShowDays : DEFAULT_PREORDER_CONFIG.timerShowDays;
+          (config as any).timerShowHours = rows[0].timerShowHours !== undefined && rows[0].timerShowHours !== null ? rows[0].timerShowHours : DEFAULT_PREORDER_CONFIG.timerShowHours;
+          (config as any).timerShowMinutes = rows[0].timerShowMinutes !== undefined && rows[0].timerShowMinutes !== null ? rows[0].timerShowMinutes : DEFAULT_PREORDER_CONFIG.timerShowMinutes;
+          (config as any).timerShowSeconds = rows[0].timerShowSeconds !== undefined && rows[0].timerShowSeconds !== null ? rows[0].timerShowSeconds : DEFAULT_PREORDER_CONFIG.timerShowSeconds;
+          (config as any).timerDaysLabel = rows[0].timerDaysLabel || DEFAULT_PREORDER_CONFIG.timerDaysLabel;
+          (config as any).timerHoursLabel = rows[0].timerHoursLabel || DEFAULT_PREORDER_CONFIG.timerHoursLabel;
+          (config as any).timerMinutesLabel = rows[0].timerMinutesLabel || DEFAULT_PREORDER_CONFIG.timerMinutesLabel;
+          (config as any).timerSecondsLabel = rows[0].timerSecondsLabel || DEFAULT_PREORDER_CONFIG.timerSecondsLabel;
         }
       } catch (e) {
         console.warn('[PreorderService] Fallback raw query error:', e);
@@ -271,6 +370,35 @@ export class PreorderService {
     const allowFull = data.allowFullPayment !== undefined ? data.allowFullPayment : ((existing as any)?.allowFullPayment ?? DEFAULT_PREORDER_CONFIG.allowFullPayment);
     const defaultOption = data.defaultPaymentOption || (existing as any)?.defaultPaymentOption || DEFAULT_PREORDER_CONFIG.defaultPaymentOption;
 
+    // Scheduling & Timer Fields
+    const statusScheduleType = data.statusScheduleType || (existing as any)?.statusScheduleType || DEFAULT_PREORDER_CONFIG.statusScheduleType;
+    const startDate = data.startDate !== undefined ? (data.startDate ? new Date(data.startDate) : null) : ((existing as any)?.startDate || null);
+    const endDate = data.endDate !== undefined ? (data.endDate ? new Date(data.endDate) : null) : ((existing as any)?.endDate || null);
+
+    const showTimer = data.showTimer !== undefined ? data.showTimer : ((existing as any)?.showTimer ?? DEFAULT_PREORDER_CONFIG.showTimer);
+    const timerDisplayMode = data.timerDisplayMode || (existing as any)?.timerDisplayMode || DEFAULT_PREORDER_CONFIG.timerDisplayMode;
+    const timerStartDateMode = data.timerStartDateMode || (existing as any)?.timerStartDateMode || DEFAULT_PREORDER_CONFIG.timerStartDateMode;
+    const timerCustomStartDate = data.timerCustomStartDate !== undefined ? (data.timerCustomStartDate ? new Date(data.timerCustomStartDate) : null) : ((existing as any)?.timerCustomStartDate || null);
+    const timerDateMode = data.timerDateMode || (existing as any)?.timerDateMode || DEFAULT_PREORDER_CONFIG.timerDateMode;
+    const timerCustomDate = data.timerCustomDate !== undefined ? (data.timerCustomDate ? new Date(data.timerCustomDate) : null) : ((existing as any)?.timerCustomDate || null);
+    const timerHeadingEnd = data.timerHeadingEnd !== undefined ? data.timerHeadingEnd : (data.timerHeading || (existing as any)?.timerHeadingEnd || DEFAULT_PREORDER_CONFIG.timerHeadingEnd);
+    const timerHeading = timerHeadingEnd;
+    const effectiveBg = data.timerBgColorEnd || data.timerBgColor || (existing as any)?.timerBgColorEnd || DEFAULT_PREORDER_CONFIG.timerBgColorEnd;
+    const effectiveText = data.timerTextColorEnd || data.timerTextColor || (existing as any)?.timerTextColorEnd || DEFAULT_PREORDER_CONFIG.timerTextColorEnd;
+    const timerTextColor = effectiveText;
+    const timerBgColor = effectiveBg;
+    const timerTextColorEnd = effectiveText;
+    const timerBgColorEnd = effectiveBg;
+    const timerBorderRadius = data.timerBorderRadius !== undefined ? Number(data.timerBorderRadius) : ((existing as any)?.timerBorderRadius ?? DEFAULT_PREORDER_CONFIG.timerBorderRadius);
+    const timerShowDays = data.timerShowDays !== undefined ? data.timerShowDays : ((existing as any)?.timerShowDays ?? DEFAULT_PREORDER_CONFIG.timerShowDays);
+    const timerShowHours = data.timerShowHours !== undefined ? data.timerShowHours : ((existing as any)?.timerShowHours ?? DEFAULT_PREORDER_CONFIG.timerShowHours);
+    const timerShowMinutes = data.timerShowMinutes !== undefined ? data.timerShowMinutes : ((existing as any)?.timerShowMinutes ?? DEFAULT_PREORDER_CONFIG.timerShowMinutes);
+    const timerShowSeconds = data.timerShowSeconds !== undefined ? data.timerShowSeconds : ((existing as any)?.timerShowSeconds ?? DEFAULT_PREORDER_CONFIG.timerShowSeconds);
+    const timerDaysLabel = data.timerDaysLabel !== undefined ? data.timerDaysLabel : ((existing as any)?.timerDaysLabel || DEFAULT_PREORDER_CONFIG.timerDaysLabel);
+    const timerHoursLabel = data.timerHoursLabel !== undefined ? data.timerHoursLabel : ((existing as any)?.timerHoursLabel || DEFAULT_PREORDER_CONFIG.timerHoursLabel);
+    const timerMinutesLabel = data.timerMinutesLabel !== undefined ? data.timerMinutesLabel : ((existing as any)?.timerMinutesLabel || DEFAULT_PREORDER_CONFIG.timerMinutesLabel);
+    const timerSecondsLabel = data.timerSecondsLabel !== undefined ? data.timerSecondsLabel : ((existing as any)?.timerSecondsLabel || DEFAULT_PREORDER_CONFIG.timerSecondsLabel);
+
     if (!productId && !variantId && selMode === 'ALL_PRODUCTS') {
       try {
         await prisma.preorderConfig.deleteMany({
@@ -287,49 +415,67 @@ export class PreorderService {
       }
     }
 
+    const fullConfigPayload = {
+      enabled: en,
+      inventoryThreshold: th,
+      customerMessage: cm,
+      shippingMessage: sm,
+      fulfillmentMessage: fm,
+      maxQuantity: mq,
+      discountType: dType,
+      discountValue: dVal,
+      selectionMode: selMode,
+      selectedProductIds: selProdIds,
+      selectedCollectionIds: selCollIds,
+      allowHalfPayment: allowHalf,
+      allowFullPayment: allowFull,
+      defaultPaymentOption: defaultOption,
+      statusScheduleType,
+      startDate,
+      endDate,
+      showTimer,
+      timerDisplayMode,
+      timerStartDateMode,
+      timerCustomStartDate,
+      timerDateMode,
+      timerCustomDate,
+      timerHeading,
+      timerTextColor,
+      timerBgColor,
+      timerHeadingEnd,
+      timerTextColorEnd,
+      timerBgColorEnd,
+      timerBorderRadius,
+      timerShowDays,
+      timerShowHours,
+      timerShowMinutes,
+      timerShowSeconds,
+      timerDaysLabel,
+      timerHoursLabel,
+      timerMinutesLabel,
+      timerSecondsLabel,
+    };
+
+
     if (existing) {
       try {
         return await (prisma as any).preorderConfig.update({
           where: { id: existing.id },
-          data: {
-            enabled: en,
-            inventoryThreshold: th,
-            customerMessage: cm,
-            shippingMessage: sm,
-            fulfillmentMessage: fm,
-            maxQuantity: mq,
-            discountType: dType,
-            discountValue: dVal,
-            selectionMode: selMode,
-            selectedProductIds: selProdIds,
-            selectedCollectionIds: selCollIds,
-            allowHalfPayment: allowHalf,
-            allowFullPayment: allowFull,
-            defaultPaymentOption: defaultOption,
-          },
+          data: fullConfigPayload,
         });
       } catch (err: any) {
         await prisma.$executeRawUnsafe(
-          `UPDATE "preorder_configs" SET "enabled" = $1, "inventoryThreshold" = $2, "customerMessage" = $3, "shippingMessage" = $4, "fulfillmentMessage" = $5, "maxQuantity" = $6, "discountType" = $7, "discountValue" = $8, "selectionMode" = $9, "selectedProductIds" = $10, "selectedCollectionIds" = $11, "allowHalfPayment" = $12, "allowFullPayment" = $13, "defaultPaymentOption" = $14, "updatedAt" = NOW() WHERE "id" = $15`,
-          en, th, cm, sm, fm, mq, dType, dVal, selMode, selProdIds, selCollIds, allowHalf, allowFull, defaultOption, existing.id
+          `UPDATE "preorder_configs" SET "enabled" = $1, "inventoryThreshold" = $2, "customerMessage" = $3, "shippingMessage" = $4, "fulfillmentMessage" = $5, "maxQuantity" = $6, "discountType" = $7, "discountValue" = $8, "selectionMode" = $9, "selectedProductIds" = $10, "selectedCollectionIds" = $11, "allowHalfPayment" = $12, "allowFullPayment" = $13, "defaultPaymentOption" = $14, "statusScheduleType" = $15, "startDate" = $16, "endDate" = $17, "showTimer" = $18, "timerDisplayMode" = $19, "timerDateMode" = $20, "timerCustomDate" = $21, "timerHeading" = $22, "timerTextColor" = $23, "timerBgColor" = $24, "timerBorderRadius" = $25, "timerShowDays" = $26, "timerShowHours" = $27, "timerShowMinutes" = $28, "timerShowSeconds" = $29, "timerDaysLabel" = $30, "timerHoursLabel" = $31, "timerMinutesLabel" = $32, "timerSecondsLabel" = $33, "timerHeadingEnd" = $34, "timerTextColorEnd" = $35, "timerBgColorEnd" = $36, "timerStartDateMode" = $37, "timerCustomStartDate" = $38, "updatedAt" = NOW() WHERE "id" = $39`,
+          en, th, cm, sm, fm, mq, dType, dVal, selMode, selProdIds, selCollIds, allowHalf, allowFull, defaultOption,
+          statusScheduleType, startDate, endDate, showTimer, timerDisplayMode, timerDateMode, timerCustomDate,
+          timerHeading, timerTextColor, timerBgColor, timerBorderRadius, timerShowDays, timerShowHours, timerShowMinutes,
+          timerShowSeconds, timerDaysLabel, timerHoursLabel, timerMinutesLabel, timerSecondsLabel,
+          timerHeadingEnd, timerTextColorEnd, timerBgColorEnd, timerStartDateMode, timerCustomStartDate, existing.id
         );
 
         return {
           ...existing,
-          enabled: en,
-          inventoryThreshold: th,
-          customerMessage: cm,
-          shippingMessage: sm,
-          fulfillmentMessage: fm,
-          maxQuantity: mq,
-          discountType: dType,
-          discountValue: dVal,
-          selectionMode: selMode,
-          selectedProductIds: selProdIds,
-          selectedCollectionIds: selCollIds,
-          allowHalfPayment: allowHalf,
-          allowFullPayment: allowFull,
-          defaultPaymentOption: defaultOption,
+          ...fullConfigPayload,
         };
       }
     }
@@ -340,27 +486,17 @@ export class PreorderService {
           storeId,
           shopifyProductId: productId,
           shopifyVariantId: variantId,
-          enabled: en,
-          inventoryThreshold: th,
-          customerMessage: cm,
-          shippingMessage: sm,
-          fulfillmentMessage: fm,
-          maxQuantity: mq,
-          discountType: dType,
-          discountValue: dVal,
-          selectionMode: selMode,
-          selectedProductIds: selProdIds,
-          selectedCollectionIds: selCollIds,
-          allowHalfPayment: allowHalf,
-          allowFullPayment: allowFull,
-          defaultPaymentOption: defaultOption,
+          ...fullConfigPayload,
         },
       });
     } catch (err: any) {
       const id = crypto.randomUUID();
       await prisma.$executeRawUnsafe(
-        `INSERT INTO "preorder_configs" ("id", "storeId", "shopifyProductId", "shopifyVariantId", "enabled", "inventoryThreshold", "customerMessage", "shippingMessage", "fulfillmentMessage", "maxQuantity", "discountType", "discountValue", "selectionMode", "selectedProductIds", "selectedCollectionIds", "allowHalfPayment", "allowFullPayment", "defaultPaymentOption", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW(), NOW())`,
-        id, storeId, productId, variantId, en, th, cm, sm, fm, mq, dType, dVal, selMode, selProdIds, selCollIds, allowHalf, allowFull, defaultOption
+        `INSERT INTO "preorder_configs" ("id", "storeId", "shopifyProductId", "shopifyVariantId", "enabled", "inventoryThreshold", "customerMessage", "shippingMessage", "fulfillmentMessage", "maxQuantity", "discountType", "discountValue", "selectionMode", "selectedProductIds", "selectedCollectionIds", "allowHalfPayment", "allowFullPayment", "defaultPaymentOption", "statusScheduleType", "startDate", "endDate", "showTimer", "timerDisplayMode", "timerDateMode", "timerCustomDate", "timerHeading", "timerTextColor", "timerBgColor", "timerHeadingEnd", "timerTextColorEnd", "timerBgColorEnd", "timerBorderRadius", "timerShowDays", "timerShowHours", "timerShowMinutes", "timerShowSeconds", "timerDaysLabel", "timerHoursLabel", "timerMinutesLabel", "timerSecondsLabel", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, NOW(), NOW())`,
+        id, storeId, productId, variantId, en, th, cm, sm, fm, mq, dType, dVal, selMode, selProdIds, selCollIds, allowHalf, allowFull, defaultOption,
+        statusScheduleType, startDate, endDate, showTimer, timerDisplayMode, timerDateMode, timerCustomDate,
+        timerHeading, timerTextColor, timerBgColor, timerHeadingEnd, timerTextColorEnd, timerBgColorEnd, timerBorderRadius, timerShowDays, timerShowHours, timerShowMinutes,
+        timerShowSeconds, timerDaysLabel, timerHoursLabel, timerMinutesLabel, timerSecondsLabel
       );
 
       return {
@@ -368,20 +504,7 @@ export class PreorderService {
         storeId,
         shopifyProductId: productId,
         shopifyVariantId: variantId,
-        enabled: en,
-        inventoryThreshold: th,
-        customerMessage: cm,
-        shippingMessage: sm,
-        fulfillmentMessage: fm,
-        maxQuantity: mq,
-        discountType: dType,
-        discountValue: dVal,
-        selectionMode: selMode,
-        selectedProductIds: selProdIds,
-        selectedCollectionIds: selCollIds,
-        allowHalfPayment: allowHalf,
-        allowFullPayment: allowFull,
-        defaultPaymentOption: defaultOption,
+        ...fullConfigPayload,
       };
     }
   }
@@ -867,7 +990,11 @@ export class PreorderService {
         console.log(`[PreorderService:syncShopifyDiscount] Successfully synchronized Shopify discount code: ${discountCode}`);
       }
     } catch (err: any) {
-      console.warn('[PreorderService:syncShopifyDiscount] Note while creating Shopify discount (check scopes):', err.message || err);
+      if (err?.message?.includes('401') || err?.message?.includes('invalid_grant') || err?.message?.includes('Requires OAuth')) {
+        console.info(`[PreorderService:syncShopifyDiscount] Store ${store.shopDomain} requires an OAuth reconnect in Shopify Admin to sync discount codes.`);
+      } else {
+        console.warn('[PreorderService:syncShopifyDiscount] Note while creating Shopify discount (check scopes):', err.message || err);
+      }
     }
 
     return discountCode;
@@ -978,7 +1105,11 @@ export class PreorderService {
       }
       return depositCode;
     } catch (err: any) {
-      console.warn('[PreorderService:syncDepositDiscount] Note creating deposit code:', err.message);
+      if (err?.message?.includes('401') || err?.message?.includes('invalid_grant') || err?.message?.includes('Requires OAuth')) {
+        console.info(`[PreorderService:syncDepositDiscount] Store ${store?.shopDomain || storeId} requires an OAuth reconnect in Shopify Admin to sync deposit codes.`);
+      } else {
+        console.warn('[PreorderService:syncDepositDiscount] Note creating deposit code:', err.message);
+      }
     }
 
     return depositCode;

@@ -15,6 +15,7 @@
     "prisma:studio": "prisma studio",
     "prisma:migrate": "prisma migrate dev",
     "prisma:generate": "prisma generate",
+    "sync:neon": "tsx scripts/replicate-to-neon.ts",
     "inspect:activity": "tsx scripts/inspect-activity.ts",
     "prepare": "husky"
   },

@@ -18,6 +18,7 @@ import {
 } from '@/components/customer-experience/shared';
 import { PreorderProductSelector } from '@/components/preorder/PreorderProductSelector';
 import { PreorderCollectionSelector } from '@/components/preorder/PreorderCollectionSelector';
+import { PreorderCountdownTimerCard } from '@/components/preorder/PreorderCountdownTimerCard';
 import { StandaloneGuard } from '@/components/ui/StandaloneGuard';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 import { PageTabs, PageTab } from '@/components/ui/PageTabs';
@@ -27,7 +28,97 @@ import { PreorderPerformanceCard } from '@/components/dashboard/PreorderPerforma
 import { APP_NAME } from '@/lib/constants/app';
 import type { PreorderMetrics } from '@/services/preorder/preorder-service';
 
-export type PreorderTabId = 'general' | 'offers_payment' | 'orders';
+export type PreorderTabId = 'general' | 'offers_payment' | 'status_timer' | 'orders';
+
+function toDatetimeLocalString(dateStr?: string | Date | null): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const year = d.getFullYear();
+  const month = pad(d.getMonth() + 1);
+  const day = pad(d.getDate());
+  const hours = pad(d.getHours());
+  const minutes = pad(d.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function formatHumanDateTime(dateStr?: string | Date | null): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+function DateTimePicker({
+  label,
+  value,
+  onChange,
+  primaryColor,
+}: {
+  label?: string;
+  value: string;
+  onChange: (val: string) => void;
+  primaryColor?: string;
+}) {
+  const datePart = value ? value.split('T')[0] : '';
+  const timePart = value && value.includes('T') ? value.split('T')[1].slice(0, 5) : '12:00';
+
+  const handleDateChange = (newDate: string) => {
+    if (!newDate) {
+      onChange('');
+      return;
+    }
+    onChange(`${newDate}T${timePart || '12:00'}`);
+  };
+
+  const handleTimeChange = (newTime: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    const d = datePart || today;
+    onChange(`${d}T${newTime || '12:00'}`);
+  };
+
+  return (
+    <div className="space-y-1.5">
+      {label && <label className="block text-xs font-bold text-gray-700">{label}</label>}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div>
+          <span className="block text-[10px] font-semibold text-gray-400 mb-0.5">Date</span>
+          <input
+            type="date"
+            value={datePart}
+            onChange={(e) => handleDateChange(e.target.value)}
+            className="w-full px-3 py-1.5 text-xs font-medium text-gray-900 bg-white border border-gray-300 rounded-lg shadow-2xs focus:ring-1 focus:outline-none cursor-pointer"
+            style={{ borderColor: primaryColor }}
+          />
+        </div>
+        <div>
+          <span className="block text-[10px] font-semibold text-gray-400 mb-0.5">Time</span>
+          <input
+            type="time"
+            value={timePart}
+            onChange={(e) => handleTimeChange(e.target.value)}
+            className="w-full px-3 py-1.5 text-xs font-medium text-gray-900 bg-white border border-gray-300 rounded-lg shadow-2xs focus:ring-1 focus:outline-none cursor-pointer"
+            style={{ borderColor: primaryColor }}
+          />
+        </div>
+      </div>
+      {value && (
+        <p className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md flex items-center gap-1.5">
+          <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          Scheduled: {formatHumanDateTime(value)}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function ProductThumbnail({ src, alt, href }: { src?: string | null; alt?: string; href?: string }) {
   const [hasError, setHasError] = useState(false);
@@ -101,6 +192,41 @@ export default function PreorderAdminPage() {
   const [calculation, setCalculation] = useState<any>(null);
   const [sample100, setSample100] = useState<any>(null);
   const [calculating, setCalculating] = useState(false);
+
+  // Status & Scheduling State (End date / Deadline only)
+  const [statusScheduleType, setStatusScheduleType] = useState<
+    'AVAILABLE_NOW' | 'UNTIL_END_DATE' | 'NOT_AVAILABLE'
+  >('AVAILABLE_NOW');
+  const [endDate, setEndDate] = useState<string>('');
+
+  // Countdown Timer State (End date / Deadline only)
+  const [showTimer, setShowTimer] = useState(false);
+  const [timerDisplayMode, setTimerDisplayMode] = useState<'BEFORE_PREORDER' | 'WHILE_PREORDER' | 'BOTH'>('WHILE_PREORDER');
+  const [timerDateMode, setTimerDateMode] = useState<'USE_STATUS_DATE' | 'CUSTOM_DATES'>('USE_STATUS_DATE');
+  const [timerCustomDate, setTimerCustomDate] = useState<string>('');
+  const [timerHeadingStart, setTimerHeadingStart] = useState('Pre-order opening soon');
+  const [timerHeadingEnd, setTimerHeadingEnd] = useState('Hurry up! Pre-order ending soon');
+  const [timerTextColor, setTimerTextColor] = useState('#000000');
+  const [timerBgColor, setTimerBgColor] = useState('#fee2e2');
+  const [timerTextColorEnd, setTimerTextColorEnd] = useState('#000000');
+  const [timerBgColorEnd, setTimerBgColorEnd] = useState('#fee2e2');
+  const [timerBorderRadius, setTimerBorderRadius] = useState<string>('8');
+  const [timerShowDays, setTimerShowDays] = useState(true);
+  const [timerShowHours, setTimerShowHours] = useState(true);
+  const [timerShowMinutes, setTimerShowMinutes] = useState(true);
+  const [timerShowSeconds, setTimerShowSeconds] = useState(true);
+  const [timerDaysLabel, setTimerDaysLabel] = useState('Days');
+  const [timerHoursLabel, setTimerHoursLabel] = useState('Hours');
+  const [timerMinutesLabel, setTimerMinutesLabel] = useState('Mins');
+  const [timerSecondsLabel, setTimerSecondsLabel] = useState('Secs');
+  const [hideStyling, setHideStyling] = useState(false);
+
+  // Keep endDate synced with custom date if provided
+  useEffect(() => {
+    if (!endDate && timerCustomDate) {
+      setEndDate(timerCustomDate);
+    }
+  }, [timerCustomDate, endDate]);
 
   // Pre-order Orders Records State
   const [records, setRecords] = useState<any[]>([]);
@@ -240,6 +366,59 @@ export default function PreorderAdminPage() {
         setAllowFullPayment(!isHalf);
         setPaymentType(isHalf ? 'HALF' : 'FULL');
         setDefaultPaymentOption(isHalf ? 'HALF' : 'FULL');
+        const rawSchedule = data.config.statusScheduleType || 'AVAILABLE_NOW';
+        setStatusScheduleType(
+          rawSchedule === 'NOT_AVAILABLE' ? 'NOT_AVAILABLE' :
+          rawSchedule === 'UNTIL_END_DATE' ? 'UNTIL_END_DATE' :
+          'AVAILABLE_NOW'
+        );
+        let eDate = toDatetimeLocalString(data.config.endDate);
+        const cDate = toDatetimeLocalString(data.config.timerCustomDate);
+        if (!eDate && cDate) {
+          eDate = cDate;
+        }
+        setEndDate(eDate);
+        setTimerDateMode(data.config.timerDateMode || 'USE_STATUS_DATE');
+        setTimerCustomDate(cDate || eDate);
+        try {
+          const raw = data.config.timerHeading || '';
+          if (raw.startsWith('{')) {
+            const parsed = JSON.parse(raw);
+            setTimerHeadingStart(parsed.start || 'Pre-order opening soon');
+            setTimerHeadingEnd(data.config.timerHeadingEnd || parsed.end || 'Hurry up! Pre-order ending soon');
+          } else if (raw) {
+            setTimerHeadingStart(raw);
+            setTimerHeadingEnd(data.config.timerHeadingEnd || 'Hurry up! Pre-order ending soon');
+          } else {
+            setTimerHeadingStart('Pre-order opening soon');
+            setTimerHeadingEnd(data.config.timerHeadingEnd || 'Hurry up! Pre-order ending soon');
+          }
+        } catch {
+          setTimerHeadingStart(data.config.timerHeading || 'Pre-order opening soon');
+          setTimerHeadingEnd(data.config.timerHeadingEnd || 'Hurry up! Pre-order ending soon');
+        }
+        const effectiveBg = data.config.timerBgColorEnd || data.config.timerBgColor || '#fee2e2';
+        const effectiveText = data.config.timerTextColorEnd || data.config.timerTextColor || '#000000';
+        setTimerTextColor(effectiveText);
+        setTimerBgColor(effectiveBg);
+        setTimerTextColorEnd(effectiveText);
+        setTimerBgColorEnd(effectiveBg);
+        setTimerBorderRadius(data.config.timerBorderRadius !== null && data.config.timerBorderRadius !== undefined ? String(data.config.timerBorderRadius) : '8');
+        setTimerShowDays(data.config.timerShowDays !== false);
+        setTimerShowHours(data.config.timerShowHours !== false);
+        setTimerShowMinutes(data.config.timerShowMinutes !== false);
+        setTimerShowSeconds(data.config.timerShowSeconds !== false);
+        setTimerDaysLabel(data.config.timerDaysLabel || 'Days');
+        setTimerHoursLabel(data.config.timerHoursLabel || 'Hours');
+        setTimerMinutesLabel(data.config.timerMinutesLabel || 'Mins');
+        setTimerSecondsLabel(data.config.timerSecondsLabel || 'Secs');
+        setShowTimer(Boolean(data.config.showTimer));
+        if (data.config.timerDateMode) {
+          setTimerDateMode(data.config.timerDateMode);
+        }
+        if (data.config.timerDisplayMode) {
+          setTimerDisplayMode(data.config.timerDisplayMode);
+        }
         if (data.calculation) {
           setCalculation(data.calculation);
         }
@@ -292,6 +471,32 @@ export default function PreorderAdminPage() {
         allowHalfPayment: paymentType === 'HALF',
         allowFullPayment: paymentType === 'FULL',
         defaultPaymentOption: paymentType,
+        // Status & Scheduling (End date / Deadline only)
+        statusScheduleType,
+        startDate: null,
+        endDate: endDate ? new Date(endDate).toISOString() : null,
+        // Countdown Timer
+        showTimer,
+        timerDisplayMode: 'WHILE_PREORDER',
+        timerDateMode,
+        timerCustomDate: timerDateMode === 'CUSTOM_DATES' && timerCustomDate
+          ? new Date(timerCustomDate).toISOString()
+          : (endDate ? new Date(endDate).toISOString() : (timerCustomDate ? new Date(timerCustomDate).toISOString() : null)),
+        timerHeading: timerHeadingStart.trim() || 'Pre-order opening soon',
+        timerHeadingEnd: timerHeadingEnd.trim() || 'Hurry up! Pre-order ending soon',
+        timerTextColor,
+        timerBgColor,
+        timerTextColorEnd,
+        timerBgColorEnd,
+        timerBorderRadius: Math.max(0, parseInt(timerBorderRadius, 10) || 0),
+        timerShowDays,
+        timerShowHours,
+        timerShowMinutes,
+        timerShowSeconds,
+        timerDaysLabel: timerDaysLabel.trim() || 'Days',
+        timerHoursLabel: timerHoursLabel.trim() || 'Hours',
+        timerMinutesLabel: timerMinutesLabel.trim() || 'Mins',
+        timerSecondsLabel: timerSecondsLabel.trim() || 'Secs',
       };
 
       const saveUrl = currentStore?.shopDomain
@@ -328,6 +533,7 @@ export default function PreorderAdminPage() {
   const tabs: PageTab<PreorderTabId>[] = [
     { id: 'general', label: 'Setup & Products' },
     { id: 'offers_payment', label: 'Offer & Payment' },
+    { id: 'status_timer', label: 'Status & Timer' },
     { id: 'orders', label: 'Pre-order Tracking' },
   ];
 
@@ -344,22 +550,27 @@ export default function PreorderAdminPage() {
         defaultPaymentOption={defaultPaymentOption}
         showSavings={showSavings}
         calculation={calculation}
+        statusScheduleType={statusScheduleType}
+        endDate={endDate}
+        showTimer={showTimer}
+        timerDateMode={timerDateMode}
+        timerCustomDate={timerDateMode === 'CUSTOM_DATES' ? timerCustomDate : endDate}
+        timerHeading={timerHeadingEnd}
+        timerHeadingEnd={timerHeadingEnd}
+        timerTextColor={timerTextColorEnd || timerTextColor}
+        timerBgColor={timerBgColorEnd || timerBgColor}
+        timerTextColorEnd={timerTextColorEnd}
+        timerBgColorEnd={timerBgColorEnd}
+        timerBorderRadius={parseInt(timerBorderRadius, 10) || 0}
+        timerShowDays={timerShowDays}
+        timerShowHours={timerShowHours}
+        timerShowMinutes={timerShowMinutes}
+        timerShowSeconds={timerShowSeconds}
+        timerDaysLabel={timerDaysLabel}
+        timerHoursLabel={timerHoursLabel}
+        timerMinutesLabel={timerMinutesLabel}
+        timerSecondsLabel={timerSecondsLabel}
       />
-
-      {/* Integration & Theme App Extension Guide */}
-      <div className="bg-sky-50 border border-sky-200 rounded-2xl p-5 text-sky-950 space-y-2">
-        <div className="flex items-center gap-2">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-sky-700">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 16v-4" />
-            <path d="M12 8h.01" />
-          </svg>
-          <h4 className="font-bold text-sm text-sky-900">How {APP_NAME} Pre-order Works on Your Store</h4>
-        </div>
-        <p className="text-xs text-sky-800 leading-relaxed">
-          When a customer visits your online store product page, the {APP_NAME} Theme App Extension reads the selected variant&apos;s inventory. If stock is &le; threshold ({inventoryThreshold}), it seamlessly replaces the theme&apos;s Sold Out button with the Pre-order &amp; Back in Stock UI and applies any configured promotional offer.
-        </p>
-      </div>
     </div>
   );
 
@@ -865,6 +1076,192 @@ export default function PreorderAdminPage() {
                 </div>
               </div>
             </SettingsCard>
+          </div>
+          {previewColumn}
+        </div>
+      )}
+
+      {/* TAB 3: Status & Timer (Status & Scheduling + Countdown Timer) */}
+      {activeTab === 'status_timer' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <div className="lg:col-span-7 space-y-6">
+            {/* Card 1: Status & Scheduling matching Screenshot 1 */}
+            <SettingsCard
+              title="Status"
+              description="Control the status of your preorder offer, and set an optional end deadline."
+            >
+              <div className="space-y-4">
+                {/* Offer Status Badge Row */}
+                <div className="flex items-center gap-2.5 pb-2 border-b border-gray-100">
+                  <span className="text-sm font-bold text-gray-900">Offer status</span>
+                  {(() => {
+                    const now = new Date();
+                    const end = endDate ? new Date(endDate) : null;
+
+                    if (statusScheduleType === 'NOT_AVAILABLE') {
+                      return (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-700 border border-gray-200">
+                          Paused
+                        </span>
+                      );
+                    }
+                    if (statusScheduleType === 'UNTIL_END_DATE') {
+                      if (end && now > end) {
+                        return (
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-gray-100 text-gray-700 border border-gray-200">
+                            Ended
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          Live
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        Live
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                {/* The Clean Radio Options (End Date / Deadline only) */}
+                <div className="space-y-3 pt-1">
+                  {/* 1. Available now */}
+                  <label className="flex items-center gap-3 cursor-pointer py-1">
+                    <input
+                      type="radio"
+                      name="statusScheduleType"
+                      value="AVAILABLE_NOW"
+                      checked={statusScheduleType === 'AVAILABLE_NOW'}
+                      onChange={() => setStatusScheduleType('AVAILABLE_NOW')}
+                      style={{ accentColor: primaryColor }}
+                      className="h-4 w-4 cursor-pointer"
+                    />
+                    <span className="text-sm font-semibold text-gray-800">Available now</span>
+                  </label>
+
+                  {/* 2. Available now & until end date */}
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-3 cursor-pointer py-1">
+                      <input
+                        type="radio"
+                        name="statusScheduleType"
+                        value="UNTIL_END_DATE"
+                        checked={statusScheduleType === 'UNTIL_END_DATE'}
+                        onChange={() => setStatusScheduleType('UNTIL_END_DATE')}
+                        style={{ accentColor: primaryColor }}
+                        className="h-4 w-4 cursor-pointer"
+                      />
+                      <span className="text-sm font-semibold text-gray-800">Available now &amp; until end date</span>
+                    </label>
+                    {statusScheduleType === 'UNTIL_END_DATE' && (
+                      <div className="pl-7 max-w-sm animate-fadeIn">
+                        <DateTimePicker
+                          label="End Date & Time"
+                          value={endDate}
+                          onChange={setEndDate}
+                          primaryColor={primaryColor}
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 3. Not available */}
+                  <label className="flex items-center gap-3 cursor-pointer py-1">
+                    <input
+                      type="radio"
+                      name="statusScheduleType"
+                      value="NOT_AVAILABLE"
+                      checked={statusScheduleType === 'NOT_AVAILABLE'}
+                      onChange={() => setStatusScheduleType('NOT_AVAILABLE')}
+                      style={{ accentColor: primaryColor }}
+                      className="h-4 w-4 cursor-pointer"
+                    />
+                    <span className="text-sm font-semibold text-gray-800">Not available</span>
+                  </label>
+                </div>
+
+                {/* Card Footer Save Button */}
+                <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
+                  <span className="text-xs text-gray-500 font-medium">
+                    Changes apply automatically to storefront product pages.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saving}
+                    style={{ backgroundColor: primaryColor, color: buttonTextColor }}
+                    className="px-4 py-2 text-xs font-black rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
+                  >
+                    {saving ? (
+                      <>
+                        <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5" style={{ color: buttonTextColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Save Status
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </SettingsCard>
+
+            {/* Card 2: Reusable Countdown Timer Component matching exact layout */}
+            <PreorderCountdownTimerCard
+              showTimer={showTimer}
+              setShowTimer={setShowTimer}
+              timerDisplayMode={timerDisplayMode}
+              setTimerDisplayMode={setTimerDisplayMode}
+              timerDateMode={timerDateMode}
+              setTimerDateMode={setTimerDateMode}
+              customEndDate={timerCustomDate}
+              setCustomEndDate={setTimerCustomDate}
+              endDate={endDate}
+              setEndDate={setEndDate}
+              statusEndDate={endDate}
+              timerHeadingStart={timerHeadingStart}
+              setTimerHeadingStart={setTimerHeadingStart}
+              timerHeadingEnd={timerHeadingEnd}
+              setTimerHeadingEnd={setTimerHeadingEnd}
+              timerTextColor={timerTextColor}
+              setTimerTextColor={setTimerTextColor}
+              timerBgColor={timerBgColor}
+              setTimerBgColor={setTimerBgColor}
+              timerTextColorEnd={timerTextColorEnd}
+              setTimerTextColorEnd={setTimerTextColorEnd}
+              timerBgColorEnd={timerBgColorEnd}
+              setTimerBgColorEnd={setTimerBgColorEnd}
+              timerBorderRadius={timerBorderRadius}
+              setTimerBorderRadius={setTimerBorderRadius}
+              timerShowDays={timerShowDays}
+              setTimerShowDays={setTimerShowDays}
+              timerShowHours={timerShowHours}
+              setTimerShowHours={setTimerShowHours}
+              timerShowMinutes={timerShowMinutes}
+              setTimerShowMinutes={setTimerShowMinutes}
+              timerShowSeconds={timerShowSeconds}
+              setTimerShowSeconds={setTimerShowSeconds}
+              timerDaysLabel={timerDaysLabel}
+              setTimerDaysLabel={setTimerDaysLabel}
+              timerHoursLabel={timerHoursLabel}
+              setTimerHoursLabel={setTimerHoursLabel}
+              timerMinutesLabel={timerMinutesLabel}
+              setTimerMinutesLabel={setTimerMinutesLabel}
+              timerSecondsLabel={timerSecondsLabel}
+              setTimerSecondsLabel={setTimerSecondsLabel}
+              primaryColor={primaryColor}
+              buttonTextColor={buttonTextColor}
+              onSave={handleSave}
+              saving={saving}
+            />
           </div>
           {previewColumn}
         </div>

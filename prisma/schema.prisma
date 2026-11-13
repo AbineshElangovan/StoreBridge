@@ -560,6 +560,34 @@ model PreorderConfig {
   allowHalfPayment   Boolean  @default(true)
   allowFullPayment   Boolean  @default(true)
   defaultPaymentOption String @default("HALF")
+
+  // Status & Scheduling
+  statusScheduleType String   @default("AVAILABLE_NOW")
+  startDate          DateTime?
+  endDate            DateTime?
+
+  // Countdown Timer
+  showTimer            Boolean   @default(false)
+  timerDisplayMode     String    @default("BEFORE_PREORDER")
+  timerStartDateMode   String    @default("USE_STATUS_DATE")
+  timerCustomStartDate DateTime?
+  timerDateMode        String    @default("USE_STATUS_DATE")
+  timerCustomDate      DateTime?
+  timerHeading       String   @default("Preorder starts in")
+  timerTextColor     String   @default("#000000")
+  timerBgColor       String   @default("#f5f5f5")
+  timerHeadingEnd    String   @default("Hurry up! Pre-order ending soon")
+  timerTextColorEnd  String   @default("#000000")
+  timerBgColorEnd    String   @default("#fee2e2")
+  timerBorderRadius  Int      @default(8)
+  timerShowDays      Boolean  @default(true)
+  timerShowHours     Boolean  @default(true)
+  timerShowMinutes   Boolean  @default(true)
+  timerShowSeconds   Boolean  @default(true)
+  timerDaysLabel     String   @default("Days")
+  timerHoursLabel    String   @default("Hours")
+  timerMinutesLabel  String   @default("Mins")
+  timerSecondsLabel  String   @default("Secs")
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 

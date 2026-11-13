@@ -62,7 +62,30 @@
       discountValue: 0,
       allowHalfPayment: true,
       allowFullPayment: true,
-      defaultPaymentOption: 'HALF'
+      defaultPaymentOption: 'HALF',
+      statusScheduleType: 'AVAILABLE_NOW',
+      startDate: null,
+      endDate: null,
+      isScheduled: false,
+      isExpired: false,
+      isLive: true,
+      timer: {
+        show: false,
+        targetDate: null,
+        displayMode: 'BEFORE_PREORDER',
+        heading: 'Preorder starts in',
+        textColor: '#000000',
+        bgColor: '#f5f5f5',
+        borderRadius: 8,
+        showDays: true,
+        showHours: true,
+        showMinutes: true,
+        showSeconds: true,
+        daysLabel: 'Days',
+        hoursLabel: 'Hours',
+        minutesLabel: 'Mins',
+        secondsLabel: 'Secs'
+      }
     },
 
     notifyMe: {
@@ -424,6 +447,12 @@
     const isTargeted = Boolean(config.preorder && config.preorder.isTargeted === true);
 
     if (config.preorder && config.preorder.enabled && isTargeted && inventory <= threshold) {
+      if (config.preorder.isScheduled) {
+        return 'SCHEDULED_PREORDER';
+      }
+      if (config.preorder.isExpired) {
+        return config.notifyMe && config.notifyMe.enabled ? 'NOTIFY_ME' : 'SOLD_OUT';
+      }
       return 'PREORDER';
     }
 
@@ -810,52 +839,21 @@
           timestamp: Date.now()
         };
         localStorage.setItem('storebridge_pending_preorder', JSON.stringify(pendingItem));
-
-        const shop = config.shop || window.Shopify?.shop || 'eshan-inventory-solutions.myshopify.com';
-        const apiUrl = (config.apiUrl || 'https://version-control.d38r9lc5j1o8oj.amplifyapp.com').replace(/\/+$/, '');
-
-        fetch(`${apiUrl}/api/storefront/record-preorder`, {
-          method: 'POST',
-          keepalive: true,
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Shopify-Shop-Domain': shop,
-            'X-Tunnel-Skip-Anti-Phishing-Page': '1',
-            Accept: 'application/json'
-          },
-          body: JSON.stringify({
-            shop,
-            orderNumber: 'auto',
-            variantId: String(variantId),
-            customerName: window.Shopify?.customer?.name || (customerEmail ? customerEmail.split('@')[0] : 'Customer'),
-            customerEmail: customerEmail,
-            customerPhone: null,
-            quantity: finalQuantity,
-            productTitle: pendingItem.productTitle,
-            variantTitle: pendingItem.variantTitle,
-            paymentOption: pendingItem.paymentOption,
-            totalAmount: pendingItem.totalAmount,
-            depositAmount: pendingItem.depositAmount,
-            remainingBalance: pendingItem.remainingBalance,
-            paymentStatus: isHalf ? 'PARTIALLY_PAID' : 'PAID',
-            currency: 'INR'
-          })
-        }).catch(function() {});
       } catch (e) {}
 
-      // Automatically apply pre-order discount code / deposit discount to checkout
+      // Pre-apply discount code to the cart session so it's ready for checkout
       const discountToApply = isHalf
         ? (config.preorder.depositDiscountCode || 'PREORDER-HALF-DEPOSIT')
         : (hasOffer ? config.preorder.discountCode : '');
 
       if (discountToApply) {
         try {
-          await fetch(`/discount/${encodeURIComponent(discountToApply)}`);
+          await fetch(`/discount/${encodeURIComponent(discountToApply)}`, { credentials: 'same-origin' });
         } catch (e) {}
-        window.location.href = `/discount/${encodeURIComponent(discountToApply)}?redirect=/checkout`;
-      } else {
-        window.location.href = '/checkout';
       }
+
+      // Navigate to the custom StoreBridge Pre-order Cart page
+      window.location.href = cartUrl;
     } catch (error) {
       console.error(
         '[StoreBridge:Preorder]',
@@ -871,6 +869,118 @@
       button.disabled = false;
       button.innerHTML = originalText;
     }
+  }
+
+  // ============================================================
+  // COUNTDOWN TIMER HELPERS (SHARED WITH ADMIN PREVIEW)
+  // ============================================================
+
+  function formatHumanDateTime(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  }
+
+  function buildTimerWidgetHtml(isLiveOrEnd) {
+    const timer = (config && config.preorder && config.preorder.timer) || {};
+    if (!timer.show) return '';
+
+    const heading = isLiveOrEnd
+      ? (timer.headingEnd || timer.heading || 'Hurry up! Pre-order ending soon')
+      : (timer.headingStart || timer.heading || 'Preorder starts in');
+
+    const bgColor = timer.bgColor || '#f5f5f5';
+    const textColor = timer.textColor || '#000000';
+    const radius = Number(timer.borderRadius) || 8;
+
+    const targetDateStr = timer.targetDate;
+    const endDateStr = config.preorder && config.preorder.endDate;
+
+    const formattedTarget = targetDateStr ? formatHumanDateTime(targetDateStr) : '';
+    const formattedEnd = endDateStr ? formatHumanDateTime(endDateStr) : '';
+
+    return `
+      <div class="storebridge-timer-wrapper" style="margin: 10px 0 14px 0; background: rgba(249, 250, 251, 0.9); border: 1px solid #f3f4f6; border-radius: 12px; padding: 12px 10px; text-align: center;">
+        ${heading ? `<div class="storebridge-timer-heading" style="font-size: 13px; font-weight: 700; color: #1f2937; margin-bottom: 8px;">${escapeHtml(heading)}</div>` : ''}
+        <div class="storebridge-timer-grid" style="display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap;">
+          ${timer.showDays !== false ? `
+            <div class="storebridge-timer-unit" style="display: flex; flex-direction: column; align-items: center;">
+              <div class="storebridge-timer-box" data-timer-unit="days" style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; background-color: ${escapeHtml(bgColor)}; color: ${escapeHtml(textColor)}; border-radius: ${radius}px; font-weight: 700; font-size: 18px; box-shadow: 0 1px 2px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.05);">00</div>
+              <span style="font-size: 10px; color: #6b7280; font-weight: 500; margin-top: 4px;">${escapeHtml(timer.daysLabel || 'Days')}</span>
+            </div>
+          ` : ''}
+          ${timer.showHours !== false ? `
+            <div class="storebridge-timer-unit" style="display: flex; flex-direction: column; align-items: center;">
+              <div class="storebridge-timer-box" data-timer-unit="hours" style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; background-color: ${escapeHtml(bgColor)}; color: ${escapeHtml(textColor)}; border-radius: ${radius}px; font-weight: 700; font-size: 18px; box-shadow: 0 1px 2px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.05);">00</div>
+              <span style="font-size: 10px; color: #6b7280; font-weight: 500; margin-top: 4px;">${escapeHtml(timer.hoursLabel || 'Hours')}</span>
+            </div>
+          ` : ''}
+          ${timer.showMinutes !== false ? `
+            <div class="storebridge-timer-unit" style="display: flex; flex-direction: column; align-items: center;">
+              <div class="storebridge-timer-box" data-timer-unit="minutes" style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; background-color: ${escapeHtml(bgColor)}; color: ${escapeHtml(textColor)}; border-radius: ${radius}px; font-weight: 700; font-size: 18px; box-shadow: 0 1px 2px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.05);">00</div>
+              <span style="font-size: 10px; color: #6b7280; font-weight: 500; margin-top: 4px;">${escapeHtml(timer.minutesLabel || 'Mins')}</span>
+            </div>
+          ` : ''}
+          ${timer.showSeconds !== false ? `
+            <div class="storebridge-timer-unit" style="display: flex; flex-direction: column; align-items: center;">
+              <div class="storebridge-timer-box" data-timer-unit="seconds" style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; background-color: ${escapeHtml(bgColor)}; color: ${escapeHtml(textColor)}; border-radius: ${radius}px; font-weight: 700; font-size: 18px; box-shadow: 0 1px 2px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.05);">00</div>
+              <span style="font-size: 10px; color: #6b7280; font-weight: 500; margin-top: 4px;">${escapeHtml(timer.secondsLabel || 'Secs')}</span>
+            </div>
+          ` : ''}
+        </div>
+        <div style="font-size: 11px; font-weight: 600; color: #6b7280; margin-top: 6px; display: flex; flex-direction: column; gap: 2px;">
+          ${formattedTarget ? `<div>${isLiveOrEnd ? 'Preorder ends: ' : 'Preorder starts: '}${escapeHtml(formattedTarget)}</div>` : ''}
+          ${(!isLiveOrEnd && formattedEnd) ? `<div style="font-size: 10px; color: #9ca3af;">Preorder closes: ${escapeHtml(formattedEnd)}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  function attachCountdownTicker(container, targetDateStr) {
+    if (!targetDateStr) return;
+    const targetTime = new Date(targetDateStr).getTime();
+    if (isNaN(targetTime)) return;
+
+    const updateTicker = () => {
+      const now = Date.now();
+      const diff = targetTime - now;
+      if (diff <= 0) {
+        updateAvailability();
+        return;
+      }
+      const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
+      const m = Math.floor((diff / (1000 * 60)) % 60);
+      const s = Math.floor((diff / 1000) % 60);
+
+      const daysEl = container.querySelector('[data-timer-unit="days"]');
+      const hoursEl = container.querySelector('[data-timer-unit="hours"]');
+      const minsEl = container.querySelector('[data-timer-unit="minutes"]');
+      const secsEl = container.querySelector('[data-timer-unit="seconds"]');
+
+      if (daysEl) daysEl.textContent = String(d).padStart(2, '0');
+      if (hoursEl) hoursEl.textContent = String(h).padStart(2, '0');
+      if (minsEl) minsEl.textContent = String(m).padStart(2, '0');
+      if (secsEl) secsEl.textContent = String(s).padStart(2, '0');
+    };
+
+    updateTicker();
+    const timerInterval = setInterval(updateTicker, 1000);
+    const observer = new MutationObserver(() => {
+      if (!document.body.contains(container)) {
+        clearInterval(timerInterval);
+        observer.disconnect();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
   }
 
   // ============================================================
@@ -947,7 +1057,10 @@
     const dueNow = currentPlan === 'HALF' ? halfInitial : fullInitial;
     const dueLater = currentPlan === 'HALF' ? halfRemaining : fullRemaining;
 
+    const timerHtml = buildTimerWidgetHtml(true);
+
     container.innerHTML = `
+      ${timerHtml}
       <div class="storebridge-info-card">
 
         <p class="storebridge-customer-msg">
@@ -1245,6 +1358,86 @@
         );
       }
     );
+
+    // If countdown timer is enabled in live pre-order mode, start ticker!
+    const timer = (config && config.preorder && config.preorder.timer) || {};
+    const timerTargetDate = timer.targetDate || (config && config.preorder && config.preorder.endDate);
+    if (timer.show && timerTargetDate) {
+      attachCountdownTicker(container, timerTargetDate);
+    }
+  }
+
+  // ============================================================
+  // RENDER SCHEDULED PREORDER (COUNTDOWN & NOTIFY ME)
+  // ============================================================
+
+  function renderScheduledPreorderUI(
+    form,
+    nativeButton,
+    variant
+  ) {
+    hideNativeButton(nativeButton);
+    hidePaymentButton();
+    hideQuantitySelector(form);
+    removeAvailabilityUI();
+
+    const container = document.createElement('div');
+    container.setAttribute('data-storebridge', 'ui-container');
+    container.className = 'storebridge-wrapper storebridge-scheduled-wrapper';
+
+    const timer = (config && config.preorder && config.preorder.timer) || {};
+    const timerHtml = buildTimerWidgetHtml(false);
+
+    container.innerHTML = `
+      <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
+        <button
+          type="button"
+          disabled
+          class="storebridge-sold-out-btn"
+          style="width: 100%; padding: 14px 16px; border-radius: 12px; background-color: #7e22ce; color: #ffffff; font-weight: 700; font-size: 14px; border: none; cursor: not-allowed; opacity: 0.95; box-shadow: 0 1px 3px rgba(0,0,0,0.1);"
+        >
+          Sold Out
+        </button>
+
+        ${timerHtml}
+
+        <button
+          type="button"
+          class="storebridge-notify-scheduled-btn"
+          style="width: 100%; padding: 12px 16px; border-radius: 12px; background-color: #e5a83b; color: #111827; font-weight: 700; font-size: 14px; border: 1px solid rgba(0,0,0,0.1); cursor: pointer; transition: background-color 0.2s;"
+        >
+          Notify me
+        </button>
+
+        <div style="background: rgba(250, 245, 255, 0.9); border: 1px solid #e9d5ff; border-radius: 12px; padding: 12px 14px; font-size: 12px; display: flex; flex-direction: column; gap: 4px;">
+          <div style="display: flex; align-items: center; gap: 6px; font-weight: 700; color: #581c87;">
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: #9333ea; display: inline-block;"></span>
+            <span>Pre-order Opening Soon</span>
+          </div>
+          <p style="font-size: 11px; color: #6b21a8; font-weight: 500; margin: 0; line-height: 1.4;">
+            Customers see a live countdown timer and can register via "Notify me" until pre-orders launch.
+          </p>
+        </div>
+      </div>
+    `;
+
+    const notifyBtn = container.querySelector('.storebridge-notify-scheduled-btn');
+    if (notifyBtn) {
+      notifyBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        const currentForm = getProductForm();
+        const currentVariantId = getSelectedVariantId(currentForm);
+        const currentVariant = getSelectedVariant(currentVariantId) || variant;
+        openNotifyMeModal(currentVariant);
+      });
+    }
+
+    insertUIAfterButton(nativeButton, container);
+
+    const timerTargetDate = timer.targetDate || (config && config.preorder && config.preorder.startDate);
+    if (timer.show && timerTargetDate) {
+      attachCountdownTicker(container, timerTargetDate);
+    }
   }
 
   // ============================================================
@@ -1504,6 +1697,14 @@
     if (state === 'AVAILABLE') {
       restoreNormalPurchaseUI(
         nativeButton
+      );
+    }
+
+    if (state === 'SCHEDULED_PREORDER') {
+      renderScheduledPreorderUI(
+        form,
+        nativeButton,
+        variant
       );
     }
 
@@ -4077,7 +4278,8 @@
                 ? `PREORDER-HALF-${offerOff}OFF`
                 : (cachedRemoteCartConfig?.preorder?.depositDiscountCode || 'PREORDER-HALF-DEPOSIT'));
 
-            window.location.href = `/discount/${encodeURIComponent(halfCode)}?redirect=/checkout`;
+            const checkoutUrl = `/checkout?discount=${encodeURIComponent(halfCode)}`;
+            window.location.href = `/discount/${encodeURIComponent(halfCode)}?redirect=${encodeURIComponent(checkoutUrl)}`;
             return;
           }
 
@@ -4093,7 +4295,8 @@
           }
 
           if (codeToApply) {
-            window.location.href = `/discount/${encodeURIComponent(codeToApply)}?redirect=/checkout`;
+            const checkoutUrl = `/checkout?discount=${encodeURIComponent(codeToApply)}`;
+            window.location.href = `/discount/${encodeURIComponent(codeToApply)}?redirect=${encodeURIComponent(checkoutUrl)}`;
           } else {
             window.location.href = '/checkout';
           }
@@ -4212,45 +4415,205 @@
       }
     });
 
-    // Universal checkout click listener for any native theme checkout buttons / drawers
-    document.addEventListener('click', (e) => {
-      const btn = e.target.closest('button[name="checkout"], #checkout, [name="checkout"], a[href*="/checkout"], .cart__checkout-button');
-      if (btn && !btn.closest('#storebridge-checkout-action-btn')) {
-        const rootEl = document.getElementById('storebridge-cart-page');
-        const cards = rootEl ? Array.from(rootEl.querySelectorAll('.storebridge-cart-item-card')) : [];
+    function getPreorderDiscountCodeFromCartContext() {
+      // 1. Check StoreBridge full cart page first
+      const rootEl = document.getElementById('storebridge-cart-page');
+      if (rootEl) {
+        const cards = Array.from(rootEl.querySelectorAll('.storebridge-cart-item-card'));
         const hasHalf = cards.some(c => c.getAttribute('data-is-half') === '1');
-        const offers = rootEl?._currentDetectedOffers || [];
+        const offers = rootEl._currentDetectedOffers || [];
 
-        let codeToApply = activeDiscountCode;
-        if (hasHalf) {
-          let offerPct = 0;
-          let offerOff = 0;
-          if (offers.length > 0 && offers[0].type === 'percentage') {
-            offerPct = Math.round(Number(offers[0].value));
-          } else if (offers.length > 0 && offers[0].type === 'fixed') {
-            offerOff = Math.round(Number(offers[0].value));
-          } else if (cachedRemoteCartConfig?.preorder?.discountType === 'percentage') {
-            offerPct = Math.round(Number(cachedRemoteCartConfig.preorder.discountValue || 0));
-          } else if (cachedRemoteCartConfig?.preorder?.discountType === 'fixed') {
-            offerOff = Math.round(Number(cachedRemoteCartConfig.preorder.discountValue || 0));
-          }
-          codeToApply = offerPct > 0
-            ? `PREORDER-HALF-${offerPct}PCT`
-            : (offerOff > 0
-              ? `PREORDER-HALF-${offerOff}OFF`
-              : (cachedRemoteCartConfig?.preorder?.depositDiscountCode || 'PREORDER-HALF-DEPOSIT'));
-        } else if (!codeToApply && offers.length > 0) {
-          const firstOffer = offers[0];
-          const cleanVal = Math.round(Number(firstOffer.value));
-          codeToApply = firstOffer.type === 'percentage' ? `PREORDER-${cleanVal}PCT` : `PREORDER-${cleanVal}OFF`;
-        } else if (!codeToApply && cachedRemoteCartConfig?.preorder?.discountCode) {
-          codeToApply = cachedRemoteCartConfig.preorder.discountCode;
+        let offerPct = 0;
+        let offerOff = 0;
+        if (offers.length > 0 && offers[0].type === 'percentage') {
+          offerPct = Math.round(Number(offers[0].value));
+        } else if (offers.length > 0 && offers[0].type === 'fixed') {
+          offerOff = Math.round(Number(offers[0].value));
+        } else if (cachedRemoteCartConfig?.preorder?.discountType === 'percentage') {
+          offerPct = Math.round(Number(cachedRemoteCartConfig.preorder.discountValue || 0));
+        } else if (cachedRemoteCartConfig?.preorder?.discountType === 'fixed') {
+          offerOff = Math.round(Number(cachedRemoteCartConfig.preorder.discountValue || 0));
         }
 
+        if (hasHalf) {
+          return offerPct > 0
+            ? `PREORDER-HALF-${offerPct}PCT`
+            : (offerOff > 0 ? `PREORDER-HALF-${offerOff}OFF` : (cachedRemoteCartConfig?.preorder?.depositDiscountCode || 'PREORDER-HALF-DEPOSIT'));
+        }
+        if (activeDiscountCode) return activeDiscountCode;
+        if (offerPct > 0) return `PREORDER-${offerPct}PCT`;
+        if (offerOff > 0) return `PREORDER-${offerOff}OFF`;
+        if (cachedRemoteCartConfig?.preorder?.discountCode) return cachedRemoteCartConfig.preorder.discountCode;
+      }
+
+      // 2. Check Cart Drawer or theme native cart DOM
+      const contextEl = document.querySelector('cart-drawer, #CartDrawer, .cart-drawer, .drawer, [data-cart-drawer], form[action*="/cart"]') || document.body;
+      const text = contextEl ? (contextEl.innerText || contextEl.textContent || '') : '';
+
+      const isPreorder = /Pre-order|Preorder/i.test(text);
+      if (!isPreorder) {
+        return activeDiscountCode || null;
+      }
+
+      const isHalf = /Half Payment|50% Deposit|Deposit Due Today/i.test(text);
+
+      let offerPct = 0;
+      let offerOff = 0;
+
+      const pctMatch = text.match(/Pre-order Offer:\s*(\d+)%\s*OFF/i) || text.match(/Save\s*(\d+)%/i) || text.match(/(\d+)%\s*OFF/i);
+      if (pctMatch) {
+        offerPct = parseInt(pctMatch[1], 10);
+      }
+      const offMatch = text.match(/Pre-order Offer:\s*(?:Rs\.|INR|₹)\s*([\d.]+)\s*OFF/i) || text.match(/Save\s*(?:Rs\.|INR|₹)\s*([\d.]+)/i);
+      if (offMatch) {
+        offerOff = Math.round(parseFloat(offMatch[1]));
+      }
+
+      // Fallback to active preorder config if present
+      if (!offerPct && !offerOff) {
+        if (config?.preorder?.discountType === 'percentage' && config.preorder.discountValue) {
+          offerPct = Math.round(config.preorder.discountValue);
+        } else if (config?.preorder?.discountType === 'fixed' && config.preorder.discountValue) {
+          offerOff = Math.round(config.preorder.discountValue);
+        } else if (cachedRemoteCartConfig?.preorder?.discountType === 'percentage' && cachedRemoteCartConfig.preorder.discountValue) {
+          offerPct = Math.round(cachedRemoteCartConfig.preorder.discountValue);
+        }
+      }
+
+      if (isHalf) {
+        return offerPct > 0
+          ? `PREORDER-HALF-${offerPct}PCT`
+          : (offerOff > 0 ? `PREORDER-HALF-${offerOff}OFF` : 'PREORDER-HALF-DEPOSIT');
+      }
+
+      if (offerPct > 0) return `PREORDER-${offerPct}PCT`;
+      if (offerOff > 0) return `PREORDER-${offerOff}OFF`;
+      if (activeDiscountCode) return activeDiscountCode;
+      if (config?.preorder?.discountCode) return config.preorder.discountCode;
+
+      return null;
+    }
+
+    // Visual enhancer for theme Cart Drawers (Dawn, Refresh, Sense, etc.)
+    function enhanceCartDrawer() {
+      try {
+        const drawer = document.querySelector('cart-drawer, #CartDrawer, .cart-drawer, .drawer, [data-cart-drawer]');
+        if (!drawer) return;
+
+        const items = Array.from(drawer.querySelectorAll('.cart-item, [id^="CartDrawer-Item-"], tr.cart-item, .cart-drawer__item, .drawer__item'));
+        if (items.length === 0) return;
+
+        let hasPreorderItems = false;
+        let detectedPct = 0;
+
+        items.forEach((item) => {
+          const itemText = item.innerText || item.textContent || '';
+          if (!/Pre-order|Preorder/i.test(itemText)) return;
+          hasPreorderItems = true;
+
+          // Extract offer info
+          const offerMatch = itemText.match(/Pre-order Offer:\s*(\d+)%\s*OFF/i) || itemText.match(/Save\s*(\d+)%/i) || itemText.match(/(\d+)%\s*OFF/i);
+          if (offerMatch) detectedPct = parseInt(offerMatch[1], 10);
+          if (!detectedPct && config?.preorder?.discountValue) detectedPct = Math.round(config.preorder.discountValue);
+
+          const priceMatch = itemText.match(/Pre-order Price:\s*(?:Rs\.|INR|₹)?\s*([\d,.]+)/i) ||
+                             itemText.match(/Total Product Price:\s*(?:Rs\.|INR|₹)?\s*([\d,.]+)/i) ||
+                             itemText.match(/Initial Amount Paid:\s*(?:Rs\.|INR|₹)?\s*([\d,.]+)/i);
+
+          let discountedPrice = priceMatch ? parseFloat(priceMatch[1].replace(/,/g, '')) : 0;
+
+          // Find all price elements inside the item row (both desktop and mobile)
+          const priceEls = Array.from(item.querySelectorAll('.price, .cart-item__price-wrapper, .cart-item__totals, .price--end, [data-cart-item-price], .cart-item__final-price, .cart-item__discounted-prices'));
+          priceEls.forEach((priceEl) => {
+            if (priceEl.hasAttribute('data-storebridge-enhanced')) return;
+            priceEl.setAttribute('data-storebridge-enhanced', 'true');
+
+            const origText = priceEl.textContent.trim();
+            const origNum = parseFloat(origText.replace(/[^0-9.]/g, ''));
+            if (!discountedPrice && origNum > 0 && detectedPct > 0) {
+              discountedPrice = origNum * (1 - detectedPct / 100);
+            }
+
+            if (discountedPrice > 0) {
+              priceEl.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 2px;">
+                  <span style="text-decoration: line-through; color: #9ca3af; font-size: 11px;">${origText}</span>
+                  <span style="color: #059669; font-weight: 700; font-size: 14px;">Rs. ${discountedPrice.toFixed(2)}</span>
+                  ${detectedPct > 0 ? `<span style="background: #ecfdf5; color: #047857; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px;">${detectedPct}% OFF</span>` : ''}
+                </div>
+              `;
+            }
+          });
+        });
+
+        // Update Drawer subtotal / Estimated total
+        if (hasPreorderItems && detectedPct > 0) {
+          const totalEls = Array.from(drawer.querySelectorAll('.totals__total-value, .totals__subtotal-value, [data-cart-subtotal], .cart-drawer__footer .totals__total-value, .drawer__footer .totals__total-value'));
+          totalEls.forEach((totalEl) => {
+            if (totalEl.hasAttribute('data-storebridge-total-enhanced')) return;
+            totalEl.setAttribute('data-storebridge-total-enhanced', 'true');
+            const rawTotal = totalEl.textContent.replace(/[^0-9.]/g, '');
+            const parsedTotal = parseFloat(rawTotal);
+            if (!isNaN(parsedTotal) && parsedTotal > 0) {
+              const discountedTotal = parsedTotal * (1 - detectedPct / 100);
+              totalEl.innerHTML = `
+                <div style="text-align: right;">
+                  <span style="text-decoration: line-through; color: #9ca3af; font-size: 12px; margin-right: 6px;">Rs. ${parsedTotal.toFixed(2)}</span>
+                  <span style="color: #059669; font-weight: 800; font-size: 16px;">Rs. ${discountedTotal.toFixed(2)} INR</span>
+                  <div style="color: #059669; font-size: 11px; font-weight: 600; margin-top: 3px;">
+                    🎉 Pre-order discount (${detectedPct}% OFF) auto-applied at checkout
+                  </div>
+                </div>
+              `;
+            }
+          });
+
+          // Insert "View Full Pre-order Cart" link inside the drawer footer if not already present
+          const footer = drawer.querySelector('.cart-drawer__footer, .drawer__footer, form[action*="/cart"]');
+          if (footer && !drawer.querySelector('#storebridge-drawer-cart-link')) {
+            const link = document.createElement('a');
+            link.id = 'storebridge-drawer-cart-link';
+            link.href = '/cart';
+            link.style.cssText = 'display: block; width: 100%; text-align: center; margin-bottom: 10px; padding: 10px 14px; background: #f8fafc; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 8px; font-weight: 700; font-size: 13px; text-decoration: none; transition: background 0.2s;';
+            link.innerHTML = 'View Full Pre-order Cart &rarr;';
+            footer.insertBefore(link, footer.firstChild);
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Intercept clicks on header cart icon to send customers directly to custom StoreBridge Cart page
+    document.addEventListener('click', (e) => {
+      const cartIcon = e.target.closest('a[href="/cart"], #cart-icon-bubble, .header__icon--cart, [data-cart-drawer-trigger]');
+      if (cartIcon && !isCartPage()) {
+        const hasPreorder = localStorage.getItem('storebridge_pending_preorder') ||
+                            document.querySelector('[data-is-preorder="1"]') ||
+                            /Pre-order|Preorder/i.test(document.body.innerText);
+        if (hasPreorder) {
+          e.preventDefault();
+          e.stopPropagation();
+          window.location.href = '/cart';
+        }
+      }
+    }, true);
+
+    // Observe theme cart drawer for opening and dynamic updates
+    const drawerObserver = new MutationObserver(() => {
+      enhanceCartDrawer();
+    });
+    const drawerTarget = document.querySelector('cart-drawer, #CartDrawer, .cart-drawer, .drawer') || document.body;
+    drawerObserver.observe(drawerTarget, { childList: true, subtree: true });
+
+    // Universal checkout click listener for any native theme checkout buttons / drawers
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[name="checkout"], #checkout, [name="checkout"], a[href*="/checkout"], .cart__checkout-button, #CartDrawer-Checkout');
+      if (btn && !btn.closest('#storebridge-checkout-action-btn')) {
+        const codeToApply = getPreorderDiscountCodeFromCartContext();
         if (codeToApply) {
           e.preventDefault();
           e.stopPropagation();
-          window.location.href = `/discount/${encodeURIComponent(codeToApply)}?redirect=/checkout`;
+          const checkoutUrl = `/checkout?discount=${encodeURIComponent(codeToApply)}`;
+          window.location.href = `/discount/${encodeURIComponent(codeToApply)}?redirect=${encodeURIComponent(checkoutUrl)}`;
         }
       }
     }, true);
@@ -4260,42 +4623,13 @@
       const form = e.target;
       if (form && form.action && form.action.includes('/cart')) {
         const submitter = e.submitter;
-        if (submitter && submitter.name === 'checkout') {
-          const rootEl = document.getElementById('storebridge-cart-page');
-          const cards = rootEl ? Array.from(rootEl.querySelectorAll('.storebridge-cart-item-card')) : [];
-          const hasHalf = cards.some(c => c.getAttribute('data-is-half') === '1');
-          const offers = rootEl?._currentDetectedOffers || [];
-
-          let codeToApply = activeDiscountCode;
-          if (hasHalf) {
-          let offerPct = 0;
-          let offerOff = 0;
-          if (offers.length > 0 && offers[0].type === 'percentage') {
-            offerPct = Math.round(Number(offers[0].value));
-          } else if (offers.length > 0 && offers[0].type === 'fixed') {
-            offerOff = Math.round(Number(offers[0].value));
-          } else if (cachedRemoteCartConfig?.preorder?.discountType === 'percentage') {
-            offerPct = Math.round(Number(cachedRemoteCartConfig.preorder.discountValue || 0));
-          } else if (cachedRemoteCartConfig?.preorder?.discountType === 'fixed') {
-            offerOff = Math.round(Number(cachedRemoteCartConfig.preorder.discountValue || 0));
-          }
-          codeToApply = offerPct > 0
-            ? `PREORDER-HALF-${offerPct}PCT`
-            : (offerOff > 0
-              ? `PREORDER-HALF-${offerOff}OFF`
-              : (cachedRemoteCartConfig?.preorder?.depositDiscountCode || 'PREORDER-HALF-DEPOSIT'));
-          } else if (!codeToApply && offers.length > 0) {
-            const firstOffer = offers[0];
-            const cleanVal = Math.round(Number(firstOffer.value));
-            codeToApply = firstOffer.type === 'percentage' ? `PREORDER-${cleanVal}PCT` : `PREORDER-${cleanVal}OFF`;
-          } else if (!codeToApply && cachedRemoteCartConfig?.preorder?.discountCode) {
-            codeToApply = cachedRemoteCartConfig.preorder.discountCode;
-          }
-
+        if (submitter && (submitter.name === 'checkout' || submitter.id === 'checkout' || submitter.id === 'CartDrawer-Checkout')) {
+          const codeToApply = getPreorderDiscountCodeFromCartContext();
           if (codeToApply) {
             e.preventDefault();
             e.stopPropagation();
-            window.location.href = `/discount/${encodeURIComponent(codeToApply)}?redirect=/checkout`;
+            const checkoutUrl = `/checkout?discount=${encodeURIComponent(codeToApply)}`;
+            window.location.href = `/discount/${encodeURIComponent(codeToApply)}?redirect=${encodeURIComponent(checkoutUrl)}`;
           }
         }
       }

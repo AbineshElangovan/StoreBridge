@@ -1,24 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { beginAuth } from "@/services/shopify";
-import { shopify } from "@/lib/shopify";
 import { getAppHost } from "@/lib/shopify/app-url";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const shop = req.nextUrl.searchParams.get("shop");
   console.log("===== OAUTH START =====");
   console.log("Shop:", shop);
   console.log("Timestamp:", new Date().toISOString());
-  
-  console.log("[Install] auth route hit", { 
-    shop, 
-    url: req.url,
-    host: req.headers.get("host"),
-    forwardedHost: req.headers.get("x-forwarded-host"),
-    forwardedProto: req.headers.get("x-forwarded-proto")
-  });
 
   if (!shop) {
-    console.log("[Install] missing shop parameter");
     return new Response("Missing shop parameter", { status: 400 });
   }
 
@@ -26,10 +18,9 @@ export async function GET(req: NextRequest) {
   const embedded = req.nextUrl.searchParams.get("embedded");
 
   if (embedded === "1" || host) {
-    console.log("[Install] Iframe detected in /api/auth. Returning HTML breakout redirect to top-level.");
     const hostName = getAppHost(req);
     const topRedirectUrl = `https://${hostName}/api/auth?shop=${encodeURIComponent(shop)}`;
-    
+
     return new Response(
       `<!DOCTYPE html>
       <html>
@@ -70,18 +61,19 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    console.log("[OAuthStart] Incoming request URL:", req.url);
-    console.log("[OAuthStart] Shop domain:", shop);
-    console.log("[Install] Invoking beginAuth for shop:", shop);
     const response = await beginAuth(shop, req);
-    
-    const location = response.headers.get("location") || "";
-    const stateMatch = location.match(/state=([^&]+)/);
-    const state = stateMatch ? stateMatch[1] : "not found";
-    console.log("[OAuthStart] Generated OAuth state:", state);
-    console.log("[OAuthStart] Redirect URL:", location);
-    console.log("[OAuthStart] Set-Cookie headers:", response.headers.getSetCookie());
-    console.log("[Install] auth.begin successful redirect", { status: response.status, headers: [...response.headers.entries()] });
+    const location = response.headers.get("location");
+
+    if (location) {
+      const redirectRes = NextResponse.redirect(location, 302);
+      response.headers.forEach((val: string, key: string) => {
+        if (key.toLowerCase() !== "location") {
+          redirectRes.headers.set(key, val);
+        }
+      });
+      return redirectRes;
+    }
+
     return response;
   } catch (error: any) {
     console.error("[Install] auth.begin failed", {
@@ -90,4 +82,4 @@ export async function GET(req: NextRequest) {
     });
     return new Response(`Failed to start OAuth flow: ${error.message}`, { status: 500 });
   }
-}
+}

@@ -24,6 +24,30 @@ const PreorderConfigSchema = z.object({
   allowHalfPayment: z.boolean().optional(),
   allowFullPayment: z.boolean().optional(),
   defaultPaymentOption: z.enum(['HALF', 'FULL']).optional(),
+  // Status & Scheduling
+  statusScheduleType: z.enum(['AVAILABLE_NOW', 'FROM_START_DATE', 'UNTIL_END_DATE', 'BETWEEN_DATES', 'NOT_AVAILABLE']).optional(),
+  startDate: z.string().nullable().optional(),
+  endDate: z.string().nullable().optional(),
+  // Countdown Timer
+  showTimer: z.boolean().optional(),
+  timerDisplayMode: z.string().optional(),
+  timerDateMode: z.string().optional(),
+  timerCustomDate: z.string().nullable().optional(),
+  timerHeading: z.string().max(255).optional(),
+  timerTextColor: z.string().max(50).optional(),
+  timerBgColor: z.string().max(50).optional(),
+  timerHeadingEnd: z.string().max(255).optional(),
+  timerTextColorEnd: z.string().max(50).optional(),
+  timerBgColorEnd: z.string().max(50).optional(),
+  timerBorderRadius: z.number().int().min(0).max(100).optional(),
+  timerShowDays: z.boolean().optional(),
+  timerShowHours: z.boolean().optional(),
+  timerShowMinutes: z.boolean().optional(),
+  timerShowSeconds: z.boolean().optional(),
+  timerDaysLabel: z.string().max(50).optional(),
+  timerHoursLabel: z.string().max(50).optional(),
+  timerMinutesLabel: z.string().max(50).optional(),
+  timerSecondsLabel: z.string().max(50).optional(),
 }).refine((data) => {
   if (data.allowHalfPayment === false && data.allowFullPayment === false) {
     return false;

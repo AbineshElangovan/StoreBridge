@@ -193,6 +193,47 @@ export async function GET(req: NextRequest) {
     const discountValue = Number((preorderConfig as any).discountValue) || 0;
     const discountCode = PreorderService.getDiscountCode(discountType, discountValue);
 
+
+    // Calculate live schedule status & countdown target (End Date / Deadline only)
+    const now = new Date();
+    const statusScheduleType = (preorderConfig as any).statusScheduleType || 'AVAILABLE_NOW';
+    const endDate = (preorderConfig as any).endDate ? new Date((preorderConfig as any).endDate) : null;
+
+    let isExpired = false;   // True if end date has passed
+    let isLive = preorderConfig.enabled && isTargeted;
+
+    if (statusScheduleType === 'NOT_AVAILABLE') {
+      isLive = false;
+    } else if (statusScheduleType === 'UNTIL_END_DATE') {
+      if (endDate && now > endDate) {
+        isExpired = true;
+        isLive = false;
+      }
+    }
+
+    // Determine target countdown date (End Date / Deadline only)
+    let targetCountdownDate: string | null = null;
+    const showTimer = Boolean((preorderConfig as any).showTimer);
+    const timerDateMode = (preorderConfig as any).timerDateMode || 'USE_STATUS_DATE';
+    const timerCustomDate = (preorderConfig as any).timerCustomDate ? new Date((preorderConfig as any).timerCustomDate) : null;
+
+    const timerHeadingEnd = (preorderConfig as any).timerHeadingEnd || (preorderConfig as any).timerHeading || 'Hurry up! Pre-order ending soon';
+    const effectiveEndTarget = timerDateMode === 'CUSTOM_DATES'
+      ? (timerCustomDate || endDate)
+      : (endDate || timerCustomDate);
+
+    if (showTimer && effectiveEndTarget) {
+      targetCountdownDate = effectiveEndTarget.toISOString();
+      if (now > effectiveEndTarget) {
+        isExpired = true;
+        isLive = false;
+      }
+    }
+
+    const effectiveHeading = timerHeadingEnd;
+    const effectiveTextColor = (preorderConfig as any).timerTextColorEnd || (preorderConfig as any).timerTextColor || '#000000';
+    const effectiveBgColor = (preorderConfig as any).timerBgColorEnd || '#fee2e2';
+
     return NextResponse.json(
       {
         success: true,
@@ -200,6 +241,26 @@ export async function GET(req: NextRequest) {
         preorder: {
           enabled: preorderConfig.enabled,
           isTargeted,
+          statusScheduleType,
+          endDate: endDate ? endDate.toISOString() : null,
+          isExpired,
+          isLive,
+          timer: {
+            show: showTimer,
+            targetDate: targetCountdownDate,
+            heading: effectiveHeading,
+            textColor: effectiveTextColor,
+            bgColor: effectiveBgColor,
+            borderRadius: (preorderConfig as any).timerBorderRadius ?? 8,
+            showDays: (preorderConfig as any).timerShowDays !== false,
+            showHours: (preorderConfig as any).timerShowHours !== false,
+            showMinutes: (preorderConfig as any).timerShowMinutes !== false,
+            showSeconds: (preorderConfig as any).timerShowSeconds !== false,
+            daysLabel: (preorderConfig as any).timerDaysLabel || 'Days',
+            hoursLabel: (preorderConfig as any).timerHoursLabel || 'Hours',
+            minutesLabel: (preorderConfig as any).timerMinutesLabel || 'Mins',
+            secondsLabel: (preorderConfig as any).timerSecondsLabel || 'Secs',
+          },
           selectionMode: (preorderConfig as any).selectionMode || 'ALL_PRODUCTS',
           inventoryThreshold: preorderConfig.inventoryThreshold,
           customerMessage: preorderConfig.customerMessage,
