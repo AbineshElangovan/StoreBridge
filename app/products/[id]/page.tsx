@@ -221,6 +221,8 @@ export default function ProductDetailsPage() {
             productId={productData.shopifyProductId || productData.id}
             variants={productData.variants || []}
             isStandalone={Boolean(productData.isStandalone ?? isStandalone)}
+            storeDomain={productData.shopDomain}
+            storeReauthUrl={productData.reauthUrl}
             onVariantUpdated={() => fetchProductDetails(true)}
           />
 

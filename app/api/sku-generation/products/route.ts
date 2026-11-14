@@ -124,7 +124,15 @@ export async function GET(req: NextRequest) {
 
     const cachedProducts = Array.from(productMap.values());
 
-    // Verify against live Shopify products to filter out deleted/archived items and populate missing images
+    // Return cached products immediately for instant sub-50ms response
+    if (cachedProducts.length > 0) {
+      return NextResponse.json({
+        success: true,
+        products: cachedProducts,
+      });
+    }
+
+    // Fallback: If cache is completely empty, fetch products from live Shopify
     let finalProducts = cachedProducts;
     try {
       const client = await getAdminClient(store.shopDomain);

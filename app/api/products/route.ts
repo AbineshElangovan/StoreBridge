@@ -86,10 +86,14 @@ export async function GET(req: NextRequest) {
     });
 
     const skuFallbackCollections: { [sku: string]: string[] } = {};
+    const prodIdFallbackCollections: { [prodId: string]: string[] } = {};
+    const titleFallbackCollections: { [title: string]: string[] } = {};
     const skuFallbackImages: { [sku: string]: string } = {};
     const titleFallbackImages: { [title: string]: string } = {};
     
-    crossStoreProducts.forEach(p => {
+    // Index collections and images across all products (both local products and cross-store products)
+    const allKnownProducts = [...products, ...crossStoreProducts];
+    allKnownProducts.forEach(p => {
       if (p.imageUrl) {
         if (p.sku && !skuFallbackImages[p.sku]) {
           skuFallbackImages[p.sku] = p.imageUrl;
@@ -104,14 +108,26 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // Collect ONLY true collection titles across stores (never pollutes with tags)
-      if (p.sku && p.collections && p.collections.length > 0) {
-        if (!skuFallbackCollections[p.sku]) skuFallbackCollections[p.sku] = [];
-        p.collections.forEach(cp => {
-          if (cp.collection?.title && !skuFallbackCollections[p.sku!].includes(cp.collection.title)) {
-            skuFallbackCollections[p.sku!].push(cp.collection.title);
-          }
-        });
+      // Collect true collection titles indexed by SKU, clean Shopify Product ID, and base Product Title
+      if (p.collections && p.collections.length > 0) {
+        const titles = p.collections.map((cp: any) => cp.collection?.title).filter(Boolean);
+
+        if (p.sku) {
+          if (!skuFallbackCollections[p.sku]) skuFallbackCollections[p.sku] = [];
+          titles.forEach(t => { if (!skuFallbackCollections[p.sku!].includes(t)) skuFallbackCollections[p.sku!].push(t); });
+        }
+
+        const cleanId = p.shopifyProductId?.replace(/^gid:\/\/shopify\/Product\//i, '').split('/').pop();
+        if (cleanId) {
+          if (!prodIdFallbackCollections[cleanId]) prodIdFallbackCollections[cleanId] = [];
+          titles.forEach(t => { if (!prodIdFallbackCollections[cleanId].includes(t)) prodIdFallbackCollections[cleanId].push(t); });
+        }
+
+        const baseTitle = p.title?.split(' - ')[0]?.trim().toLowerCase();
+        if (baseTitle) {
+          if (!titleFallbackCollections[baseTitle]) titleFallbackCollections[baseTitle] = [];
+          titles.forEach(t => { if (!titleFallbackCollections[baseTitle].includes(t)) titleFallbackCollections[baseTitle].push(t); });
+        }
       }
     });
 
@@ -239,7 +255,7 @@ export async function GET(req: NextRequest) {
           .filter(Boolean);
       }
 
-      // B. Cross-store collection fallback for this SKU (only if no local collections)
+      // B. Cross-store & sibling collection fallback for this SKU
       if (
         resolvedCollections.length === 0 &&
         p.sku &&
@@ -247,6 +263,28 @@ export async function GET(req: NextRequest) {
         skuFallbackCollections[p.sku].length > 0
       ) {
         resolvedCollections = [...skuFallbackCollections[p.sku]];
+      }
+
+      // C. Fallback by parent product ID (all variants of the same product inherit its collection)
+      const cleanProdId = p.shopifyProductId?.replace(/^gid:\/\/shopify\/Product\//i, '').split('/').pop();
+      if (
+        resolvedCollections.length === 0 &&
+        cleanProdId &&
+        prodIdFallbackCollections[cleanProdId] &&
+        prodIdFallbackCollections[cleanProdId].length > 0
+      ) {
+        resolvedCollections = [...prodIdFallbackCollections[cleanProdId]];
+      }
+
+      // D. Fallback by base product title (e.g. "Baggy pant" -> "PANTS")
+      const baseProductTitle = p.title?.split(' - ')[0]?.trim().toLowerCase();
+      if (
+        resolvedCollections.length === 0 &&
+        baseProductTitle &&
+        titleFallbackCollections[baseProductTitle] &&
+        titleFallbackCollections[baseProductTitle].length > 0
+      ) {
+        resolvedCollections = [...titleFallbackCollections[baseProductTitle]];
       }
 
       // 2. Determine final category titles:
@@ -340,6 +378,10 @@ export async function GET(req: NextRequest) {
         discountValue: preorderConfig.discountValue,
       } : null,
       groupedProducts,
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      }
     });
   } catch (err: any) {
     console.error("[Products API] Error:", err);

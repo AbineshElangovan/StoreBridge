@@ -141,13 +141,71 @@ export async function applySkuGeneration(
     where: {
       productCache: {
         storeId: store.id,
-        shopifyProductId: product.shopifyProductId,
+        OR: [
+          { shopifyProductId: product.shopifyProductId },
+          { shopifyProductId: cleanNumericId },
+          { shopifyProductId: `gid://shopify/Product/${cleanNumericId}` },
+          { title: { contains: baseProductTitle, mode: 'insensitive' } },
+        ],
       },
     },
     select: { collectionId: true },
     distinct: ["collectionId"],
   });
-  const collectionIdsToPreserve = existingCollectionProducts.map((cp) => cp.collectionId);
+  let collectionIdsToPreserve = existingCollectionProducts.map((cp) => cp.collectionId);
+
+  // Fallback 1: Look across authorized connected stores for collections linked to this product / title
+  if (collectionIdsToPreserve.length === 0) {
+    const crossStoreColls = await prisma.collectionProduct.findMany({
+      where: {
+        productCache: {
+          OR: [
+            { shopifyProductId: product.shopifyProductId },
+            { shopifyProductId: cleanNumericId },
+            { shopifyProductId: `gid://shopify/Product/${cleanNumericId}` },
+            { title: { contains: baseProductTitle, mode: 'insensitive' } },
+            ...(product.sku ? [{ sku: product.sku }] : []),
+          ],
+        },
+      },
+      include: { collection: true },
+    });
+
+    const crossTitles = crossStoreColls.map((c) => c.collection.title).filter(Boolean);
+    if (crossTitles.length > 0) {
+      const matchingLocal = await prisma.collection.findMany({
+        where: {
+          storeId: store.id,
+          title: { in: crossTitles, mode: 'insensitive' },
+        },
+        select: { id: true },
+      });
+      collectionIdsToPreserve = matchingLocal.map((m) => m.id);
+    }
+  }
+
+  // Fallback 2: Check store collections matching product title or tags (e.g. "PANTS" for "Baggy pant")
+  if (collectionIdsToPreserve.length === 0) {
+    const storeColls = await prisma.collection.findMany({
+      where: { storeId: store.id },
+    });
+    for (const sc of storeColls) {
+      const colTitleLower = sc.title.toLowerCase();
+      const baseTitleLower = baseProductTitle.toLowerCase();
+      const singularCol = colTitleLower.endsWith('s') ? colTitleLower.slice(0, -1) : colTitleLower;
+      const singularBase = baseTitleLower.endsWith('s') ? baseTitleLower.slice(0, -1) : baseTitleLower;
+      if (
+        baseTitleLower.includes(colTitleLower) ||
+        colTitleLower.includes(baseTitleLower) ||
+        baseTitleLower.includes(singularCol) ||
+        colTitleLower.includes(singularBase) ||
+        (product.tags && product.tags.toLowerCase().includes(colTitleLower))
+      ) {
+        collectionIdsToPreserve.push(sc.id);
+        break;
+      }
+    }
+  }
 
   // 3. Sync newly generated/updated variants to Shopify Admin API first
   // productSet atomically replaces all variants on Shopify with the provided variantInputs

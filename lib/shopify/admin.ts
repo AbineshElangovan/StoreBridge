@@ -17,7 +17,8 @@ export async function refreshOfflineToken(store: any, force = false) {
   const shopDomain = store.shopDomain;
 
   // 1. If store has NO expiresAt date or expiresAt is null, it is a permanent non-expiring token
-  if (!store.expiresAt) {
+  // UNLESS force === true (which means a 401 was encountered and we must attempt refresh)
+  if (!store.expiresAt && !force) {
     console.log(`[AdminClient] Store ${shopDomain} has a non-expiring permanent token. Skipping refresh.`);
     return store;
   }
@@ -27,17 +28,19 @@ export async function refreshOfflineToken(store: any, force = false) {
   const latestStore = await prisma.store.findUnique({ where: { shopDomain } });
   if (latestStore && latestStore.expiresAt) {
     const timeUntilExpiry = latestStore.expiresAt.getTime() - Date.now();
-    // If NOT forced: If DB already has a newer token than the passed store AND it is valid for >15m, reuse it immediately!
-    if (!force && timeUntilExpiry > 15 * 60 * 1000 && latestStore.accessToken && latestStore.accessToken !== store.accessToken) {
+    // If NOT forced: If DB already has a newer token than the passed store AND it is valid for >5m, reuse it immediately!
+    if (!force && timeUntilExpiry > 5 * 60 * 1000 && latestStore.accessToken && latestStore.accessToken !== store.accessToken) {
       console.log(`[AdminClient] Reusing fresh token from DB for ${shopDomain} (expires in ${Math.round(timeUntilExpiry / 60000)}m)`);
       return latestStore;
     }
   }
 
-  // Cooldown check: if token refresh was recently rejected with 400/401, don't spam Shopify within 60s
-  const cooldownUntil = refreshCooldown.get(shopDomain);
-  if (cooldownUntil && Date.now() < cooldownUntil) {
-    throw new Error(`Store ${shopDomain} refresh token was recently rejected by Shopify (cooldown active). Requires OAuth handshake.`);
+  // Cooldown check: Only block if NOT forced! (When force === true from 401, we must attempt self-healing)
+  if (!force) {
+    const cooldownUntil = refreshCooldown.get(shopDomain);
+    if (cooldownUntil && Date.now() < cooldownUntil) {
+      throw new Error(`Store ${shopDomain} refresh token was recently rejected by Shopify (cooldown active). Requires OAuth handshake.`);
+    }
   }
 
   const currentStore = latestStore || store;
@@ -82,8 +85,18 @@ export async function refreshOfflineToken(store: any, force = false) {
     if (!response.ok) {
       const errText = await response.text();
       console.warn(`[AdminClient] Refresh API response not ok for ${shopDomain}: ${response.status} - ${errText}`);
+
+      // Double-check FIRST: Did a peer worker/process complete the refresh concurrently?
+      const checkAfterFail = await prisma.store.findUnique({ where: { shopDomain } });
+      if (checkAfterFail?.expiresAt && checkAfterFail.expiresAt.getTime() > Date.now() && checkAfterFail.accessToken !== currentStore.accessToken) {
+        console.log(`[AdminClient] Concurrent refresh detected for ${shopDomain}: DB was updated by peer instance.`);
+        refreshCooldown.delete(shopDomain);
+        return checkAfterFail;
+      }
+
+      // Only mark as REQUIRES_REAUTH if no peer updated the DB with a valid token
       if (response.status === 400 || response.status === 401) {
-        refreshCooldown.set(shopDomain, Date.now() + 5 * 60 * 1000);
+        refreshCooldown.set(shopDomain, Date.now() + 15 * 1000); // Short 15s cooldown
         try {
           await prisma.store.update({
             where: { shopDomain },
@@ -94,13 +107,6 @@ export async function refreshOfflineToken(store: any, force = false) {
             }
           });
         } catch (_) {}
-      }
-
-      // Double-check: Did a peer serverless worker complete the refresh while our request was in flight?
-      const checkAfterFail = await prisma.store.findUnique({ where: { shopDomain } });
-      if (checkAfterFail?.expiresAt && checkAfterFail.expiresAt.getTime() > Date.now()) {
-        console.log(`[AdminClient] Concurrent refresh detected for ${shopDomain}: DB was updated by peer instance.`);
-        return checkAfterFail;
       }
 
       throw new Error(`Failed to refresh Shopify token: ${errText}`);
@@ -245,8 +251,52 @@ export async function getAdminClient(shopDomain: string) {
       if (is401) {
         console.warn(`[AdminClient] Auth error (401/403) encountered for ${shopDomain}. Attempting automatic self-healing token refresh...`);
         try {
+          // Clear any stale in-memory cooldown so forced self-healing is never blocked
+          refreshCooldown.delete(shopDomain);
+
           const freshStore = await prisma.store.findUnique({ where: { shopDomain } });
-          if (!freshStore || !freshStore.refreshToken) {
+          if (!freshStore) {
+            throw new Error(`Store ${shopDomain} not found.`);
+          }
+
+          // If the store has no refresh token (e.g. legacy non-expiring token rejected with 403), auto-migrate to expiring token
+          if (!freshStore.refreshToken && freshStore.accessToken && (shopify.auth as any).migrateToExpiringToken) {
+            try {
+              console.log(`[AdminClient] Store ${shopDomain} has non-expiring token and got 403 Forbidden. Automatically upgrading to expiring token...`);
+              const migrator = (shopify.auth as any).migrateToExpiringToken;
+              const decryptedCurrent = decrypt(freshStore.accessToken);
+              const migrated = await migrator({
+                shop: shopDomain,
+                nonExpiringOfflineAccessToken: decryptedCurrent,
+              });
+              if (migrated?.session) {
+                const now = new Date();
+                const sess = migrated.session;
+                const expiresAt = sess.expires || ((sess as any).expires_in ? new Date(now.getTime() + (sess as any).expires_in * 1000) : null);
+                const refreshTokenExpiresAt = (sess as any).refreshTokenExpires || null;
+                await prisma.store.update({
+                  where: { shopDomain },
+                  data: {
+                    accessToken: encrypt(sess.accessToken),
+                    refreshToken: (sess as any).refreshToken ? encrypt((sess as any).refreshToken) : null,
+                    expiresAt,
+                    refreshTokenExpiresAt,
+                    authStatus: "AUTHENTICATED",
+                    lastAuthFailure: null,
+                    authFailureReason: null,
+                  }
+                });
+                activeStore = await prisma.store.findUnique({ where: { shopDomain } }) as any;
+                client = createGraphqlClient(sess.accessToken);
+                console.log(`[AdminClient] Auto-migration succeeded for ${shopDomain}. Retrying request...`);
+                return await client.request(query, options);
+              }
+            } catch (migErr: any) {
+              console.error(`[AdminClient] Auto-migration attempt failed for ${shopDomain}:`, migErr.message);
+            }
+          }
+
+          if (!freshStore.refreshToken) {
             throw new Error(`Store ${shopDomain} has no refresh token to recover from 401.`);
           }
 

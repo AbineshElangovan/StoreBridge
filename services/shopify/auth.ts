@@ -111,6 +111,7 @@ export async function handleAuthCallback(req: NextRequest) {
   try {
     const callbackResponse = await shopify.auth.callback({
       rawRequest: cleanRequest,
+      expiring: true,
     } as any);
     console.log("[OAuthCallback] Standard shopify.auth.callback succeeded.");
     session = callbackResponse.session;
@@ -168,6 +169,7 @@ export async function handleAuthCallback(req: NextRequest) {
         client_id: process.env.SHOPIFY_API_KEY,
         client_secret: process.env.SHOPIFY_API_SECRET,
         code,
+        expiring: "1",
       }),
     });
 
@@ -198,6 +200,24 @@ export async function handleAuthCallback(req: NextRequest) {
       (session as any).refreshTokenExpires = new Date(
         now.getTime() + tokenData.refresh_token_expires_in * 1000
       );
+    }
+  }
+
+  // Automatic safeguard: If Shopify returned a non-expiring token, immediately migrate it to an expiring token shape
+  if (!session.expires && session.accessToken && (shopify.auth as any).migrateToExpiringToken) {
+    try {
+      console.log(`[OAuthCallback] Token for ${session.shop} is non-expiring. Automatically upgrading to expiring token...`);
+      const migrator = (shopify.auth as any).migrateToExpiringToken;
+      const migrated = await migrator({
+        shop: session.shop,
+        nonExpiringOfflineAccessToken: session.accessToken,
+      });
+      if (migrated?.session) {
+        session = migrated.session;
+        console.log(`[OAuthCallback] Auto-migration to expiring token succeeded for ${session.shop}!`);
+      }
+    } catch (migErr: any) {
+      console.warn(`[OAuthCallback] Auto-migration notice for ${session.shop}:`, migErr.message);
     }
   }
 

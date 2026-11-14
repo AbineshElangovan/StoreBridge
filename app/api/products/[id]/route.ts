@@ -396,6 +396,9 @@ export async function GET(
         currentStock: totalCurrentStock,
         healthStatus: overallHealth,
         isStandalone: isProdStoreStandalone,
+        shopDomain: targetProduct.store.shopDomain,
+        storeLabel: targetProduct.store.label || targetProduct.store.shopDomain,
+        reauthUrl: `/api/auth?shop=${encodeURIComponent(targetProduct.store.shopDomain)}`,
         isPreorderEligible: isProductPreorderEligible,
         preorder: preorderInfo,
         variants: variantsInDb.map(v => {
@@ -452,6 +455,10 @@ export async function GET(
           lastSale: lastSaleDate ? new Date(lastSaleDate).toISOString() : null
         },
         storeAvailability
+      }
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
       }
     });
 
@@ -511,10 +518,8 @@ export async function PATCH(
       ? variantRecord.shopifyProductId
       : `gid://shopify/Product/${variantRecord.shopifyProductId}`;
 
-    const numericVarId = variantRecord.shopifyVariantId
-      .replace(/^gid:\/\/shopify\/ProductVariant\//i, '')
-      .replace(/\D/g, '');
-    const formattedVarGid = `gid://shopify/ProductVariant/${numericVarId || variantRecord.shopifyVariantId}`;
+    let isGeneratedVariant = variantRecord.shopifyVariantId.includes('generated-');
+    let effectiveVariantGid = variantRecord.shopifyVariantId;
 
     // IMPORTANT: Get GraphQL Admin Client for the SPECIFIC productStore (Master, Connected, or Standalone)
     let client: any;
@@ -529,22 +534,77 @@ export async function PATCH(
         clientErr.message?.toLowerCase().includes('401') ||
         clientErr.message?.toLowerCase().includes('403') ||
         clientErr.message?.toLowerCase().includes('forbidden') ||
+        clientErr.message?.toLowerCase().includes('invalid_grant') ||
         clientErr.message?.toLowerCase().includes('oauth');
       const storeName = productStore.label || productStore.shopDomain;
       const reauthUrl = `/api/auth?shop=${encodeURIComponent(productStore.shopDomain)}`;
       const errorMsg = isAuthErr
-        ? `Shopify connection temporary issue for "${storeName}". Please try again.`
+        ? `Shopify session expired for store "${storeName}". Please reconnect your store.`
         : `Unable to connect to Shopify for store "${storeName}": ${clientErr.message}`;
       return NextResponse.json({
         success: false,
         error: errorMsg,
+        shopDomain: productStore.shopDomain,
         reauthUrl: isAuthErr ? reauthUrl : null,
       }, { status: 401 });
     }
 
-    // 2. SHOPIFY MUTATION FIRST FOR THE PRODUCT'S STORE
+    // If variant has a dummy generator ID, attempt to match it with live Shopify variants
+    if (isGeneratedVariant && client) {
+      try {
+        const prodLookupRes: any = await client.request(`
+          query findRealVariant($id: ID!) {
+            product(id: $id) {
+              variants(first: 50) {
+                edges {
+                  node {
+                    id
+                    sku
+                    title
+                    inventoryItem { id }
+                  }
+                }
+              }
+            }
+          }
+        `, { variables: { id: formattedProdGid } });
+        const shopifyVariants = prodLookupRes?.data?.product?.variants?.edges || prodLookupRes?.product?.variants?.edges || [];
+        const matchedEdge = shopifyVariants.find((e: any) => {
+          const node = e.node;
+          return (
+            (variantRecord.sku && node.sku && node.sku.toLowerCase() === variantRecord.sku.toLowerCase()) ||
+            (variantRecord.title && node.title && variantRecord.title.toLowerCase().endsWith(node.title.toLowerCase()))
+          );
+        });
+
+        if (matchedEdge?.node?.id) {
+          effectiveVariantGid = matchedEdge.node.id;
+          isGeneratedVariant = false;
+          await prisma.productCache.update({
+            where: { id: variantRecord.id },
+            data: { shopifyVariantId: effectiveVariantGid }
+          }).catch(() => null);
+          await prisma.variantMap.updateMany({
+            where: { storeId: productStore.id, shopifyVariantId: variantRecord.shopifyVariantId },
+            data: { 
+              shopifyVariantId: effectiveVariantGid,
+              inventoryItemId: matchedEdge.node.inventoryItem?.id || undefined
+            }
+          }).catch(() => null);
+        }
+      } catch (lookupErr: any) {
+        console.warn(`[Product Details API] Real variant lookup notice for ${productStore.shopDomain}:`, lookupErr.message);
+      }
+    }
+
+    const numericVarId = effectiveVariantGid
+      .replace(/^gid:\/\/shopify\/ProductVariant\//i, '')
+      .replace(/\D/g, '');
+    const formattedVarGid = `gid://shopify/ProductVariant/${numericVarId || effectiveVariantGid}`;
+
+    // 2. SHOPIFY MUTATION FIRST FOR THE PRODUCT'S STORE (Skip Shopify mutation if variant only exists locally)
     // A. Price and/or SKU Update
-    if ((isPriceChanged && price >= 0) || isSkuChanged) {
+    if (!isGeneratedVariant && ((isPriceChanged && price >= 0) || isSkuChanged)) {
       const variantInput: any = { id: formattedVarGid };
       if (isPriceChanged && price >= 0) {
         variantInput.price = price.toString();
@@ -574,15 +634,17 @@ export async function PATCH(
           reqErr.message?.toLowerCase().includes('unauthorized') ||
           reqErr.message?.toLowerCase().includes('401') ||
           reqErr.message?.toLowerCase().includes('403') ||
-          reqErr.message?.toLowerCase().includes('forbidden');
+          reqErr.message?.toLowerCase().includes('forbidden') ||
+          reqErr.message?.toLowerCase().includes('invalid_grant');
         const storeName = productStore.label || productStore.shopDomain;
         const reauthUrl = `/api/auth?shop=${encodeURIComponent(productStore.shopDomain)}`;
         const errorMsg = isAuthErr
-          ? `Shopify connection temporary issue for "${storeName}". Please try again.`
+          ? `Shopify session expired for store "${storeName}". Please reconnect your store.`
           : `Shopify variant update failed on "${storeName}": ${reqErr.message}`;
         return NextResponse.json({
           success: false,
           error: errorMsg,
+          shopDomain: productStore.shopDomain,
           reauthUrl: isAuthErr ? reauthUrl : null,
         }, { status: isAuthErr ? 401 : 400 });
       }
@@ -599,59 +661,92 @@ export async function PATCH(
     }
 
     // B. Inventory Update
-    if (isQuantityChanged && quantity >= 0) {
+    if (!isGeneratedVariant && isQuantityChanged && quantity >= 0) {
       let inventoryItemId: string | null = null;
+      let resolvedLocationId: string | null = null;
       const variantMap = await prisma.variantMap.findFirst({
-        where: { storeId: productStore.id, shopifyVariantId: variantRecord.shopifyVariantId }
+        where: {
+          storeId: productStore.id,
+          shopifyVariantId: { in: [variantRecord.shopifyVariantId, formattedVarGid] }
+        }
       });
 
       if (variantMap?.inventoryItemId) {
         inventoryItemId = variantMap.inventoryItemId;
+        if (variantMap.locationId) {
+          resolvedLocationId = variantMap.locationId;
+        }
       } else {
-        const vRes: any = await client.request(`
-          query getVariantInventoryItem($id: ID!) {
-            productVariant(id: $id) {
-              inventoryItem { id }
+        try {
+          const vRes: any = await client.request(`
+            query getVariantInventoryItem($id: ID!) {
+              productVariant(id: $id) {
+                inventoryItem {
+                  id
+                  inventoryLevels(first: 5) {
+                    edges {
+                      node {
+                        location {
+                          id
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
+          `, { variables: { id: formattedVarGid } });
+          const vNode = vRes?.data?.productVariant || vRes?.productVariant;
+          inventoryItemId = vNode?.inventoryItem?.id || null;
+          resolvedLocationId = vNode?.inventoryItem?.inventoryLevels?.edges?.[0]?.node?.location?.id || null;
+        } catch (reqErr: any) {
+          console.error(`[Product Details API] Failed to fetch inventory item for ${productStore.shopDomain}:`, reqErr.message);
+          const isAuthErr =
+            reqErr.message?.toLowerCase().includes('unauthorized') ||
+            reqErr.message?.toLowerCase().includes('401') ||
+            reqErr.message?.toLowerCase().includes('403') ||
+            reqErr.message?.toLowerCase().includes('forbidden');
+          const storeName = productStore.label || productStore.shopDomain;
+          const reauthUrl = `/api/auth?shop=${encodeURIComponent(productStore.shopDomain)}`;
+          const errorMsg = isAuthErr
+            ? `Shopify session expired for store "${storeName}". Please reconnect your store.`
+            : `Shopify inventory item lookup failed on "${storeName}": ${reqErr.message}`;
+          return NextResponse.json({
+            success: false,
+            error: errorMsg,
+            reauthUrl: isAuthErr ? reauthUrl : null,
+          }, { status: isAuthErr ? 401 : 400 });
+        }
+      }
+
+      if (inventoryItemId) {
+        const locationId = resolvedLocationId || (await fetchDefaultLocation(productStore.shopDomain, inventoryItemId));
+        if (locationId) {
+          try {
+            await setInventoryQuantity(productStore.shopDomain, inventoryItemId, locationId, quantity);
+          } catch (invErr: any) {
+            console.error(`[Product Details API] Shopify inventory update rejected for ${productStore.shopDomain}:`, invErr.message);
+            const isAuthErr =
+              invErr.message?.toLowerCase().includes('unauthorized') ||
+              invErr.message?.toLowerCase().includes('401') ||
+              invErr.message?.toLowerCase().includes('403') ||
+              invErr.message?.toLowerCase().includes('forbidden') ||
+              invErr.message?.toLowerCase().includes('invalid_grant');
+            const storeName = productStore.label || productStore.shopDomain;
+            const reauthUrl = `/api/auth?shop=${encodeURIComponent(productStore.shopDomain)}`;
+            const errorMsg = isAuthErr
+              ? `Shopify session expired for store "${storeName}". Please reconnect your store.`
+              : `Shopify inventory update rejected on "${storeName}": ${invErr.message}`;
+            return NextResponse.json({
+              success: false,
+              error: errorMsg,
+              shopDomain: productStore.shopDomain,
+              reauthUrl: isAuthErr ? reauthUrl : null,
+            }, { status: isAuthErr ? 401 : 400 });
           }
-        `, { variables: { id: formattedVarGid } });
-        inventoryItemId = vRes?.data?.productVariant?.inventoryItem?.id || vRes?.productVariant?.inventoryItem?.id || null;
-      }
-
-      if (!inventoryItemId) {
-        return NextResponse.json({
-          success: false,
-          error: `Inventory Item ID not found on Shopify for variant ${variantRecord.sku || formattedVarGid}`
-        }, { status: 400 });
-      }
-
-      const locationId = await fetchDefaultLocation(productStore.shopDomain);
-      if (!locationId) {
-        return NextResponse.json({
-          success: false,
-          error: `Could not resolve Shopify location for store ${productStore.shopDomain}`
-        }, { status: 400 });
-      }
-
-      try {
-        await setInventoryQuantity(productStore.shopDomain, inventoryItemId, locationId, quantity);
-      } catch (invErr: any) {
-        console.error(`[Product Details API] Shopify inventory update rejected for ${productStore.shopDomain}:`, invErr.message);
-        const isAuthErr =
-          invErr.message?.toLowerCase().includes('unauthorized') ||
-          invErr.message?.toLowerCase().includes('401') ||
-          invErr.message?.toLowerCase().includes('403') ||
-          invErr.message?.toLowerCase().includes('forbidden');
-        const storeName = productStore.label || productStore.shopDomain;
-        const reauthUrl = `/api/auth?shop=${encodeURIComponent(productStore.shopDomain)}`;
-        const errorMsg = isAuthErr
-          ? `Shopify connection temporary issue for "${storeName}". Please try again.`
-          : `Shopify inventory update rejected on "${storeName}": ${invErr.message}`;
-        return NextResponse.json({
-          success: false,
-          error: errorMsg,
-          reauthUrl: isAuthErr ? reauthUrl : null,
-        }, { status: isAuthErr ? 401 : 400 });
+        } else {
+          console.warn(`[Product Details API] Could not resolve Shopify location for ${productStore.shopDomain}. Persisting quantity locally.`);
+        }
       }
     }
 
@@ -881,6 +976,7 @@ export async function PATCH(
 
                 if (targetVariant.shopifyVariantId) {
                   let targetInventoryItemId: string | null = null;
+                  let targetResolvedLocId: string | null = null;
                   const targetMap = await prisma.variantMap.findFirst({
                     where: { storeId: targetStore.id, shopifyVariantId: targetVariant.shopifyVariantId }
                   });
@@ -890,14 +986,31 @@ export async function PATCH(
                   } else {
                     const targetNumericId = targetVariant.shopifyVariantId.replace(/^gid:\/\/shopify\/ProductVariant\//i, '').replace(/\D/g, '');
                     const vRes: any = await targetClient.request(`
-                      query getVariantInventoryItem($id: ID!) { productVariant(id: $id) { inventoryItem { id } } }
+                      query getVariantInventoryItem($id: ID!) {
+                        productVariant(id: $id) {
+                          inventoryItem {
+                            id
+                            inventoryLevels(first: 5) {
+                              edges {
+                                node {
+                                  location {
+                                    id
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
                     `, { variables: { id: `gid://shopify/ProductVariant/${targetNumericId || targetVariant.shopifyVariantId}` } });
 
-                    targetInventoryItemId = vRes?.data?.productVariant?.inventoryItem?.id || vRes?.productVariant?.inventoryItem?.id || null;
+                    const tNode = vRes?.data?.productVariant || vRes?.productVariant;
+                    targetInventoryItemId = tNode?.inventoryItem?.id || null;
+                    targetResolvedLocId = tNode?.inventoryItem?.inventoryLevels?.edges?.[0]?.node?.location?.id || null;
                   }
 
                   if (targetInventoryItemId) {
-                    const targetLocationId = await fetchDefaultLocation(targetStore.shopDomain);
+                    const targetLocationId = targetResolvedLocId || (await fetchDefaultLocation(targetStore.shopDomain, targetInventoryItemId));
                     if (targetLocationId) {
                       await setInventoryQuantity(targetStore.shopDomain, targetInventoryItemId, targetLocationId, targetNewQty);
                     }
@@ -1423,15 +1536,17 @@ export async function DELETE(
         clientErr.message?.toLowerCase().includes('401') ||
         clientErr.message?.toLowerCase().includes('403') ||
         clientErr.message?.toLowerCase().includes('forbidden') ||
+        clientErr.message?.toLowerCase().includes('invalid_grant') ||
         clientErr.message?.toLowerCase().includes('oauth');
       const storeName = productStore.label || productStore.shopDomain;
       const reauthUrl = `/api/auth?shop=${encodeURIComponent(productStore.shopDomain)}`;
       const errorMsg = isAuthErr
-        ? `Shopify connection temporary issue for "${storeName}". Please try again.`
+        ? `Shopify session expired for store "${storeName}". Please reconnect your store.`
         : `Unable to connect to Shopify for store "${storeName}": ${clientErr.message}`;
       return NextResponse.json({
         success: false,
         error: errorMsg,
+        shopDomain: productStore.shopDomain,
         reauthUrl: isAuthErr ? reauthUrl : null,
       }, { status: 401 });
     }

@@ -266,9 +266,26 @@ export async function authenticate(req: NextRequest) {
   throw new AuthError("Store not installed or inactive");
 }
 
-export function handleApiError(error: any) {
-  if (error instanceof AuthError) {
-    return NextResponse.json({ success: false, message: error.message, error: error.message, code: 'UNAUTHENTICATED' }, { status: 401 });
+export function handleApiError(error: any, shopDomain?: string | null) {
+  const isAuth =
+    error instanceof AuthError ||
+    error?.code === 'UNAUTHENTICATED' ||
+    error?.statusCode === 401 ||
+    error?.networkStatusCode === 401 ||
+    error?.message?.includes('401') ||
+    error?.message?.includes('Unauthorized') ||
+    error?.message?.includes('GraphQL Client: Unauthorized');
+
+  if (isAuth) {
+    const cleanShop = shopDomain ? `?shop=${encodeURIComponent(shopDomain)}` : '';
+    return NextResponse.json({
+      success: false,
+      message: 'Shopify authorization expired. Please reconnect your store.',
+      error: 'Shopify session expired (401 Unauthorized). Please reconnect your store.',
+      code: 'UNAUTHENTICATED',
+      reauthUrl: `/api/auth${cleanShop}`,
+    }, { status: 401 });
   }
-  return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+
+  return NextResponse.json({ success: false, error: error?.message || 'Internal server error' }, { status: 500 });
 }

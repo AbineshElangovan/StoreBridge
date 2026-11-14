@@ -39,51 +39,22 @@ export async function GET(
       orderBy: { createdAt: "asc" },
     });
 
-    // Detect existing option names and values dynamically
+    // Detect existing option names and values dynamically from local DB cache first
     const optionsMap = new Map<string, Set<string>>();
 
-    // 1. Try fetching options live from Shopify GraphQL if store domain active
-    try {
-      const client = await getAdminClient(store.shopDomain);
-      const prodGid = targetProduct.shopifyProductId.startsWith("gid://")
-        ? targetProduct.shopifyProductId
-        : `gid://shopify/Product/${targetProduct.shopifyProductId}`;
-
-      const res: any = await client.request(
-        `
-        query getProductOptions($id: ID!) {
-          product(id: $id) {
-            options {
-              name
-              values
-            }
-          }
-        }
-      `,
-        { variables: { id: prodGid } }
-      );
-
-      const shopifyOptions = res?.data?.product?.options || res?.product?.options || [];
-      for (const opt of shopifyOptions) {
-        if (opt.name && opt.name !== "Title") {
-          optionsMap.set(opt.name, new Set(opt.values || []));
-        }
-      }
-    } catch (shopifyErr: any) {
-      console.warn("[SKU API] Shopify options fetch notice:", shopifyErr.message);
-    }
-
-    // 2. Fallback / supplementary: Parse options from cached titles if empty
-    if (optionsMap.size === 0 && variants.length > 0) {
+    // 1. Fast local resolution: Parse options from cached variants (optionsJson & titles)
+    if (variants.length > 0) {
       for (const v of variants) {
         if (v.optionsJson && typeof v.optionsJson === "object") {
           for (const [key, val] of Object.entries(v.optionsJson)) {
-            if (!optionsMap.has(key)) optionsMap.set(key, new Set());
-            optionsMap.get(key)!.add(String(val));
+            if (key && key !== "Title") {
+              if (!optionsMap.has(key)) optionsMap.set(key, new Set());
+              optionsMap.get(key)!.add(String(val));
+            }
           }
         } else if (v.title && v.title !== targetProduct.title) {
           const parts = v.title.split("/").map((p) => p.trim());
-          if (parts.length === 1) {
+          if (parts.length === 1 && parts[0] !== "Default Title") {
             if (!optionsMap.has("Option 1")) optionsMap.set("Option 1", new Set());
             optionsMap.get("Option 1")!.add(parts[0]);
           } else if (parts.length === 2) {
@@ -100,6 +71,46 @@ export async function GET(
             optionsMap.get("Year / Style")!.add(parts[2]);
           }
         }
+      }
+    }
+
+    // 2. Fallback only if product has multiple variants and local options couldn't be parsed
+    if (optionsMap.size === 0 && variants.length > 1) {
+      try {
+        const { getAdminClient } = require("@/lib/shopify/admin");
+        const client = await getAdminClient(store.shopDomain);
+        const prodGid = targetProduct.shopifyProductId.startsWith("gid://")
+          ? targetProduct.shopifyProductId
+          : `gid://shopify/Product/${targetProduct.shopifyProductId}`;
+
+        const shopifyPromise = client.request(
+          `
+          query getProductOptions($id: ID!) {
+            product(id: $id) {
+              options {
+                name
+                values
+              }
+            }
+          }
+        `,
+          { variables: { id: prodGid } }
+        );
+
+        // Max 1.5s timeout so the UI never freezes or hangs
+        const res: any = await Promise.race([
+          shopifyPromise,
+          new Promise((resolve) => setTimeout(resolve, 1500)),
+        ]);
+
+        const shopifyOptions = res?.data?.product?.options || res?.product?.options || [];
+        for (const opt of shopifyOptions) {
+          if (opt.name && opt.name !== "Title") {
+            optionsMap.set(opt.name, new Set(opt.values || []));
+          }
+        }
+      } catch (shopifyErr: any) {
+        console.warn("[SKU API] Shopify options fetch notice:", shopifyErr.message);
       }
     }
 

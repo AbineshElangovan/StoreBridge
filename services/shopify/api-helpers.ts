@@ -11,12 +11,122 @@ import {
 } from './graphql';
 import { syncProductCollectionsByTags } from './collection-sync';
 
-export async function fetchDefaultLocation(shopDomain: string): Promise<string | null> {
+export async function fetchDefaultLocation(shopDomain: string, fallbackInventoryItemId?: string | null): Promise<string | null> {
   try {
+    // Strategy 0: Instant DB lookup - check if we already have a known Shopify location for this store
+    try {
+      const knownLoc = await prisma.variantMap.findFirst({
+        where: {
+          store: { shopDomain },
+          locationId: { not: null }
+        },
+        select: { locationId: true }
+      });
+      if (knownLoc?.locationId) {
+        return knownLoc.locationId;
+      }
+    } catch (dbErr: any) {
+      console.warn(`[ProductSync] DB location lookup notice for ${shopDomain}:`, dbErr.message);
+    }
+
     const client = await getAdminClient(shopDomain);
-    const response: any = await client.request(LOCATIONS_QUERY);
-    const resData = response?.data || response;
-    return resData?.locations?.edges?.[0]?.node?.id || null;
+
+    // Strategy 1: If inventoryItemId is provided, check its existing inventoryLevel location
+    if (fallbackInventoryItemId) {
+      const formattedInvId = fallbackInventoryItemId.startsWith('gid://')
+        ? fallbackInventoryItemId
+        : `gid://shopify/InventoryItem/${fallbackInventoryItemId.replace(/\D/g, '') || fallbackInventoryItemId}`;
+
+      try {
+        const invRes: any = await client.request(`
+          query getInvLocation($id: ID!) {
+            inventoryItem(id: $id) {
+              inventoryLevels(first: 5) {
+                edges {
+                  node {
+                    location {
+                      id
+                    }
+                  }
+                }
+              }
+            }
+          }
+        `, { variables: { id: formattedInvId } });
+        const locId = invRes?.data?.inventoryItem?.inventoryLevels?.edges?.[0]?.node?.location?.id ||
+                      invRes?.inventoryItem?.inventoryLevels?.edges?.[0]?.node?.location?.id;
+        if (locId) {
+          return locId;
+        }
+      } catch (invErr: any) {
+        console.warn(`[ProductSync] Could not resolve location from inventory item ${fallbackInventoryItemId}:`, invErr.message);
+      }
+    }
+
+    // Strategy 2: Query store locations (with includeLegacy flag)
+    try {
+      const response: any = await client.request(`
+        query getShopLocations {
+          locations(first: 10, includeLegacy: true) {
+            edges {
+              node {
+                id
+                isActive
+              }
+            }
+          }
+        }
+      `);
+      const locEdges = response?.data?.locations?.edges || response?.locations?.edges || [];
+      const activeLoc = locEdges.find((e: any) => e.node?.isActive !== false) || locEdges[0];
+      if (activeLoc?.node?.id) {
+        return activeLoc.node.id;
+      }
+    } catch (locErr: any) {
+      console.warn(`[ProductSync] Direct locations query notice for ${shopDomain}:`, locErr.message);
+    }
+
+    // Strategy 3: Sample other products with inventory to discover the store's primary location
+    try {
+      const sampleRes: any = await client.request(`
+        query getAnyInventoryLocation {
+          products(first: 10) {
+            edges {
+              node {
+                variants(first: 3) {
+                  edges {
+                    node {
+                      inventoryItem {
+                        inventoryLevels(first: 2) {
+                          edges {
+                            node {
+                              location {
+                                id
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      `);
+      const products = sampleRes?.data?.products?.edges || sampleRes?.products?.edges || [];
+      for (const p of products) {
+        for (const v of p.node?.variants?.edges || []) {
+          const loc = v.node?.inventoryItem?.inventoryLevels?.edges?.[0]?.node?.location?.id;
+          if (loc) return loc;
+        }
+      }
+    } catch (sampleErr: any) {
+      console.warn(`[ProductSync] Sample inventory location query notice for ${shopDomain}:`, sampleErr.message);
+    }
+
+    return null;
   } catch (error) {
     console.error(`[ProductSync] Failed to fetch location for ${shopDomain}:`, error);
     return null;

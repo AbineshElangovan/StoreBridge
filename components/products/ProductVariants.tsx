@@ -26,11 +26,13 @@ interface ProductVariantsProps {
   productId: string;
   variants: ProductVariantItem[];
   isStandalone?: boolean;
+  storeDomain?: string;
+  storeReauthUrl?: string;
   onVariantUpdated?: () => void;
 }
 
-export function ProductVariants({ productId, variants: initialVariants, isStandalone, onVariantUpdated }: ProductVariantsProps) {
-  const { isMaster } = useStoreContext();
+export function ProductVariants({ productId, variants: initialVariants, isStandalone, storeDomain, storeReauthUrl, onVariantUpdated }: ProductVariantsProps) {
+  const { isMaster, currentStore, sessionShopDomain } = useStoreContext();
   const { showSuccess, showError } = useToast();
   const [variantList, setVariantList] = useState<ProductVariantItem[]>(initialVariants);
   const [isSavingAll, setIsSavingAll] = useState<boolean>(false);
@@ -110,9 +112,26 @@ export function ProductVariants({ productId, variants: initialVariants, isStanda
           successfullySavedIds.add(v.id);
         } else {
           hasError = true;
-          lastErrorMessage = json.error || `Failed to update variant ${v.variantName} (HTTP ${res.status})`;
-          if (json.reauthUrl) {
-            targetReauthUrl = json.reauthUrl;
+          const isAuthErr =
+            res.status === 401 ||
+            Boolean(json.reauthUrl) ||
+            json.code === 'UNAUTHENTICATED' ||
+            json.error?.toLowerCase().includes('unauthorized') ||
+            json.error?.toLowerCase().includes('reconnect') ||
+            json.error?.toLowerCase().includes('session expired') ||
+            json.error?.toLowerCase().includes('invalid_grant') ||
+            json.error?.includes('401') ||
+            json.message?.toLowerCase().includes('unauthorized');
+
+          if (isAuthErr) {
+            const domain = json.shopDomain || storeDomain || currentStore?.shopDomain || sessionShopDomain || '';
+            targetReauthUrl = json.reauthUrl || storeReauthUrl || (domain ? `/api/auth?shop=${encodeURIComponent(domain)}` : '/api/auth');
+            lastErrorMessage = json.error || 'Shopify session expired (401 Unauthorized). Please click "Reconnect Store with Shopify" below to renew authorization and save changes.';
+          } else {
+            lastErrorMessage = json.error || `Failed to update variant ${v.variantName} (HTTP ${res.status})`;
+            if (json.reauthUrl) {
+              targetReauthUrl = json.reauthUrl;
+            }
           }
           break;
         }
@@ -185,27 +204,52 @@ export function ProductVariants({ productId, variants: initialVariants, isStanda
   return (
     <div id="product-variants-section" className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 shadow-2xs mb-6 scroll-mt-6">
       {saveError && (
-        <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-3 text-xs text-rose-800">
-          <svg className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <div className="mb-4 p-4 bg-rose-50 border border-rose-300 rounded-2xl flex items-start gap-3.5 text-xs text-rose-800 shadow-sm">
+          <svg className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
           </svg>
-          <div className="flex-1">
-            <span className="font-bold block">Save Error</span>
-            <span>{saveError}</span>
+          <div className="flex-1 space-y-2.5">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-sm text-rose-900">
+                {reauthUrl ? "Shopify Authorization Expired" : "Save Error"}
+              </span>
+              {reauthUrl && (
+                <span className="px-2 py-0.5 bg-rose-200 text-rose-800 text-[10px] font-bold uppercase rounded-md tracking-wider">
+                  Action Required
+                </span>
+              )}
+            </div>
+            <p className="m-0 text-rose-800 font-medium leading-relaxed">
+              {reauthUrl
+                ? "Your Shopify access session has expired or rolling refresh token needs renewal. Reconnecting will instantly renew authorization with 1 click."
+                : saveError}
+            </p>
             {reauthUrl && (
-              <div className="mt-2.5">
+              <div className="pt-2 flex flex-wrap items-center gap-3">
                 <a
                   href={reauthUrl}
                   target="_top"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg text-xs shadow-2xs transition-colors"
+                  onClick={(e) => {
+                    if (typeof window !== 'undefined' && (window as any).shopify?.open) {
+                      e.preventDefault();
+                      (window as any).shopify.open(reauthUrl, '_top');
+                    } else if (typeof window !== 'undefined' && window.top) {
+                      e.preventDefault();
+                      window.top.location.href = reauthUrl;
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#0db69d] hover:bg-[#0b9c86] active:scale-[0.98] text-white font-bold rounded-xl text-xs sm:text-sm shadow-md transition-all cursor-pointer"
                 >
-                  Reconnect Store with Shopify &rarr;
+                  <span>Reconnect Store with Shopify</span>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  </svg>
                 </a>
               </div>
             )}
           </div>
-          <button type="button" onClick={() => { setSaveError(null); setReauthUrl(null); }} className="text-rose-500 hover:text-rose-700 p-0.5 flex items-center justify-center cursor-pointer" title="Dismiss error">
-            <span className="w-3.5 h-3.5 flex items-center"><Icon source={XIcon} tone="inherit" /></span>
+          <button type="button" onClick={() => { setSaveError(null); setReauthUrl(null); }} className="text-rose-500 hover:text-rose-700 p-1 flex items-center justify-center cursor-pointer rounded-lg hover:bg-rose-100 transition-colors" title="Dismiss error">
+            <span className="w-4 h-4 flex items-center"><Icon source={XIcon} tone="inherit" /></span>
           </button>
         </div>
       )}

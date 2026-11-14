@@ -54,9 +54,48 @@ export const sessionStorage = {
 
   async loadSession(id: string): Promise<Session | undefined> {
     try {
-      const dbSession = await prisma.session.findUnique({
+      let dbSession = await prisma.session.findUnique({
         where: { id },
       });
+
+      // Synchronize with Store table for offline sessions if Store has a fresher or missing session
+      if (id.startsWith('offline_')) {
+        const shopDomain = id.replace(/^offline_/, '');
+        const store = await prisma.store.findUnique({ where: { shopDomain } });
+        if (store && store.accessToken) {
+          if (!dbSession || (store.accessToken !== dbSession.accessToken && (store.expiresAt || new Date()) > (dbSession.expires || new Date(0)))) {
+            try {
+              dbSession = await prisma.session.upsert({
+                where: { id },
+                update: {
+                  shop: shopDomain,
+                  state: 'offline',
+                  isOnline: false,
+                  accessToken: store.accessToken,
+                  refreshToken: store.refreshToken,
+                  expires: store.expiresAt,
+                  refreshTokenExpires: store.refreshTokenExpiresAt,
+                  scope: store.scope,
+                },
+                create: {
+                  id,
+                  shop: shopDomain,
+                  state: 'offline',
+                  isOnline: false,
+                  accessToken: store.accessToken,
+                  refreshToken: store.refreshToken,
+                  expires: store.expiresAt,
+                  refreshTokenExpires: store.refreshTokenExpiresAt,
+                  scope: store.scope,
+                },
+              });
+            } catch (syncErr: any) {
+              console.warn(`[CustomSessionStorage] Session auto-sync notice for ${shopDomain}:`, syncErr.message);
+            }
+          }
+        }
+      }
+
       if (!dbSession) return undefined;
 
       const onlineAccessInfo = undefined;

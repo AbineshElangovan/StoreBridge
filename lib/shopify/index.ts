@@ -7,7 +7,7 @@ import { getAppHost } from "./app-url";
 // This ensures the adapter import is not tree-shaken
 console.log(`Shopify Web API Adapter Initialized: ${webApiAdapterInitialized}`);
 
-const defaultScopes = "write_inventory,read_inventory,read_products,write_products,read_publications,write_publications,write_discounts,read_discounts,read_orders";
+const defaultScopes = "write_inventory,read_inventory,read_locations,read_products,write_products,read_publications,write_publications,write_discounts,read_discounts,read_orders";
 
 export const shopify = shopifyApi({
   apiKey: process.env.SHOPIFY_API_KEY || "",

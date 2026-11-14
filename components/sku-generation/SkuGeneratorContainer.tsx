@@ -23,6 +23,7 @@ export function SkuGeneratorContainer({ onApplied }: SkuGeneratorContainerProps 
 
   const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(null);
   const [existingVariants, setExistingVariants] = useState<ExistingVariantItem[]>([]);
+  const [loadingVariants, setLoadingVariants] = useState(false);
   const [selectedVariantIds, setSelectedVariantIds] = useState<Set<string>>(new Set());
   const [options, setOptions] = useState<VariantOptionInput[]>([]);
   const [previewData, setPreviewData] = useState<SkuPreviewResponse | null>(null);
@@ -84,6 +85,7 @@ export function SkuGeneratorContainer({ onApplied }: SkuGeneratorContainerProps 
 
   const loadProductVariantsAndOptions = async (shopifyProductId: string) => {
     try {
+      setLoadingVariants(true);
       const res = await shopifyFetch(`/api/sku-generation/products/${encodeURIComponent(shopifyProductId)}/variants`);
       const data = await res.json();
       if (data.success) {
@@ -114,6 +116,8 @@ export function SkuGeneratorContainer({ onApplied }: SkuGeneratorContainerProps 
       setExistingVariants([]);
       setSelectedVariantIds(new Set());
       setOptions([]);
+    } finally {
+      setLoadingVariants(false);
     }
   };
 
@@ -235,12 +239,13 @@ export function SkuGeneratorContainer({ onApplied }: SkuGeneratorContainerProps 
           borderless
         />
 
-        {selectedProduct && existingVariants.length > 0 && (
+        {selectedProduct && (existingVariants.length > 0 || loadingVariants) && (
           <ExistingVariantsManager
             productId={selectedProduct.shopifyProductId}
             productTitle={selectedProduct.title}
             productImage={selectedProduct.imageUrl}
             variants={existingVariants}
+            loading={loadingVariants}
             selectedVariantIds={selectedVariantIds}
             onToggleVariant={handleToggleVariant}
             onToggleSelectAll={handleToggleSelectAll}
