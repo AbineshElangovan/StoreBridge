@@ -723,22 +723,33 @@ export class BackInStockService {
     try {
       const store = await prisma.store.findUnique({
         where: { id: storeId },
-        select: { shopDomain: true, accessToken: true },
+        select: { shopDomain: true, accessToken: true, expiresAt: true },
       });
       if (!store?.shopDomain || !store.accessToken) return;
 
       const { getAdminClient } = require('@/lib/shopify/admin');
       const client = await getAdminClient(store.shopDomain);
 
+      // Preload active preorder configuration to accurately identify pre-ordered products
+      const preorderConfig = await (prisma as any).preorderConfig.findFirst({
+        where: { storeId },
+        select: { enabled: true, selectionMode: true, selectedProductIds: true },
+      });
+
       const query = `
         query getRecentPreorderOrders {
-          orders(first: 50, reverse: true) {
+          orders(first: 30, reverse: true, sortKey: CREATED_AT) {
             edges {
               node {
                 id
                 name
                 email
                 phone
+                tags
+                customAttributes {
+                  key
+                  value
+                }
                 cancelledAt
                 shippingAddress {
                   phone
@@ -766,6 +777,10 @@ export class BackInStockService {
                         title
                         image {
                           url
+                        }
+                        product {
+                          id
+                          title
                         }
                       }
                       title
@@ -802,16 +817,33 @@ export class BackInStockService {
 
         for (const lineEdge of lineItems) {
           const item = lineEdge.node;
+          if (!item.variant?.id) continue;
+
           const attrs = item.customAttributes || [];
-          const isPreorder = attrs.some((a: any) => {
+          const isItemPreorder = attrs.some((a: any) => {
             const k = (a.key || '').toLowerCase();
             const v = String(a.value || '').toLowerCase();
             return k === '_preorder' || k.includes('preorder') || v === 'true';
-          }) || item.title?.toLowerCase().includes('pre-order');
+          }) || item.title?.toLowerCase().includes('pre-order') || item.variant?.title?.toLowerCase().includes('pre-order');
 
-          if (!isPreorder || !item.variant?.id) continue;
+          const orderTags = Array.isArray(order.tags) ? order.tags.join(' ') : String(order.tags || '');
+          const isOrderPreorder = /pre[-_]?order/i.test(orderTags) || (order.customAttributes || []).some((a: any) => /pre[-_]?order/i.test(a.key || '') || /pre[-_]?order/i.test(a.value || ''));
 
           const cleanVariantId = String(item.variant.id).replace(/\D/g, '');
+          const cleanProductId = item.variant?.product?.id ? String(item.variant.product.id).replace(/\D/g, '') : '';
+
+          const isConfigMatch = Boolean(
+            preorderConfig?.enabled && (
+              preorderConfig.selectionMode === 'ALL_PRODUCTS' ||
+              (preorderConfig.selectedProductIds && (
+                preorderConfig.selectedProductIds.includes(cleanProductId) ||
+                preorderConfig.selectedProductIds.includes(cleanVariantId)
+              ))
+            )
+          );
+
+          const isPreorder = isItemPreorder || isOrderPreorder || isConfigMatch;
+          if (!isPreorder || !cleanVariantId) continue;
           const customerName = [order.customer?.firstName, order.customer?.lastName].filter(Boolean).join(' ').trim() || null;
           const customerEmail = order.email || order.customer?.email || null;
           const customerPhone = order.phone || order.customer?.phone || order.shippingAddress?.phone || null;
@@ -915,6 +947,7 @@ export class BackInStockService {
               remainingBalance,
               paymentStatus: paymentOption === 'HALF' ? 'PARTIALLY_PAID' : 'PAID',
               currency: 'INR',
+              createdAt: order.createdAt ? new Date(order.createdAt) : new Date(),
             },
             update: {
               orderNumber: formattedOrderNum,

@@ -60,12 +60,7 @@ export function PreorderProductSelector({
       if (prodData.success && Array.isArray(prodData.products)) {
         setProducts(prodData.products);
 
-        // Sanitize: remove any ghost or stale IDs that don't exist in current catalog
-        const catalogIds = new Set(prodData.products.map((p: any) => normalizeId(p.shopifyProductId)));
-        const sanitized = selectedProductIds.filter((id) => catalogIds.has(normalizeId(id)));
-        if (sanitized.length !== selectedProductIds.length) {
-          onChange(sanitized);
-        }
+        // Keep catalog items loaded without wiping user's saved selection on mount
       }
 
       const colData = await colRes.json();

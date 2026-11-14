@@ -58,6 +58,7 @@ export interface PreorderCountdownTimerCardProps {
   buttonTextColor?: string;
   onSave?: () => void;
   saving?: boolean;
+  isDirty?: boolean;
 }
 
 function formatHumanDateTime(dateStr?: string | Date | null): string {
@@ -120,6 +121,7 @@ export function PreorderCountdownTimerCard({
   buttonTextColor = '#ffffff',
   onSave,
   saving = false,
+  isDirty = false,
 }: PreorderCountdownTimerCardProps) {
   const [hideStyling, setHideStyling] = useState(true);
   const [editingEnd, setEditingEnd] = useState(false);
@@ -475,9 +477,12 @@ export function PreorderCountdownTimerCard({
             )}
           </div>
 
-          {/* Quick Save within Card if provided */}
-          {onSave && (
-            <div className="pt-2 flex justify-end">
+          {/* Footer Status & Actions */}
+          <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+            <span className="text-xs text-gray-500 font-medium">
+              Countdown timer applies to live pre-order offers.
+            </span>
+            {isDirty && onSave && (
               <button
                 type="button"
                 onClick={onSave}
@@ -485,10 +490,10 @@ export function PreorderCountdownTimerCard({
                 className="px-4 py-2 text-xs font-bold text-white rounded-xl shadow-xs transition-colors flex items-center gap-2 cursor-pointer"
                 style={{ backgroundColor: primaryColor }}
               >
-                {saving ? 'Saving...' : 'Save Countdown Settings'}
+                {saving ? 'Saving...' : 'Save Changes'}
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </div>

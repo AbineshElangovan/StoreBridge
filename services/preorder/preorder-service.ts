@@ -627,7 +627,10 @@ export class PreorderService {
     const { safeDecrypt } = require('@/lib/utils/encryption');
     try {
       const { BackInStockService } = require('@/services/back-in-stock/back-in-stock-service');
-      await BackInStockService.syncLivePreordersFromShopify(storeId);
+      await Promise.race([
+        BackInStockService.syncLivePreordersFromShopify(storeId),
+        new Promise((resolve) => setTimeout(resolve, 2000)),
+      ]);
     } catch (_) {}
     const skip = (Math.max(1, page) - 1) * pageSize;
 

@@ -15,7 +15,10 @@
     "prisma:studio": "prisma studio",
     "prisma:migrate": "prisma migrate dev",
     "prisma:generate": "prisma generate",
-    "sync:neon": "tsx scripts/replicate-to-neon.ts",
+    "db:test:local": "tsx scripts/test-local-db.ts",
+    "sync:neon": "tsx scripts/replicate-to-neon.ts all",
+    "sync:neon:aws": "tsx scripts/replicate-to-neon.ts aws",
+    "sync:neon:vercel": "tsx scripts/replicate-to-neon.ts vercel",
     "inspect:activity": "tsx scripts/inspect-activity.ts",
     "prepare": "husky"
   },

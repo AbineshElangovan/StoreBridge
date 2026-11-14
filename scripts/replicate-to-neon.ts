@@ -1,23 +1,25 @@
 import { PrismaClient } from '@prisma/client';
 import { prisma as localPrisma } from '../lib/db/prisma';
 
-// Use Neon database connection string
-const neonDatabaseUrl =
-  process.env.REMOTE_NEON_URL ||
-  process.env.NEON_DATABASE_URL ||
+const VERCEL_NEON_URL =
+  process.env.VERCEL_NEON_URL ||
   'postgresql://neondb_owner:npg_7rDw2gJtlEeU@ep-restless-sun-b5m5tyc8-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
 
-async function replicateToNeon() {
-  console.log('=====================================================');
-  console.log('🚀 REPLICATING LOCAL DATABASE TO NEON DB (FOR AMPLIFY)');
-  console.log('=====================================================');
+const AWS_NEON_URL =
+  process.env.AWS_NEON_URL ||
+  'postgresql://neondb_owner:npg_U2vAaDoV4OKg@ep-patient-dream-bbqakoyb-pooler.c-15.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+
+async function syncTarget(targetName: string, dbUrl: string) {
+  console.log(`\n=====================================================`);
+  console.log(`🚀 REPLICATING LOCAL DATABASE TO: ${targetName.toUpperCase()}`);
+  console.log(`=====================================================`);
   console.log(`Local DB: ${process.env.DATABASE_URL?.split('@')[1] || 'localhost:5432/shopify_sync'}`);
-  console.log(`Neon DB:  ${neonDatabaseUrl.split('@')[1] || 'neon.tech'}`);
+  console.log(`Neon DB:  ${dbUrl.split('@')[1] || 'neon.tech'}`);
 
   const neonPrisma = new PrismaClient({
     datasources: {
       db: {
-        url: neonDatabaseUrl,
+        url: dbUrl,
       },
     },
   });
@@ -67,7 +69,7 @@ async function replicateToNeon() {
       });
       storeSynced++;
     }
-    console.log(`  ✓ Synced ${storeSynced}/${localStores.length} stores to Neon DB.`);
+    console.log(`  ✓ Synced ${storeSynced}/${localStores.length} stores to ${targetName}.`);
 
     // 2. Replicate Sessions
     console.log('\n[2/7] Syncing Session table...');
@@ -81,7 +83,7 @@ async function replicateToNeon() {
       });
       sessionSynced++;
     }
-    console.log(`  ✓ Synced ${sessionSynced}/${localSessions.length} sessions to Neon DB.`);
+    console.log(`  ✓ Synced ${sessionSynced}/${localSessions.length} sessions to ${targetName}.`);
 
     // 3. Replicate PreorderConfig
     console.log('\n[3/7] Syncing PreorderConfig table...');
@@ -100,7 +102,7 @@ async function replicateToNeon() {
     for (const config of localPreorderConfigs) {
       const storeExists = await neonPrisma.store.findUnique({ where: { id: config.storeId } });
       if (!storeExists) {
-        console.warn(`  ⚠️ Skipping config ${config.id}: Store ${config.storeId} not found in Neon.`);
+        console.warn(`  ⚠️ Skipping config ${config.id}: Store ${config.storeId} not found in ${targetName}.`);
         continue;
       }
 
@@ -176,7 +178,7 @@ async function replicateToNeon() {
       }
       configSynced++;
     }
-    console.log(`  ✓ Synced ${configSynced}/${localPreorderConfigs.length} PreorderConfigs to Neon DB.`);
+    console.log(`  ✓ Synced ${configSynced}/${localPreorderConfigs.length} PreorderConfigs to ${targetName}.`);
 
     // 4. Replicate NotifyMeSetting
     console.log('\n[4/7] Syncing NotifyMeSetting table...');
@@ -193,7 +195,7 @@ async function replicateToNeon() {
       });
       notifySynced++;
     }
-    console.log(`  ✓ Synced ${notifySynced}/${localNotifySettings.length} NotifyMeSettings to Neon DB.`);
+    console.log(`  ✓ Synced ${notifySynced}/${localNotifySettings.length} NotifyMeSettings to ${targetName}.`);
 
     // 5. Replicate NotifyMeRegistration
     console.log('\n[5/7] Syncing NotifyMeRegistration table...');
@@ -210,7 +212,7 @@ async function replicateToNeon() {
       });
       regSynced++;
     }
-    console.log(`  ✓ Synced ${regSynced}/${localRegistrations.length} NotifyMeRegistrations to Neon DB.`);
+    console.log(`  ✓ Synced ${regSynced}/${localRegistrations.length} NotifyMeRegistrations to ${targetName}.`);
 
     // 6. Replicate PreorderRecord
     console.log('\n[6/7] Syncing PreorderRecord table...');
@@ -251,7 +253,7 @@ async function replicateToNeon() {
       });
       preorderSynced++;
     }
-    console.log(`  ✓ Synced ${preorderSynced}/${localPreorderRecords.length} PreorderRecords to Neon DB.`);
+    console.log(`  ✓ Synced ${preorderSynced}/${localPreorderRecords.length} PreorderRecords to ${targetName}.`);
 
     // 7. Replicate ProductCache
     console.log('\n[7/7] Syncing ProductCache table...');
@@ -296,19 +298,40 @@ async function replicateToNeon() {
       });
       prodSynced++;
     }
-    console.log(`  ✓ Synced ${prodSynced}/${localProducts.length} ProductCaches to Neon DB.`);
+    console.log(`  ✓ Synced ${prodSynced}/${localProducts.length} ProductCaches to ${targetName}.`);
 
-    console.log('\n=====================================================');
-    console.log('🎉 REPLICATION TO NEON COMPLETED SUCCESSFULLY!');
-    console.log('All local tables mirrored to Neon DB.');
-    console.log('=====================================================');
-  } catch (error: any) {
-    console.error('\n❌ Error during replication to Neon DB:', error);
-    process.exit(1);
+    console.log(`✓ Replication to ${targetName} completed successfully!`);
   } finally {
     await neonPrisma.$disconnect();
+  }
+}
+
+async function main() {
+  const arg = (process.argv[2] || process.env.NEON_TARGET || 'all').toLowerCase();
+  const customUrl = process.env.REMOTE_NEON_URL || process.env.NEON_DATABASE_URL;
+
+  try {
+    if (customUrl) {
+      await syncTarget('Custom Neon DB', customUrl);
+    } else if (arg === 'aws') {
+      await syncTarget('AWS Amplify Neon DB', AWS_NEON_URL);
+    } else if (arg === 'vercel') {
+      await syncTarget('Vercel Neon DB', VERCEL_NEON_URL);
+    } else {
+      // Replicate to both AWS Amplify and Vercel
+      await syncTarget('Vercel Neon DB', VERCEL_NEON_URL);
+      await syncTarget('AWS Amplify Neon DB', AWS_NEON_URL);
+    }
+
+    console.log('\n=====================================================');
+    console.log('🎉 ALL REQUESTED NEON DB REPLICATIONS COMPLETED!');
+    console.log('=====================================================');
+  } catch (err: any) {
+    console.error('\n❌ Fatal error during replication:', err);
+    process.exit(1);
+  } finally {
     await (localPrisma as any).$disconnect?.();
   }
 }
 
-replicateToNeon();
+main();

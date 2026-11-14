@@ -221,6 +221,46 @@ export default function PreorderAdminPage() {
   const [timerSecondsLabel, setTimerSecondsLabel] = useState('Secs');
   const [hideStyling, setHideStyling] = useState(false);
 
+  // Track saved snapshot to detect old vs new preorder setting changes
+  const [savedSnapshot, setSavedSnapshot] = useState<string>('');
+
+  const buildSnapshotFromCurrent = () => {
+    return JSON.stringify({
+      enabled: Boolean(enabled),
+      inventoryThreshold: String(inventoryThreshold ?? 0),
+      selectionMode: selectionMode || 'ALL_PRODUCTS',
+      selectedProductIds: [...selectedProductIds].sort(),
+      selectedCollectionIds: [...selectedCollectionIds].sort(),
+      paymentType,
+      allowHalfPayment: Boolean(allowHalfPayment),
+      allowFullPayment: Boolean(allowFullPayment),
+      discountType: discountType || 'none',
+      discountValue: String(discountValue ?? 0),
+      customerMessage: customerMessage || '',
+      shippingMessage: shippingMessage || '',
+      fulfillmentMessage: fulfillmentMessage || '',
+      statusScheduleType: statusScheduleType || 'AVAILABLE_NOW',
+      endDate: endDate || '',
+      showTimer: Boolean(showTimer),
+      timerDateMode: timerDateMode || 'USE_STATUS_DATE',
+      timerCustomDate: timerCustomDate || '',
+      timerHeadingEnd: timerHeadingEnd || '',
+      timerTextColorEnd: timerTextColorEnd || '',
+      timerBgColorEnd: timerBgColorEnd || '',
+      timerBorderRadius: String(timerBorderRadius ?? 8),
+      timerShowDays: timerShowDays !== false,
+      timerShowHours: timerShowHours !== false,
+      timerShowMinutes: timerShowMinutes !== false,
+      timerShowSeconds: timerShowSeconds !== false,
+      timerDaysLabel: timerDaysLabel || '',
+      timerHoursLabel: timerHoursLabel || '',
+      timerMinutesLabel: timerMinutesLabel || '',
+      timerSecondsLabel: timerSecondsLabel || '',
+    });
+  };
+
+  const isDirty = Boolean(savedSnapshot && buildSnapshotFromCurrent() !== savedSnapshot);
+
   // Keep endDate synced with custom date if provided
   useEffect(() => {
     if (!endDate && timerCustomDate) {
@@ -419,6 +459,41 @@ export default function PreorderAdminPage() {
         if (data.config.timerDisplayMode) {
           setTimerDisplayMode(data.config.timerDisplayMode);
         }
+
+        const baseline = JSON.stringify({
+          enabled: Boolean(data.config.enabled),
+          inventoryThreshold: String(data.config.inventoryThreshold ?? 0),
+          selectionMode: data.config.selectionMode || 'ALL_PRODUCTS',
+          selectedProductIds: [...(data.config.selectedProductIds || [])].sort(),
+          selectedCollectionIds: [...(data.config.selectedCollectionIds || [])].sort(),
+          paymentType: isHalf ? 'HALF' : 'FULL',
+          allowHalfPayment: isHalf,
+          allowFullPayment: !isHalf,
+          discountType: data.config.discountType || 'none',
+          discountValue: String(data.config.discountValue ?? 0),
+          customerMessage: data.config.customerMessage || "Pre-order before it's gone.",
+          shippingMessage: data.config.shippingMessage || 'Shipping: As soon as possible',
+          fulfillmentMessage: data.config.fulfillmentMessage || 'We will fulfill the item as soon as it becomes available',
+          statusScheduleType: rawSchedule === 'NOT_AVAILABLE' ? 'NOT_AVAILABLE' : rawSchedule === 'UNTIL_END_DATE' ? 'UNTIL_END_DATE' : 'AVAILABLE_NOW',
+          endDate: eDate || '',
+          showTimer: Boolean(data.config.showTimer),
+          timerDateMode: data.config.timerDateMode || 'USE_STATUS_DATE',
+          timerCustomDate: cDate || eDate || '',
+          timerHeadingEnd: data.config.timerHeadingEnd || 'Hurry up! Pre-order ending soon',
+          timerTextColorEnd: effectiveText,
+          timerBgColorEnd: effectiveBg,
+          timerBorderRadius: data.config.timerBorderRadius !== null && data.config.timerBorderRadius !== undefined ? String(data.config.timerBorderRadius) : '8',
+          timerShowDays: data.config.timerShowDays !== false,
+          timerShowHours: data.config.timerShowHours !== false,
+          timerShowMinutes: data.config.timerShowMinutes !== false,
+          timerShowSeconds: data.config.timerShowSeconds !== false,
+          timerDaysLabel: data.config.timerDaysLabel || 'Days',
+          timerHoursLabel: data.config.timerHoursLabel || 'Hours',
+          timerMinutesLabel: data.config.timerMinutesLabel || 'Mins',
+          timerSecondsLabel: data.config.timerSecondsLabel || 'Secs',
+        });
+        setSavedSnapshot(baseline);
+
         if (data.calculation) {
           setCalculation(data.calculation);
         }
@@ -511,6 +586,7 @@ export default function PreorderAdminPage() {
 
       const data = await res.json();
       if (data.success) {
+        setSavedSnapshot(buildSnapshotFromCurrent());
         if (data.calculation) setCalculation(data.calculation);
         if (data.sample100) setSample100(data.sample100);
         if (typeof window !== 'undefined') {
@@ -608,12 +684,21 @@ export default function PreorderAdminPage() {
 
       {/* Action Bar Under Navbar */}
       {activeTab !== 'orders' && (
-        <div className="flex justify-end pt-1">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 pb-2">
+          <div className="flex items-center gap-2">
+            {isDirty && (
+              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-800 border border-amber-200 text-xs font-bold shadow-2xs">
+                <span className="inline-flex rounded-full h-2 w-2 bg-amber-500 animate-pulse"></span>
+                <span>Unsaved changes: Ready to update</span>
+              </span>
+            )}
+          </div>
           <SaveButton
             onClick={handleSave}
             loading={saving}
-            label="Save Settings"
-            loadingLabel="Saving..."
+            label="Save Changes"
+            loadingLabel="Saving Changes..."
+            disabled={saving || !isDirty}
           />
         </div>
       )}
@@ -810,27 +895,29 @@ export default function PreorderAdminPage() {
                       ? `${selectedProductIds.length} product${selectedProductIds.length === 1 ? '' : 's'} selected`
                       : 'All catalog products targeted'}
                   </span>
-                                    <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={saving}
-                    style={{ backgroundColor: primaryColor, color: buttonTextColor }}
-                    className="px-4 py-2 text-xs font-black rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
-                  >
-                    {saving ? (
-                      <>
-                        <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-3.5 h-3.5" style={{ color: buttonTextColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
-                        </svg>
-                        Save Selection
-                      </>
-                    )}
-                  </button>
+                  {isDirty && (
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      disabled={saving}
+                      style={{ backgroundColor: primaryColor, color: buttonTextColor }}
+                      className="px-4 py-2 text-xs font-black rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
+                    >
+                      {saving ? (
+                        <>
+                          <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-3.5 h-3.5" style={{ color: buttonTextColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                          </svg>
+                          Save Changes
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </SettingsCard>
@@ -1052,27 +1139,29 @@ export default function PreorderAdminPage() {
                       ? 'Half payment (50% deposit) active'
                       : 'Full payment (100%) active'}
                   </span>
-                                    <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={saving}
-                    style={{ backgroundColor: primaryColor, color: buttonTextColor }}
-                    className="px-4 py-2 text-xs font-black rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
-                  >
-                    {saving ? (
-                      <>
-                        <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-3.5 h-3.5" style={{ color: buttonTextColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
-                        </svg>
-                        Save Payment &amp; Discount
-                      </>
-                    )}
-                  </button>
+                  {isDirty && (
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      disabled={saving}
+                      style={{ backgroundColor: primaryColor, color: buttonTextColor }}
+                      className="px-4 py-2 text-xs font-black rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
+                    >
+                      {saving ? (
+                        <>
+                          <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-3.5 h-3.5" style={{ color: buttonTextColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                          </svg>
+                          Save Changes
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </SettingsCard>
@@ -1189,27 +1278,29 @@ export default function PreorderAdminPage() {
                   <span className="text-xs text-gray-500 font-medium">
                     Changes apply automatically to storefront product pages.
                   </span>
-                  <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={saving}
-                    style={{ backgroundColor: primaryColor, color: buttonTextColor }}
-                    className="px-4 py-2 text-xs font-black rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
-                  >
-                    {saving ? (
-                      <>
-                        <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-3.5 h-3.5" style={{ color: buttonTextColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
-                        </svg>
-                        Save Status
-                      </>
-                    )}
-                  </button>
+                  {isDirty && (
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      disabled={saving}
+                      style={{ backgroundColor: primaryColor, color: buttonTextColor }}
+                      className="px-4 py-2 text-xs font-black rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
+                    >
+                      {saving ? (
+                        <>
+                          <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-3.5 h-3.5" style={{ color: buttonTextColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                          </svg>
+                          Save Changes
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </SettingsCard>
@@ -1261,6 +1352,7 @@ export default function PreorderAdminPage() {
               buttonTextColor={buttonTextColor}
               onSave={handleSave}
               saving={saving}
+              isDirty={isDirty}
             />
           </div>
           {previewColumn}
