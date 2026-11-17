@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
         dbConfigRows.forEach((r: any) => storeConfigMap.set(r.id, {
           forecastPeriodDays: r.forecastPeriodDays ?? 7,
           salesHistoryPeriodDays: r.salesHistoryPeriodDays ?? 30,
-          supplierLeadTimeDays: r.supplierLeadTimeDays ?? 7,
+          supplierLeadTimeDays: r.supplierLeadTimeDays ?? 10,
           safetyStockDays: r.safetyStockDays ?? 3
         }));
       } catch (e) {
@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
       const cfg = storeConfigMap.get(storeId) || {
         forecastPeriodDays: (currentStore as any).forecastPeriodDays ?? 7,
         salesHistoryPeriodDays: (currentStore as any).salesHistoryPeriodDays ?? 30,
-        supplierLeadTimeDays: (currentStore as any).supplierLeadTimeDays ?? 7,
+        supplierLeadTimeDays: (currentStore as any).supplierLeadTimeDays ?? 10,
         safetyStockDays: (currentStore as any).safetyStockDays ?? 3
       };
 
@@ -259,7 +259,7 @@ export async function GET(req: NextRequest) {
       const cfg = storeConfigMap.get(storeId) || {
         forecastPeriodDays: (currentStore as any).forecastPeriodDays ?? 7,
         salesHistoryPeriodDays: (currentStore as any).salesHistoryPeriodDays ?? 30,
-        supplierLeadTimeDays: (currentStore as any).supplierLeadTimeDays ?? 7,
+        supplierLeadTimeDays: (currentStore as any).supplierLeadTimeDays ?? 10,
         safetyStockDays: (currentStore as any).safetyStockDays ?? 3
       };
 
@@ -507,7 +507,10 @@ export async function GET(req: NextRequest) {
 
     const allProcessedProducts = Array.from(aggregatedMap.values()).map((p) => ({
       ...p,
-      avgDailySalesFormatted: p.avgDailySales.toFixed(1),
+      isPreorderEligible: Boolean(p.isPreorderEligible && p.currentStock <= 0),
+      avgDailySalesFormatted: p.avgDailySales > 0 && p.avgDailySales < 0.1 
+        ? p.avgDailySales.toFixed(2) 
+        : p.avgDailySales.toFixed(1),
       stockoutDaysFormatted: formatStockoutDays(p.expectedStockoutDays),
       stockoutDate: getStockoutDate(p.expectedStockoutDays),
       daysSinceCreated: p.daysSinceCreated ?? 0,
@@ -534,7 +537,6 @@ export async function GET(req: NextRequest) {
     allProcessedProducts.forEach((p) => {
       if (p.risk === 'OUT_OF_STOCK') {
         outOfStockCount++;
-        highRiskCount++;
       } else if (p.risk === 'HIGH') {
         highRiskCount++;
       } else if (p.risk === 'LOW') {
@@ -621,7 +623,9 @@ export async function GET(req: NextRequest) {
         outOfStock: outOfStockCount,
         replenishmentNeeded: replenishmentNeededCount,
         productsMonitored: totalMonitoredProducts,
-        highRiskThresholdDays: targetStoreIds.length === 1 ? (storeConfigMap.get(targetStoreIds[0])?.supplierLeadTimeDays || 10) : 10
+        highRiskThresholdDays: selectedStore && selectedStore !== 'all'
+          ? (storeConfigMap.get(selectedStore)?.supplierLeadTimeDays || 10)
+          : (storeConfigMap.get(currentStore.id)?.supplierLeadTimeDays || storeConfigMap.get(targetStoreIds[0])?.supplierLeadTimeDays || 10)
       },
       filters: {
         stores: storeFilterOptions,

@@ -12,7 +12,7 @@ interface PlanningStatCardProps {
 export function PlanningStatCard({ label, value, subtext, isAlert = false }: PlanningStatCardProps) {
   const getTheme = () => {
     const l = label.toLowerCase();
-    if (isAlert || l.includes('high') || l.includes('risk') || l.includes('stockout')) {
+    if (isAlert || l.includes('high') || l.includes('risk') || l.includes('stockout') || l.includes('out of stock')) {
       // 1. High Risk (Red / Rose)
       return {
         border: 'border-red-100/90 hover:border-red-300',

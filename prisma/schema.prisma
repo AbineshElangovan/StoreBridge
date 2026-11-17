@@ -808,7 +808,7 @@ model EmailActivity {
 }
 
 // -----------------------------------------------------------------------------
-// CUSTOMER EXPERIENCE: WISHLIST (USER / SINGLE STORE)
+//WISHLIST (USER / SINGLE STORE)
 // -----------------------------------------------------------------------------
 
 model WishlistItem {

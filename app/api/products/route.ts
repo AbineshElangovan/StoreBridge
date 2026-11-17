@@ -222,6 +222,7 @@ export async function GET(req: NextRequest) {
       const item = {
         id: p.id,
         shopifyProductId: p.shopifyProductId,
+        shopifyVariantId: p.shopifyVariantId,
         imageUrls: resolveProductImage(p),
         title: displayTitle,
         sku: (p.sku && p.sku !== 'N/A') ? p.sku : (p.id ? `STB-SKU-${p.id.replace(/[^0-9]/g, '').slice(-4).padStart(4, '0')}` : 'STB-SKU-0001'),

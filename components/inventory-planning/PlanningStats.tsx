@@ -16,8 +16,15 @@ interface PlanningStatsProps {
 
 export function PlanningStats({ stats }: PlanningStatsProps) {
   const thresholdDays = stats.highRiskThresholdDays || 10;
+  const outOfStock = stats.outOfStock || 0;
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-6 lg:gap-6 mb-8">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-5 mb-8">
+      <PlanningStatCard
+        label="Out of Stock"
+        value={outOfStock}
+        subtext="Immediate restock needed"
+        isAlert={outOfStock > 0}
+      />
       <PlanningStatCard
         label="High Risk"
         value={stats.highRisk}

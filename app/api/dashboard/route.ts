@@ -272,12 +272,18 @@ export async function GET(req: NextRequest) {
           .sort((a: any, b: any) => a.inventoryQuantity - b.inventoryQuantity)
       : [];
 
-    const preorderMetrics = await PreorderService.getPreorderMetrics(store.id);
+    const daysParam = req.nextUrl.searchParams.get('days');
+    const daysNum = (daysParam && daysParam !== 'all' && !isNaN(parseInt(daysParam, 10)))
+      ? parseInt(daysParam, 10)
+      : null;
+
+    const preorderMetrics = await PreorderService.getPreorderMetrics(store.id, daysNum);
 
     return NextResponse.json({
       success: true,
       currentStoreId: store.id,
       isStandalone,
+      selectedDays: daysParam || 'all',
       stores: storesWithProducts,
       stats,
       syncStats,

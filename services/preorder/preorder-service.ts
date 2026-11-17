@@ -1176,7 +1176,7 @@ export class PreorderService {
    * 2. Pending Pre-orders: All pre-orders awaiting stock or fulfillment (not fulfilled, cancelled, or refunded).
    * 3. Pre-order Revenue: Total amount collected from pre-orders according to payment status rules.
    */
-  static async getPreorderMetrics(storeId?: string | string[]): Promise<PreorderMetrics> {
+  static async getPreorderMetrics(storeId?: string | string[], days?: number | null): Promise<PreorderMetrics> {
     const emptyResult: PreorderMetrics = {
       totalPreorders: 0,
       pendingPreorders: 0,
@@ -1199,6 +1199,11 @@ export class PreorderService {
         }
       }
 
+      if (days && days > 0) {
+        const sinceDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+        whereClause.createdAt = { gte: sinceDate };
+      }
+
       let records = await prisma.preorderRecord.findMany({
         where: whereClause,
         select: {
@@ -1215,7 +1220,13 @@ export class PreorderService {
       // If requested store filter returned 0 records, but records exist globally in the database,
       // fallback to fetching all preorder records so dashboard never shows blank 0 when active pre-orders exist
       if (records.length === 0 && storeId && storeId !== 'ALL') {
+        const fallbackWhere: any = {};
+        if (days && days > 0) {
+          const sinceDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+          fallbackWhere.createdAt = { gte: sinceDate };
+        }
         const globalRecords = await prisma.preorderRecord.findMany({
+          where: fallbackWhere,
           select: {
             status: true,
             paymentStatus: true,

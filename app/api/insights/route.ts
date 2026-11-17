@@ -414,6 +414,7 @@ export async function GET(req: NextRequest) {
 
     const allProducts = Array.from(enrichedProductsMap.values()).map(p => ({
       ...p,
+      isPreorderEligible: Boolean(p.isPreorderEligible && p.currentStock <= 0),
       storeLabel: isAllStores && p.storeLabels.size > 1 
         ? 'Multi-Store'
         : Array.from(p.storeLabels)[0] || 'Store'

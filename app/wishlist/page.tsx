@@ -11,6 +11,7 @@ import { Loading } from '@/components/common/Loading';
 import { PolarisSelect } from '@/components/common/PolarisSelect';
 import { RefreshButton } from '@/components/common/RefreshButton';
 import { ConfirmToast } from '@/components/ui/ConfirmToast';
+import { WishlistHeartButton } from '@/components/wishlist/WishlistHeartButton';
 import { useToast } from '@/components/providers/ToastContext';
 import { useTheme } from '@/components/providers/ThemeContext';
 import { shopifyFetch } from '@/lib/shopify/Client';
@@ -91,7 +92,9 @@ export default function WishlistPage() {
     fetchWishlist();
 
     const handleGlobalUpdate = () => {
-      fetchWishlist(true);
+      setTimeout(() => {
+        fetchWishlist(true);
+      }, 700);
     };
 
     window.addEventListener('wishlist-updated', handleGlobalUpdate);
@@ -189,12 +192,13 @@ export default function WishlistPage() {
 
   // Table columns configuration
   const tableColumns: ColumnConfig[] = [
-    { title: 'Product', key: 'productInfo', type: 'react_node', width: '32%', align: 'left' },
-    { title: 'SKU', key: 'sku', type: 'react_node', width: '16%', align: 'left' },
-    { title: 'Price (INR)', key: 'priceFormatted', type: 'react_node', width: '14%', align: 'left' },
-    { title: 'Stock Status', key: 'stockBadge', type: 'react_node', width: '16%', align: 'center' },
-    { title: 'Saved On', key: 'savedDate', type: 'react_node', width: '12%', align: 'center' },
-    { title: 'Action', key: 'actions', type: 'react_node', width: '10%', align: 'center' },
+    { title: 'Product', key: 'productInfo', type: 'react_node', width: '28%', align: 'left' },
+    { title: 'SKU', key: 'sku', type: 'react_node', width: '15%', align: 'left' },
+    { title: 'Price', key: 'priceFormatted', type: 'react_node', width: '13%', align: 'left' },
+    { title: 'Stock Status', key: 'stockBadge', type: 'react_node', width: '14%', align: 'center' },
+    { title: 'Wishlist', key: 'wishlist_node', type: 'react_node', width: '12%', align: 'center' },
+    { title: 'Saved On', key: 'savedDate', type: 'react_node', width: '10%', align: 'center' },
+    { title: 'Action', key: 'actions', type: 'react_node', width: '8%', align: 'center' },
   ];
 
   // Table row formatting
@@ -264,6 +268,21 @@ export default function WishlistPage() {
           <span className="text-[10px] text-gray-500 font-medium">
             {item.inventoryQuantity} {item.inventoryQuantity === 1 ? 'unit' : 'units'}
           </span>
+        </div>
+      ),
+      wishlist_node: (
+        <div className="flex items-center justify-center">
+          <WishlistHeartButton
+            productId={item.shopifyProductId}
+            variantId={item.shopifyVariantId}
+            productTitle={item.productTitle}
+            variantTitle={item.variantTitle}
+            sku={item.sku}
+            price={Number(item.price) || 0}
+            imageUrl={item.imageUrl}
+            inventoryQuantity={Number(item.inventoryQuantity) || 0}
+            initialWishlisted={true}
+          />
         </div>
       ),
       statusBadge: (
@@ -561,17 +580,20 @@ export default function WishlistPage() {
                         </span>
                       </div>
 
-                      {/* Quick Remove Button */}
-                      <button
-                        type="button"
-                        onClick={() => setItemToDelete(item)}
-                        className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm border border-gray-200 hover:bg-rose-50 hover:border-rose-200 text-gray-500 hover:text-rose-600 flex items-center justify-center shadow-2xs transition-all cursor-pointer active:scale-95 z-10"
-                        title="Remove from wishlist"
-                      >
-                        <svg className="w-4 h-4 fill-rose-500 text-rose-500" viewBox="0 0 24 24">
-                          <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
-                        </svg>
-                      </button>
+                      {/* Reusable Floating Wishlist Heart Button */}
+                      <div className="absolute top-2.5 right-2.5 z-10">
+                        <WishlistHeartButton
+                          productId={item.shopifyProductId}
+                          variantId={item.shopifyVariantId}
+                          productTitle={item.productTitle}
+                          variantTitle={item.variantTitle}
+                          sku={item.sku}
+                          price={Number(item.price) || 0}
+                          imageUrl={item.imageUrl}
+                          inventoryQuantity={Number(item.inventoryQuantity) || 0}
+                          initialWishlisted={true}
+                        />
+                      </div>
                     </div>
 
                     {/* Product Details */}

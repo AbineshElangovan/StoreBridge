@@ -64,18 +64,15 @@
       allowFullPayment: true,
       defaultPaymentOption: 'HALF',
       statusScheduleType: 'AVAILABLE_NOW',
-      startDate: null,
       endDate: null,
-      isScheduled: false,
       isExpired: false,
       isLive: true,
       timer: {
         show: false,
         targetDate: null,
-        displayMode: 'BEFORE_PREORDER',
-        heading: 'Preorder starts in',
+        heading: 'Hurry up! Pre-order ending soon',
         textColor: '#000000',
-        bgColor: '#f5f5f5',
+        bgColor: '#fee2e2',
         borderRadius: 8,
         showDays: true,
         showHours: true,
@@ -447,9 +444,6 @@
     const isTargeted = Boolean(config.preorder && config.preorder.isTargeted === true);
 
     if (config.preorder && config.preorder.enabled && isTargeted && inventory <= threshold) {
-      if (config.preorder.isScheduled) {
-        return 'SCHEDULED_PREORDER';
-      }
       if (config.preorder.isExpired) {
         return config.notifyMe && config.notifyMe.enabled ? 'NOTIFY_ME' : 'SOLD_OUT';
       }
@@ -889,23 +883,17 @@
     });
   }
 
-  function buildTimerWidgetHtml(isLiveOrEnd) {
+  function buildTimerWidgetHtml() {
     const timer = (config && config.preorder && config.preorder.timer) || {};
     if (!timer.show) return '';
 
-    const heading = isLiveOrEnd
-      ? (timer.headingEnd || timer.heading || 'Hurry up! Pre-order ending soon')
-      : (timer.headingStart || timer.heading || 'Preorder starts in');
-
-    const bgColor = timer.bgColor || '#f5f5f5';
-    const textColor = timer.textColor || '#000000';
+    const heading = timer.headingEnd || timer.heading || 'Hurry up! Pre-order ending soon';
+    const bgColor = timer.bgColorEnd || timer.bgColor || '#fee2e2';
+    const textColor = timer.textColorEnd || timer.textColor || '#000000';
     const radius = Number(timer.borderRadius) || 8;
 
-    const targetDateStr = timer.targetDate;
-    const endDateStr = config.preorder && config.preorder.endDate;
-
+    const targetDateStr = timer.targetDate || (config.preorder && config.preorder.endDate);
     const formattedTarget = targetDateStr ? formatHumanDateTime(targetDateStr) : '';
-    const formattedEnd = endDateStr ? formatHumanDateTime(endDateStr) : '';
 
     return `
       <div class="storebridge-timer-wrapper" style="margin: 10px 0 14px 0; background: rgba(249, 250, 251, 0.9); border: 1px solid #f3f4f6; border-radius: 12px; padding: 12px 10px; text-align: center;">
@@ -937,8 +925,7 @@
           ` : ''}
         </div>
         <div style="font-size: 11px; font-weight: 600; color: #6b7280; margin-top: 6px; display: flex; flex-direction: column; gap: 2px;">
-          ${formattedTarget ? `<div>${isLiveOrEnd ? 'Preorder ends: ' : 'Preorder starts: '}${escapeHtml(formattedTarget)}</div>` : ''}
-          ${(!isLiveOrEnd && formattedEnd) ? `<div style="font-size: 10px; color: #9ca3af;">Preorder closes: ${escapeHtml(formattedEnd)}</div>` : ''}
+          ${formattedTarget ? `<div>Preorder ends: ${escapeHtml(formattedTarget)}</div>` : ''}
         </div>
       </div>
     `;
@@ -1057,7 +1044,7 @@
     const dueNow = currentPlan === 'HALF' ? halfInitial : fullInitial;
     const dueLater = currentPlan === 'HALF' ? halfRemaining : fullRemaining;
 
-    const timerHtml = buildTimerWidgetHtml(true);
+    const timerHtml = buildTimerWidgetHtml();
 
     container.innerHTML = `
       ${timerHtml}
@@ -1266,32 +1253,6 @@
           config.preorder.fulfillmentMessage
         )}
       </p>
-
-      ${
-        config.notifyMe.enabled
-          ? `
-            <button
-              type="button"
-              class="storebridge-notify-btn"
-              data-storebridge-action="notify"
-            >
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg>
-
-              <span>Notify me</span>
-            </button>
-          `
-          : ''
-      }
     `;
 
     insertUIAfterButton(
@@ -1367,78 +1328,7 @@
     }
   }
 
-  // ============================================================
-  // RENDER SCHEDULED PREORDER (COUNTDOWN & NOTIFY ME)
-  // ============================================================
 
-  function renderScheduledPreorderUI(
-    form,
-    nativeButton,
-    variant
-  ) {
-    hideNativeButton(nativeButton);
-    hidePaymentButton();
-    hideQuantitySelector(form);
-    removeAvailabilityUI();
-
-    const container = document.createElement('div');
-    container.setAttribute('data-storebridge', 'ui-container');
-    container.className = 'storebridge-wrapper storebridge-scheduled-wrapper';
-
-    const timer = (config && config.preorder && config.preorder.timer) || {};
-    const timerHtml = buildTimerWidgetHtml(false);
-
-    container.innerHTML = `
-      <div style="display: flex; flex-direction: column; gap: 12px; width: 100%;">
-        <button
-          type="button"
-          disabled
-          class="storebridge-sold-out-btn"
-          style="width: 100%; padding: 14px 16px; border-radius: 12px; background-color: #7e22ce; color: #ffffff; font-weight: 700; font-size: 14px; border: none; cursor: not-allowed; opacity: 0.95; box-shadow: 0 1px 3px rgba(0,0,0,0.1);"
-        >
-          Sold Out
-        </button>
-
-        ${timerHtml}
-
-        <button
-          type="button"
-          class="storebridge-notify-scheduled-btn"
-          style="width: 100%; padding: 12px 16px; border-radius: 12px; background-color: #e5a83b; color: #111827; font-weight: 700; font-size: 14px; border: 1px solid rgba(0,0,0,0.1); cursor: pointer; transition: background-color 0.2s;"
-        >
-          Notify me
-        </button>
-
-        <div style="background: rgba(250, 245, 255, 0.9); border: 1px solid #e9d5ff; border-radius: 12px; padding: 12px 14px; font-size: 12px; display: flex; flex-direction: column; gap: 4px;">
-          <div style="display: flex; align-items: center; gap: 6px; font-weight: 700; color: #581c87;">
-            <span style="width: 8px; height: 8px; border-radius: 50%; background: #9333ea; display: inline-block;"></span>
-            <span>Pre-order Opening Soon</span>
-          </div>
-          <p style="font-size: 11px; color: #6b21a8; font-weight: 500; margin: 0; line-height: 1.4;">
-            Customers see a live countdown timer and can register via "Notify me" until pre-orders launch.
-          </p>
-        </div>
-      </div>
-    `;
-
-    const notifyBtn = container.querySelector('.storebridge-notify-scheduled-btn');
-    if (notifyBtn) {
-      notifyBtn.addEventListener('click', (event) => {
-        event.preventDefault();
-        const currentForm = getProductForm();
-        const currentVariantId = getSelectedVariantId(currentForm);
-        const currentVariant = getSelectedVariant(currentVariantId) || variant;
-        openNotifyMeModal(currentVariant);
-      });
-    }
-
-    insertUIAfterButton(nativeButton, container);
-
-    const timerTargetDate = timer.targetDate || (config && config.preorder && config.preorder.startDate);
-    if (timer.show && timerTargetDate) {
-      attachCountdownTicker(container, timerTargetDate);
-    }
-  }
 
   // ============================================================
   // RENDER NOTIFY ME
@@ -1697,14 +1587,6 @@
     if (state === 'AVAILABLE') {
       restoreNormalPurchaseUI(
         nativeButton
-      );
-    }
-
-    if (state === 'SCHEDULED_PREORDER') {
-      renderScheduledPreorderUI(
-        form,
-        nativeButton,
-        variant
       );
     }
 

@@ -211,6 +211,7 @@ export default function ProductsPage() {
       wishlist_node: isStandalone ? (
         <WishlistHeartButton
           productId={item.shopifyProductId || item.id}
+          variantId={item.shopifyVariantId}
           productTitle={item.title}
           sku={resolvedSku}
           price={parseFloat(String(item.price).replace(/[^0-9.]/g, '')) || 0}
@@ -279,6 +280,7 @@ export default function ProductsPage() {
               <div className="absolute top-2.5 right-2.5 z-10">
                 <WishlistHeartButton
                   productId={item.shopifyProductId || item.id}
+                  variantId={item.shopifyVariantId}
                   productTitle={item.title}
                   sku={resolvedSku}
                   price={numericPrice}

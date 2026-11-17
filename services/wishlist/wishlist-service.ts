@@ -13,9 +13,14 @@ export interface AddWishlistItemInput {
   note?: string | null;
 }
 
+function normalize(s?: string | null): string {
+  return (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 export class WishlistService {
   /**
-   * Retrieves all wishlist items for a given store.
+   * Retrieves all wishlist items for a given store, dynamically reconciling
+   * with real-time product cache to guarantee accurate catalog prices, stock, and imagery.
    */
   static async getWishlistItems(storeId: string) {
     if (!storeId) throw new Error('storeId is required');
@@ -25,7 +30,98 @@ export class WishlistService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return items;
+    if (items.length === 0) return [];
+
+    const cleanProductIds = items.map((i) => i.shopifyProductId.replace(/^gid:\/\/shopify\/Product\//i, ''));
+
+    // Fetch product caches for real-time catalog prices, stock, and images
+    const productCaches = await prisma.productCache.findMany({
+      where: {
+        OR: [
+          { storeId },
+          {
+            shopifyProductId: {
+              in: [
+                ...cleanProductIds,
+                ...cleanProductIds.map((id) => `gid://shopify/Product/${id}`),
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    const updatedItems = [];
+    const dbUpdates: Promise<any>[] = [];
+
+    for (const item of items) {
+      const cleanPId = item.shopifyProductId.replace(/^gid:\/\/shopify\/Product\//i, '');
+      const cleanVId = item.shopifyVariantId ? item.shopifyVariantId.replace(/^gid:\/\/shopify\/ProductVariant\//i, '') : null;
+      const itemSkuNorm = normalize(item.sku);
+      const itemTitleNorm = normalize(item.productTitle);
+
+      // Prioritized matching:
+      // 1. Exact variant ID
+      // 2. Exact SKU
+      // 3. Exact normalized Title within same product ID
+      // 4. Exact normalized Title anywhere in store
+      // 5. Product ID within store fallback
+      // 6. Global Product ID fallback
+      const matchedCache = productCaches.find((pc) => {
+        const pcVId = pc.shopifyVariantId.replace(/^gid:\/\/shopify\/ProductVariant\//i, '');
+        return cleanVId && pcVId === cleanVId;
+      }) || productCaches.find((pc) => {
+        return itemSkuNorm && normalize(pc.sku) === itemSkuNorm;
+      }) || productCaches.find((pc) => {
+        const pcPId = pc.shopifyProductId.replace(/^gid:\/\/shopify\/Product\//i, '');
+        return pcPId === cleanPId && normalize(pc.title) === itemTitleNorm;
+      }) || productCaches.find((pc) => {
+        return normalize(pc.title) === itemTitleNorm;
+      }) || productCaches.find((pc) => {
+        const pcPId = pc.shopifyProductId.replace(/^gid:\/\/shopify\/Product\//i, '');
+        return pcPId === cleanPId && pc.storeId === storeId;
+      }) || productCaches.find((pc) => {
+        const pcPId = pc.shopifyProductId.replace(/^gid:\/\/shopify\/Product\//i, '');
+        return pcPId === cleanPId;
+      });
+
+      if (matchedCache) {
+        const livePrice = Number(matchedCache.price) || item.price;
+        const liveStock = matchedCache.inventoryQuantity !== undefined ? Number(matchedCache.inventoryQuantity) : item.inventoryQuantity;
+        const liveImage = matchedCache.imageUrl || item.imageUrl;
+        const liveSku = matchedCache.sku || item.sku;
+
+        if (item.price !== livePrice || item.inventoryQuantity !== liveStock || (!item.sku && liveSku)) {
+          dbUpdates.push(
+            prisma.wishlistItem.update({
+              where: { id: item.id },
+              data: {
+                price: livePrice,
+                inventoryQuantity: liveStock,
+                imageUrl: liveImage,
+                sku: liveSku,
+              },
+            }).catch(() => {})
+          );
+        }
+
+        updatedItems.push({
+          ...item,
+          price: livePrice,
+          inventoryQuantity: liveStock,
+          imageUrl: liveImage,
+          sku: liveSku,
+        });
+      } else {
+        updatedItems.push(item);
+      }
+    }
+
+    if (dbUpdates.length > 0) {
+      Promise.all(dbUpdates).catch(() => {});
+    }
+
+    return updatedItems;
   }
 
   /**

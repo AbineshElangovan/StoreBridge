@@ -17,6 +17,9 @@ export interface WishlistHeartButtonProps {
   inventoryQuantity?: number;
   size?: 'small' | 'medium' | 'large';
   showLabel?: boolean;
+  initialWishlisted?: boolean;
+  onToggle?: (isWishlisted: boolean) => void;
+  className?: string;
 }
 
 export function WishlistHeartButton({
@@ -30,20 +33,31 @@ export function WishlistHeartButton({
   inventoryQuantity = 0,
   size = 'small',
   showLabel = false,
+  initialWishlisted,
+  onToggle,
+  className = '',
 }: WishlistHeartButtonProps) {
   const { isStandalone } = useStoreContext();
   const { showSuccess, showError } = useToast();
 
-  const [isWishlisted, setIsWishlisted] = useState<boolean>(false);
+  const [isWishlisted, setIsWishlisted] = useState<boolean>(initialWishlisted ?? false);
   const [loading, setLoading] = useState<boolean>(false);
   const [isAnimating, setIsAnimating] = useState<boolean>(false);
   const animTimeoutRef = useRef<any>(null);
 
   const cleanProductId = String(productId).replace(/^gid:\/\/shopify\/Product\//i, '');
+  const cleanVariantId = variantId ? String(variantId).replace(/^gid:\/\/shopify\/ProductVariant\//i, '') : null;
 
-  // Fetch initial wishlist status
+  // Keep internal state synced if initialWishlisted prop changes
+  useEffect(() => {
+    if (initialWishlisted !== undefined) {
+      setIsWishlisted(initialWishlisted);
+    }
+  }, [initialWishlisted]);
+
+  // Fetch initial wishlist status if initialWishlisted wasn't provided
   const checkStatus = useCallback(async () => {
-    if (!cleanProductId || !isStandalone) return;
+    if (!cleanProductId || !isStandalone || initialWishlisted !== undefined) return;
 
     try {
       const res = await shopifyFetch(`/api/wishlist/check?productId=${encodeURIComponent(cleanProductId)}`);
@@ -54,7 +68,7 @@ export function WishlistHeartButton({
         }
       }
     } catch (_) {}
-  }, [cleanProductId, isStandalone]);
+  }, [cleanProductId, isStandalone, initialWishlisted]);
 
   useEffect(() => {
     checkStatus();
@@ -102,7 +116,7 @@ export function WishlistHeartButton({
         body: JSON.stringify({
           action: 'toggle',
           shopifyProductId: cleanProductId,
-          shopifyVariantId: variantId || null,
+          shopifyVariantId: cleanVariantId || null,
           productTitle,
           variantTitle: variantTitle || null,
           sku: sku || null,
@@ -116,6 +130,7 @@ export function WishlistHeartButton({
         const json = await res.json();
         const finalWishlisted = json.wishlisted ?? nextState;
         setIsWishlisted(finalWishlisted);
+        onToggle?.(finalWishlisted);
 
         window.dispatchEvent(
           new CustomEvent('wishlist-updated', {
@@ -131,10 +146,12 @@ export function WishlistHeartButton({
       } else {
         const errJson = await res.json().catch(() => ({}));
         setIsWishlisted(previousState);
+        onToggle?.(previousState);
         showError(errJson.error || 'Could not update wishlist. Please try again.');
       }
     } catch (err: any) {
       setIsWishlisted(previousState);
+      onToggle?.(previousState);
       showError(err.message || 'Error updating wishlist');
     } finally {
       setLoading(false);
@@ -212,7 +229,7 @@ export function WishlistHeartButton({
               transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
               overflow: 'visible',
             }}
-            className="group hover:border-rose-300 hover:shadow-md hover:shadow-rose-500/10 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-200 ease-out"
+            className={`group hover:border-rose-300 hover:shadow-md hover:shadow-rose-500/10 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-200 ease-out ${className}`}
           >
             {/* Animative Ripple Ring when tapped */}
             {isAnimating && isWishlisted && (

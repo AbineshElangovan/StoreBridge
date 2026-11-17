@@ -212,8 +212,8 @@ export function PlanningStoreConfig({
       title={isStandalone ? "Inventory Planning Config" : "Planning Store Config"}
       description={
         isStandalone
-          ? "Configure low stock alerts, demand forecast periods, past sales analysis windows, and buffer stock."
-          : "Configure low stock alerts, demand forecast periods, past sales analysis windows, and buffer stock per store."
+          ? "Configure stock risk alerts, demand forecast periods, past sales analysis windows, and buffer stock."
+          : "Configure stock risk alerts, demand forecast periods, past sales analysis windows, and buffer stock per store."
       }
     >
       <div className="flex flex-col gap-5 mt-2">
@@ -286,10 +286,10 @@ export function PlanningStoreConfig({
 
                 {/* Planning & Risk Parameters Grid */}
                 <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 ${!isStandalone ? 'pt-4' : ''}`}>
-                  {/* Low Stock Alert */}
+                  {/* Stock Risk (Days) */}
                   <NumberSettingInput
                     id={`high-risk-${store.id}`}
-                    label="Low Stock Alert (Days)"
+                    label="Stock Risk (Days)"
                     value={storeValues.highRiskDays}
                     onChange={(val) => handleChange(store.id, 'highRiskDays', val)}
                     error={storeErrors.highRiskDays}

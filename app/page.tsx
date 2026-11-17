@@ -14,14 +14,30 @@ import { LocalizedDate } from '@/components/common/LocalizedDate';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 import { getProductUrl } from '@/lib/utils/productUrl';
 import { PreorderBadge } from '@/components/preorder/PreorderBadge';
+import { DaysRange } from '@/components/common/DaysFilter';
+import { WishlistHeartButton } from '@/components/wishlist/WishlistHeartButton';
 
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [wishlistItems, setWishlistItems] = useState<any[]>([]);
   const { isStandalone, loading: contextLoading } = useStoreContext();
+  const [selectedDays, setSelectedDays] = useState<DaysRange>('30');
   const router = useRouter();
   const hasLoadedRef = React.useRef(false);
+
+  const handleDaysChange = async (days: DaysRange) => {
+    setSelectedDays(days);
+    try {
+      const res = await shopifyFetch(`/api/dashboard?days=${days}`);
+      if (res.ok) {
+        const json = await res.json();
+        setData(json);
+      }
+    } catch (err) {
+      console.error('Error fetching dashboard for timeframe:', err);
+    }
+  };
 
   const loadWishlist = React.useCallback(async () => {
     if (!isStandalone) return;
@@ -38,7 +54,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     loadWishlist();
-    const handleWishlistUpdate = () => loadWishlist();
+    const handleWishlistUpdate = () => {
+      setTimeout(() => {
+        loadWishlist();
+      }, 700);
+    };
     window.addEventListener('wishlist-updated', handleWishlistUpdate);
     return () => window.removeEventListener('wishlist-updated', handleWishlistUpdate);
   }, [loadWishlist]);
@@ -262,7 +282,7 @@ export default function DashboardPage() {
     { title: 'SKU', key: 'sku' },
     { title: 'Price', key: 'priceText', type: 'bold' },
     { title: 'Stock Status', key: 'stockStatus_node', type: 'react_node' },
-    { title: 'Action', key: 'action_node', type: 'react_node' },
+    { title: 'Wishlist', key: 'wishlist_node', type: 'react_node' },
     { title: 'Updated Date', key: 'updatedDate' },
     { title: 'Updated Time', key: 'updatedTime' },
   ];
@@ -303,21 +323,20 @@ export default function DashboardPage() {
           {isAvail ? `${item.inventoryQuantity} in stock` : 'Out of stock'}
         </span>
       ),
-      action_node: (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleUncheckWishlist(item.id, item.shopifyProductId);
-          }}
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 hover:border-rose-300 transition-all cursor-pointer shadow-2xs group active:scale-95"
-          title="Click to uncheck / remove from wishlist"
-        >
-          <svg className="w-3.5 h-3.5 fill-rose-500 text-rose-500 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
-            <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
-          </svg>
-          <span>Wishlisted</span>
-        </button>
+      wishlist_node: (
+        <div className="flex items-center">
+          <WishlistHeartButton
+            productId={item.shopifyProductId}
+            variantId={item.shopifyVariantId}
+            productTitle={item.productTitle}
+            variantTitle={item.variantTitle}
+            sku={item.sku}
+            price={Number(item.price) || 0}
+            imageUrl={item.imageUrl}
+            inventoryQuantity={Number(item.inventoryQuantity) || 0}
+            initialWishlisted={true}
+          />
+        </div>
       ),
       updatedDate: <LocalizedDate date={item.createdAt || item.updatedAt} format="date" />,
       updatedTime: <LocalizedDate date={item.createdAt || item.updatedAt} format="time" />,
@@ -342,6 +361,8 @@ export default function DashboardPage() {
         <DashboardCharts
           isStandalone={isStandalone}
           preorderMetrics={data?.preorderMetrics}
+          selectedDays={selectedDays}
+          onDaysChange={handleDaysChange}
           chartData={{
             combinedData: (data?.stores && data.stores.length > 0)
               ? data.stores.map((s: any) => ({
