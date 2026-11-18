@@ -19,8 +19,19 @@ export default function InsightsPage() {
   const [selectedStore, setSelectedStore] = useState<string>('all');
   const [selectedRange, setSelectedRange] = useState<string>('30');
   const [selectedCollection, setSelectedCollection] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [debouncedSearch, setDebouncedSearch] = useState<string>('');
   const [activeTab, setActiveTab] = useState<InsightTabType>('best-sellers');
   const [page, setPage] = useState<number>(1);
+
+  // Debounce search query changes to prevent excessive API requests
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPage(1);
+    }, 350);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [initialLoading, setInitialLoading] = useState<boolean>(true);
@@ -76,6 +87,7 @@ export default function InsightsPage() {
       query.set('store', selectedStore);
       query.set('range', selectedRange);
       query.set('collection', selectedCollection);
+      if (debouncedSearch) query.set('search', debouncedSearch);
       query.set('tab', activeTab);
       query.set('page', String(page));
       query.set('limit', '10');
@@ -123,7 +135,7 @@ export default function InsightsPage() {
       setLoading(false);
       setInitialLoading(false);
     }
-  }, [shop, selectedStore, selectedRange, selectedCollection, activeTab, page]);
+  }, [shop, selectedStore, selectedRange, selectedCollection, debouncedSearch, activeTab, page]);
 
   useEffect(() => {
     fetchInsights();
@@ -145,6 +157,10 @@ export default function InsightsPage() {
     setPage(1);
   };
 
+  const handleSearchChange = (val: string) => {
+    setSearchQuery(val);
+  };
+
   const handleTabChange = (tab: InsightTabType) => {
     setActiveTab(tab);
     setPage(1);
@@ -163,18 +179,6 @@ export default function InsightsPage() {
         className="mb-6"
       />
 
-      {/* Reusable Filters */}
-      <InsightFilters
-        stores={filters.stores}
-        collections={filters.collections}
-        selectedStore={selectedStore}
-        selectedRange={selectedRange}
-        selectedCollection={selectedCollection}
-        onStoreChange={handleStoreChange}
-        onRangeChange={handleRangeChange}
-        onCollectionChange={handleCollectionChange}
-      />
-
       {/* Reusable Stats Cards */}
       <InsightStats
         stats={stats}
@@ -186,6 +190,20 @@ export default function InsightsPage() {
       <InsightTabs
         activeTab={activeTab}
         onTabChange={handleTabChange}
+      />
+
+      {/* Reusable Filters directly under Nav Bar */}
+      <InsightFilters
+        stores={filters.stores}
+        collections={filters.collections}
+        selectedStore={selectedStore}
+        selectedRange={selectedRange}
+        selectedCollection={selectedCollection}
+        searchQuery={searchQuery}
+        onStoreChange={handleStoreChange}
+        onRangeChange={handleRangeChange}
+        onCollectionChange={handleCollectionChange}
+        onSearchChange={handleSearchChange}
       />
 
       {/* Reusable Insights Table */}

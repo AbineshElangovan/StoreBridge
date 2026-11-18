@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
     const tab = searchParams.get('tab') || 'best-sellers';
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
     const limit = Math.max(1, parseInt(searchParams.get('limit') || '10', 10));
+    const searchQuery = (searchParams.get('search') || searchParams.get('product') || searchParams.get('q') || '').trim();
 
     const dateThreshold = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000);
 
@@ -494,6 +495,22 @@ export async function GET(req: NextRequest) {
       });
 
       tabData = Array.from(storeStatsMap.values()).sort((a, b) => b.revenue - a.revenue);
+    }
+
+    // Apply search filter if provided (matches product title or SKU, or store name/domain)
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      if (tab === 'store-comparison') {
+        tabData = tabData.filter(s =>
+          (s.storeName && s.storeName.toLowerCase().includes(q)) ||
+          (s.domain && s.domain.toLowerCase().includes(q))
+        );
+      } else {
+        tabData = tabData.filter(p =>
+          (p.title && p.title.toLowerCase().includes(q)) ||
+          (p.sku && p.sku.toLowerCase().includes(q))
+        );
+      }
     }
 
     // 7. Server-side Pagination
