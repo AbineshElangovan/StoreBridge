@@ -3,6 +3,10 @@ import { authenticate, handleApiError } from "@/lib/shopify/authenticate";
 import { prisma } from "@/lib/db/prisma";
 import { getAdminClient } from "@/lib/shopify/admin";
 import { parseProductsFromCsv } from "@/lib/utils/csvParser";
+import {
+  attachImageUrlToProduct,
+  uploadPhotoToProduct,
+} from "@/lib/shopify/media-service";
 
 export const dynamic = 'force-dynamic';
 
@@ -10,8 +14,53 @@ export async function POST(req: NextRequest) {
   try {
     const { store } = await authenticate(req);
     
-    const body = await req.json();
-    const { rows, targetStoreId, action, filename } = body; // action can be 'validate' or 'import'
+    const contentType = req.headers.get("content-type") || "";
+    let rows: any[] = [];
+    let targetStoreId: string = "";
+    let action: string = "validate";
+    let filename: string = "unknown.csv";
+    let availableFileNames: string[] = [];
+    let uploadedFiles: File[] = [];
+    let productImageMapping: Record<string, string> = {};
+    let activeImageUrls: Record<string, string> = {};
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await req.formData();
+      const rowsStr = formData.get("rows") as string;
+      rows = rowsStr ? JSON.parse(rowsStr) : [];
+      action = (formData.get("action") as string) || "validate";
+      targetStoreId = (formData.get("targetStoreId") as string) || "";
+      filename = (formData.get("filename") as string) || "unknown.csv";
+      uploadedFiles = formData.getAll("image_files") as File[];
+      availableFileNames = uploadedFiles.map((f) => f.name.toLowerCase());
+
+      const mappingStr = formData.get("product_image_mapping") as string;
+      if (mappingStr) {
+        try {
+          productImageMapping = JSON.parse(mappingStr);
+        } catch (e) {
+          console.error("Failed to parse product_image_mapping:", e);
+        }
+      }
+
+      const activeUrlsStr = formData.get("active_image_urls") as string;
+      if (activeUrlsStr) {
+        try {
+          activeImageUrls = JSON.parse(activeUrlsStr);
+        } catch (e) {
+          console.error("Failed to parse active_image_urls:", e);
+        }
+      }
+    } else {
+      const body = await req.json();
+      rows = body.rows;
+      action = body.action || "validate";
+      targetStoreId = body.targetStoreId || "";
+      filename = body.filename || "unknown.csv";
+      availableFileNames = (body.availableFileNames || []).map((n: string) => n.toLowerCase());
+      productImageMapping = body.product_image_mapping || {};
+      activeImageUrls = body.active_image_urls || {};
+    }
 
     if (!rows || !Array.isArray(rows)) {
       return NextResponse.json({ success: false, error: "Invalid payload: missing rows" }, { status: 400 });
@@ -37,6 +86,58 @@ export async function POST(req: NextRequest) {
 
     // 1. Validation & Grouping via generic CSV Parser
     const { products: productsToImport, errors } = parseProductsFromCsv(rows);
+
+    // Validate image references across products
+    productsToImport.forEach((prod, pIdx) => {
+      const rowNum = pIdx + 2;
+      const activeUrl =
+        activeImageUrls[prod.handle] ||
+        activeImageUrls[prod.title] ||
+        activeImageUrls[`prod_${pIdx}`];
+
+      // If an active image URL is provided, validate URL and skip file check
+      if (activeUrl) {
+        if (!activeUrl.startsWith("https://")) {
+          errors.push({
+            row: rowNum,
+            error: `Image URL "${activeUrl}" for product "${prod.title}" must use secure HTTPS.`,
+          });
+        }
+        return;
+      }
+
+      const targetFileName =
+        productImageMapping[prod.handle] ||
+        productImageMapping[prod.title] ||
+        productImageMapping[`prod_${pIdx}`] ||
+        prod.imageFile;
+
+      if (targetFileName && availableFileNames.length > 0) {
+        const hasFile = availableFileNames.some(
+          (name) =>
+            name === targetFileName.toLowerCase() ||
+            name.endsWith(`_${targetFileName.toLowerCase()}`)
+        );
+        if (!hasFile) {
+          if (
+            productImageMapping[prod.handle] ||
+            productImageMapping[prod.title] ||
+            productImageMapping[`prod_${pIdx}`]
+          ) {
+            errors.push({
+              row: rowNum,
+              error: `Referenced image file "${targetFileName}" for product "${prod.title}" was not uploaded alongside the CSV.`,
+            });
+          }
+        }
+      }
+      if (prod.imageUrl && !prod.imageUrl.startsWith("https://")) {
+        errors.push({
+          row: rowNum,
+          error: `Image URL "${prod.imageUrl}" for product "${prod.title}" must use secure HTTPS.`,
+        });
+      }
+    });
 
     if (errors.length > 0) {
       // Per architectural rules, completely block if there's any error
@@ -85,8 +186,11 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      // Cache resolved collection IDs to eliminate duplicate GraphQL queries
+      const collectionCache = new Map<string, string>();
+
       // Import in series to respect rate limits and follow rules safely
-      for (const productData of productsToImport) {
+      for (const [pIdx, productData] of productsToImport.entries()) {
         try {
           const productInput: any = {
             title: productData.title,
@@ -236,33 +340,40 @@ export async function POST(req: NextRequest) {
                 // Assign product to collection if collection column was provided in CSV
                 if (productData.collection && data.productSet?.product?.id) {
                   try {
-                    const collQuery = `
-                      query findCollection($query: String!) {
-                        collections(first: 1, query: $query) {
-                          edges { node { id } }
-                        }
-                      }
-                    `;
-                    const collRes = await client.request(collQuery, {
-                      variables: { query: `title:'${productData.collection.replace(/'/g, "\\'")}'` }
-                    });
-                    const collData = collRes.data || collRes;
-                    let collectionId = collData.collections?.edges[0]?.node?.id;
-
+                    let collectionId = collectionCache.get(productData.collection);
                     if (!collectionId) {
-                      const createCollMutation = `
-                        mutation collectionCreate($input: CollectionInput!) {
-                          collectionCreate(input: $input) {
-                            collection { id }
-                            userErrors { field message }
+                      const collQuery = `
+                        query findCollection($query: String!) {
+                          collections(first: 1, query: $query) {
+                            edges { node { id } }
                           }
                         }
                       `;
-                      const createRes = await client.request(createCollMutation, {
-                        variables: { input: { title: productData.collection } }
+                      const collRes = await client.request(collQuery, {
+                        variables: { query: `title:'${productData.collection.replace(/'/g, "\\'")}'` }
                       });
-                      const createData = createRes.data || createRes;
-                      collectionId = createData.collectionCreate?.collection?.id;
+                      const collData = collRes.data || collRes;
+                      collectionId = collData.collections?.edges[0]?.node?.id;
+
+                      if (!collectionId) {
+                        const createCollMutation = `
+                          mutation collectionCreate($input: CollectionInput!) {
+                            collectionCreate(input: $input) {
+                              collection { id }
+                              userErrors { field message }
+                            }
+                          }
+                        `;
+                        const createRes = await client.request(createCollMutation, {
+                          variables: { input: { title: productData.collection } }
+                        });
+                        const createData = createRes.data || createRes;
+                        collectionId = createData.collectionCreate?.collection?.id;
+                      }
+
+                      if (collectionId) {
+                        collectionCache.set(productData.collection, collectionId);
+                      }
                     }
 
                     if (collectionId) {
@@ -298,6 +409,134 @@ export async function POST(req: NextRequest) {
                     });
                   } catch (pubErr) {
                     console.error("Failed to publish to all channels:", pubErr);
+                  }
+                }
+
+                // Attach Product Image (Method A: Image URL or Method B: Uploaded Photo)
+                const targetCreatedId = data.productSet?.product?.id;
+                if (targetCreatedId) {
+                  try {
+                    let attachedImageUrl: string | null = null;
+                    const targetFileName =
+                      productImageMapping[productData.handle] ||
+                      productImageMapping[productData.title] ||
+                      productImageMapping[`prod_${pIdx}`] ||
+                      productData.imageFile;
+
+                    const matchedFile = targetFileName
+                      ? uploadedFiles.find(
+                          (f) =>
+                            f.name.toLowerCase() === targetFileName.toLowerCase() ||
+                            f.name.toLowerCase().endsWith(`_${targetFileName.toLowerCase()}`)
+                        )
+                      : null;
+
+                    if (matchedFile) {
+                      const buffer = Buffer.from(await matchedFile.arrayBuffer());
+                      const uploadRes = await uploadPhotoToProduct({
+                        shopDomain: targetStore.shopDomain,
+                        shopifyProductId: targetCreatedId,
+                        fileBuffer: buffer,
+                        filename: matchedFile.name,
+                        mimeType: matchedFile.type || 'image/jpeg',
+                        altText: productData.title,
+                      });
+                      if (uploadRes.success && uploadRes.imageUrl) {
+                        attachedImageUrl = uploadRes.imageUrl;
+                      }
+                    } else {
+                      const targetImageUrl =
+                        activeImageUrls[productData.handle] ||
+                        activeImageUrls[productData.title] ||
+                        activeImageUrls[`prod_${pIdx}`] ||
+                        productData.imageUrl;
+
+                      if (targetImageUrl) {
+                        const attachRes = await attachImageUrlToProduct({
+                          shopDomain: targetStore.shopDomain,
+                          shopifyProductId: targetCreatedId,
+                          imageUrl: targetImageUrl,
+                          altText: productData.title,
+                        });
+                        if (attachRes.success && attachRes.imageUrl) {
+                          attachedImageUrl = attachRes.imageUrl;
+                        }
+                      }
+                    }
+
+                    if (attachedImageUrl) {
+                      await prisma.productCache.updateMany({
+                        where: {
+                          storeId: targetStore.id,
+                          shopifyProductId: targetCreatedId,
+                        },
+                        data: {
+                          imageUrl: attachedImageUrl,
+                        },
+                      });
+
+                      // Upsert each created variant node into ProductCache with attached image
+                      const createdVariants = data.productSet?.product?.variants?.edges || [];
+                      for (const edge of createdVariants) {
+                        const v = edge.node;
+                        if (v?.id) {
+                          const vTitle = v.title && v.title !== 'Default Title' ? `${productData.title} - ${v.title}` : productData.title;
+                          await prisma.productCache.upsert({
+                            where: {
+                              storeId_shopifyVariantId: {
+                                storeId: targetStore.id,
+                                shopifyVariantId: v.id,
+                              },
+                            },
+                            update: {
+                              imageUrl: attachedImageUrl,
+                              sku: v.sku || undefined,
+                              price: v.price ? parseFloat(v.price) : undefined,
+                              shopifyProductId: targetCreatedId,
+                              title: vTitle,
+                            },
+                            create: {
+                              storeId: targetStore.id,
+                              shopifyProductId: targetCreatedId,
+                              shopifyVariantId: v.id,
+                              sku: v.sku || '',
+                              title: vTitle,
+                              price: v.price ? parseFloat(v.price) : 0,
+                              inventoryQuantity: v.inventoryQuantity ?? 0,
+                              imageUrl: attachedImageUrl,
+                            },
+                          }).catch(() => {});
+                        }
+                      }
+
+                      // Propagate image to connected stores' caches so connected stores immediately show it
+                      try {
+                        const connections = await prisma.storeConnection.findMany({
+                          where: { sourceStoreId: targetStore.id },
+                          select: { targetStoreId: true },
+                        });
+                        for (const conn of connections) {
+                          for (const edge of createdVariants) {
+                            const v = edge.node;
+                            if (v?.sku) {
+                              await prisma.productCache.updateMany({
+                                where: {
+                                  storeId: conn.targetStoreId,
+                                  sku: v.sku,
+                                },
+                                data: {
+                                  imageUrl: attachedImageUrl,
+                                },
+                              }).catch(() => {});
+                            }
+                          }
+                        }
+                      } catch (propErr) {
+                        console.warn("[CSV Import] Non-blocking connected cache sync warning:", propErr);
+                      }
+                    }
+                  } catch (imgErr) {
+                    console.warn(`[CSV Import] Image attachment non-blocking warning for ${productData.title}:`, imgErr);
                   }
                 }
           }

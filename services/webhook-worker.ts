@@ -57,6 +57,13 @@ function isCatalogMetadataChanged(payload: any, cachedProducts: any[]): boolean 
     return true;
   }
 
+  // 3. Check image changes (added, modified, or removed in Shopify)
+  const payloadImageUrl = payload.image?.src || payload.images?.[0]?.src || null;
+  const cachedImageUrl = firstCache.imageUrl || null;
+  if (payloadImageUrl !== cachedImageUrl) {
+    return true;
+  }
+
   // 3. Check variants for Price, SKU, or Option changes
   if (payload.variants && Array.isArray(payload.variants)) {
     for (const v of payload.variants) {

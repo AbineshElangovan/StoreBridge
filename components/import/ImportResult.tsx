@@ -1,4 +1,5 @@
 import React from 'react';
+import { ImportIcon } from '@shopify/polaris-icons';
 
 interface ImportResultProps {
   result: {
@@ -90,8 +91,9 @@ export function ImportResult({ result, onReset }: ImportResultProps) {
       <div className="flex justify-center">
         <button 
           onClick={onReset}
-          className="px-6 py-2.5 bg-[var(--color-primary,#a7cd18)] hover:bg-[var(--color-primary-hover,#96bb13)] text-[var(--color-primary-text,#000000)] text-sm font-black rounded-xl border border-[var(--theme-sidebar-border,#91b212)] transition-all shadow-xs cursor-pointer"
+          className="px-6 py-2.5 bg-[var(--color-primary,#a7cd18)] hover:bg-[var(--color-primary-hover,#96bb13)] text-[var(--color-primary-text,#000000)] text-sm font-black rounded-xl border border-[var(--theme-sidebar-border,#91b212)] transition-all shadow-xs flex items-center gap-2 cursor-pointer [&_svg]:fill-current [&_svg]:text-[var(--color-primary-text,#000000)]"
         >
+          <ImportIcon className="w-4 h-4 shrink-0 fill-current text-[var(--color-primary-text,#000000)]" />
           Import Another File
         </button>
       </div>

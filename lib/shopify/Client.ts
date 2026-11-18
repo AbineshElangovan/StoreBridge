@@ -79,11 +79,17 @@ export async function shopifyFetch(input: RequestInfo, init: RequestInit = {}): 
       }
     }
 
+    const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
+
     const headers: Record<string, string> = {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       Authorization: `Bearer ${token}`,
       ...(init.headers as Record<string, string> || {}),
     };
+
+    if (isFormData) {
+      delete headers["Content-Type"];
+    }
 
     if (activeShopDomain) {
       headers["x-shopify-shop-domain"] = activeShopDomain;

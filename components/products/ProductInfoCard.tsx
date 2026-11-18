@@ -5,6 +5,9 @@ import { StockHealthBadge } from '../insights/StockHealthBadge';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import { WishlistHeartButton } from '@/components/wishlist/WishlistHeartButton';
 import { useStoreContext } from '@/components/providers/StoreProvider';
+import { ProductImageModal } from './ProductImageModal';
+import { Icon } from '@shopify/polaris';
+import { ImageIcon } from '@shopify/polaris-icons';
 
 interface ProductInfoCardProps {
   productId?: string;
@@ -37,6 +40,13 @@ export function ProductInfoCard({
 }: ProductInfoCardProps) {
   const { isStandalone } = useStoreContext();
   const [isWishlisted, setIsWishlisted] = React.useState(false);
+  const [showImageModal, setShowImageModal] = React.useState(false);
+  const [activeImage, setActiveImage] = React.useState<string | null>(imageUrl || null);
+
+  React.useEffect(() => {
+    setActiveImage(imageUrl || null);
+  }, [imageUrl]);
+
 
   React.useEffect(() => {
     if (!productId || !isStandalone) return;
@@ -73,9 +83,9 @@ export function ProductInfoCard({
     <div className="bg-white rounded-2xl border border-gray-200 p-5 sm:p-6 shadow-2xs">
       {/* Product Image with Card View Overlays */}
       <div className="w-full aspect-square bg-gray-50 border border-gray-200 rounded-xl mb-6 overflow-hidden flex items-center justify-center relative group">
-        {imageUrl ? (
+        {activeImage ? (
           <img
-            src={imageUrl}
+            src={activeImage}
             alt={title}
             className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300"
           />
@@ -96,6 +106,21 @@ export function ProductInfoCard({
             </svg>
             <span className="text-xs font-semibold text-gray-400">Product image</span>
           </div>
+        )}
+
+        {/* Change Image Button Overlay */}
+        {productId && (
+          <button
+            type="button"
+            onClick={() => setShowImageModal(true)}
+            className="absolute bottom-3 right-3 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white/95 text-gray-800 shadow-sm border border-gray-200 hover:bg-white hover:text-indigo-600 transition-all cursor-pointer"
+            title="Upload photo or attach image URL"
+          >
+            <span className="w-4 h-4 shrink-0">
+              <Icon source={ImageIcon} tone="base" />
+            </span>
+            <span>{activeImage ? 'Change Image' : 'Add Image'}</span>
+          </button>
         )}
 
         {/* Top-Left Stock Badge Overlay (like Wishlist Card View) */}
@@ -119,7 +144,7 @@ export function ProductInfoCard({
               productTitle={title}
               sku={sku}
               price={basePrice}
-              imageUrl={imageUrl}
+              imageUrl={activeImage}
               inventoryQuantity={currentStock}
               variantTitle={variantTitle}
               size="medium"
@@ -202,6 +227,19 @@ export function ProductInfoCard({
           </div>
         )}
       </div>
+
+      {productId && (
+        <ProductImageModal
+          open={showImageModal}
+          productId={productId}
+          currentImageUrl={activeImage}
+          productTitle={title}
+          onClose={() => setShowImageModal(false)}
+          onImageUpdated={(newUrl) => {
+            setActiveImage(newUrl);
+          }}
+        />
+      )}
     </div>
   );
 }

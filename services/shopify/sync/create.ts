@@ -283,12 +283,17 @@ export async function processProductCreate(shopDomain: string, payload: any, web
         }));
       }
 
-      const imagesToSync = (payload.images && payload.images.length > 0) ? payload.images : (payload.image ? [payload.image] : []);
+      const rawImages = (payload.images && payload.images.length > 0) ? payload.images : (payload.image ? [payload.image] : (payload.featuredImage ? [payload.featuredImage] : []));
+      const imagesToSync = rawImages.filter((img: any) => {
+        const src = typeof img === 'string' ? img : (img?.src || img?.url || img?.originalSrc);
+        return Boolean(src && typeof src === 'string' && src.startsWith('http'));
+      });
       if (imagesToSync.length > 0) {
         productInput.files = imagesToSync.map((img: any) => {
+          const src = typeof img === 'string' ? img : (img?.src || img?.url || img?.originalSrc);
           const fileInput: any = {
             contentType: "IMAGE",
-            originalSource: img.src,
+            originalSource: src,
           };
           if (img.alt) {
             fileInput.alt = img.alt;
@@ -335,7 +340,13 @@ export async function processProductCreate(shopDomain: string, payload: any, web
           const sourceVariant = payload.variants?.find((v: any) => v.sku?.trim() === sku);
           const initialQuantity = sourceVariant?.inventory_quantity ?? 0;
 
-          const imageUrl = payload.image?.src || payload.images?.[0]?.src || null;
+          const imageUrl =
+            payload.image?.src ||
+            payload.image?.url ||
+            payload.images?.[0]?.src ||
+            payload.images?.[0]?.url ||
+            payload.featuredImage?.url ||
+            (typeof payload.image === 'string' ? payload.image : null);
           const variantTitle = variant.title && variant.title !== "Default Title" ? `${createdProduct.title} - ${variant.title}` : createdProduct.title;
 
           // 1. First record the ProductCache with initialQuantity

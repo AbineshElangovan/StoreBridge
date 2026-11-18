@@ -186,7 +186,7 @@ export async function createNotification(params: CreateNotificationParams) {
     const cleanProductId = productId ? productId.replace(/^gid:\/\/shopify\/(Product|Variant)\//, '').trim() : null;
 
     // For waitlist subscribers, deduplicate by exact message (same customer email/details) to avoid blocking distinct shoppers
-    const dedupeOrConditions = isWaitlistOrRestockEvent
+    const dedupeOrConditions: any[] = isWaitlistOrRestockEvent
       ? [{ message }]
       : [
           { message },
@@ -194,17 +194,20 @@ export async function createNotification(params: CreateNotificationParams) {
             { productId: cleanProductId },
             { productId: `gid://shopify/Product/${cleanProductId}` }
           ] : []),
-          ...(productTitle ? [{ productTitle }] : [])
+          ...(productTitle ? [{ productTitle }] : []),
+          ...(type === 'IMPORT_COMPLETED' ? [{ type: 'IMPORT_COMPLETED' as any }] : [])
         ];
 
+    // For product events, deduplicate across both 'Product Created' and 'Product Updated' to prevent double alerts
+    const isProductEvent = type === 'PRODUCT_UPDATED' || type === 'CONNECTED_STORE_UPDATE';
     const recentDuplicate = await prisma.notification.findFirst({
       where: {
         recipientStoreId,
         type,
-        title,
+        ...(isProductEvent ? {} : { title }),
         OR: dedupeOrConditions,
         createdAt: {
-          gte: new Date(Date.now() - 2 * 60 * 1000), // 2 minutes anti-spam window
+          gte: new Date(Date.now() - 10 * 60 * 1000), // 10 minutes anti-spam window
         },
       },
     });
@@ -458,8 +461,11 @@ export async function getNotifications(recipientStoreId: string, options: Notifi
   const seenKeys = new Set<string>();
 
   for (const notif of enrichedNotifications) {
-    const timeBucket = Math.floor(new Date(notif.createdAt).getTime() / (60 * 1000));
-    const key = `${notif.recipientStoreId}_${notif.type}_${notif.title}_${notif.message}_${timeBucket}`;
+    const prodKey = notif.productId || notif.productTitle || '';
+    const timeBucket = Math.floor(new Date(notif.createdAt).getTime() / (10 * 60 * 1000));
+    const key = prodKey
+      ? `${notif.recipientStoreId}_${notif.type}_${prodKey}_${timeBucket}`
+      : `${notif.recipientStoreId}_${notif.type}_${notif.title}_${notif.message}_${timeBucket}`;
     if (!seenKeys.has(key)) {
       seenKeys.add(key);
       uniqueNotifications.push(notif);

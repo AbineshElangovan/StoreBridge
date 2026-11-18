@@ -374,3 +374,105 @@ export const PUBLISH_MUTATION = `
     }
   }
 `;
+
+/**
+ * Creates staged upload targets for binary file uploads to Shopify.
+ */
+export const STAGED_UPLOADS_CREATE_MUTATION = `
+  mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
+    stagedUploadsCreate(input: $input) {
+      stagedTargets {
+        url
+        resourceUrl
+        parameters {
+          name
+          value
+        }
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+/**
+ * Creates and attaches media to a Shopify product (from URL or staged upload resource).
+ */
+export const PRODUCT_CREATE_MEDIA_MUTATION = `
+  mutation productCreateMedia($media: [CreateMediaInput!]!, $productId: ID!) {
+    productCreateMedia(media: $media, productId: $productId) {
+      media {
+        id
+        status
+        alt
+        mediaContentType
+        ... on MediaImage {
+          id
+          image {
+            url
+            altText
+            width
+            height
+          }
+        }
+      }
+      mediaUserErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+/**
+ * Deletes media from a Shopify product.
+ */
+export const PRODUCT_DELETE_MEDIA_MUTATION = `
+  mutation productDeleteMedia($mediaIds: [ID!]!, $productId: ID!) {
+    productDeleteMedia(mediaIds: $mediaIds, productId: $productId) {
+      deletedMediaIds
+      deletedProductImageIds
+      mediaUserErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+/**
+ * Queries product media and featured image.
+ */
+export const GET_PRODUCT_MEDIA_QUERY = `
+  query getProductMedia($productId: ID!) {
+    product(id: $productId) {
+      id
+      title
+      featuredImage {
+        url
+      }
+      media(first: 50) {
+        edges {
+          node {
+            id
+            status
+            mediaContentType
+            ... on MediaImage {
+              id
+              image {
+                url
+                altText
+                width
+                height
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+

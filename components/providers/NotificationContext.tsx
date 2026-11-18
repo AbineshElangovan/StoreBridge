@@ -104,10 +104,24 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         const incomingNotifications: NotificationItem[] = json.notifications || [];
         const incomingUnreadCount: number = json.unreadCount || 0;
 
+        // Deduplicate incoming notifications in UI to prevent duplicate alerts/cards
+        const seenUiKeys = new Set<string>();
+        const uniqueIncoming: NotificationItem[] = [];
+        for (const n of incomingNotifications) {
+          const prodKey = n.productId || n.productTitle || '';
+          const key = prodKey
+            ? `${n.recipientStore?.id || ''}_${n.type}_${prodKey}`
+            : `${n.title}_${n.message}`;
+          if (!seenUiKeys.has(key)) {
+            seenUiKeys.add(key);
+            uniqueIncoming.push(n);
+          }
+        }
+
         // Detect newly arrived notifications dynamically
         if (hasLoadedOnceRef.current) {
           const known = knownNotificationIdsRef.current;
-          const newlyArrived = incomingNotifications.filter(
+          const newlyArrived = uniqueIncoming.filter(
             (n) => !known.has(n.id) && !n.isRead
           );
 
@@ -134,10 +148,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         }
 
         // Register all current IDs
-        incomingNotifications.forEach((n) => knownNotificationIdsRef.current.add(n.id));
+        uniqueIncoming.forEach((n) => knownNotificationIdsRef.current.add(n.id));
         hasLoadedOnceRef.current = true;
 
-        setNotifications(incomingNotifications);
+        setNotifications(uniqueIncoming);
         setUnreadCount(incomingUnreadCount);
 
         // Broadcast count so Bell and Sidebar badges synchronize dynamically

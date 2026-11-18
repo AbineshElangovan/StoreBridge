@@ -1,36 +1,43 @@
 import React from 'react';
 import { Icon } from '@shopify/polaris';
 import {
-  NoteIcon,
-  AlertCircleIcon,
-  InventoryIcon,
-  StoreIcon,
+  ArrowDownIcon,
+  UploadIcon,
+  ViewIcon,
+  EditIcon,
+  ImportIcon,
 } from '@shopify/polaris-icons';
 
 const GUIDELINES = [
   {
-    icon: NoteIcon,
-    title: 'Read before import',
-    desc: 'Review all guidelines carefully before uploading your CSV file.',
-    accent: 'var(--color-primary)',
+    icon: ArrowDownIcon,
+    title: '1. Download Sample (Optional)',
+    desc: 'Download the sample CSV or Excel (.xlsx) template to check the format and fill in your product details.',
+    accent: '#8b5cf6',
   },
   {
-    icon: AlertCircleIcon,
-    title: 'Invalid rows are rejected before import',
-    desc: 'The entire file is validated upfront. Fix all errors before proceeding.',
-    accent: '#ef4444',
+    icon: UploadIcon,
+    title: '2. Browse & Upload File',
+    desc: 'Upload your completed CSV or Excel spreadsheet. All rows and columns are automatically detected and validated.',
+    accent: '#06b6d4',
   },
   {
-    icon: InventoryIcon,
-    title: 'Inventory updates quantity only',
-    desc: 'Inventory import updates stock count only — product details are unchanged.',
+    icon: ViewIcon,
+    title: '3. Preview Products',
+    desc: 'Click "Preview & Import Products" to view all products, variants, collections, and validation statuses in a table.',
+    accent: '#3b82f6',
+  },
+  {
+    icon: EditIcon,
+    title: '4. Edit Details & Add Images',
+    desc: 'Directly edit product names, prices, and quantities inline. Enter image URLs or attach raw photos via the pin icon.',
     accent: '#f59e0b',
   },
   {
-    icon: StoreIcon,
-    title: 'Store-scoped import',
-    desc: 'Imported products are added only to the selected store. Auto-sync is not triggered.',
-    accent: '#06b6d4',
+    icon: ImportIcon,
+    title: '5. Import Products',
+    desc: 'Click "Import Products" to securely create products, variations, inventory, and images directly into Shopify.',
+    accent: '#10b981',
   },
 ];
 
@@ -41,17 +48,15 @@ const CSV_COLUMNS = [
   'Compare-at price',
   'Status',
   'Product category',
-  'Type',
-  'Vendor',
   'Collections',
-  'Tags',
   'Inventory tracker',
   'Inventory quantity',
-  'Weight',
   'Option1 name',
   'Option1 value',
   'Option2 name',
   'Option2 value',
+  'SKU',
+  'Image',
 ];
 
 export function ImportGuidelines() {
@@ -75,9 +80,9 @@ export function ImportGuidelines() {
           className="text-sm font-extrabold uppercase tracking-widest"
           style={{ color: 'var(--color-primary)' }}
         >
-          Important Guidelines
+          How Import Works
         </h3>
-        <p className="text-xs text-gray-500 mt-0.5">Read carefully before uploading</p>
+        <p className="text-xs text-gray-500 mt-0.5">5 simple steps from upload to Shopify import</p>
       </div>
 
       {/* Guidelines list */}
@@ -108,7 +113,7 @@ export function ImportGuidelines() {
         style={{ borderColor: 'var(--theme-border-accent, var(--border-color))' }}
       >
         <span className="text-xs font-extrabold uppercase tracking-widest text-gray-500 block mb-3">
-          Supported CSV Columns
+          Supported CSV & Excel Columns
         </span>
         <div className="flex flex-wrap gap-1.5">
           {CSV_COLUMNS.map((col) => (

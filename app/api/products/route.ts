@@ -95,8 +95,17 @@ export async function GET(req: NextRequest) {
     const allKnownProducts = [...products, ...crossStoreProducts];
     allKnownProducts.forEach(p => {
       if (p.imageUrl) {
-        if (p.sku && !skuFallbackImages[p.sku]) {
-          skuFallbackImages[p.sku] = p.imageUrl;
+        if (p.sku) {
+          const rawSku = p.sku.trim();
+          const lowerSku = rawSku.toLowerCase();
+          skuFallbackImages[rawSku] = p.imageUrl;
+          skuFallbackImages[lowerSku] = p.imageUrl;
+
+          // Also index base SKU without trailing sequence (e.g. STB-VIS-BLUE-M from STB-VIS-BLUE-M-0036)
+          const baseSku = lowerSku.replace(/-\d+$/, '').trim();
+          if (baseSku && !skuFallbackImages[baseSku]) {
+            skuFallbackImages[baseSku] = p.imageUrl;
+          }
         }
         const t = p.title?.trim().toLowerCase();
         if (t && !titleFallbackImages[t]) {
@@ -105,6 +114,10 @@ export async function GET(req: NextRequest) {
         const baseTitle = t?.split(' - ')[0]?.trim();
         if (baseTitle && !titleFallbackImages[baseTitle]) {
           titleFallbackImages[baseTitle] = p.imageUrl;
+        }
+        const cleanTitle = (baseTitle || t)?.replace(/[^a-z0-9]/g, '');
+        if (cleanTitle && !titleFallbackImages[cleanTitle]) {
+          titleFallbackImages[cleanTitle] = p.imageUrl;
         }
       }
 
@@ -134,11 +147,39 @@ export async function GET(req: NextRequest) {
     const resolveProductImage = (p: any): string[] => {
       if (p.sku && skuImages[p.sku]?.length > 0) return skuImages[p.sku];
       if (p.imageUrl) return [p.imageUrl];
-      if (p.sku && skuFallbackImages[p.sku]) return [skuFallbackImages[p.sku]];
+      
+      const s = p.sku?.trim();
+      if (s) {
+        if (skuFallbackImages[s]) return [skuFallbackImages[s]];
+        const lowerS = s.toLowerCase();
+        if (skuFallbackImages[lowerS]) return [skuFallbackImages[lowerS]];
+        const baseSku = lowerS.replace(/-\d+$/, '').trim();
+        if (baseSku && skuFallbackImages[baseSku]) return [skuFallbackImages[baseSku]];
+      }
+
       const t = p.title?.trim().toLowerCase();
       if (t && titleFallbackImages[t]) return [titleFallbackImages[t]];
+      
       const baseTitle = t?.split(' - ')[0]?.trim();
       if (baseTitle && titleFallbackImages[baseTitle]) return [titleFallbackImages[baseTitle]];
+
+      const cleanTitle = (baseTitle || t)?.replace(/[^a-z0-9]/g, '');
+      if (cleanTitle && titleFallbackImages[cleanTitle]) return [titleFallbackImages[cleanTitle]];
+
+      // Fuzzy keyword match across all known cross-store products
+      const searchTarget = (baseTitle || t || '').replace(/[^a-z0-9\s]/g, ' ');
+      const words = searchTarget.split(/\s+/).filter((w: string) => w.length >= 3 && !['and', 'the', 'with', 'for'].includes(w));
+      if (words.length > 0) {
+        const matchedProduct = allKnownProducts.find(kp => {
+          if (!kp.imageUrl) return false;
+          const kTitle = (kp.title || '').toLowerCase();
+          return words.every((w: string) => kTitle.includes(w));
+        });
+        if (matchedProduct?.imageUrl) {
+          return [matchedProduct.imageUrl];
+        }
+      }
+
       return [];
     };
 
@@ -219,11 +260,19 @@ export async function GET(req: NextRequest) {
         preorderStatus = isPreorderAvailable ? 'Pre-order' : null;
       }
 
+      const resolvedImgs = resolveProductImage(p);
+      if (!p.imageUrl && resolvedImgs.length > 0 && p.shopifyVariantId) {
+        prisma.productCache.updateMany({
+          where: { storeId: store.id, shopifyVariantId: p.shopifyVariantId },
+          data: { imageUrl: resolvedImgs[0] },
+        }).catch(() => {});
+      }
+
       const item = {
         id: p.id,
         shopifyProductId: p.shopifyProductId,
         shopifyVariantId: p.shopifyVariantId,
-        imageUrls: resolveProductImage(p),
+        imageUrls: resolvedImgs,
         title: displayTitle,
         sku: (p.sku && p.sku !== 'N/A') ? p.sku : (p.id ? `STB-SKU-${p.id.replace(/[^0-9]/g, '').slice(-4).padStart(4, '0')}` : 'STB-SKU-0001'),
         store: p.store.label || p.store.shopDomain,

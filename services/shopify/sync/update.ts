@@ -346,12 +346,17 @@ export async function processProductUpdate(shopDomain: string, payload: any, web
         productInput.productOptions = [{ name: "Title", values: [{ name: "Default Title" }] }];
       }
 
-      const imagesToSync = (payload.images && payload.images.length > 0) ? payload.images : (payload.image ? [payload.image] : []);
+      const rawImages = (payload.images && payload.images.length > 0) ? payload.images : (payload.image ? [payload.image] : (payload.featuredImage ? [payload.featuredImage] : []));
+      const imagesToSync = rawImages.filter((img: any) => {
+        const src = typeof img === 'string' ? img : (img?.src || img?.url || img?.originalSrc);
+        return Boolean(src && typeof src === 'string' && src.startsWith('http'));
+      });
       if (imagesToSync.length > 0) {
         productInput.files = imagesToSync.map((img: any) => {
+          const src = typeof img === 'string' ? img : (img?.src || img?.url || img?.originalSrc);
           const fileInput: any = {
             contentType: "IMAGE",
-            originalSource: img.src,
+            originalSource: src,
           };
           if (img.alt) {
             fileInput.alt = img.alt;
@@ -518,7 +523,13 @@ export async function processProductUpdate(shopDomain: string, payload: any, web
             }
           }
 
-          const imageUrl = payload.image?.src || payload.images?.[0]?.src || null;
+          const imageUrl =
+            payload.image?.src ||
+            payload.image?.url ||
+            payload.images?.[0]?.src ||
+            payload.images?.[0]?.url ||
+            payload.featuredImage?.url ||
+            (typeof payload.image === 'string' ? payload.image : null);
 
           const variantTitle = variant.title && variant.title !== "Default Title" ? `${updatedProduct.title} - ${variant.title}` : updatedProduct.title;
 

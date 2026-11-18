@@ -62,14 +62,23 @@ export async function updateLocalProductCache(shopDomain: string, payload: any, 
         },
       });
 
-      let resolvedImageUrl = newImageUrl || existingCache?.imageUrl || null;
-      if (!resolvedImageUrl) {
-        const sibling = await prisma.productCache.findFirst({
-          where: { storeId: store.id, shopifyProductId, imageUrl: { not: null } },
-          select: { imageUrl: true }
-        });
-        if (sibling?.imageUrl) {
-          resolvedImageUrl = sibling.imageUrl;
+      const isImageExplicitlyEmpty =
+        (Array.isArray(payload.images) && payload.images.length === 0 && !payload.image) ||
+        (payload.image === null && Array.isArray(payload.images) && payload.images.length === 0);
+
+      let resolvedImageUrl: string | null = null;
+      if (isImageExplicitlyEmpty) {
+        resolvedImageUrl = null;
+      } else {
+        resolvedImageUrl = newImageUrl || existingCache?.imageUrl || null;
+        if (!resolvedImageUrl) {
+          const sibling = await prisma.productCache.findFirst({
+            where: { storeId: store.id, shopifyProductId, imageUrl: { not: null } },
+            select: { imageUrl: true }
+          });
+          if (sibling?.imageUrl) {
+            resolvedImageUrl = sibling.imageUrl;
+          }
         }
       }
 
@@ -128,13 +137,14 @@ export async function updateLocalProductCache(shopDomain: string, payload: any, 
           }
         });
       } else {
+        const isImageChanged = existingCache.imageUrl !== resolvedImageUrl;
         const needsUpdate = existingCache.sku !== finalSku ||
           existingCache.title !== fullTitle ||
           existingCache.price !== parsedPrice ||
           existingCache.basePrice !== parsedBasePrice ||
           existingCache.tags !== productTags ||
           existingCache.inventoryQuantity !== trueInventory ||
-          (resolvedImageUrl !== null && existingCache.imageUrl !== resolvedImageUrl);
+          isImageChanged;
 
         if (needsUpdate) {
           await prisma.productCache.update({
@@ -143,7 +153,7 @@ export async function updateLocalProductCache(shopDomain: string, payload: any, 
               sku: finalSku,
               title: fullTitle,
               tags: productTags,
-              ...(resolvedImageUrl !== null ? { imageUrl: resolvedImageUrl } : {}),
+              imageUrl: resolvedImageUrl,
               shopifyProductId,
               inventoryQuantity: trueInventory,
               price: parsedPrice,
