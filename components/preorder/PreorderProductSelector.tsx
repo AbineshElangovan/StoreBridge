@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import { Loading } from '@/components/common/Loading';
-import { PolarisSelect } from '@/components/common';
 import { useTheme } from '@/components/providers/ThemeContext';
 
 export interface ProductSummary {
@@ -15,9 +14,8 @@ export interface ProductSummary {
   price: number;
   totalInventory: number;
   variantCount?: number;
-  isOutOfStock?: boolean;
   hasOutOfStockVariant?: boolean;
-  collections?: { id: string; title: string }[];
+  isOutOfStock?: boolean;
 }
 
 interface PreorderProductSelectorProps {
@@ -30,15 +28,12 @@ interface PreorderProductSelectorProps {
 export function PreorderProductSelector({
   selectedProductIds,
   onChange,
-  inventoryThreshold = 0,
   disabled = false,
 }: PreorderProductSelectorProps) {
   const { currentTheme } = useTheme();
   const primaryColor = currentTheme?.primaryColor || '#047857';
 
   const [products, setProducts] = useState<ProductSummary[]>([]);
-  const [collections, setCollections] = useState<{ id: string; title: string }[]>([]);
-  const [selectedCollection, setSelectedCollection] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -51,28 +46,10 @@ export function PreorderProductSelector({
   const loadData = async () => {
     try {
       setLoading(true);
-      const [prodRes, colRes] = await Promise.all([
-        shopifyFetch('/api/preorder?action=products'),
-        shopifyFetch('/api/collections'),
-      ]);
-
+      const prodRes = await shopifyFetch('/api/preorder?action=products');
       const prodData = await prodRes.json();
       if (prodData.success && Array.isArray(prodData.products)) {
         setProducts(prodData.products);
-
-        // Keep catalog items loaded without wiping user's saved selection on mount
-      }
-
-      const colData = await colRes.json();
-      if (Array.isArray(colData)) {
-        const unique = new Map<string, { id: string; title: string }>();
-        colData.forEach((c) => {
-          const t = (c.title || '').trim();
-          if (t && !unique.has(t.toLowerCase())) {
-            unique.set(t.toLowerCase(), { id: c.id, title: t });
-          }
-        });
-        setCollections(Array.from(unique.values()));
       }
     } catch (err) {
       console.error('[PreorderProductSelector] Failed to load products:', err);
@@ -89,46 +66,23 @@ export function PreorderProductSelector({
     return products.filter((p) => normalizedSelected.has(normalizeId(p.shopifyProductId)));
   }, [products, normalizedSelected]);
 
-  const oosCount = useMemo(() => {
-    return products.filter((p) => (
-      p.totalInventory <= inventoryThreshold ||
-      p.hasOutOfStockVariant ||
-      p.isOutOfStock
-    )).length;
-  }, [products, inventoryThreshold]);
+  const eligibleProducts = useMemo(() => {
+    return products.filter((p) => {
+      const isOutOfStock = p.totalInventory <= 0 || Boolean(p.hasOutOfStockVariant) || Boolean(p.isOutOfStock);
+      const isSelected = normalizedSelected.has(normalizeId(p.shopifyProductId));
+      return isOutOfStock || isSelected;
+    });
+  }, [products, normalizedSelected]);
 
   const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
-      const isEligibleOOS =
-        p.totalInventory <= inventoryThreshold ||
-        p.hasOutOfStockVariant ||
-        p.isOutOfStock;
-      const isSelected = normalizedSelected.has(normalizeId(p.shopifyProductId));
-
-      // 1. Only out-of-stock products are eligible for pre-order (or already selected)
-      if (!isEligibleOOS && !isSelected) {
-        return false;
-      }
-
-      // 2. Collection filter
-      if (selectedCollection !== 'ALL') {
-        const inCol = p.collections?.some(
-          (c) => c.title.toLowerCase() === selectedCollection.toLowerCase() || c.id === selectedCollection
-        );
-        if (!inCol) return false;
-      }
-
-      // 3. Search query
-      if (searchTerm.trim()) {
-        const query = searchTerm.toLowerCase();
-        const matchTitle = p.title.toLowerCase().includes(query);
-        const matchSku = p.sku?.toLowerCase().includes(query);
-        if (!matchTitle && !matchSku) return false;
-      }
-
-      return true;
+    if (!searchTerm.trim()) return eligibleProducts;
+    const query = searchTerm.toLowerCase();
+    return eligibleProducts.filter((p) => {
+      const matchTitle = p.title.toLowerCase().includes(query);
+      const matchSku = p.sku?.toLowerCase().includes(query);
+      return matchTitle || matchSku;
     });
-  }, [products, inventoryThreshold, selectedCollection, searchTerm, normalizedSelected]);
+  }, [eligibleProducts, searchTerm]);
 
   const toggleProduct = (productId: string) => {
     if (disabled) return;
@@ -173,53 +127,31 @@ export function PreorderProductSelector({
 
   return (
     <div className="space-y-4">
-      {/* Search, Stock Filter, and Collection Filters */}
-      <div className="flex flex-col sm:flex-row gap-2.5">
-        <div className="relative flex-1">
-          <svg
-            className="w-4 h-4 absolute left-3 top-3 text-gray-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            type="text"
-            placeholder="Search products by title or SKU..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            disabled={disabled}
-            className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          />
-        </div>
-
-        {collections.length > 0 && (
-          <div className="w-48">
-            <PolarisSelect
-              label="Collection Filter"
-              labelHidden
-              value={selectedCollection}
-              onChange={setSelectedCollection}
-              disabled={disabled}
-              options={[
-                { label: 'All Collections', value: 'ALL' },
-                ...collections.map((c) => ({ label: c.title, value: c.title })),
-              ]}
-            />
-          </div>
-        )}
+      {/* Clean Full-Width Search Input */}
+      <div className="relative">
+        <svg
+          className="w-4 h-4 absolute left-3 top-3 text-gray-400"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          type="text"
+          placeholder="Search products by title or SKU..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          disabled={disabled}
+          className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        />
       </div>
 
-      {/* Action Header & Accurate Counts */}
+      {/* Action Header: Clean count & Select/Clear actions */}
       <div className="flex items-center justify-between text-xs font-medium text-gray-600 pb-2 border-b border-gray-100">
-        <div className="flex items-center gap-2">
+        <div>
           <span className="font-semibold text-gray-900">
             {selectedCount} product{selectedCount === 1 ? '' : 's'} selected
-          </span>
-          <span className="text-gray-400">•</span>
-          <span className="font-bold text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 text-[11px]">
-            {oosCount} out of stock
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -281,9 +213,9 @@ export function PreorderProductSelector({
       <div className="max-h-72 overflow-y-auto divide-y divide-gray-100 border border-gray-200 rounded-lg bg-white">
         {filteredProducts.length === 0 ? (
           <div className="p-6 text-center text-sm text-gray-500 space-y-1">
-            <p className="font-semibold text-gray-700">No out-of-stock products found.</p>
+            <p className="font-semibold text-gray-700">No products with stock &le; 0 found.</p>
             <p className="text-xs text-gray-400">
-              Only products that are out of stock (≤ {inventoryThreshold} stock) can be selected for pre-order.
+              Only products with inventory &le; 0 are eligible for pre-order.
             </p>
           </div>
         ) : (
@@ -318,12 +250,18 @@ export function PreorderProductSelector({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-gray-900 truncate">{p.title}</span>
+                    {p.totalInventory <= 0 && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold shrink-0">
+                        Stock &le; 0
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-gray-500 flex items-center gap-2 mt-0.5">
                     {p.sku && <span>SKU: {p.sku}</span>}
                     {p.variantCount !== undefined && (
                       <span>• {p.variantCount} variant{p.variantCount === 1 ? '' : 's'}</span>
                     )}
+                    <span>• Stock: {p.totalInventory}</span>
                     {p.price > 0 && <span>• ₹{p.price.toFixed(2)}</span>}
                   </div>
                 </div>

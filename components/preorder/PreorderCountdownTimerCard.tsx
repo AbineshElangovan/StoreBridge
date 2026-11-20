@@ -482,7 +482,7 @@ export function PreorderCountdownTimerCard({
             <span className="text-xs text-gray-500 font-medium">
               Countdown timer applies to live pre-order offers.
             </span>
-            {isDirty && onSave && (
+            {onSave && (
               <button
                 type="button"
                 onClick={onSave}

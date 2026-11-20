@@ -19,6 +19,7 @@ import {
 import { PreorderProductSelector } from '@/components/preorder/PreorderProductSelector';
 import { PreorderCollectionSelector } from '@/components/preorder/PreorderCollectionSelector';
 import { PreorderCountdownTimerCard } from '@/components/preorder/PreorderCountdownTimerCard';
+import { ThemeActivationBanner } from '@/components/preorder/ThemeActivationBanner';
 import { StandaloneGuard } from '@/components/ui/StandaloneGuard';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 import { PageTabs, PageTab } from '@/components/ui/PageTabs';
@@ -672,6 +673,8 @@ export default function PreorderAdminPage() {
         subtitle="Allow customers to pre-order items when stock drops to or below the configured inventory threshold."
       />
 
+      <ThemeActivationBanner />
+
       {/* Pre-order Performance Overview: 4 database-driven cards (Total Pre-orders, Pending Pre-orders, Pre-order Revenue, Pending Revenue) at the top of the navbar */}
       <PreorderPerformanceCard metrics={preorderMetrics || undefined} />
 
@@ -698,7 +701,7 @@ export default function PreorderAdminPage() {
             loading={saving}
             label="Save Changes"
             loadingLabel="Saving Changes..."
-            disabled={saving || !isDirty}
+            disabled={saving}
           />
         </div>
       )}
@@ -895,29 +898,27 @@ export default function PreorderAdminPage() {
                       ? `${selectedProductIds.length} product${selectedProductIds.length === 1 ? '' : 's'} selected`
                       : 'All catalog products targeted'}
                   </span>
-                  {isDirty && (
-                    <button
-                      type="button"
-                      onClick={handleSave}
-                      disabled={saving}
-                      style={{ backgroundColor: primaryColor, color: buttonTextColor }}
-                      className="px-4 py-2 text-xs font-black rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
-                    >
-                      {saving ? (
-                        <>
-                          <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-3.5 h-3.5" style={{ color: buttonTextColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
-                          </svg>
-                          Save Changes
-                        </>
-                      )}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saving}
+                    style={{ backgroundColor: primaryColor, color: buttonTextColor }}
+                    className="px-4 py-2 text-xs font-black rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
+                  >
+                    {saving ? (
+                      <>
+                        <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5" style={{ color: buttonTextColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Save Changes
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </SettingsCard>
@@ -1139,29 +1140,27 @@ export default function PreorderAdminPage() {
                       ? 'Half payment (50% deposit) active'
                       : 'Full payment (100%) active'}
                   </span>
-                  {isDirty && (
-                    <button
-                      type="button"
-                      onClick={handleSave}
-                      disabled={saving}
-                      style={{ backgroundColor: primaryColor, color: buttonTextColor }}
-                      className="px-4 py-2 text-xs font-black rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
-                    >
-                      {saving ? (
-                        <>
-                          <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-3.5 h-3.5" style={{ color: buttonTextColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
-                          </svg>
-                          Save Changes
-                        </>
-                      )}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saving}
+                    style={{ backgroundColor: primaryColor, color: buttonTextColor }}
+                    className="px-4 py-2 text-xs font-black rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
+                  >
+                    {saving ? (
+                      <>
+                        <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5" style={{ color: buttonTextColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Save Changes
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </SettingsCard>
@@ -1278,29 +1277,27 @@ export default function PreorderAdminPage() {
                   <span className="text-xs text-gray-500 font-medium">
                     Changes apply automatically to storefront product pages.
                   </span>
-                  {isDirty && (
-                    <button
-                      type="button"
-                      onClick={handleSave}
-                      disabled={saving}
-                      style={{ backgroundColor: primaryColor, color: buttonTextColor }}
-                      className="px-4 py-2 text-xs font-black rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
-                    >
-                      {saving ? (
-                        <>
-                          <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-3.5 h-3.5" style={{ color: buttonTextColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
-                          </svg>
-                          Save Changes
-                        </>
-                      )}
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saving}
+                    style={{ backgroundColor: primaryColor, color: buttonTextColor }}
+                    className="px-4 py-2 text-xs font-black rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer flex items-center gap-2"
+                  >
+                    {saving ? (
+                      <>
+                        <span className="inline-block w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5" style={{ color: buttonTextColor }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Save Changes
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
             </SettingsCard>

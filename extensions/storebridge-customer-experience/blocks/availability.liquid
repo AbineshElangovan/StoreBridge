@@ -31,6 +31,8 @@
   data-product-url="{{ product.url }}"
   data-product-image="{{ secure_image }}"
   data-selected-variant-id="{{ product.selected_or_first_available_variant.id }}"
+  data-theme-name="{{ theme.name | escape }}"
+  data-block-id="{{ block.id }}"
   data-api-url="{{ block.settings.api_url | default: 'https://dz50mdfc-3000.inc1.devtunnels.ms' }}"
 >
   <script type="application/json" id="storebridge-product-variants-data">

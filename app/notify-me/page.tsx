@@ -17,6 +17,7 @@ import {
 import { StandaloneGuard } from '@/components/ui/StandaloneGuard';
 import { StatCard } from '@/components/ui/StatCard';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { ThemeActivationBanner } from '@/components/preorder/ThemeActivationBanner';
 import {
   NotificationIcon,
   ClockIcon,
@@ -332,6 +333,8 @@ export default function NotifyMeAdminPage() {
           title="Notify Me"
           subtitle="Capture interested buyers with an out-of-stock waitlist modal on your storefront product pages."
         />
+
+        <ThemeActivationBanner />
         {/* Quick Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
           <StatCard

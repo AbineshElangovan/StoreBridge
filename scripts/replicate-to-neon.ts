@@ -3,11 +3,11 @@ import { prisma as localPrisma } from '../lib/db/prisma';
 
 const VERCEL_NEON_URL =
   process.env.VERCEL_NEON_URL ||
-  'postgresql://neondb_owner:npg_7rDw2gJtlEeU@ep-restless-sun-b5m5tyc8-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+  'postgresql://neondb_owner:npg_7rDw2gJtlEeU@ep-restless-sun-b5m5tyc8.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require';
 
 const AWS_NEON_URL =
   process.env.AWS_NEON_URL ||
-  'postgresql://neondb_owner:npg_U2vAaDoV4OKg@ep-patient-dream-bbqakoyb-pooler.c-15.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+  'postgresql://neondb_owner:npg_7rDw2gJtlEeU@ep-restless-sun-b5m5tyc8.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require';
 
 async function syncTarget(targetName: string, dbUrl: string) {
   console.log(`\n=====================================================`);

@@ -350,8 +350,7 @@ export async function GET(
             )
           );
 
-          const threshold = preorderConfig.inventoryThreshold ?? 0;
-          const hasEligibleVariant = variantsInDb.some((v: any) => (v.inventoryQuantity ?? 0) <= threshold);
+          const hasEligibleVariant = variantsInDb.some((v: any) => v.inventoryQuantity === 0);
           const isAvailable = isTargeted && hasEligibleVariant;
 
           if (isTargeted) {
@@ -360,7 +359,7 @@ export async function GET(
               isTargeted: true,
               isAvailable,
               status: isAvailable ? 'Pre-order Available' : 'Pre-order Not Available',
-              inventoryThreshold: threshold,
+              inventoryThreshold: preorderConfig.inventoryThreshold ?? 0,
               discountType: preorderConfig.discountType || 'none',
               discountValue: Number(preorderConfig.discountValue) || 0,
               allowHalfPayment: preorderConfig.allowHalfPayment !== false,
@@ -427,9 +426,8 @@ export async function GET(
             )
           );
 
-          const threshold = preorderConfig?.inventoryThreshold ?? 0;
           const isVarAvailable =
-            isVarTargeted && (v.inventoryQuantity || 0) <= threshold;
+            isVarTargeted && v.inventoryQuantity === 0;
 
           return {
             id: v.id,

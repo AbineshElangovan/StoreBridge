@@ -220,7 +220,7 @@ export default function DashboardPage() {
   ];
 
   const preorderEligibleProducts = (data?.preorderEligibleProducts || [])
-    .filter((p: any) => p.inventoryQuantity <= (p.threshold ?? 0))
+    .filter((p: any) => p.inventoryQuantity === 0)
     .map((p: any) => {
       const prodUrl = getProductUrl(p);
       return {

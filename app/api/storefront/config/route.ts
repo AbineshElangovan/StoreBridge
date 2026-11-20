@@ -213,7 +213,13 @@ export async function GET(req: NextRequest) {
 
     // Determine target countdown date (End Date / Deadline only)
     let targetCountdownDate: string | null = null;
-    const showTimer = Boolean((preorderConfig as any).showTimer);
+    const showTimer = Boolean(
+      (preorderConfig as any).showTimer === true ||
+      (preorderConfig as any).showTimer === 'true' ||
+      (preorderConfig as any).showTimer === 1 ||
+      (preorderConfig as any).statusScheduleType === 'UNTIL_END_DATE' ||
+      (preorderConfig as any).endDate
+    );
     const timerDateMode = (preorderConfig as any).timerDateMode || 'USE_STATUS_DATE';
     const timerCustomDate = (preorderConfig as any).timerCustomDate ? new Date((preorderConfig as any).timerCustomDate) : null;
 
@@ -222,17 +228,18 @@ export async function GET(req: NextRequest) {
       ? (timerCustomDate || endDate)
       : (endDate || timerCustomDate);
 
-    if (showTimer && effectiveEndTarget) {
-      targetCountdownDate = effectiveEndTarget.toISOString();
-      if (now > effectiveEndTarget) {
+    if (showTimer) {
+      const finalEndTarget = effectiveEndTarget || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      targetCountdownDate = finalEndTarget.toISOString();
+      if (effectiveEndTarget && now > effectiveEndTarget) {
         isExpired = true;
         isLive = false;
       }
     }
 
     const effectiveHeading = timerHeadingEnd;
-    const effectiveTextColor = (preorderConfig as any).timerTextColorEnd || (preorderConfig as any).timerTextColor || '#000000';
-    const effectiveBgColor = (preorderConfig as any).timerBgColorEnd || '#fee2e2';
+    const effectiveTextColor = (preorderConfig as any).timerTextColorEnd || (preorderConfig as any).timerTextColor || '#ffffff';
+    const effectiveBgColor = (preorderConfig as any).timerBgColorEnd || (preorderConfig as any).timerBgColor || '#1d4ed8';
 
     return NextResponse.json(
       {

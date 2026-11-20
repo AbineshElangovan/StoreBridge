@@ -255,8 +255,7 @@ export async function GET(req: NextRequest) {
           prodColls
         );
 
-        const threshold = preorderConfig.inventoryThreshold ?? 0;
-        isPreorderAvailable = isPreorderTargeted && p.inventoryQuantity <= threshold;
+        isPreorderAvailable = isPreorderTargeted && p.inventoryQuantity <= 0;
         preorderStatus = isPreorderAvailable ? 'Pre-order' : null;
       }
 
@@ -337,17 +336,48 @@ export async function GET(req: NextRequest) {
         resolvedCollections = [...titleFallbackCollections[baseProductTitle]];
       }
 
+      // E. Keyword-based fallback: match product title keywords against all existing known groups
+      // This catches "Baggy Denim pant" -> PANTS, "Premium Running Shoes" -> SHOES, etc.
+      if (resolvedCollections.length === 0 && baseProductTitle) {
+        const allExistingCollectionTitles = new Set<string>();
+        allKnownProducts.forEach((kp: any) => {
+          if (kp.collections) {
+            kp.collections.forEach((cp: any) => {
+              if (cp.collection?.title) allExistingCollectionTitles.add(cp.collection.title);
+            });
+          }
+        });
+
+        // Try to find a known collection title whose keywords appear in the product title
+        for (const knownCollTitle of allExistingCollectionTitles) {
+          const collWords = knownCollTitle.toLowerCase().replace(/[-_\s]+/g, ' ').split(' ').filter((w: string) => w.length >= 3);
+          const matches = collWords.some((word: string) => baseProductTitle.includes(word));
+          if (matches && !['home', 'page', 'all', 'catalog', 'frontpage'].includes(knownCollTitle.toLowerCase())) {
+            resolvedCollections.push(knownCollTitle);
+          }
+        }
+      }
+
       // 2. Determine final category titles:
-      // - If product has collections, use ONLY collection names (NEVER mix with tags).
-      // - If product has NO collections anywhere, fallback to primary tag (showcase only ONCE).
-      // - Otherwise, fallback to 'Uncategorized'.
+      // - Include resolved collections (excluding generic Shopify system collections like 'Home page', 'All').
+      // - Also incorporate product tags dynamically so products tagged 'mens accessories', 'Accessories', etc. are included.
       let candidateCategories: string[] = [];
       if (resolvedCollections.length > 0) {
-        candidateCategories = resolvedCollections;
-      } else if (p.tags) {
+        candidateCategories = resolvedCollections.filter(
+          (c) => !['home page', 'frontpage', 'all', 'all products', 'catalog'].includes(c.toLowerCase().trim())
+        );
+        if (candidateCategories.length === 0 && resolvedCollections.length > 0) {
+          candidateCategories = [...resolvedCollections];
+        }
+      }
+
+      // Also incorporate tags
+      if (p.tags) {
         const tagList = p.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
-        if (tagList.length > 0) {
-          candidateCategories = [tagList[0]]; // Showcase only one time under primary tag
+        for (const tag of tagList) {
+          if (!candidateCategories.some(c => isCategoryMatch(c, tag))) {
+            candidateCategories.push(tag);
+          }
         }
       }
 
@@ -394,7 +424,7 @@ export async function GET(req: NextRequest) {
           return (
             preorderConfig?.enabled &&
             PreorderService.isProductTargeted(preorderConfig, p.shopifyProductId, prodColls) &&
-            p.inventoryQuantity <= (preorderConfig.inventoryThreshold ?? 0)
+            p.inventoryQuantity <= 0
           );
         }).length
       : 0;

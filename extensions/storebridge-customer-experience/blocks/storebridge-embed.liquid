@@ -2,58 +2,57 @@
 <script src="{{ 'availability.js' | asset_url }}?v={{ 'now' | date: '%s' }}" defer></script>
 
 {%- if request.page_type == 'cart' -%}
-  {%- assign sb_has_preorder = false -%}
-  {%- for item in cart.items -%}
-    {%- if item.properties._preorder == 'true' or item.properties._preorder == true -%}
-      {%- assign sb_has_preorder = true -%}
-    {%- endif -%}
-    {%- for prop in item.properties -%}
-      {%- assign p_key = prop.first | downcase -%}
-      {%- if p_key contains 'pre-order' or p_key contains 'preorder' or p_key == '_preorder' -%}
-        {%- assign sb_has_preorder = true -%}
-      {%- endif -%}
-    {%- endfor -%}
-    {%- assign i_title = item.title | downcase -%}
-    {%- if i_title contains 'pre-order' or i_title contains 'preorder' -%}
-      {%- assign sb_has_preorder = true -%}
-    {%- endif -%}
-  {%- endfor -%}
-
   <script id="storebridge-server-cart" type="application/json">{{ cart | json }}</script>
+{%- endif -%}
 
-  <script>
-    try {
-      if ({% if sb_has_preorder %}true{% else %}false{% endif %} || sessionStorage.getItem('storebridge_has_preorder') === 'true') {
-        document.documentElement.classList.add('storebridge-custom-cart-active');
-        sessionStorage.setItem('storebridge_has_preorder', 'true');
-      }
-    } catch(e){}
-  </script>
-
-  <style id="storebridge-cart-flicker-guard">
-    html.storebridge-custom-cart-active [id*="cart-footer"],
-    html.storebridge-custom-cart-active [id*="cart_footer"],
-    html.storebridge-custom-cart-active .cart__footer-wrapper,
-    html.storebridge-custom-cart-active .section-main-cart-footer,
-    html.storebridge-custom-cart-active #main-cart-footer,
-    html.storebridge-custom-cart-active cart-items,
-    html.storebridge-custom-cart-active #main-cart-items,
-    html.storebridge-custom-cart-active form[action*="/cart"] {
-      display: none !important;
-    }
-  </style>
+{%- if product -%}
+  {%- assign raw_embed_image = product.featured_image | image_url: width: 600 -%}
+  {%- assign secure_embed_image = raw_embed_image -%}
+  {%- if raw_embed_image != blank -%}
+    {%- unless raw_embed_image contains 'http' -%}
+      {%- assign secure_embed_image = 'https:' | append: raw_embed_image -%}
+    {%- endunless -%}
+  {%- endif -%}
 {%- endif -%}
 
 <div
   id="storebridge-global-embed"
   data-storebridge-embed="true"
   data-shop="{{ shop.permanent_domain }}"
-  data-api-url="{{ block.settings.api_url | default: 'https://dz50mdfc-3000.inc1.devtunnels.ms' }}"
+  data-api-url="{{ block.settings.api_url | default: 'https://store-bridge-yemi.vercel.app' }}"
+  data-theme-name="{{ theme.name | escape }}"
+  data-theme-role="{{ theme.role | escape }}"
+  data-theme-id="{{ theme.id }}"
+  data-page-type="{{ request.page_type }}"
+  {% if product %}
+  data-product-id="{{ product.id }}"
+  data-product-title="{{ product.title | escape }}"
+  data-product-url="{{ product.url }}"
+  data-product-image="{{ secure_embed_image }}"
+  data-selected-variant-id="{{ product.selected_or_first_available_variant.id }}"
+  {% endif %}
   data-customer-email="{{ customer.email | default: '' }}"
   data-customer-name="{{ customer.name | default: '' }}"
   data-customer-phone="{{ customer.phone | default: '' }}"
   style="display: none;"
-></div>
+>
+  {% if product and product.variants %}
+  <script type="application/json" id="storebridge-product-variants-data">
+    [
+      {% for variant in product.variants %}
+        {
+          "id": {{ variant.id | json }},
+          "title": {{ variant.title | json }},
+          "available": {{ variant.available | json }},
+          "inventory_quantity": {% if variant.inventory_quantity != blank %}{{ variant.inventory_quantity | json }}{% else %}null{% endif %},
+          "price": {{ variant.price | money | json }},
+          "image": {% if variant.featured_image %}{% assign vimg = variant.featured_image | image_url: width: 600 %}{% unless vimg contains 'http' %}{% assign vimg = 'https:' | append: vimg %}{% endunless %}{{ vimg | json }}{% else %}null{% endif %}
+        }{% unless forloop.last %},{% endunless %}
+      {% endfor %}
+    ]
+  </script>
+  {% endif %}
+</div>
 
 {% schema %}
 {
@@ -64,7 +63,7 @@
       "type": "text",
       "id": "api_url",
       "label": "StoreOrbit App URL",
-      "default": "https://dz50mdfc-3000.inc1.devtunnels.ms",
+      "default": "https://store-bridge-yemi.vercel.app",
       "info": "Backend API endpoint for StoreOrbit"
     }
   ]

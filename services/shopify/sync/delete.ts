@@ -28,10 +28,19 @@ export async function processProductDelete(shopDomain: string, payload: any, web
       return;
     }
 
+    const rawDeletedId = String(payload.id);
+    const numProdId = rawDeletedId.replace(/^gid:\/\/shopify\/Product\//i, '');
+    const prodIdConditions = [
+      { shopifyProductId: `gid://shopify/Product/${numProdId}` },
+      { shopifyProductId: numProdId },
+      { shopifyProductId: rawDeletedId },
+      ...(payload.admin_graphql_api_id ? [{ shopifyProductId: payload.admin_graphql_api_id }] : [])
+    ];
+
     const sourceVariantMaps = await prisma.variantMap.findMany({
       where: {
         storeId: sourceStore.id,
-        shopifyProductId: `gid://shopify/Product/${payload.id}`,
+        OR: prodIdConditions,
       },
     });
 
@@ -41,7 +50,7 @@ export async function processProductDelete(shopDomain: string, payload: any, web
     const sourceProductCaches = await prisma.productCache.findMany({
       where: {
         storeId: sourceStore.id,
-        shopifyProductId: payload.admin_graphql_api_id || `gid://shopify/Product/${payload.id}`,
+        OR: prodIdConditions,
       },
     });
 

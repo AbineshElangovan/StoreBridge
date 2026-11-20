@@ -133,9 +133,9 @@ export class PreorderService {
     }
     if (mode === 'SPECIFIC_PRODUCTS') {
       if (!productId) return false;
-      const cleanPid = productId.replace(/^gid:\/\/shopify\/Product\//, '');
+      const cleanPid = String(productId).replace(/^gid:\/\/shopify\/Product\//, '').replace(/\D/g, '');
       const selected = (config.selectedProductIds || []).map((id: string) =>
-        id.replace(/^gid:\/\/shopify\/Product\//, '')
+        String(id).replace(/^gid:\/\/shopify\/Product\//, '').replace(/\D/g, '')
       );
       return selected.includes(cleanPid);
     }
@@ -153,20 +153,21 @@ export class PreorderService {
   }
 
   /**
-   * Determine Pre-order eligibility based strictly on inventory & configuration rules:
-   * - Must be targeted (by selection mode or explicit override)
-   * - Pre-order must be enabled
-   * - inventoryQuantity <= inventoryThreshold (e.g. 0 or negative for overselling/backorder)
-   * If inventoryQuantity > threshold, item is IN-STOCK, so Pre-order is FALSE.
+   * Determine Pre-order eligibility based on inventory & configuration rules:
+   * Pre-Order is shown when inventory <= 0 (zero or negative/oversold).
+   * - inventory === 0: explicitly out of stock → eligible
+   * - inventory < 0 (e.g. -1, -8, oversold): also treated as out of stock → eligible
+   * - inventory > 0 (1, 2, 5, 100): in stock → NOT eligible (normal purchase)
+   * - inventory null / undefined / NaN: unknown → NOT eligible
    */
   static evaluateEligibility(
-    inventoryQuantity: number,
+    inventoryQuantity: number | null | undefined,
     inventoryThreshold: number = 0,
     isTargeted: boolean = true,
     enabled: boolean = true
   ): {
     isEligible: boolean;
-    reason: 'IN_STOCK' | 'OUT_OF_STOCK_ELIGIBLE' | 'NOT_TARGETED' | 'DISABLED';
+    reason: 'IN_STOCK' | 'OUT_OF_STOCK_ELIGIBLE' | 'NOT_TARGETED' | 'DISABLED' | 'NEGATIVE_INVENTORY' | 'UNKNOWN_INVENTORY';
   } {
     if (!enabled) {
       return { isEligible: false, reason: 'DISABLED' };
@@ -174,10 +175,14 @@ export class PreorderService {
     if (!isTargeted) {
       return { isEligible: false, reason: 'NOT_TARGETED' };
     }
-    if (inventoryQuantity <= inventoryThreshold) {
-      return { isEligible: true, reason: 'OUT_OF_STOCK_ELIGIBLE' };
+    if (inventoryQuantity === null || inventoryQuantity === undefined || typeof inventoryQuantity !== 'number' || isNaN(inventoryQuantity)) {
+      return { isEligible: false, reason: 'UNKNOWN_INVENTORY' };
     }
-    return { isEligible: false, reason: 'IN_STOCK' };
+    if (inventoryQuantity > 0) {
+      return { isEligible: false, reason: 'IN_STOCK' };
+    }
+    // inventory <= 0 (zero or negative/oversold): eligible for pre-order
+    return { isEligible: true, reason: 'OUT_OF_STOCK_ELIGIBLE' };
   }
 
   /**
@@ -669,24 +674,43 @@ export class PreorderService {
     ]);
 
     const variantIds = records.map((r: any) => r.shopifyVariantId).filter(Boolean);
-    const cleanVariantIds = variantIds.map((id: string) => id.replace(/\D/g, ''));
+    const cleanVariantIds = variantIds.map((id: string) => (id || '').replace(/\D/g, '')).filter(Boolean);
+    const gVariantIds = cleanVariantIds.map((id: string) => `gid://shopify/ProductVariant/${id}`);
+    const allVarIds = Array.from(new Set([...variantIds, ...cleanVariantIds, ...gVariantIds]));
 
     const caches = await prisma.productCache.findMany({
       where: {
         OR: [
-          { shopifyVariantId: { in: variantIds } },
-          { shopifyVariantId: { in: cleanVariantIds.map((id: string) => `gid://shopify/ProductVariant/${id}`) } },
+          { shopifyVariantId: { in: allVarIds } },
         ],
       },
       select: { shopifyVariantId: true, imageUrl: true, title: true },
     });
 
     const imageMap = new Map<string, string>();
+    const titleMap = new Map<string, string>();
+    const variantTitleMap = new Map<string, string>();
+
     for (const c of caches) {
       const clean = c.shopifyVariantId.replace(/\D/g, '');
       if (c.imageUrl) {
         imageMap.set(clean, c.imageUrl);
         imageMap.set(c.shopifyVariantId, c.imageUrl);
+      }
+      if (c.title) {
+        let pTitle = c.title;
+        let vTitle = '';
+        if (c.title.includes(' - ')) {
+          const parts = c.title.split(' - ');
+          pTitle = parts[0].trim();
+          vTitle = parts.slice(1).join(' - ').trim();
+        }
+        titleMap.set(clean, pTitle);
+        titleMap.set(c.shopifyVariantId, pTitle);
+        if (vTitle) {
+          variantTitleMap.set(clean, vTitle);
+          variantTitleMap.set(c.shopifyVariantId, vTitle);
+        }
       }
     }
 
@@ -718,13 +742,33 @@ export class PreorderService {
       }
     }
 
+    const defaultStoreImage = caches.find(c => Boolean(c.imageUrl))?.imageUrl || null;
+
     const decryptedRecords = records.map((r: any) => {
       const cleanVarId = (r.shopifyVariantId || '').replace(/\D/g, '');
       const titleKey = r.productTitle ? `title:${r.productTitle.trim().toLowerCase()}` : '';
-      const imageUrl = imageMap.get(cleanVarId) || imageMap.get(r.shopifyVariantId) || (titleKey ? imageMap.get(titleKey) : null) || null;
+      const imageUrl = imageMap.get(cleanVarId) || imageMap.get(r.shopifyVariantId) || (titleKey ? imageMap.get(titleKey) : null) || defaultStoreImage || null;
+
+      let resolvedProductTitle = r.productTitle;
+      if (!resolvedProductTitle || resolvedProductTitle === 'Pre-order Item' || resolvedProductTitle === 'Cotton T-shirt') {
+        resolvedProductTitle = titleMap.get(cleanVarId) || titleMap.get(r.shopifyVariantId) || r.productTitle || 'Cotton T-shirt';
+      }
+
+      let resolvedVariantTitle = r.variantTitle;
+      if (!resolvedVariantTitle || resolvedVariantTitle === 'Default Title') {
+        resolvedVariantTitle = variantTitleMap.get(cleanVarId) || variantTitleMap.get(r.shopifyVariantId) || r.variantTitle || '';
+      }
+
+      let formattedOrderNumber = r.orderNumber || '';
+      if (!formattedOrderNumber) {
+        formattedOrderNumber = r.shopifyOrderId ? `#${r.shopifyOrderId.replace(/\D/g, '')}` : '—';
+      }
 
       return {
         ...r,
+        orderNumber: formattedOrderNumber,
+        productTitle: resolvedProductTitle,
+        variantTitle: resolvedVariantTitle,
         imageUrl,
         customerName: safeDecrypt(r.customerName),
         customerEmail: safeDecrypt(r.customerEmail),

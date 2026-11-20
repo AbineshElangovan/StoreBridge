@@ -51,18 +51,13 @@ export default async function DashboardPage(props: DashboardPageProps) {
   const visibleStoreIds = primaryStore ? [primaryStore.id, ...connectedStoreIds] : [];
   const isStandalone = connections.length === 0 && !primaryStore?.isMaster;
 
-  const totalProducts = await prisma.productCache.count({ where: { storeId: { in: visibleStoreIds } } });
-  const invResult = await prisma.productCache.aggregate({
-    where: { storeId: { in: visibleStoreIds } },
-    _sum: { inventoryQuantity: true }
+  const visibleProducts = await prisma.productCache.findMany({
+    where: { storeId: { in: visibleStoreIds } }
   });
-  const totalInventory = invResult._sum.inventoryQuantity ?? 0;
-  const activeProducts = await prisma.productCache.count({
-    where: { storeId: { in: visibleStoreIds }, inventoryQuantity: { gt: 0 } }
-  });
-  const lowStockCount = await prisma.productCache.count({
-    where: { storeId: { in: visibleStoreIds }, inventoryQuantity: { lte: lowStockThreshold } }
-  });
+  const totalProducts = new Set(visibleProducts.map(p => p.shopifyProductId)).size;
+  const totalInventory = visibleProducts.reduce((acc, p) => acc + p.inventoryQuantity, 0);
+  const activeProducts = visibleProducts.filter(p => p.inventoryQuantity > 0).length;
+  const lowStockCount = visibleProducts.filter(p => p.inventoryQuantity <= lowStockThreshold).length;
 
   const latestSync = await prisma.syncLog.findFirst({
     where: { sourceStoreId: { in: visibleStoreIds } },
@@ -89,7 +84,7 @@ export default async function DashboardPage(props: DashboardPageProps) {
             cp.collection?.shopifyCollectionId,
           ]).filter(Boolean) as string[];
           return (
-            p.inventoryQuantity <= (preorderConfig.inventoryThreshold ?? 0) &&
+            p.inventoryQuantity <= 0 &&
             PreorderService.isProductTargeted(preorderConfig, p.shopifyProductId, prodColls)
           );
         }).length;
@@ -227,9 +222,8 @@ export default async function DashboardPage(props: DashboardPageProps) {
       cp.collection?.id,
       cp.collection?.shopifyCollectionId,
     ]).filter(Boolean) as string[];
-    const threshold = preorderConfig.inventoryThreshold ?? 0;
     return (
-      p.inventoryQuantity <= threshold &&
+      p.inventoryQuantity <= 0 &&
       PreorderService.isProductTargeted(preorderConfig, p.shopifyProductId, prodColls)
     );
   };
@@ -343,14 +337,13 @@ export default async function DashboardPage(props: DashboardPageProps) {
         where: { storeId: primaryStore.id },
         include: { collections: { include: { collection: true } } },
       });
-      const threshold = preorderConfig.inventoryThreshold ?? 0;
       const targeted = primaryProducts.filter((p: any) => {
         const prodColls = (p.collections || []).flatMap((cp: any) => [
           cp.collection?.id,
           cp.collection?.shopifyCollectionId,
         ]).filter(Boolean) as string[];
         return (
-          p.inventoryQuantity <= threshold &&
+          p.inventoryQuantity <= 0 &&
           PreorderService.isProductTargeted(preorderConfig, p.shopifyProductId, prodColls)
         );
       });

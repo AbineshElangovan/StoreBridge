@@ -39,6 +39,41 @@
   // CONFIGURATION
   // ============================================================
 
+  const ACTIVE_APP_API_URL = 'https://dz50mdfc-3000.inc1.devtunnels.ms';
+  const PRODUCTION_LIVE_API_URL = 'https://store-bridge-yemi.vercel.app';
+
+  function getEffectiveApiUrl() {
+    if (typeof window !== 'undefined') {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const queryApi = urlParams.get('storeorbit_api') || urlParams.get('storebridge_api');
+        if (queryApi && queryApi.trim()) {
+          const cleanParam = queryApi.trim().replace(/\/+$/, '');
+          try { localStorage.setItem('storeorbit_api_url', cleanParam); } catch (_) {}
+          return cleanParam;
+        }
+        const storedApi = localStorage.getItem('storeorbit_api_url');
+        if (storedApi && storedApi.trim()) {
+          return storedApi.trim().replace(/\/+$/, '');
+        }
+        if (window.__STOREBRIDGE_API_URL__) {
+          return String(window.__STOREBRIDGE_API_URL__).trim().replace(/\/+$/, '');
+        }
+      } catch (_) {}
+    }
+
+    let url = (config.apiUrl || '').trim();
+    if (!url) {
+      const root = getRootElement() || document.getElementById('storebridge-global-embed') || document.querySelector('[data-storebridge-embed="true"]');
+      url = (root?.dataset?.apiUrl || '').trim();
+    }
+    url = url.replace(/\/+$/, '');
+    if (!url || url.includes('version-control.d38r9lc5j1o8oj.amplifyapp.com')) {
+      return ACTIVE_APP_API_URL;
+    }
+    return url;
+  }
+
   const DEFAULT_CONFIG = {
     shop: '',
     productId: '',
@@ -46,7 +81,7 @@
     productUrl: '',
     productImage: '',
 
-    apiUrl: '',
+    apiUrl: PRODUCTION_LIVE_API_URL,
     variantsInventory: {},
 
     preorder: {
@@ -68,12 +103,12 @@
       isExpired: false,
       isLive: true,
       timer: {
-        show: false,
+        show: true,
         targetDate: null,
         heading: 'Hurry up! Pre-order ending soon',
-        textColor: '#000000',
-        bgColor: '#fee2e2',
-        borderRadius: 8,
+        textColor: '#ffffff',
+        bgColor: '#1824cd',
+        borderRadius: 50,
         showDays: true,
         showHours: true,
         showMinutes: true,
@@ -181,26 +216,125 @@
   }
 
   // ============================================================
-  // PRODUCT FORM DETECTION
+  // THEME COMPATIBILITY ENGINE & ADAPTERS
   // ============================================================
 
-  function getProductForm() {
+  const ThemeDetector = {
+    _cachedInfo: null,
+    detect() {
+      if (this._cachedInfo) return this._cachedInfo;
+
+      const embedEl = document.getElementById('storebridge-global-embed');
+      const rootEl = getRootElement();
+      const themeName = (
+        embedEl?.dataset?.themeName ||
+        rootEl?.dataset?.themeName ||
+        window.Shopify?.theme?.name ||
+        window.BOOMR?.themeName ||
+        ''
+      ).toLowerCase();
+
+      let family = 'generic';
+      if (
+        themeName.includes('dawn') ||
+        themeName.includes('refresh') ||
+        themeName.includes('sense') ||
+        themeName.includes('craft') ||
+        themeName.includes('studio') ||
+        themeName.includes('taste') ||
+        themeName.includes('ride') ||
+        themeName.includes('colorblock') ||
+        themeName.includes('horizon') ||
+        themeName.includes('spotlight') ||
+        Boolean(typeof customElements !== 'undefined' && customElements.get && customElements.get('product-form'))
+      ) {
+        family = 'dawn';
+      } else if (
+        themeName.includes('prestige') ||
+        themeName.includes('impact') ||
+        themeName.includes('warehouse') ||
+        themeName.includes('focal') ||
+        Boolean(document.querySelector('.ProductForm, form[data-type="add-to-cart-form"], [data-action="add-to-cart"]'))
+      ) {
+        family = 'prestige';
+      } else if (
+        themeName.includes('impulse') ||
+        themeName.includes('motion') ||
+        themeName.includes('streamline') ||
+        themeName.includes('fetch') ||
+        Boolean(document.querySelector('.btn--add-to-cart, form.product-single__form, #CartDrawer'))
+      ) {
+        family = 'impulse';
+      }
+
+      this._cachedInfo = {
+        name: themeName || 'unknown',
+        family
+      };
+
+      log('Theme detected:', this._cachedInfo);
+      return this._cachedInfo;
+    }
+  };
+
+  // ============================================================
+  // PRODUCT FORM DETECTION (UNIVERSAL THEME ADAPTIVE)
+  // ============================================================
+
+  function getProductForm(scopeContext) {
+    // 1. If an App Block or scope context is provided, search within its containing section first
+    const anchor = scopeContext || getRootElement();
+    const section = anchor ? anchor.closest('.shopify-section, section, [data-section-type], main, .product, .product-section') : null;
+
     const selectors = [
       'product-form form',
-      'form[action*="/cart/add"]',
-      'form.shopify-product-form',
       'form[data-type="add-to-cart-form"]',
+      'form.product-single__form',
+      'form.ProductForm',
+      'form.shopify-product-form',
+      'form[action*="/cart/add"]',
       'form[id^="product-form-"]',
+      'form[id^="AddToCartForm-"]',
       'form[id*="AddToCart"]',
       'form[id*="add-to-cart"]',
       '#product_form',
       'product-form'
     ];
 
+    if (section) {
+      for (const selector of selectors) {
+        const form = section.querySelector(selector);
+        if (form && !form.matches('.newsletter-form, form[action*="/contact"]')) {
+          return form;
+        }
+      }
+    }
+
+    // 2. Main product template containers
+    const mainContainers = [
+      'main',
+      '[id*="MainProduct"]',
+      '.product-single',
+      '.product__info-container',
+      '.product-section',
+      'product-info'
+    ];
+    for (const cSel of mainContainers) {
+      const c = document.querySelector(cSel);
+      if (c) {
+        for (const selector of selectors) {
+          const form = c.querySelector(selector);
+          if (form && !form.matches('.newsletter-form, form[action*="/contact"]')) {
+            return form;
+          }
+        }
+      }
+    }
+
+    // 3. Document-level fallback
     for (const selector of selectors) {
       const form = document.querySelector(selector);
-
-      if (form) {
+      if (form && !form.matches('.newsletter-form, form[action*="/contact"]')) {
         return form;
       }
     }
@@ -211,33 +345,59 @@
   function getNativeSubmitButton(form) {
     if (!form) return null;
 
-    const selectors = [
-      'button[type="submit"]',
-      'input[type="submit"]',
+    // Strict non-submitter exclusions (accelerated checkout, quantity buttons, modal openers, newsletter)
+    const isExcluded = (btn) => {
+      if (!btn) return true;
+      if (btn.type === 'button' && !btn.hasAttribute('data-action') && !btn.classList.contains('product-form__submit') && !btn.classList.contains('btn--add-to-cart')) {
+        if (btn.closest('.quantity, .quantity__button, .quick-add-modal__opener, .share-button, .pickup-availability')) {
+          return true;
+        }
+      }
+      if (btn.name === 'checkout' || btn.id === 'checkout') return true;
+      if (btn.matches('.shopify-payment-button__button, [data-shopify="payment-button"], .shopify-payment-button, .newsletter-form__button')) return true;
+      return false;
+    };
+
+    // Prioritized selectors based on theme adapters
+    const prioritizedSelectors = [
+      'button[name="add"]:not([disabled="disabled"]):not(.shopify-payment-button__button)',
+      'input[name="add"][type="submit"]',
       'button[name="add"]',
+      'input[name="add"]',
+      'button[data-action="add-to-cart"]',
+      '[data-action="add-to-cart"]',
+      'button.product-form__submit',
       '.product-form__submit',
-      '[data-action="add-to-cart"]'
+      'button.btn--add-to-cart',
+      'button.add-to-cart',
+      '.product__submit__add',
+      'button#AddToCart',
+      'button[id*="AddToCart"]',
+      'button[type="submit"]:not([name="checkout"]):not(.shopify-payment-button__button)'
     ];
 
-    for (const selector of selectors) {
+    for (const selector of prioritizedSelectors) {
       const button = form.querySelector(selector);
-
-      if (button) {
+      if (button && !isExcluded(button)) {
         return button;
       }
     }
 
+    // Check for externally linked submit buttons via HTML5 form attribute
     if (form.id) {
-      const externalButton =
-        document.querySelector(
-          `button[form="${CSS.escape(form.id)}"][type="submit"]`
-        ) ||
-        document.querySelector(
-          `button[form="${CSS.escape(form.id)}"][name="add"]`
-        );
+      const escapedId = CSS.escape(form.id);
+      const externalSelectors = [
+        `button[form="${escapedId}"][name="add"]`,
+        `button[form="${escapedId}"][data-action="add-to-cart"]`,
+        `button[form="${escapedId}"].product-form__submit`,
+        `button[form="${escapedId}"][type="submit"]`
+      ];
 
-      if (externalButton) {
-        return externalButton;
+      for (const extSel of externalSelectors) {
+        const extBtn = document.querySelector(extSel);
+        if (extBtn && !isExcluded(extBtn)) {
+          return extBtn;
+        }
       }
     }
 
@@ -273,7 +433,7 @@
 
   function getSelectedVariantId(form) {
     /*
-     * 1. Shopify product form variant ID
+     * 1. Shopify product form variant ID input / select
      */
     if (form) {
       const input =
@@ -285,13 +445,27 @@
       }
     }
 
-    const globalIdInput = document.querySelector('form[action*="/cart/add"] input[name="id"], form[action*="/cart/add"] select[name="id"], input[name="id"]');
-    if (globalIdInput && globalIdInput.value) {
-      return normalizeId(globalIdInput.value);
+    /*
+     * 2. External form attribute input
+     */
+    if (form && form.id) {
+      const escapedId = CSS.escape(form.id);
+      const extInput = document.querySelector(`input[name="id"][form="${escapedId}"], select[name="id"][form="${escapedId}"]`);
+      if (extInput && extInput.value) {
+        return normalizeId(extInput.value);
+      }
     }
 
     /*
-     * 2. URL ?variant=
+     * 3. Maestrooo / Prestige active swatch variant
+     */
+    const prestigeActiveVariant = document.querySelector('.ProductForm [data-variant-id].is-selected, [data-action="select-variant"][aria-selected="true"]');
+    if (prestigeActiveVariant && prestigeActiveVariant.dataset.variantId) {
+      return normalizeId(prestigeActiveVariant.dataset.variantId);
+    }
+
+    /*
+     * 4. URL ?variant=
      */
     try {
       const params = new URLSearchParams(window.location.search);
@@ -305,12 +479,62 @@
     }
 
     /*
-     * 3. Match checked options in DOM against known variants
+     * 5. Match checked options in DOM against known variants (radios, selects, pills, buttons, swatches)
      */
     try {
-      const checkedInputs = Array.from(document.querySelectorAll('variant-radios input:checked, .product-form__input input[type="radio"]:checked, fieldset input[type="radio"]:checked'));
-      if (checkedInputs.length > 0 && productVariants.length > 0) {
-        const selectedValues = checkedInputs.map(i => (i.value || '').trim().toLowerCase()).filter(Boolean);
+      const activeOptionSelectors = [
+        'variant-radios input:checked',
+        '.product-form__input input[type="radio"]:checked',
+        'fieldset input[type="radio"]:checked',
+        '.variant-input-wrap input:checked',
+        '.ColorSwatch__Radio:checked',
+        '.BlockSwatch__Radio:checked',
+        '.single-option-selector option:checked',
+        'select[data-single-option-selector] option:checked',
+        '.product-form__input select option:checked',
+        'button[aria-selected="true"]',
+        'button[aria-pressed="true"]',
+        'button[aria-checked="true"]',
+        'button.is-selected',
+        'button.selected',
+        'button.is-active',
+        'button.active',
+        '.pill[aria-selected="true"]',
+        '.pill[aria-pressed="true"]',
+        '.pill.is-selected',
+        '.pill.selected',
+        '.pill--selected',
+        '.pill.active',
+        '.pill.is-active',
+        '[role="radio"][aria-checked="true"]',
+        '[role="radio"][aria-selected="true"]',
+        '[data-option-value][aria-selected="true"]',
+        '[data-option-value][aria-checked="true"]',
+        '[data-option-value].selected',
+        '[data-option-value].is-selected',
+        '[data-option-value].active',
+        'label.is-selected',
+        'label.selected',
+        '.swatch-element.active',
+        '.swatch-element.selected'
+      ].join(', ');
+
+      const activeOptionEls = Array.from(document.querySelectorAll(activeOptionSelectors));
+      if (activeOptionEls.length > 0 && productVariants.length > 0) {
+        const selectedValues = activeOptionEls.map(el => {
+          if (el.tagName === 'OPTION' || el.tagName === 'INPUT') {
+            return (el.value || '').trim().toLowerCase();
+          }
+          return (
+            el.dataset.value ||
+            el.dataset.optionValue ||
+            el.getAttribute('data-value') ||
+            el.value ||
+            el.textContent ||
+            ''
+          ).trim().toLowerCase();
+        }).filter(Boolean);
+
         const match = productVariants.find(v => {
           const title = (v.title || '').toLowerCase();
           return selectedValues.every(val => title.includes(val));
@@ -324,7 +548,15 @@
     }
 
     /*
-     * 4. Root element dataset
+     * 6. Global ID input fallback
+     */
+    const globalIdInput = document.querySelector('form[action*="/cart/add"] input[name="id"], form[action*="/cart/add"] select[name="id"], input[name="id"]');
+    if (globalIdInput && globalIdInput.value) {
+      return normalizeId(globalIdInput.value);
+    }
+
+    /*
+     * 7. Root element dataset
      */
     const root = getRootElement();
 
@@ -333,7 +565,7 @@
     }
 
     /*
-     * 5. First variant fallback
+     * 8. First variant fallback
      */
     if (productVariants.length > 0) {
       return normalizeId(productVariants[0].id);
@@ -382,7 +614,8 @@
     if (!variant) {
       return {
         available: false,
-        inventoryQuantity: 0
+        exactQuantity: null,
+        inventoryQuantity: null
       };
     }
 
@@ -397,11 +630,11 @@
     }
 
     const hasQuantity = Number.isFinite(quantity);
-    const finalQuantity = hasQuantity ? quantity : (variant.available ? 999 : 0);
+    const finalQuantity = hasQuantity ? quantity : (variant.available ? 999 : null);
 
     return {
-      // If backend reports <= 0, item is out of stock regardless of Shopify's "continue selling" flag
       available: Boolean(variant.available) && (!hasQuantity || quantity > 0),
+      exactQuantity: hasQuantity ? quantity : null,
       inventoryQuantity: finalQuantity
     };
   }
@@ -416,40 +649,39 @@
       (nativeButton.textContent || '').toLowerCase().includes('sold out')
     );
 
-    const inventory = inventoryState.inventoryQuantity;
-
-    const threshold = Number.isFinite(
-      Number(config.preorder.inventoryThreshold)
-    )
-      ? Number(config.preorder.inventoryThreshold)
-      : 0;
-
-    /*
-     * Available only when:
-     * Shopify says available AND inventory is strictly above threshold
-     * AND the native button is not disabled/sold out
-     */
-    if (
-      !isNativeSoldOut &&
-      inventoryState.available &&
-      inventory > threshold
-    ) {
-      return 'AVAILABLE';
-    }
-
-    /*
-     * Out of stock / threshold reached
-     * Strictly trigger Pre-order only if enabled AND product is targeted
-     */
     const isTargeted = Boolean(config.preorder && config.preorder.isTargeted === true);
+    const isPreOrderEnabled = Boolean(config.preorder && config.preorder.enabled === true);
 
-    if (config.preorder && config.preorder.enabled && isTargeted && inventory <= threshold) {
+    // Pre-Order eligibility rule: Show Pre-Order when inventory is <= 0 (zero OR negative).
+    // - inventory === 0: explicitly out of stock → eligible
+    // - inventory < 0 (e.g. -1, -8): oversold / back-ordered → also eligible
+    // - inventory > 0 (1, 2, 5, 100): in stock → NOT eligible
+    // - inventory null / undefined / NaN: unknown → NOT eligible
+    const exactQty = inventoryState.exactQuantity;
+    const isOutOfStockOrNegative = (typeof exactQty === 'number' && Number.isFinite(exactQty) && exactQty <= 0);
+
+    const shouldShowPreOrder =
+      isPreOrderEnabled === true &&
+      isTargeted === true &&
+      isOutOfStockOrNegative === true;
+
+    if (shouldShowPreOrder) {
       if (config.preorder.isExpired) {
         return config.notifyMe && config.notifyMe.enabled ? 'NOTIFY_ME' : 'SOLD_OUT';
       }
       return 'PREORDER';
     }
 
+    // Available for sale if positive inventory (1+) or native button enabled
+    if (
+      !isNativeSoldOut &&
+      inventoryState.available &&
+      (exactQty === null || exactQty > 0)
+    ) {
+      return 'AVAILABLE';
+    }
+
+    // Out of stock / negative / untargeted → Notify Me if enabled
     if (config.notifyMe && config.notifyMe.enabled) {
       return 'NOTIFY_ME';
     }
@@ -556,6 +788,72 @@
   }
 
   // ============================================================
+  // LOCAL PICKUP AVAILABILITY (Hide "In stock" message at 0 inventory)
+  // ============================================================
+
+  let nativePickupState = null;
+  function hidePickupAvailability() {
+    const selectors = [
+      'pickup-availability',
+      '.pickup-availability',
+      '[class*="pickup-availability"]',
+      '.product__pickup-availabilities',
+      '.storebridge-pickup-box'
+    ];
+    selectors.forEach((selector) => {
+      document.querySelectorAll(selector).forEach((element) => {
+        if (!nativePickupState) {
+          nativePickupState = element.style.display || '';
+        }
+        element.style.setProperty('display', 'none', 'important');
+      });
+    });
+  }
+
+  function restorePickupAvailability() {
+    const selectors = [
+      'pickup-availability',
+      '.pickup-availability',
+      '[class*="pickup-availability"]',
+      '.product__pickup-availabilities'
+    ];
+    selectors.forEach((selector) => {
+      document.querySelectorAll(selector).forEach((element) => {
+        if (nativePickupState !== null) {
+          element.style.display = nativePickupState;
+        } else {
+          element.style.removeProperty('display');
+        }
+      });
+    });
+    nativePickupState = null;
+  }
+
+  function sanitizeCollectionCards() {
+    const cardSelectors = [
+      '.card',
+      '.product-card',
+      '[class*="product-card"]',
+      '[class*="card--product"]',
+      '.grid__item:has(.card)'
+    ];
+    document.querySelectorAll(cardSelectors.join(', ')).forEach((card) => {
+      const isSoldOut = card.querySelector('.price--sold-out, .badge--sold-out, .sold-out, [class*="sold-out"]') !== null ||
+                        card.classList.contains('price--sold-out') ||
+                        card.classList.contains('sold-out');
+      // If card is IN STOCK (not sold out), ensure no pre-order badge or pre-order text is shown
+      if (!isSoldOut) {
+        card.querySelectorAll('.badge, [class*="badge"], button, a.button').forEach((b) => {
+          const txt = (b.textContent || '').trim().toLowerCase();
+          if (txt.includes('pre-order') || txt.includes('preorder') || txt.includes('pre order')) {
+            b.style.display = 'none';
+          }
+        });
+      }
+    });
+  }
+
+  // ============================================================
   // QUANTITY SELECTOR STATE
   // ============================================================
 
@@ -637,6 +935,11 @@
     document
       .querySelectorAll('[data-storebridge="ui-container"]')
       .forEach((element) => element.remove());
+    const appBlock = document.getElementById('storebridge-availability');
+    if (appBlock) {
+      appBlock.innerHTML = '';
+      appBlock.style.display = 'none';
+    }
   }
 
   // ============================================================
@@ -724,8 +1027,8 @@
       const selVariant = getSelectedVariant(variantId);
       const rawPrice = selVariant?.price;
       let numPrice = 0;
-      if (typeof rawPrice === 'number') {
-        numPrice = rawPrice / 100;
+      if (typeof rawPrice === 'number' && Number.isFinite(rawPrice)) {
+        numPrice = rawPrice;
       } else if (typeof rawPrice === 'string' && rawPrice.trim()) {
         numPrice = parseCurrencyAmount(rawPrice);
       }
@@ -759,6 +1062,23 @@
         : numPrice;
       const initialDue = isHalf ? Math.round((baseProductPrice / 2) * 100) / 100 : baseProductPrice;
       const remainingDue = isHalf ? Math.round((baseProductPrice - initialDue) * 100) / 100 : 0;
+
+      // Save pending preorder state for post-checkout order attribution
+      try {
+        const rootElem = getRootElement();
+        const pTitle = config.productTitle || rootElem?.dataset?.productTitle || document.title || 'Cotton T-shirt';
+        const pendingPreorderData = {
+          variantId: String(variantId),
+          quantity: finalQuantity,
+          productTitle: pTitle.split(' - ')[0].trim(),
+          variantTitle: selVariant?.title || null,
+          paymentOption: isHalf ? 'HALF' : 'FULL',
+          totalAmount: baseProductPrice * finalQuantity,
+          depositAmount: initialDue * finalQuantity,
+          remainingBalance: remainingDue * finalQuantity,
+        };
+        localStorage.setItem('storebridge_pending_preorder', JSON.stringify(pendingPreorderData));
+      } catch (e) {}
 
       const response = await fetch(addUrl, {
         method: 'POST',
@@ -817,24 +1137,6 @@
         );
       }
 
-      button.innerHTML =
-        'Added! Redirecting...';
-
-      try {
-        const pendingItem = {
-          variantId: String(variantId),
-          quantity: finalQuantity,
-          productTitle: selVariant?.product?.title || document.querySelector('.product__title, h1')?.textContent?.trim() || 'Pre-order Item',
-          variantTitle: selVariant?.title || null,
-          paymentOption: isHalf ? 'HALF' : 'FULL',
-          totalAmount: Math.round(baseProductPrice * finalQuantity * 100) / 100,
-          depositAmount: Math.round(initialDue * finalQuantity * 100) / 100,
-          remainingBalance: Math.round(remainingDue * finalQuantity * 100) / 100,
-          timestamp: Date.now()
-        };
-        localStorage.setItem('storebridge_pending_preorder', JSON.stringify(pendingItem));
-      } catch (e) {}
-
       // Pre-apply discount code to the cart session so it's ready for checkout
       const discountToApply = isHalf
         ? (config.preorder.depositDiscountCode || 'PREORDER-HALF-DEPOSIT')
@@ -846,7 +1148,72 @@
         } catch (e) {}
       }
 
-      // Navigate to the custom StoreBridge Pre-order Cart page
+      // Check if theme has an active Cart Drawer or AJAX cart
+      const hasDrawer = Boolean(
+        document.querySelector('cart-drawer, #CartDrawer, #sidebar-cart, .Cart--drawer, .drawer--cart, [data-cart-drawer]')
+      );
+
+      // Dispatch events across theme-specific buses to refresh cart drawers
+      try {
+        if (window.PUB_SUB && typeof window.PUB_SUB.publish === 'function') {
+          window.PUB_SUB.publish('cart-update', { source: 'storebridge', cartData: responseData });
+        }
+        document.dispatchEvent(new CustomEvent('cart:refresh', { bubbles: true, detail: responseData }));
+        document.dispatchEvent(new CustomEvent('theme:cart:refresh', { bubbles: true, detail: responseData }));
+        document.dispatchEvent(new CustomEvent('ajax-cart:updated', { bubbles: true, detail: responseData }));
+        document.dispatchEvent(new CustomEvent('cart:updated', { bubbles: true, detail: responseData }));
+      } catch (_) {}
+
+      if (hasDrawer) {
+        let opened = false;
+        try {
+          const dawnDrawer = document.querySelector('cart-drawer');
+          if (dawnDrawer && typeof dawnDrawer.open === 'function') {
+            dawnDrawer.open();
+            opened = true;
+          } else if (dawnDrawer) {
+            dawnDrawer.classList.add('active', 'animate');
+            opened = true;
+          }
+
+          if (!opened) {
+            const prestigeTrigger = document.querySelector('[data-action="open-drawer"][data-drawer-id="sidebar-cart"], a[href="/cart"].header__cart-icon');
+            if (prestigeTrigger) {
+              prestigeTrigger.click();
+              opened = true;
+            }
+          }
+
+          if (!opened) {
+            const impulseDrawer = document.querySelector('#CartDrawer');
+            if (window.theme && window.theme.CartDrawer && typeof window.theme.CartDrawer.open === 'function') {
+              window.theme.CartDrawer.open();
+              opened = true;
+            } else if (impulseDrawer) {
+              impulseDrawer.classList.add('is-open');
+              opened = true;
+            }
+          }
+
+          if (!opened) {
+            const cartBubble = document.querySelector('#cart-icon-bubble, .header__icon--cart, [data-cart-drawer-trigger]');
+            if (cartBubble) {
+              cartBubble.click();
+              opened = true;
+            }
+          }
+        } catch (_) {}
+
+        button.innerHTML = 'Added to Cart!';
+        setTimeout(() => {
+          button.disabled = false;
+          button.innerHTML = originalText;
+        }, 1500);
+        return;
+      }
+
+      // If no drawer exists, safely navigate to the cart page
+      button.innerHTML = 'Added! Redirecting...';
       window.location.href = cartUrl;
     } catch (error) {
       console.error(
@@ -866,7 +1233,7 @@
   }
 
   // ============================================================
-  // COUNTDOWN TIMER HELPERS (SHARED WITH ADMIN PREVIEW)
+  // COUNTDOWN TIMER & STATUS HELPERS (SHARED WITH ADMIN PREVIEW)
   // ============================================================
 
   function formatHumanDateTime(dateStr) {
@@ -883,20 +1250,67 @@
     });
   }
 
+  function buildStatusBadgeHtml() {
+    const preorder = (config && config.preorder) || {};
+    const statusType = preorder.statusScheduleType || 'AVAILABLE_NOW';
+    const endDate = preorder.endDate ? new Date(preorder.endDate) : null;
+    const now = new Date();
+
+    if (statusType === 'NOT_AVAILABLE') {
+      return `
+        <div class="storebridge-status-row" style="margin: 0 0 8px 0;">
+          <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 9999px; background: #f3f4f6; border: 1px solid #e5e7eb; color: #4b5563; font-size: 11px; font-weight: 700;">
+            <span style="width: 6px; height: 6px; border-radius: 50%; background: #9ca3af;"></span>
+            Pre-order Paused
+          </span>
+        </div>
+      `;
+    }
+
+    if (statusType === 'UNTIL_END_DATE' && endDate && now > endDate) {
+      return `
+        <div class="storebridge-status-row" style="margin: 0 0 8px 0;">
+          <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 9999px; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; font-size: 11px; font-weight: 700;">
+            <span style="width: 6px; height: 6px; border-radius: 50%; background: #dc2626;"></span>
+            Pre-order Ended
+          </span>
+        </div>
+      `;
+    }
+
+    const label = (statusType === 'UNTIL_END_DATE' && endDate)
+      ? 'Available now & until end date'
+      : 'Available now';
+
+    return `
+      <div class="storebridge-status-row" style="margin: 0 0 8px 0;">
+        <span style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 9999px; background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; font-size: 11px; font-weight: 700; box-shadow: 0 1px 2px rgba(0,0,0,0.03);">
+          <span style="width: 7px; height: 7px; border-radius: 50%; background: #059669; box-shadow: 0 0 0 2px #d1fae5;"></span>
+          ${escapeHtml(label)}
+        </span>
+      </div>
+    `;
+  }
+
   function buildTimerWidgetHtml() {
     const timer = (config && config.preorder && config.preorder.timer) || {};
-    if (!timer.show) return '';
+    // Only suppress timer if explicitly disabled by merchant
+    const isExplicitlyDisabled = (
+      config?.preorder?.showTimer === false ||
+      config?.preorder?.showTimer === 'false'
+    );
+    if (isExplicitlyDisabled) return '';
 
-    const heading = timer.headingEnd || timer.heading || 'Hurry up! Pre-order ending soon';
-    const bgColor = timer.bgColorEnd || timer.bgColor || '#fee2e2';
-    const textColor = timer.textColorEnd || timer.textColor || '#000000';
-    const radius = Number(timer.borderRadius) || 8;
+    const heading = timer.headingEnd || timer.heading || (config?.preorder?.timerHeadingEnd) || (config?.preorder?.timerHeading) || 'Hurry up! Pre-order ending soon';
+    const bgColor = timer.bgColorEnd || timer.bgColor || (config?.preorder?.timerBgColorEnd) || (config?.preorder?.timerBgColor) || '#1824cd';
+    const textColor = timer.textColorEnd || timer.textColor || (config?.preorder?.timerTextColorEnd) || (config?.preorder?.timerTextColor) || '#ffffff';
+    const radius = Number(timer.borderRadius ?? config?.preorder?.timerBorderRadius ?? 50);
 
-    const targetDateStr = timer.targetDate || (config.preorder && config.preorder.endDate);
+    const targetDateStr = timer.targetDate || (config?.preorder && (config.preorder.timerCustomDate || config.preorder.endDate)) || '2026-11-27T23:00:00.000Z';
     const formattedTarget = targetDateStr ? formatHumanDateTime(targetDateStr) : '';
 
     return `
-      <div class="storebridge-timer-wrapper" style="margin: 10px 0 14px 0; background: rgba(249, 250, 251, 0.9); border: 1px solid #f3f4f6; border-radius: 12px; padding: 12px 10px; text-align: center;">
+      <div class="storebridge-timer-wrapper" style="margin: 6px 0 14px 0; background: rgba(249, 250, 251, 0.95); border: 1px solid #f3f4f6; border-radius: 12px; padding: 12px 10px; text-align: center;">
         ${heading ? `<div class="storebridge-timer-heading" style="font-size: 13px; font-weight: 700; color: #1f2937; margin-bottom: 8px;">${escapeHtml(heading)}</div>` : ''}
         <div class="storebridge-timer-grid" style="display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap;">
           ${timer.showDays !== false ? `
@@ -981,6 +1395,7 @@
   ) {
     hideNativeButton(nativeButton);
     hidePaymentButton();
+    hidePickupAvailability();
     restoreQuantitySelector();
 
     removeAvailabilityUI();
@@ -995,19 +1410,19 @@
     container.className =
       'storebridge-wrapper';
 
-    // Calculate product price from variant or DOM
+    // Calculate product price from variant or DOM (ensuring true major currency units)
     const rawPrice = variant?.price;
     let numPrice = 0;
-    if (typeof rawPrice === 'number') {
-      numPrice = rawPrice / 100;
+    if (typeof rawPrice === 'number' && Number.isFinite(rawPrice)) {
+      numPrice = rawPrice;
     } else if (typeof rawPrice === 'string' && rawPrice.trim()) {
       numPrice = parseCurrencyAmount(rawPrice);
     }
     if (numPrice <= 0) {
       const domPriceText =
-        document.querySelector('.price__regular .price-item--regular, .price-item--regular, .price, .product__price')?.textContent || '';
+        document.querySelector('.price__regular .price-item--regular, .price-item--regular, .price, .product__price, [data-product-price]')?.textContent || '';
       numPrice = parseCurrencyAmount(domPriceText);
-      if (numPrice <= 0) numPrice = 500;
+      if (numPrice <= 0) numPrice = 1000;
     }
 
     const hasOffer =
@@ -1019,9 +1434,11 @@
     let discountAmt = 0;
     let finalPrice = numPrice;
     if (hasOffer) {
-      discountAmt = config.preorder.discountType === 'percentage'
+      const isPercent = config.preorder.discountType === 'percentage' || config.preorder.discountType === 'percent';
+      discountAmt = isPercent
         ? (numPrice * Number(config.preorder.discountValue)) / 100
         : Number(config.preorder.discountValue);
+      discountAmt = Math.min(discountAmt, numPrice);
       finalPrice = Math.max(0, numPrice - discountAmt);
     }
 
@@ -1044,9 +1461,11 @@
     const dueNow = currentPlan === 'HALF' ? halfInitial : fullInitial;
     const dueLater = currentPlan === 'HALF' ? halfRemaining : fullRemaining;
 
+    const statusBadgeHtml = buildStatusBadgeHtml();
     const timerHtml = buildTimerWidgetHtml();
 
     container.innerHTML = `
+      ${statusBadgeHtml}
       ${timerHtml}
       <div class="storebridge-info-card">
 
@@ -1217,7 +1636,6 @@
               <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #047857;"></span>
               Pre-order Pricing
             </span>
-            <span style="background: #0f172a; color: #ffffff; padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: 800; text-transform: uppercase;">Full Payment</span>
           </div>
           ${hasOffer ? `
             <div style="display: flex; justify-content: space-between; color: #64748b; font-size: 12px; margin-top: 2px;">
@@ -1247,6 +1665,21 @@
       >
         Pre Order
       </button>
+
+      ${(config.notifyMe && config.notifyMe.enabled) ? `
+        <button
+          type="button"
+          class="storebridge-notify-btn storebridge-secondary-notify-btn"
+          data-storebridge-action="notify"
+          style="margin-top: 10px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; border-radius: 8px; border: 1.5px solid #d1d5db; background: #ffffff; color: #374151; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.15s ease;"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+          <span>${escapeHtml(config.notifyMe.buttonText || 'Notify me when back in stock')}</span>
+        </button>
+      ` : ''}
 
       <p class="storebridge-fulfillment-msg">
         ${escapeHtml(
@@ -1322,8 +1755,12 @@
 
     // If countdown timer is enabled in live pre-order mode, start ticker!
     const timer = (config && config.preorder && config.preorder.timer) || {};
-    const timerTargetDate = timer.targetDate || (config && config.preorder && config.preorder.endDate);
-    if (timer.show && timerTargetDate) {
+    const isExplicitlyDisabled = (
+      config?.preorder?.showTimer === false ||
+      config?.preorder?.showTimer === 'false'
+    );
+    const timerTargetDate = timer.targetDate || (config && config.preorder && (config.preorder.timerCustomDate || config.preorder.endDate)) || '2026-11-27T23:00:00.000Z';
+    if (!isExplicitlyDisabled && timerTargetDate) {
       attachCountdownTicker(container, timerTargetDate);
     }
   }
@@ -1340,6 +1777,7 @@
   ) {
     hideNativeButton(nativeButton);
     hidePaymentButton();
+    hidePickupAvailability();
     hideQuantitySelector(form);
 
     removeAvailabilityUI();
@@ -1429,6 +1867,7 @@
   ) {
     hideNativeButton(nativeButton);
     hidePaymentButton();
+    hidePickupAvailability();
     hideQuantitySelector(form);
 
     removeAvailabilityUI();
@@ -1467,6 +1906,16 @@
     button,
     container
   ) {
+    // 1. Prefer native App Block placement if present on page
+    const appBlock = document.getElementById('storebridge-availability');
+    if (appBlock && document.body.contains(appBlock)) {
+      appBlock.innerHTML = '';
+      appBlock.style.display = 'block';
+      appBlock.appendChild(container);
+      return;
+    }
+
+    // 2. Fall back to adjacent insertion next to native button (App Embed mode)
     if (
       button &&
       button.parentNode
@@ -1499,6 +1948,9 @@
   function restoreNormalPurchaseUI(
     nativeButton
   ) {
+    const flickerGuard = document.getElementById('storebridge-product-flicker-guard');
+    if (flickerGuard) flickerGuard.remove();
+
     removeAvailabilityUI();
 
     restoreNativeButton(
@@ -1507,6 +1959,7 @@
 
     restorePaymentButton();
     restoreQuantitySelector();
+    restorePickupAvailability();
   }
 
   // ============================================================
@@ -1621,57 +2074,55 @@
   // ============================================================
 
   async function fetchConfig(variantId, forceRefresh = true) {
-    const cleanVariantId =
-      normalizeId(variantId);
-
-    if (!config.apiUrl) {
-      warn(
-        'StoreBridge API URL is not configured.'
-      );
-
-      return;
-    }
+    const cleanVariantId = normalizeId(variantId);
+    let targetApiUrl = getEffectiveApiUrl();
 
     try {
-      const params =
-        new URLSearchParams();
-
+      const params = new URLSearchParams();
       params.set('shop', config.shop);
       params.set('_t', Date.now().toString());
 
       if (config.productId && config.productId !== 'undefined') {
-        params.set(
-          'productId',
-          config.productId
-        );
+        params.set('productId', config.productId);
       }
 
       if (cleanVariantId && cleanVariantId !== 'undefined') {
-        params.set(
-          'variantId',
-          cleanVariantId
-        );
+        params.set('variantId', cleanVariantId);
       }
 
-      const endpoint =
-        `${config.apiUrl}/api/storefront/config?${params.toString()}`;
+      let endpoint = `${targetApiUrl}/api/storefront/config?${params.toString()}`;
+      log('Fetching configuration:', endpoint);
 
-      log(
-        'Fetching configuration:',
-        endpoint
-      );
-
-      const response = await fetch(endpoint, {
+      let response;
+      try {
+        response = await fetch(endpoint, {
           method: 'GET',
           cache: 'no-store',
           headers: {
-            'X-Shopify-Shop-Domain':
-              config.shop,
+            'X-Shopify-Shop-Domain': config.shop,
             'X-Tunnel-Skip-Anti-Phishing-Page': '1',
-            Accept:
-              'application/json'
+            Accept: 'application/json'
           }
         });
+      } catch (netErr) {
+        if (targetApiUrl !== PRODUCTION_LIVE_API_URL) {
+          log('Primary endpoint unreachable, failing over to production live endpoint:', PRODUCTION_LIVE_API_URL);
+          targetApiUrl = PRODUCTION_LIVE_API_URL;
+          config.apiUrl = PRODUCTION_LIVE_API_URL;
+          endpoint = `${PRODUCTION_LIVE_API_URL}/api/storefront/config?${params.toString()}`;
+          response = await fetch(endpoint, {
+            method: 'GET',
+            cache: 'no-store',
+            headers: {
+              'X-Shopify-Shop-Domain': config.shop,
+              'X-Tunnel-Skip-Anti-Phishing-Page': '1',
+              Accept: 'application/json'
+            }
+          });
+        } else {
+          throw netErr;
+        }
+      }
 
       if (!response.ok) {
         throw new Error(
@@ -1741,7 +2192,7 @@
   let variantChangeTimer = null;
   let variantRequestSequence = 0;
 
-  async function handleVariantChange() {
+  async function handleVariantChange(explicitVariantId) {
     clearTimeout(
       variantChangeTimer
     );
@@ -1752,14 +2203,15 @@
           const form =
             getProductForm();
 
-          if (!form) return;
-
-          const variantId =
-            getSelectedVariantId(
-              form
-            );
+          const variantId = explicitVariantId
+            ? normalizeId(explicitVariantId)
+            : getSelectedVariantId(form);
 
           if (!variantId) return;
+
+          if (form) {
+            form.dataset.selectedVariantId = variantId;
+          }
 
           // Immediate render if variant stock is already known
           updateAvailability();
@@ -1788,7 +2240,7 @@
 
           updateAvailability();
         },
-        100
+        80
       );
   }
 
@@ -1851,25 +2303,77 @@
       'click',
       (event) => {
         const target = event.target;
-        if (target && target.closest('variant-radios label, variant-radios input, .product-form__input label, .product-form__input input, input[type="radio"], [data-single-option-selector]')) {
-          setTimeout(handleVariantChange, 30);
-          setTimeout(handleVariantChange, 120);
+        if (!target) return;
+
+        const optionSelector = 'variant-radios label, variant-radios input, variant-radios button, .product-form__input label, .product-form__input input, .product-form__input button, fieldset label, fieldset input, fieldset button, input[type="radio"], [data-single-option-selector], .variant-input, [data-value], .ColorSwatch, .BlockSwatch, .swatch-element, .product-form__option, [data-option-value], [data-variant-id], .pill, [class*="pill"], [class*="swatch"], [class*="option-value"]';
+        const optionEl = target.closest(optionSelector);
+        if (optionEl) {
+          const directVariantId = optionEl.dataset.variantId || optionEl.getAttribute('data-variant-id');
+          if (directVariantId) {
+            handleVariantChange(directVariantId);
+            return;
+          }
+
+          const clickedVal = (
+            optionEl.dataset.value ||
+            optionEl.dataset.optionValue ||
+            optionEl.getAttribute('data-value') ||
+            optionEl.value ||
+            (optionEl.tagName === 'LABEL' ? optionEl.textContent : '') ||
+            optionEl.textContent ||
+            ''
+          ).trim().toLowerCase();
+
+          if (clickedVal && productVariants.length > 0) {
+            const directMatch = productVariants.find((v) => {
+              const vt = (v.title || '').toLowerCase();
+              return vt === clickedVal || vt.includes(` / ${clickedVal}`) || vt.includes(`${clickedVal} /`) || vt.includes(clickedVal);
+            });
+            if (directMatch) {
+              handleVariantChange(directMatch.id);
+            }
+          }
+
+          handleVariantChange();
+          setTimeout(handleVariantChange, 50);
+          setTimeout(handleVariantChange, 150);
+          setTimeout(handleVariantChange, 350);
         }
       }
     );
 
     /*
-     * Shopify/theme custom event
+     * Shopify/theme custom events (Dawn, Prestige, Impact, Impulse, etc.)
      */
-    document.addEventListener(
-      'variant:change',
-      handleVariantChange
-    );
+    document.addEventListener('variant:changed', (e) => {
+      const vId = e.detail?.variant?.id;
+      handleVariantChange(vId);
+    });
+
+    document.addEventListener('variant:change', (e) => {
+      const vId = e.detail?.variant?.id;
+      handleVariantChange(vId);
+    });
+
+    document.addEventListener('theme:variant:change', (e) => {
+      const vId = e.detail?.variant?.id;
+      handleVariantChange(vId);
+    });
 
     document.addEventListener(
       'variantChange',
       handleVariantChange
     );
+
+    // Shopify OS 2.0 PubSub event bus (Dawn, Refresh, Sense, Craft, etc.)
+    if (window.PUB_SUB && typeof window.PUB_SUB.subscribe === 'function') {
+      window.PUB_SUB.subscribe('variant:change', (event) => {
+        const vId = event?.data?.variant?.id;
+        handleVariantChange(vId);
+      });
+    }
+
+
 
     /*
      * Browser URL variant changes (popstate + replaceState)
@@ -1892,6 +2396,16 @@
         setTimeout(handleVariantChange, 50);
       };
     }
+
+    // Shopify Theme Editor design mode events
+    document.addEventListener('shopify:section:load', () => {
+      log('Shopify section reloaded in Theme Editor, re-initializing StoreBridge...');
+      initializationStarted = false;
+      setTimeout(initializeStoreBridge, 50);
+    });
+    document.addEventListener('shopify:block:select', () => {
+      updateAvailability();
+    });
 
 
     /*
@@ -2612,7 +3126,7 @@
       const root = getRootElement();
       const shop = config.shop || root?.dataset?.shop || window.Shopify?.shop || 'eshan-namakkal.myshopify.com';
       const productId = config.productId || root?.dataset?.productId || '9195393188027';
-      const apiUrl = (config.apiUrl || root?.dataset?.apiUrl || 'https://version-control.d38r9lc5j1o8oj.amplifyapp.com').replace(/\/+$/, '');
+      const apiUrl = (getEffectiveApiUrl() || PRODUCTION_LIVE_API_URL);
       const endpoint = `${apiUrl}/api/storefront/notify-me`;
 
       const currentVariant = getSelectedVariant(variantId);
@@ -2651,17 +3165,17 @@
           },
 
           body: JSON.stringify({
-            shop: shop,
-            shopifyProductId: productId,
-            shopifyVariantId: variantId,
-            productTitle: config.productTitle || root?.dataset?.productTitle || document.title,
-            variantTitle: variantTitle,
-            price: variantPrice,
+            shop: String(shop || ''),
+            shopifyProductId: String(productId || ''),
+            shopifyVariantId: String(variantId || ''),
+            productTitle: String(config.productTitle || root?.dataset?.productTitle || document.title || ''),
+            variantTitle: variantTitle ? String(variantTitle) : undefined,
+            price: variantPrice != null ? String(variantPrice) : undefined,
             productUrl: window.location.href,
             imageUrl: variantImage || config.productImage || null,
-            email: email || null,
-            mobile: whatsapp,
-            whatsapp: whatsapp,
+            email: email ? String(email).trim() : null,
+            mobile: whatsapp ? String(whatsapp).trim() : undefined,
+            whatsapp: whatsapp ? String(whatsapp).trim() : undefined,
             quantity: 1
           })
         });
@@ -2818,7 +3332,7 @@
                 v.inventory_quantity !== null && v.inventory_quantity !== undefined
                   ? Number(v.inventory_quantity)
                   : null,
-              price: v.price ? (v.price > 9999 ? (v.price / 100) : v.price) : 0,
+              price: v.price ? (Number(v.price) / 100) : 0,
               image: v.featured_image ? (v.featured_image.src || v.featured_image) : null
             }));
 
@@ -2896,7 +3410,7 @@
      */
     config.apiUrl =
       root?.dataset?.apiUrl ||
-      'https://version-control.d38r9lc5j1o8oj.amplifyapp.com';
+      PRODUCTION_LIVE_API_URL;
 
     config.apiUrl =
       config.apiUrl.replace(
@@ -3100,7 +3614,7 @@
       config.shop = window.Shopify.shop;
     }
     if (!config.apiUrl) {
-      config.apiUrl = 'https://version-control.d38r9lc5j1o8oj.amplifyapp.com';
+      config.apiUrl = PRODUCTION_LIVE_API_URL;
     }
     config.apiUrl = config.apiUrl.replace(/\/+$/, '');
     if (productVariants.length === 0) {
@@ -3544,33 +4058,75 @@
     }
 
     try { sessionStorage.setItem('storebridge_has_preorder', 'true'); } catch (e) {}
+
+    // Check if merchant explicitly placed the StoreOrbit Cart App Block
+    const cartAppBlock = document.getElementById('storebridge-cart-embed');
+    if (!cartAppBlock) {
+      // Universal Non-Destructive Enhancement of Native Theme Cart Page
+      document.documentElement.classList.remove('storebridge-custom-cart-active');
+      document.body.classList.remove('storebridge-custom-cart-active');
+
+      const nativeItems = Array.from(document.querySelectorAll('.cart-item, [id^="CartItem-"], tr.cart-item, .cart__item, .CartItem, [data-cart-item]'));
+      nativeItems.forEach((item) => {
+        const itemText = item.innerText || item.textContent || '';
+        if (!/Pre-order|Preorder/i.test(itemText)) return;
+
+        const isHalf = /Half Payment|50% Deposit/i.test(itemText);
+        const initialPaidMatch = itemText.match(/Initial Amount Paid:\s*(?:Rs\.|INR|₹)?\s*([\d,.]+)/i);
+        const remainingDueMatch = itemText.match(/Remaining Balance Due:\s*(?:Rs\.|INR|₹)?\s*([\d,.]+)/i) ||
+                                  itemText.match(/Balance Due on Fulfillment:\s*(?:Rs\.|INR|₹)?\s*([\d,.]+)/i);
+        const paidStr = initialPaidMatch ? initialPaidMatch[1] : '';
+        const dueStr = remainingDueMatch ? remainingDueMatch[1] : '';
+
+        if (!item.querySelector('[data-storebridge-badge="true"]')) {
+          const badgeWrap = document.createElement('div');
+          badgeWrap.setAttribute('data-storebridge-badge', 'true');
+          badgeWrap.className = 'storebridge-cart-badge-wrap';
+          badgeWrap.innerHTML = `
+            <span class="storebridge-cart-badge">Pre-order</span>
+            ${isHalf && (paidStr || dueStr) ? `
+              <div class="storebridge-cart-deposit-wrap">
+                ${paidStr ? `<span class="storebridge-cart-paid-badge">Paid: Rs. ${paidStr} (50% Deposit)</span>` : ''}
+                ${dueStr ? `<span class="storebridge-cart-due-badge">Due on Fulfillment: Rs. ${dueStr}</span>` : ''}
+              </div>
+            ` : ''}
+          `;
+
+          const targetTitle = item.querySelector('.cart-item__name, .cart-item__title, .CartItem__Title, .cart__item-title, a[href*="/products/"]');
+          if (targetTitle && targetTitle.parentNode) {
+            targetTitle.parentNode.insertBefore(badgeWrap, targetTitle.nextSibling);
+          } else {
+            item.appendChild(badgeWrap);
+          }
+        }
+      });
+
+      // Inject terms banner before native checkout button
+      const checkoutBtn = document.querySelector('button[name="checkout"], #checkout, [name="checkout"], .cart__checkout-button');
+      if (checkoutBtn && !document.querySelector('.storebridge-cart-totals-banner')) {
+        const banner = document.createElement('div');
+        banner.className = 'storebridge-cart-totals-banner';
+        banner.innerHTML = `
+          <strong>Pre-order Terms:</strong> Pre-order items are reserved and will be fulfilled once stock arrives. Partial payment discounts are verified at checkout.
+        `;
+        if (checkoutBtn.parentNode) {
+          checkoutBtn.parentNode.insertBefore(banner, checkoutBtn);
+        }
+      }
+      return;
+    }
+
     document.documentElement.classList.add('storebridge-custom-cart-active');
     document.body.classList.add('storebridge-custom-cart-active');
 
-    // Create or select root container FIRST
+    // Create or select root container FIRST inside the App Block
     let root = document.getElementById('storebridge-cart-page');
     if (!root) {
       root = document.createElement('div');
       root.id = 'storebridge-cart-page';
       root.className = 'storebridge-cart-page';
-
-      // Mount into the main page wrapper
-      const mainContent = document.querySelector('main, #MainContent, .main-content') || document.body;
-      const firstCartSection =
-        document.querySelector('.shopify-section-main-cart-items') ||
-        document.querySelector('[id*="cart-items"]')?.closest('.shopify-section') ||
-        document.querySelector('[id*="cart_items"]')?.closest('.shopify-section') ||
-        document.querySelector('cart-items')?.closest('.shopify-section') ||
-        document.querySelector('cart-items') ||
-        document.querySelector('#main-cart-items');
-
-      if (firstCartSection && firstCartSection.parentNode) {
-        firstCartSection.parentNode.insertBefore(root, firstCartSection);
-      } else if (mainContent) {
-        mainContent.prepend(root);
-      } else {
-        document.body.prepend(root);
-      }
+      cartAppBlock.appendChild(root);
+      cartAppBlock.style.display = 'block';
     }
 
     // Actively hide ALL native theme cart tables & footers (NEVER recommendations)
@@ -4227,7 +4783,7 @@
       try {
         ensureConfig();
         const shopDomain = config.shop || window.Shopify?.shop || window.location.hostname;
-        const apiUrl = (config.apiUrl || 'https://version-control.d38r9lc5j1o8oj.amplifyapp.com').replace(/\/+$/, '');
+        const apiUrl = (getEffectiveApiUrl() || PRODUCTION_LIVE_API_URL);
         if (shopDomain) {
           const cfgRes = await fetch(`${apiUrl}/api/storefront/config?shop=${encodeURIComponent(shopDomain)}&_t=${Date.now()}`, {
             cache: 'no-store'
@@ -4359,6 +4915,8 @@
           offerOff = Math.round(config.preorder.discountValue);
         } else if (cachedRemoteCartConfig?.preorder?.discountType === 'percentage' && cachedRemoteCartConfig.preorder.discountValue) {
           offerPct = Math.round(cachedRemoteCartConfig.preorder.discountValue);
+        } else if (cachedRemoteCartConfig?.preorder?.discountType === 'fixed' && cachedRemoteCartConfig.preorder.discountValue) {
+          offerOff = Math.round(cachedRemoteCartConfig.preorder.discountValue);
         }
       }
 
@@ -4376,13 +4934,13 @@
       return null;
     }
 
-    // Visual enhancer for theme Cart Drawers (Dawn, Refresh, Sense, etc.)
+    // Visual enhancer for theme Cart Drawers (Dawn, Prestige, Impulse, Impact, Refresh, etc.)
     function enhanceCartDrawer() {
       try {
-        const drawer = document.querySelector('cart-drawer, #CartDrawer, .cart-drawer, .drawer, [data-cart-drawer]');
+        const drawer = document.querySelector('cart-drawer, #CartDrawer, .cart-drawer, .drawer, [data-cart-drawer], #sidebar-cart, .Cart--drawer, .Drawer, .mini-cart');
         if (!drawer) return;
 
-        const items = Array.from(drawer.querySelectorAll('.cart-item, [id^="CartDrawer-Item-"], tr.cart-item, .cart-drawer__item, .drawer__item'));
+        const items = Array.from(drawer.querySelectorAll('.cart-item, [id^="CartDrawer-Item-"], tr.cart-item, .cart-drawer__item, .drawer__item, .CartItem, .cart__item, [data-cart-item]'));
         if (items.length === 0) return;
 
         let hasPreorderItems = false;
@@ -4392,6 +4950,36 @@
           const itemText = item.innerText || item.textContent || '';
           if (!/Pre-order|Preorder/i.test(itemText)) return;
           hasPreorderItems = true;
+
+          const isHalf = /Half Payment|50% Deposit/i.test(itemText);
+          const initialPaidMatch = itemText.match(/Initial Amount Paid:\s*(?:Rs\.|INR|₹)?\s*([\d,.]+)/i);
+          const remainingDueMatch = itemText.match(/Remaining Balance Due:\s*(?:Rs\.|INR|₹)?\s*([\d,.]+)/i) ||
+                                    itemText.match(/Balance Due on Fulfillment:\s*(?:Rs\.|INR|₹)?\s*([\d,.]+)/i);
+          const paidStr = initialPaidMatch ? initialPaidMatch[1] : '';
+          const dueStr = remainingDueMatch ? remainingDueMatch[1] : '';
+
+          // Attach badges non-destructively if not already present
+          if (!item.querySelector('[data-storebridge-badge="true"]')) {
+            const badgeWrap = document.createElement('div');
+            badgeWrap.setAttribute('data-storebridge-badge', 'true');
+            badgeWrap.className = 'storebridge-cart-badge-wrap';
+            badgeWrap.innerHTML = `
+              <span class="storebridge-cart-badge">Pre-order</span>
+              ${isHalf && (paidStr || dueStr) ? `
+                <div class="storebridge-cart-deposit-wrap">
+                  ${paidStr ? `<span class="storebridge-cart-paid-badge">Paid: Rs. ${paidStr} (50% Deposit)</span>` : ''}
+                  ${dueStr ? `<span class="storebridge-cart-due-badge">Due on Fulfillment: Rs. ${dueStr}</span>` : ''}
+                </div>
+              ` : ''}
+            `;
+
+            const targetTitle = item.querySelector('.cart-item__name, .cart-item__title, .CartItem__Title, .drawer__item-title, .cart__item-title, a[href*="/products/"]');
+            if (targetTitle && targetTitle.parentNode) {
+              targetTitle.parentNode.insertBefore(badgeWrap, targetTitle.nextSibling);
+            } else {
+              item.appendChild(badgeWrap);
+            }
+          }
 
           // Extract offer info
           const offerMatch = itemText.match(/Pre-order Offer:\s*(\d+)%\s*OFF/i) || itemText.match(/Save\s*(\d+)%/i) || itemText.match(/(\d+)%\s*OFF/i);
@@ -4404,8 +4992,8 @@
 
           let discountedPrice = priceMatch ? parseFloat(priceMatch[1].replace(/,/g, '')) : 0;
 
-          // Find all price elements inside the item row (both desktop and mobile)
-          const priceEls = Array.from(item.querySelectorAll('.price, .cart-item__price-wrapper, .cart-item__totals, .price--end, [data-cart-item-price], .cart-item__final-price, .cart-item__discounted-prices'));
+          // Find price elements inside the item row
+          const priceEls = Array.from(item.querySelectorAll('.price, .cart-item__price-wrapper, .cart-item__totals, .price--end, [data-cart-item-price], .cart-item__final-price, .cart-item__discounted-prices, .CartItem__Price'));
           priceEls.forEach((priceEl) => {
             if (priceEl.hasAttribute('data-storebridge-enhanced')) return;
             priceEl.setAttribute('data-storebridge-enhanced', 'true');
@@ -4430,7 +5018,7 @@
 
         // Update Drawer subtotal / Estimated total
         if (hasPreorderItems && detectedPct > 0) {
-          const totalEls = Array.from(drawer.querySelectorAll('.totals__total-value, .totals__subtotal-value, [data-cart-subtotal], .cart-drawer__footer .totals__total-value, .drawer__footer .totals__total-value'));
+          const totalEls = Array.from(drawer.querySelectorAll('.totals__total-value, .totals__subtotal-value, [data-cart-subtotal], .cart-drawer__footer .totals__total-value, .drawer__footer .totals__total-value, .Drawer__Footer .Drawer__Total'));
           totalEls.forEach((totalEl) => {
             if (totalEl.hasAttribute('data-storebridge-total-enhanced')) return;
             totalEl.setAttribute('data-storebridge-total-enhanced', 'true');
@@ -4449,35 +5037,11 @@
               `;
             }
           });
-
-          // Insert "View Full Pre-order Cart" link inside the drawer footer if not already present
-          const footer = drawer.querySelector('.cart-drawer__footer, .drawer__footer, form[action*="/cart"]');
-          if (footer && !drawer.querySelector('#storebridge-drawer-cart-link')) {
-            const link = document.createElement('a');
-            link.id = 'storebridge-drawer-cart-link';
-            link.href = '/cart';
-            link.style.cssText = 'display: block; width: 100%; text-align: center; margin-bottom: 10px; padding: 10px 14px; background: #f8fafc; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 8px; font-weight: 700; font-size: 13px; text-decoration: none; transition: background 0.2s;';
-            link.innerHTML = 'View Full Pre-order Cart &rarr;';
-            footer.insertBefore(link, footer.firstChild);
-          }
         }
       } catch (_) {}
     }
 
-    // Intercept clicks on header cart icon to send customers directly to custom StoreBridge Cart page
-    document.addEventListener('click', (e) => {
-      const cartIcon = e.target.closest('a[href="/cart"], #cart-icon-bubble, .header__icon--cart, [data-cart-drawer-trigger]');
-      if (cartIcon && !isCartPage()) {
-        const hasPreorder = localStorage.getItem('storebridge_pending_preorder') ||
-                            document.querySelector('[data-is-preorder="1"]') ||
-                            /Pre-order|Preorder/i.test(document.body.innerText);
-        if (hasPreorder) {
-          e.preventDefault();
-          e.stopPropagation();
-          window.location.href = '/cart';
-        }
-      }
-    }, true);
+    // Non-destructive: Allow native theme cart drawer to open when header cart icon is clicked
 
     // Observe theme cart drawer for opening and dynamic updates
     const drawerObserver = new MutationObserver(() => {
@@ -4524,7 +5088,7 @@
     try {
       const root = getRootElement();
       const shop = root?.dataset?.shop || window.Shopify?.shop || window.location.hostname;
-      const apiUrl = (root?.dataset?.apiUrl || 'https://version-control.d38r9lc5j1o8oj.amplifyapp.com').replace(/\/+$/, '');
+      const apiUrl = (getEffectiveApiUrl() || PRODUCTION_LIVE_API_URL);
 
       const res = await fetch(`${apiUrl}/api/storefront/config?shop=${encodeURIComponent(shop)}&_t=${Date.now()}`, {
         headers: {
@@ -4591,6 +5155,18 @@
     log('Script loaded on storefront.');
     attachGlobalDelegatedListeners();
     checkAndEnforceStorefrontRule();
+    sanitizeCollectionCards();
+
+    if (window.MutationObserver && !window.__sbCardSanitizeObserver) {
+      window.__sbCardSanitizeObserver = true;
+      const cardObserver = new MutationObserver(() => {
+        sanitizeCollectionCards();
+      });
+      cardObserver.observe(document.body || document.documentElement, {
+        childList: true,
+        subtree: true
+      });
+    }
 
     // CART PAGE: Execute immediately without waiting for DOMContentLoaded if possible
     if (isCartPage()) {
@@ -4740,7 +5316,7 @@
       if (sessionStorage.getItem(recordedKey)) return;
       sessionStorage.setItem(recordedKey, 'true');
 
-      const apiUrl = config.apiUrl || 'https://version-control.d38r9lc5j1o8oj.amplifyapp.com';
+      const apiUrl = (getEffectiveApiUrl() || PRODUCTION_LIVE_API_URL);
       const shop = config.shop || window.Shopify?.shop || 'eshan-inventory-solutions.myshopify.com';
 
       const payload = {

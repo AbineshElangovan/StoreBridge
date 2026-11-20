@@ -87,8 +87,7 @@ export function getSesConfig(): SesConfig | null {
     fromEmail = process.env.EMAIL_FROM;
   }
 
-  // Ensure we never send from @gmail.com via SES (fails Google DMARC p=reject)
-  if (!fromEmail || fromEmail.toLowerCase().includes("@gmail.com")) {
+  if (!fromEmail) {
     fromEmail = "team@ysdesk.com";
   }
 

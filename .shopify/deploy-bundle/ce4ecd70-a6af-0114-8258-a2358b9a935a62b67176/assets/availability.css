@@ -1455,4 +1455,91 @@ button#storebridge-checkout-action-btn:active {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
 }
 
+/* ==========================================================================
+   Universal Cart & Cart Drawer Non-Destructive Enhancements
+   ========================================================================== */
+
+.storebridge-cart-badge-wrap {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.storebridge-cart-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.storebridge-cart-deposit-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  font-size: 11px;
+}
+
+.storebridge-cart-paid-badge {
+  display: inline-flex;
+  align-items: center;
+  color: #047857;
+  font-weight: 700;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.storebridge-cart-due-badge {
+  display: inline-flex;
+  align-items: center;
+  color: #b45309;
+  font-weight: 600;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.storebridge-cart-note-badge {
+  font-size: 11px;
+  color: #64748b;
+  font-style: italic;
+  margin-top: 2px;
+}
+
+.storebridge-cart-totals-banner {
+  margin: 12px 0;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #f59e0b;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #334155;
+  line-height: 1.5;
+}
+
+.storebridge-cart-totals-banner strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.storebridge-wrapper button {
+  font-family: inherit;
+}
+
+
 

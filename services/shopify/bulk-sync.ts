@@ -36,6 +36,7 @@ export async function syncStoreProducts(
     let hasNextPage = true;
     let cursor: string | null = null;
     const syncedVariantIds: string[] = [];
+    const syncedProductIds: string[] = [];
     const syncedCollectionIds: string[] = [];
     let productCount = 0;
     let variantCount = 0;
@@ -55,6 +56,9 @@ export async function syncStoreProducts(
       for (const edge of productEdges) {
         const product = edge.node;
         productCount++;
+        syncedProductIds.push(product.id);
+        const cleanPid = product.id.replace(/^gid:\/\/shopify\/Product\//i, '');
+        syncedProductIds.push(cleanPid);
 
         const productCollectionDbIds: string[] = [];
         const collections = product.collections?.edges ?? [];
@@ -198,17 +202,39 @@ export async function syncStoreProducts(
       cursor = pageInfo?.endCursor ?? null;
     }
 
-    const deletedCache = await prisma.productCache.deleteMany({
+    const numSyncedVariantIds = syncedVariantIds.map(id => id.replace(/^gid:\/\/shopify\/ProductVariant\//i, ''));
+    const allKnownSyncedVariantIds = Array.from(new Set([...syncedVariantIds, ...numSyncedVariantIds]));
+    const allKnownSyncedProductIds = Array.from(new Set(syncedProductIds));
+
+    // Delete stale or deleted caches
+    const staleCaches = await prisma.productCache.findMany({
       where: {
         storeId: store.id,
-        shopifyVariantId: { notIn: syncedVariantIds },
+        OR: [
+          { shopifyVariantId: { notIn: allKnownSyncedVariantIds } },
+          { shopifyProductId: { notIn: allKnownSyncedProductIds } },
+        ]
       },
+      select: { id: true }
     });
+
+    const staleIds = staleCaches.map(c => c.id);
+    if (staleIds.length > 0) {
+      await prisma.collectionProduct.deleteMany({
+        where: { productCacheId: { in: staleIds } }
+      });
+      await prisma.productCache.deleteMany({
+        where: { id: { in: staleIds } }
+      });
+    }
 
     const deletedMaps = await prisma.variantMap.deleteMany({
       where: {
         storeId: store.id,
-        shopifyVariantId: { notIn: syncedVariantIds },
+        OR: [
+          { shopifyVariantId: { notIn: allKnownSyncedVariantIds } },
+          { shopifyProductId: { notIn: allKnownSyncedProductIds } },
+        ]
       },
     });
 
@@ -220,7 +246,7 @@ export async function syncStoreProducts(
     });
 
     console.log("[SyncService] Sync finished. Cleaned up stale records:", {
-      deletedProducts: deletedCache.count,
+      deletedProducts: staleIds.length,
       deletedVariantMaps: deletedMaps.count,
       deletedCollections: deletedCollections.count,
       syncedProducts: productCount,

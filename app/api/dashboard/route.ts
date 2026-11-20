@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Current store metrics
+    // Current store metrics - exact match with /api/products calculation
     const rawCurrentStoreProducts = productCaches.filter((p: any) => p.storeId === store.id);
     
     // Clean up stale parent products (default variants) if real variants exist
@@ -79,21 +79,20 @@ export async function GET(req: NextRequest) {
     }
 
     const currentStoreProducts: any[] = [];
-    // Deduplicate by normalized Title + Variant Title to guarantee zero duplicate rows in UI
+    // Deduplicate by SKU / Variant ID / Product ID + Title so distinct products are never dropped
     const seenTitles = new Map<string, any>();
     for (const p of rawCurrentStoreProducts) {
       const siblings = productsByParent.get(p.shopifyProductId);
       if (siblings && siblings.length > 1 && !p.title.includes(' - ')) {
         continue;
       }
-      const normTitle = p.title.trim().toLowerCase();
-      // If duplicate title exists in this store, keep only the latest updated one
-      if (!seenTitles.has(normTitle)) {
-        seenTitles.set(normTitle, p);
+      const normKey = (p.sku || p.shopifyVariantId || p.shopifyProductId || '') + '|||' + p.title.trim().toLowerCase();
+      if (!seenTitles.has(normKey)) {
+        seenTitles.set(normKey, p);
       } else {
-        const existing = seenTitles.get(normTitle);
+        const existing = seenTitles.get(normKey);
         if (new Date(p.updatedAt).getTime() > new Date(existing.updatedAt).getTime()) {
-          seenTitles.set(normTitle, p);
+          seenTitles.set(normKey, p);
         }
       }
     }
@@ -101,24 +100,23 @@ export async function GET(req: NextRequest) {
       currentStoreProducts.push(p);
     }
 
-    const totalProducts = new Set(currentStoreProducts.map((p: any) => p.shopifyProductId)).size;
-    const totalInventory = currentStoreProducts.reduce((a: any, p: any) => a + p.inventoryQuantity, 0);
-    const activeProducts = new Set(
-      currentStoreProducts.filter((p: any) => p.inventoryQuantity > 0).map((p: any) => p.shopifyProductId)
-    ).size;
-    const lowStockCount = currentStoreProducts.filter((p: any) => p.inventoryQuantity <= store.lowStockThreshold).length;
+    // Direct store catalog counts matching Products API exactly
+    const totalProducts = new Set(rawCurrentStoreProducts.map((p: any) => p.shopifyProductId)).size;
+    const totalInventory = rawCurrentStoreProducts.reduce((a: any, p: any) => a + p.inventoryQuantity, 0);
+    const activeProducts = rawCurrentStoreProducts.filter((p: any) => p.inventoryQuantity > 0).length;
+    const lowStockCount = rawCurrentStoreProducts.filter((p: any) => p.inventoryQuantity <= store.lowStockThreshold).length;
     let preorderActiveCount = 0;
     let preorderConfig: any = null;
     try {
       preorderConfig = await PreorderService.getConfig(store.id);
       if (preorderConfig && preorderConfig.enabled) {
-        preorderActiveCount = currentStoreProducts.filter((p: any) => {
+        preorderActiveCount = rawCurrentStoreProducts.filter((p: any) => {
           const prodColls = (p.collections || []).flatMap((cp: any) => [
             cp.collection?.id,
             cp.collection?.shopifyCollectionId,
           ]).filter(Boolean) as string[];
           return (
-            p.inventoryQuantity <= (preorderConfig.inventoryThreshold ?? 0) &&
+            p.inventoryQuantity <= 0 &&
             PreorderService.isProductTargeted(preorderConfig, p.shopifyProductId, prodColls)
           );
         }).length;
@@ -214,8 +212,7 @@ export async function GET(req: NextRequest) {
           cp.collection?.shopifyCollectionId,
         ]).filter(Boolean) as string[];
         isPreorderTargeted = PreorderService.isProductTargeted(preorderConfig, p.shopifyProductId, prodColls);
-        const threshold = preorderConfig.inventoryThreshold ?? 0;
-        isPreorderAvailable = isPreorderTargeted && (p.inventoryQuantity <= threshold);
+        isPreorderAvailable = isPreorderTargeted && (p.inventoryQuantity <= 0);
         if (isPreorderAvailable) {
           preorderStatus = 'Pre-order';
         }

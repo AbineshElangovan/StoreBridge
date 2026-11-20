@@ -758,16 +758,23 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
       productTitle = payload.title || `Product #${payload.id}`;
     }
 
+    const numProdId = String(payload.id).replace(/^gid:\/\/shopify\/Product\//i, '');
+    const prodIdConditions = [
+      { shopifyProductId: deletedGid },
+      { shopifyProductId: numProdId },
+      { shopifyProductId: String(payload.id) },
+    ];
+
     const mappedVariantsCount = await prisma.variantMap.count({
-      where: { storeId: store.id, shopifyProductId: deletedGid },
+      where: { storeId: store.id, OR: prodIdConditions },
     });
 
     await prisma.variantMap.deleteMany({
-      where: { storeId: store.id, shopifyProductId: deletedGid },
+      where: { storeId: store.id, OR: prodIdConditions },
     });
 
     const caches = await prisma.productCache.findMany({
-      where: { storeId: store.id, shopifyProductId: deletedGid },
+      where: { storeId: store.id, OR: prodIdConditions },
       select: { id: true }
     });
     for (const c of caches) {
@@ -775,18 +782,13 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
     }
 
     await prisma.productCache.deleteMany({
-      where: { storeId: store.id, shopifyProductId: deletedGid },
+      where: { storeId: store.id, OR: prodIdConditions },
     });
 
-    const numProdId = String(payload.id).replace(/^gid:\/\/shopify\/Product\//i, '');
     await prisma.wishlistItem.deleteMany({
       where: {
         storeId: store.id,
-        OR: [
-          { shopifyProductId: deletedGid },
-          { shopifyProductId: numProdId },
-          { shopifyProductId: String(payload.id) }
-        ]
+        OR: prodIdConditions
       }
     }).catch(() => {});
 
@@ -971,12 +973,19 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
 
   console.log(`[Worker:products/delete] sync complete for ${shop}`);
 
+  const masterNumProdId = String(payload.id).replace(/^gid:\/\/shopify\/Product\//i, '');
+  const masterProdIdConditions = [
+    { shopifyProductId: deletedGid },
+    { shopifyProductId: masterNumProdId },
+    { shopifyProductId: String(payload.id) },
+  ];
+
   await prisma.variantMap.deleteMany({
-    where: { storeId: store?.id, shopifyProductId: deletedGid },
+    where: { storeId: store?.id, OR: masterProdIdConditions },
   });
 
   const masterCaches = await prisma.productCache.findMany({
-    where: { storeId: store?.id, shopifyProductId: deletedGid },
+    where: { storeId: store?.id, OR: masterProdIdConditions },
     select: { id: true }
   });
   for (const mc of masterCaches) {
@@ -984,7 +993,7 @@ async function handleProductsDelete(shop: string, payload: any, webhookId: strin
   }
 
   await prisma.productCache.deleteMany({
-    where: { storeId: store?.id, shopifyProductId: deletedGid },
+    where: { storeId: store?.id, OR: masterProdIdConditions },
   });
 
   if (store?.id) {

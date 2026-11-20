@@ -134,7 +134,7 @@ export function InsightTable({
             <span className="text-xs sm:text-sm font-semibold text-gray-900 truncate max-w-full sm:max-w-xs md:max-w-sm" title={p.title}>
               {p.title}
             </span>
-            {isStandalone && p.isPreorderEligible && p.currentStock <= 0 && <PreorderBadge size="sm" />}
+            {isStandalone && p.isPreorderEligible && p.currentStock === 0 && <PreorderBadge size="sm" />}
           </div>
           {!isStandalone && p.storeLabel && (
             <div className="mt-1">

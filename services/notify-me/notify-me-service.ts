@@ -361,7 +361,6 @@ export class NotifyMeService {
     const [cachedProducts, variantMaps, notificationJobs] = await Promise.all([
       prisma.productCache.findMany({
         where: {
-          storeId,
           OR: [
             { shopifyVariantId: { in: allVarLookups } },
             { shopifyProductId: { in: allProdLookups } },
@@ -377,7 +376,6 @@ export class NotifyMeService {
       }),
       prisma.variantMap.findMany({
         where: {
-          storeId,
           OR: [
             { shopifyVariantId: { in: allVarLookups } },
             { shopifyProductId: { in: allProdLookups } },
@@ -391,7 +389,6 @@ export class NotifyMeService {
       regIds.length > 0
         ? prisma.notificationJob.findMany({
             where: {
-              storeId,
               registrationId: { in: regIds },
             },
             select: {
@@ -404,47 +401,48 @@ export class NotifyMeService {
         : Promise.resolve([]),
     ]);
 
+    const anyValidImage = cachedProducts.find(c => Boolean(c.imageUrl))?.imageUrl || null;
+
     const enrichedData = paginatedData.map((r) => {
-      const cleanVId = r.shopifyVariantId?.replace(/\D/g, '');
-      const cleanPId = r.shopifyProductId?.replace(/\D/g, '');
-      const gVId = cleanVId ? `gid://shopify/ProductVariant/${cleanVId}` : '';
-      const gPId = cleanPId ? `gid://shopify/Product/${cleanPId}` : '';
+      const cleanVId = (r.shopifyVariantId || '').replace(/\D/g, '');
+      const cleanPId = (r.shopifyProductId || '').replace(/\D/g, '');
 
       const job = notificationJobs.find((j) => j.registrationId === r.id);
-      const cache = cachedProducts.find(
+      const cacheByVariant = cachedProducts.find(
         (c) =>
-          (c.shopifyVariantId && (
-            c.shopifyVariantId === r.shopifyVariantId ||
-            c.shopifyVariantId === cleanVId ||
-            c.shopifyVariantId === gVId
-          )) ||
-          (cleanPId && (
-            c.shopifyProductId === r.shopifyProductId ||
-            c.shopifyProductId === cleanPId ||
-            c.shopifyProductId === gPId
-          ))
+          c.shopifyVariantId &&
+          (c.shopifyVariantId === r.shopifyVariantId ||
+           c.shopifyVariantId.replace(/\D/g, '') === cleanVId)
       );
+      const cacheByProduct = cachedProducts.find(
+        (c) =>
+          c.shopifyProductId &&
+          (c.shopifyProductId === r.shopifyProductId ||
+           c.shopifyProductId.replace(/\D/g, '') === cleanPId)
+      );
+      const cache = cacheByVariant || cacheByProduct;
+
       const vMap = variantMaps.find(
         (v) =>
-          v.shopifyVariantId === r.shopifyVariantId ||
-          v.shopifyVariantId === cleanVId ||
-          v.shopifyVariantId === gVId
+          v.shopifyVariantId &&
+          (v.shopifyVariantId === r.shopifyVariantId ||
+           (cleanVId && v.shopifyVariantId.replace(/\D/g, '') === cleanVId))
       );
 
-      let resolvedProductTitle = cache?.title || job?.productTitle || 'Cotton T-shirt';
-      let resolvedVariantTitle = job?.variantTitle || 'Default Title';
+      let resolvedProductTitle = job?.productTitle || cache?.title || 'Cotton T-shirt';
+      let resolvedVariantTitle = job?.variantTitle || '';
 
       if (resolvedProductTitle.includes(' - ')) {
         const parts = resolvedProductTitle.split(' - ');
         resolvedProductTitle = parts[0].trim();
-        if (resolvedVariantTitle === 'Default Title' || resolvedVariantTitle === 'Default Variant') {
+        if (!resolvedVariantTitle || resolvedVariantTitle === 'Default Title' || resolvedVariantTitle === 'Default Variant') {
           resolvedVariantTitle = parts.slice(1).join(' - ').trim();
         }
       }
 
       // Prioritize cache image if job has broken dummy url
       const isJobImgPlaceholder = !job?.imageUrl || job.imageUrl.includes('1/0890/1234');
-      const imageUrl = (isJobImgPlaceholder && cache?.imageUrl) ? cache.imageUrl : (job?.imageUrl || cache?.imageUrl || null);
+      const imageUrl = (isJobImgPlaceholder && cache?.imageUrl) ? cache.imageUrl : (job?.imageUrl || cache?.imageUrl || anyValidImage);
       const sku = vMap?.sku || cache?.sku || (cleanVId ? `SKU-${cleanVId.slice(-6)}` : '-');
 
       return {

@@ -38,13 +38,13 @@ const mobileSchema = z
 
 const StorefrontNotifyMeSchema = z.object({
   shop: z.string().min(1, 'Shop domain is required'),
-  shopifyProductId: z.string().min(1, 'Product ID is required'),
-  shopifyVariantId: z.string().min(1, 'Variant ID is required'),
-  productTitle: z.string().optional(),
-  variantTitle: z.string().optional(),
+  shopifyProductId: z.union([z.string(), z.number()]).transform(v => String(v)),
+  shopifyVariantId: z.union([z.string(), z.number()]).transform(v => String(v)),
+  productTitle: z.union([z.string(), z.number()]).transform(v => String(v)).optional(),
+  variantTitle: z.union([z.string(), z.number()]).transform(v => String(v)).optional(),
   productUrl: z.string().optional(),
-  imageUrl: z.string().optional(),
-  price: z.string().optional(),
+  imageUrl: z.string().nullable().optional(),
+  price: z.union([z.string(), z.number()]).transform(v => String(v)).optional(),
   email: z
     .string()
     .trim()
@@ -55,7 +55,7 @@ const StorefrontNotifyMeSchema = z.object({
     ),
   mobile: mobileSchema,
   whatsapp: mobileSchema,
-  quantity: z.number().int().min(1).optional().default(1),
+  quantity: z.union([z.string(), z.number()]).transform(v => parseInt(String(v), 10) || 1).optional().default(1),
 });
 
 export async function OPTIONS(req: NextRequest) {
@@ -265,6 +265,69 @@ export async function POST(req: NextRequest) {
       finalVariantTitle = '';
     }
     if (!finalPrice) finalPrice = '₹1,240';
+
+    // Persist enriched job and cache so Admin tables and notifications always have exact product name & image
+    if (result.data?.id) {
+      try {
+        const cleanVId = shopifyVariantId.replace(/\D/g, '');
+        const existingJob = await prisma.notificationJob.findFirst({
+          where: { registrationId: result.data.id },
+        });
+        if (!existingJob) {
+          await prisma.notificationJob.create({
+            data: {
+              registrationId: result.data.id,
+              storeId: store.id,
+              shopifyVariantId: cleanVId,
+              customerEmail: email || null,
+              customerWhatsApp: cleanPhoneLead || null,
+              channel: email ? 'EMAIL' : 'WHATSAPP',
+              productTitle: finalProductTitle,
+              variantTitle: finalVariantTitle || null,
+              imageUrl: finalImageUrl,
+              productUrl: productUrl || null,
+              status: 'PENDING',
+            },
+          });
+        }
+      } catch (jobErr: any) {
+        console.warn('[NotifyMe:CreateNotificationJob:Error]', jobErr.message);
+      }
+    }
+
+    if (finalImageUrl || finalProductTitle) {
+      try {
+        const cleanVId = shopifyVariantId.replace(/\D/g, '');
+        const cleanPId = shopifyProductId.replace(/\D/g, '');
+        const gVId = `gid://shopify/ProductVariant/${cleanVId}`;
+        const gPId = `gid://shopify/Product/${cleanPId}`;
+
+        await prisma.productCache.upsert({
+          where: {
+            storeId_shopifyVariantId: {
+              storeId: store.id,
+              shopifyVariantId: gVId,
+            },
+          },
+          update: {
+            title: finalVariantTitle ? `${finalProductTitle} - ${finalVariantTitle}` : finalProductTitle,
+            imageUrl: finalImageUrl || undefined,
+            price: price ? parseFloat(String(price).replace(/[^\d.]/g, '')) || undefined : undefined,
+          },
+          create: {
+            storeId: store.id,
+            shopifyProductId: gPId,
+            shopifyVariantId: gVId,
+            title: finalVariantTitle ? `${finalProductTitle} - ${finalVariantTitle}` : finalProductTitle,
+            imageUrl: finalImageUrl,
+            price: price ? parseFloat(String(price).replace(/[^\d.]/g, '')) || 0 : 0,
+            inventoryQuantity: 0,
+          },
+        });
+      } catch (cacheUpsertErr) {
+        console.warn('[NotifyMe:ProductCacheUpsert:Error]', cacheUpsertErr);
+      }
+    }
 
     const storeDisplayName = store.label || store.shopDomain;
 

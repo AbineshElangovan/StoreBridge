@@ -552,9 +552,6 @@ export function PreviewCard({
                       <span className="w-2 h-2 rounded-full bg-[#047857] inline-block"></span>
                       Pre-order Pricing
                     </span>
-                    <span className="bg-[#0f172a] text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase">
-                      Full Payment
-                    </span>
                   </div>
                   {hasOffer && (
                     <>

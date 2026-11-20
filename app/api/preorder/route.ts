@@ -263,6 +263,88 @@ export async function POST(req: NextRequest) {
 
     const updated = await PreorderService.upsertConfig(store.id, parsed.data);
 
+    // Real-time synchronization to Neon DB so live storefront updates immediately
+    const neonUrl = process.env.VERCEL_NEON_URL ||
+      process.env.REMOTE_NEON_URL ||
+      'postgresql://neondb_owner:npg_7rDw2gJtlEeU@ep-restless-sun-b5m5tyc8.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require';
+
+    if (!process.env.DATABASE_URL?.includes('neon.tech')) {
+      try {
+        const { PrismaClient } = await import('@prisma/client');
+        const neonPrisma = new PrismaClient({
+          datasources: { db: { url: neonUrl } },
+        });
+
+        const existing = await neonPrisma.preorderConfig.findFirst({
+          where: {
+            storeId: store.id,
+            shopifyProductId: (updated as any).shopifyProductId || null,
+            shopifyVariantId: (updated as any).shopifyVariantId || null,
+          },
+        });
+
+        const configFields = {
+          enabled: (updated as any).enabled,
+          inventoryThreshold: (updated as any).inventoryThreshold,
+          customerMessage: (updated as any).customerMessage,
+          shippingMessage: (updated as any).shippingMessage,
+          fulfillmentMessage: (updated as any).fulfillmentMessage,
+          maxQuantity: (updated as any).maxQuantity,
+          discountType: (updated as any).discountType,
+          discountValue: (updated as any).discountValue,
+          selectionMode: (updated as any).selectionMode,
+          selectedProductIds: (updated as any).selectedProductIds,
+          selectedCollectionIds: (updated as any).selectedCollectionIds,
+          allowHalfPayment: (updated as any).allowHalfPayment,
+          allowFullPayment: (updated as any).allowFullPayment,
+          defaultPaymentOption: (updated as any).defaultPaymentOption,
+          statusScheduleType: (updated as any).statusScheduleType,
+          startDate: (updated as any).startDate ? new Date((updated as any).startDate) : null,
+          endDate: (updated as any).endDate ? new Date((updated as any).endDate) : null,
+          showTimer: Boolean((updated as any).showTimer),
+          timerDisplayMode: (updated as any).timerDisplayMode,
+          timerDateMode: (updated as any).timerDateMode,
+          timerCustomDate: (updated as any).timerCustomDate ? new Date((updated as any).timerCustomDate) : null,
+          timerHeading: (updated as any).timerHeading,
+          timerTextColor: (updated as any).timerTextColor,
+          timerBgColor: (updated as any).timerBgColor,
+          timerHeadingEnd: (updated as any).timerHeadingEnd,
+          timerTextColorEnd: (updated as any).timerTextColorEnd,
+          timerBgColorEnd: (updated as any).timerBgColorEnd,
+          timerBorderRadius: (updated as any).timerBorderRadius,
+          timerShowDays: (updated as any).timerShowDays,
+          timerShowHours: (updated as any).timerShowHours,
+          timerShowMinutes: (updated as any).timerShowMinutes,
+          timerShowSeconds: (updated as any).timerShowSeconds,
+          timerDaysLabel: (updated as any).timerDaysLabel,
+          timerHoursLabel: (updated as any).timerHoursLabel,
+          timerMinutesLabel: (updated as any).timerMinutesLabel,
+          timerSecondsLabel: (updated as any).timerSecondsLabel,
+        };
+
+        if (existing) {
+          await neonPrisma.preorderConfig.update({
+            where: { id: existing.id },
+            data: configFields,
+          });
+        } else {
+          await neonPrisma.preorderConfig.create({
+            data: {
+              id: (updated as any).id,
+              storeId: store.id,
+              shopifyProductId: (updated as any).shopifyProductId || null,
+              shopifyVariantId: (updated as any).shopifyVariantId || null,
+              ...configFields,
+            },
+          });
+        }
+        await neonPrisma.$disconnect();
+        console.log(`[RealtimeNeonSync] Successfully replicated preorder config to Neon DB for store ${store.id}`);
+      } catch (neonErr) {
+        console.warn('[RealtimeNeonSync] Warning: Failed to replicate to Neon DB:', neonErr);
+      }
+    }
+
     await logUserActivity({
       action: 'PREORDER_SETTINGS_CHANGED',
       shopDomain: store.shopDomain,
