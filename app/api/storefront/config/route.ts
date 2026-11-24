@@ -197,7 +197,8 @@ export async function GET(req: NextRequest) {
     // Calculate live schedule status & countdown target (End Date / Deadline only)
     const now = new Date();
     const statusScheduleType = (preorderConfig as any).statusScheduleType || 'AVAILABLE_NOW';
-    const endDate = (preorderConfig as any).endDate ? new Date((preorderConfig as any).endDate) : null;
+    const rawEndDate = (preorderConfig as any).endDate ? new Date((preorderConfig as any).endDate) : null;
+    const endDate = statusScheduleType === 'UNTIL_END_DATE' ? rawEndDate : null;
 
     let isExpired = false;   // True if end date has passed
     let isLive = preorderConfig.enabled && isTargeted;
@@ -217,20 +218,19 @@ export async function GET(req: NextRequest) {
       (preorderConfig as any).showTimer === true ||
       (preorderConfig as any).showTimer === 'true' ||
       (preorderConfig as any).showTimer === 1 ||
-      (preorderConfig as any).statusScheduleType === 'UNTIL_END_DATE' ||
-      (preorderConfig as any).endDate
+      statusScheduleType === 'UNTIL_END_DATE'
     );
     const timerDateMode = (preorderConfig as any).timerDateMode || 'USE_STATUS_DATE';
     const timerCustomDate = (preorderConfig as any).timerCustomDate ? new Date((preorderConfig as any).timerCustomDate) : null;
 
     const timerHeadingEnd = (preorderConfig as any).timerHeadingEnd || (preorderConfig as any).timerHeading || 'Hurry up! Pre-order ending soon';
     const effectiveEndTarget = timerDateMode === 'CUSTOM_DATES'
-      ? (timerCustomDate || endDate)
-      : (endDate || timerCustomDate);
+      ? timerCustomDate
+      : (statusScheduleType === 'UNTIL_END_DATE' ? endDate : null);
 
     if (showTimer && effectiveEndTarget) {
       targetCountdownDate = effectiveEndTarget.toISOString();
-      if (now > effectiveEndTarget) {
+      if (statusScheduleType === 'UNTIL_END_DATE' && now > effectiveEndTarget) {
         isExpired = true;
         isLive = false;
       }

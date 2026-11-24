@@ -4,7 +4,7 @@ import React from 'react';
 import { useStoreContext } from '@/components/providers/StoreProvider';
 import { useTheme } from '@/components/providers/ThemeContext';
 
-const EXTENSION_UID = 'ce4ecd70-a6af-0114-8258-a2358b9a935a62b67176';
+const EXTENSION_UUID = '01a114db-454c-74a6-9114-6310278cab0b';
 const EMBED_HANDLE = 'storebridge-embed';
 
 export function ThemeActivationBanner() {
@@ -20,9 +20,14 @@ export function ThemeActivationBanner() {
   const shopDomain = currentStore?.shopDomain || '';
   const storeSubdomain = shopDomain.replace(/\.myshopify\.com$/i, '').trim();
 
-  // Official Shopify Theme Editor App Embed Deep Link
+  // Official Shopify Theme Editor App Embed Deep Link with valid 36-char Extension UUID
   const deepLink = storeSubdomain
-    ? `https://admin.shopify.com/store/${storeSubdomain}/themes/current/editor?context=apps&activateAppId=${EXTENSION_UID}/${EMBED_HANDLE}`
+    ? `https://admin.shopify.com/store/${storeSubdomain}/themes/current/editor?context=apps&activateAppId=${EXTENSION_UUID}/${EMBED_HANDLE}`
+    : `https://admin.shopify.com/store/themes/current/editor?context=apps`;
+
+  // General App Embeds panel link (safe fallback without specific activateAppId)
+  const appEmbedsLink = storeSubdomain
+    ? `https://admin.shopify.com/store/${storeSubdomain}/themes/current/editor?context=apps`
     : `https://admin.shopify.com/store/themes/current/editor?context=apps`;
 
   return (
