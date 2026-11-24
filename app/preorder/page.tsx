@@ -35,18 +35,34 @@ function toDatetimeLocalString(dateStr?: string | Date | null): string {
   if (!dateStr) return '';
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const year = d.getFullYear();
-  const month = pad(d.getMonth() + 1);
-  const day = pad(d.getDate());
-  const hours = pad(d.getHours());
-  const minutes = pad(d.getMinutes());
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(d);
+  const get = (type: string) => parts.find(p => p.type === type)?.value || '00';
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+}
+
+function localToUtcIso(str?: string | null): string | null {
+  if (!str) return null;
+  if (str.includes('Z') || /[+-]\d{2}:\d{2}$/.test(str)) {
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  }
+  const withOffset = str.length === 16 ? `${str}:00+05:30` : `${str}+05:30`;
+  const d = new Date(withOffset);
+  return isNaN(d.getTime()) ? null : d.toISOString();
 }
 
 function formatHumanDateTime(dateStr?: string | Date | null): string {
   if (!dateStr) return '';
-  const d = new Date(dateStr);
+  const str = String(dateStr);
+  const d = new Date(str.includes('T') && !str.includes('Z') && !/[+-]\d{2}/.test(str) ? (localToUtcIso(str) || str) : str);
   if (isNaN(d.getTime())) return '';
   return d.toLocaleDateString('en-GB', {
     day: 'numeric',
@@ -570,14 +586,14 @@ export default function PreorderAdminPage() {
         // Status & Scheduling (End date / Deadline only)
         statusScheduleType,
         startDate: null,
-        endDate: endDate ? new Date(endDate).toISOString() : null,
+        endDate: localToUtcIso(endDate),
         // Countdown Timer
         showTimer,
         timerDisplayMode: 'WHILE_PREORDER',
         timerDateMode,
         timerCustomDate: timerDateMode === 'CUSTOM_DATES' && timerCustomDate
-          ? new Date(timerCustomDate).toISOString()
-          : (endDate ? new Date(endDate).toISOString() : (timerCustomDate ? new Date(timerCustomDate).toISOString() : null)),
+          ? localToUtcIso(timerCustomDate)
+          : (endDate ? localToUtcIso(endDate) : (timerCustomDate ? localToUtcIso(timerCustomDate) : null)),
         timerHeading: timerHeadingStart.trim() || 'Pre-order opening soon',
         timerHeadingEnd: timerHeadingEnd.trim() || 'Hurry up! Pre-order ending soon',
         timerTextColor,

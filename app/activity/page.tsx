@@ -19,6 +19,19 @@ import { shopifyFetch } from "@/lib/shopify/Client";
 import { StoreRoleBadge } from '@/components/ui/StoreRoleBadge';
 import { Loading, SearchBar, CustomSelect, Pagination, RefreshButton } from '@/components/common';
 import { useStoreContext } from '@/components/providers/StoreProvider';
+import { useTheme } from '@/components/providers/ThemeContext';
+
+const hexToRgb = (hex: string): [number, number, number] => {
+  const cleanHex = hex.replace('#', '');
+  if (cleanHex.length === 6) {
+    return [
+      parseInt(cleanHex.substring(0, 2), 16),
+      parseInt(cleanHex.substring(2, 4), 16),
+      parseInt(cleanHex.substring(4, 6), 16),
+    ];
+  }
+  return [92, 58, 33];
+};
 
 function ProductThumbnail({ src, title }: { src?: string | null; title?: string | null }) {
   const [imgError, setImgError] = useState(false);
@@ -57,6 +70,8 @@ function ProductThumbnail({ src, title }: { src?: string | null; title?: string 
 
 export default function ActivityPage() {
   const { isStandalone, isMultiStore } = useStoreContext();
+  const { currentTheme } = useTheme();
+  const primaryColor = currentTheme?.primaryColor || '#5c3a21';
   const [activities, setActivities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -290,10 +305,25 @@ export default function ActivityPage() {
       if (dateFilter) params.append("dateRange", dateFilter);
       params.append("export", "true");
 
-      const response = await shopifyFetch(`/api/activity?${params.toString()}`);
-      if (!response.ok) throw new Error("Failed to fetch export data");
-      const data = await response.json();
-      const exportActivities = data.activities || [];
+      let exportActivities: any[] = [];
+      try {
+        const response = await shopifyFetch(`/api/activity?${params.toString()}`);
+        if (response.ok) {
+          const data = await response.json();
+          exportActivities = data.activities || [];
+        } else {
+          console.warn("[Export] Server export returned non-ok status, falling back to loaded activities.");
+          exportActivities = activities;
+        }
+      } catch (fetchErr) {
+        console.warn("[Export] Fetch failed, falling back to loaded activities:", fetchErr);
+        exportActivities = activities;
+      }
+
+      if (!exportActivities || exportActivities.length === 0) {
+        setErrorMsg("No activity logs available to export.");
+        return;
+      }
 
       const { default: jsPDF } = await import('jspdf');
       const { default: autoTable } = await import('jspdf-autotable');
@@ -364,7 +394,7 @@ export default function ActivityPage() {
           lineColor: [226, 232, 240]
         },
         headStyles: {
-          fillColor: [99, 102, 241], // #6366f1 Purple Table Header
+          fillColor: hexToRgb(primaryColor),
           textColor: [255, 255, 255],
           fontStyle: 'bold',
           fontSize: 8.5,
@@ -418,11 +448,16 @@ export default function ActivityPage() {
               size="md"
               variant="white"
               title="Refresh activity logs"
+              className={`rounded-xl transition-all duration-150 ${
+                currentTheme?.secondaryBtn || 'bg-white text-gray-800 border border-gray-200 hover:bg-gray-50 font-bold'
+              }`}
             />
             <button
               onClick={exportToPDF}
               disabled={isExporting}
-              className="flex items-center gap-2 bg-[#6366f1] hover:bg-[#4f46e5] text-white px-4 py-2 rounded-lg font-semibold text-sm transition-all shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm transition-all duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                currentTheme?.primaryBtn || 'bg-[var(--color-primary,#5c3a21)] text-[var(--color-primary-text,#ffffff)] hover:bg-[var(--color-primary-hover,#472c18)] shadow-md font-bold'
+              }`}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -509,7 +544,10 @@ export default function ActivityPage() {
 
           {loading ? (
             <div className="py-20 flex flex-col items-center justify-center gap-3">
-              <div className="w-8 h-8 rounded-full border-3 border-indigo-200 border-t-[#6366f1] animate-spin" />
+              <div 
+                className="w-8 h-8 rounded-full border-3 border-gray-200 animate-spin" 
+                style={{ borderTopColor: primaryColor }}
+              />
               <p className="text-xs font-semibold text-slate-500 m-0">Filtering activities...</p>
             </div>
           ) : activities.length === 0 ? (
@@ -528,7 +566,9 @@ export default function ActivityPage() {
               <div className="hidden md:block w-full overflow-x-auto">
                 <table className="w-full text-left border-collapse table-auto">
                   <thead>
-                    <tr className="bg-[#6366f1] text-white text-[11px] font-extrabold uppercase tracking-wider select-none">
+                    <tr className={`text-[11px] font-extrabold uppercase tracking-wider select-none ${
+                      currentTheme?.tableHeaderBg || 'bg-[var(--color-primary,#5c3a21)] text-white'
+                    }`}>
                       <th className="py-3 px-3.5 w-[13%]">Date & Time</th>
                       <th className="py-3 px-3.5 w-[14%]">Event</th>
                       <th className="py-3 px-3.5 w-[22%]">Title</th>
@@ -547,7 +587,11 @@ export default function ActivityPage() {
                       return (
                         <tr 
                           key={id || idx} 
-                          className={`transition-colors hover:bg-slate-50/80 border-b border-slate-200/80 ${idx % 2 === 1 ? 'bg-slate-50/40' : 'bg-white'}`}
+                          className={`transition-colors border-b border-slate-200/80 ${
+                            idx % 2 === 1 
+                              ? (currentTheme?.tableEvenRow || 'bg-slate-50/40') 
+                              : (currentTheme?.tableOddRow || 'bg-white')
+                          }`}
                         >
                           {/* 1. Date & Time */}
                           <td className="py-3.5 px-3.5 align-middle">

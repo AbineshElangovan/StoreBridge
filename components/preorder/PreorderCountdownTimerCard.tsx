@@ -63,7 +63,14 @@ export interface PreorderCountdownTimerCardProps {
 
 function formatHumanDateTime(dateStr?: string | Date | null): string {
   if (!dateStr) return '';
-  const d = new Date(dateStr);
+  const str = String(dateStr);
+  let d: Date;
+  if (str.includes('T') && !str.includes('Z') && !/[+-]\d{2}/.test(str)) {
+    const withOffset = str.length === 16 ? `${str}:00+05:30` : `${str}+05:30`;
+    d = new Date(withOffset);
+  } else {
+    d = new Date(dateStr);
+  }
   if (isNaN(d.getTime())) return '';
   return d.toLocaleDateString('en-GB', {
     day: 'numeric',

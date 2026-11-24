@@ -140,119 +140,123 @@ export async function GET(req: NextRequest) {
             select: { id: true, label: true, shopDomain: true, isMaster: true }
           }
         },
-        take: isExport ? undefined : limit,
-        skip: isExport ? undefined : skip
+        take: isExport ? 2000 : limit,
+        skip: isExport ? 0 : skip
       }),
       prisma.activityLog.count({ where: whereClause })
     ]);
     
-    // Attach product images from ProductCache across entire catalog (multi-tier resolution: ID, SKU, Title, Collection, Store)
-    const allCaches = await prisma.productCache.findMany({
-      where: {
-        imageUrl: { not: null }
-      },
-      select: {
-        shopifyProductId: true,
-        sku: true,
-        title: true,
-        imageUrl: true,
-        storeId: true,
-        tags: true,
-        collections: {
-          select: {
-            collection: {
-              select: { title: true }
+    let enrichedActivities = activities;
+
+    if (!isExport) {
+      // Attach product images from ProductCache across entire catalog (multi-tier resolution: ID, SKU, Title, Collection, Store)
+      const allCaches = await prisma.productCache.findMany({
+        where: {
+          imageUrl: { not: null }
+        },
+        select: {
+          shopifyProductId: true,
+          sku: true,
+          title: true,
+          imageUrl: true,
+          storeId: true,
+          tags: true,
+          collections: {
+            select: {
+              collection: {
+                select: { title: true }
+              }
             }
           }
         }
-      }
-    });
-
-    const cacheByProdId = new Map<string, string>();
-    const cacheBySku = new Map<string, string>();
-    const cacheByTitle = new Map<string, string>();
-    const cacheByStoreAndCol = new Map<string, string>(); // `${storeId}_${normalizedCol}` -> img
-    const cacheByCol = new Map<string, string>(); // `${normalizedCol}` -> img
-    const cacheByStore = new Map<string, string>(); // `${storeId}` -> img
-
-    allCaches.forEach((c: any) => {
-      if (!c.imageUrl) return;
-      const rawId = c.shopifyProductId.replace('gid://shopify/Product/', '');
-      const gid = c.shopifyProductId.startsWith('gid://') ? c.shopifyProductId : `gid://shopify/Product/${c.shopifyProductId}`;
-
-      cacheByProdId.set(rawId, c.imageUrl);
-      cacheByProdId.set(gid, c.imageUrl);
-      if (c.sku) cacheBySku.set(c.sku.toLowerCase(), c.imageUrl);
-      if (c.title) cacheByTitle.set(c.title.toLowerCase(), c.imageUrl);
-
-      if (!cacheByStore.has(c.storeId)) {
-        cacheByStore.set(c.storeId, c.imageUrl);
-      }
-
-      const colTitles: string[] = [];
-      if (c.collections) {
-        c.collections.forEach((cp: any) => {
-          if (cp.collection?.title) colTitles.push(cp.collection.title.toLowerCase());
-        });
-      }
-      if (c.tags) {
-        c.tags.split(',').forEach((t: string) => {
-          if (t.trim()) colTitles.push(t.trim().toLowerCase());
-        });
-      }
-
-      colTitles.forEach((col) => {
-        const storeColKey = `${c.storeId}_${col}`;
-        if (!cacheByStoreAndCol.has(storeColKey)) {
-          cacheByStoreAndCol.set(storeColKey, c.imageUrl);
-        }
-        if (!cacheByCol.has(col)) {
-          cacheByCol.set(col, c.imageUrl);
-        }
       });
-    });
 
-    const enrichedActivities = activities.map((a: any) => {
-      let resolvedImg = a.imageUrl || null;
+      const cacheByProdId = new Map<string, string>();
+      const cacheBySku = new Map<string, string>();
+      const cacheByTitle = new Map<string, string>();
+      const cacheByStoreAndCol = new Map<string, string>(); // `${storeId}_${normalizedCol}` -> img
+      const cacheByCol = new Map<string, string>(); // `${normalizedCol}` -> img
+      const cacheByStore = new Map<string, string>(); // `${storeId}` -> img
 
-      // Tier 1: Direct match by productId
-      if (!resolvedImg && a.productId) {
-        const rawId = a.productId.replace('gid://shopify/Product/', '');
-        resolvedImg = cacheByProdId.get(rawId) || cacheByProdId.get(a.productId) || null;
-      }
+      allCaches.forEach((c: any) => {
+        if (!c.imageUrl) return;
+        const rawId = (c.shopifyProductId || '').replace('gid://shopify/Product/', '');
+        const gid = (c.shopifyProductId || '').startsWith('gid://') ? c.shopifyProductId : `gid://shopify/Product/${c.shopifyProductId}`;
 
-      // Tier 2: Match by SKU
-      if (!resolvedImg && a.sku) {
-        resolvedImg = cacheBySku.get(a.sku.toLowerCase()) || null;
-      }
+        if (rawId) cacheByProdId.set(rawId, c.imageUrl);
+        if (gid) cacheByProdId.set(gid, c.imageUrl);
+        if (c.sku) cacheBySku.set(c.sku.toLowerCase(), c.imageUrl);
+        if (c.title) cacheByTitle.set(c.title.toLowerCase(), c.imageUrl);
 
-      // Tier 3: Match by productTitle
-      if (!resolvedImg && a.productTitle) {
-        resolvedImg = cacheByTitle.get(a.productTitle.toLowerCase()) || null;
-      }
+        if (c.storeId && !cacheByStore.has(c.storeId)) {
+          cacheByStore.set(c.storeId, c.imageUrl);
+        }
 
-      // Tier 4: Collection match (e.g. for Price Adjustment or categorized batch actions)
-      if (!resolvedImg) {
-        const colString = a.collection || (a.productTitle?.includes('Price Adjustment (') ? a.productTitle.replace('Price Adjustment (', '').replace(')', '') : '');
-        if (colString) {
-          const cols = colString.split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
-          for (const col of cols) {
-            resolvedImg = cacheByStoreAndCol.get(`${a.storeId}_${col}`) || cacheByCol.get(col);
-            if (resolvedImg) break;
+        const colTitles: string[] = [];
+        if (c.collections) {
+          c.collections.forEach((cp: any) => {
+            if (cp.collection?.title) colTitles.push(cp.collection.title.toLowerCase());
+          });
+        }
+        if (c.tags) {
+          c.tags.split(',').forEach((t: string) => {
+            if (t.trim()) colTitles.push(t.trim().toLowerCase());
+          });
+        }
+
+        colTitles.forEach((col) => {
+          const storeColKey = `${c.storeId}_${col}`;
+          if (!cacheByStoreAndCol.has(storeColKey)) {
+            cacheByStoreAndCol.set(storeColKey, c.imageUrl);
+          }
+          if (!cacheByCol.has(col)) {
+            cacheByCol.set(col, c.imageUrl);
+          }
+        });
+      });
+
+      enrichedActivities = activities.map((a: any) => {
+        let resolvedImg = a.imageUrl || null;
+
+        // Tier 1: Direct match by productId
+        if (!resolvedImg && a.productId) {
+          const rawId = a.productId.replace('gid://shopify/Product/', '');
+          resolvedImg = cacheByProdId.get(rawId) || cacheByProdId.get(a.productId) || null;
+        }
+
+        // Tier 2: Match by SKU
+        if (!resolvedImg && a.sku) {
+          resolvedImg = cacheBySku.get(a.sku.toLowerCase()) || null;
+        }
+
+        // Tier 3: Match by productTitle
+        if (!resolvedImg && a.productTitle) {
+          resolvedImg = cacheByTitle.get(a.productTitle.toLowerCase()) || null;
+        }
+
+        // Tier 4: Collection match (e.g. for Price Adjustment or categorized batch actions)
+        if (!resolvedImg) {
+          const colString = a.collection || (a.productTitle?.includes('Price Adjustment (') ? a.productTitle.replace('Price Adjustment (', '').replace(')', '') : '');
+          if (colString) {
+            const cols = colString.split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
+            for (const col of cols) {
+              resolvedImg = cacheByStoreAndCol.get(`${a.storeId}_${col}`) || cacheByCol.get(col);
+              if (resolvedImg) break;
+            }
           }
         }
-      }
 
-      // Tier 5: Store fallback (representative store product image)
-      if (!resolvedImg && a.storeId) {
-        resolvedImg = cacheByStore.get(a.storeId) || null;
-      }
+        // Tier 5: Store fallback (representative store product image)
+        if (!resolvedImg && a.storeId) {
+          resolvedImg = cacheByStore.get(a.storeId) || null;
+        }
 
-      return {
-        ...a,
-        imageUrl: resolvedImg
-      };
-    });
+        return {
+          ...a,
+          imageUrl: resolvedImg
+        };
+      });
+    }
 
     // For bulk exports, deduplicate any identical log entries created in the same 60-second window.
     // For paginated table requests, activities are fetched from the database directly matching the exact limit.
@@ -269,26 +273,30 @@ export async function GET(req: NextRequest) {
     }
     
     let storeOptions: any[] = [];
-    if (isMultiStore) {
+    let collectionOptions: any[] = [];
+
+    if (!isExport) {
+      if (isMultiStore) {
         const stores = await prisma.store.findMany({
-            where: { id: { in: allowedStoreIds } },
-            select: { id: true, label: true, shopDomain: true }
+          where: { id: { in: allowedStoreIds } },
+          select: { id: true, label: true, shopDomain: true }
         });
         storeOptions = stores.map((s: any) => ({
-            label: s.label || s.shopDomain,
-            value: s.id
+          label: s.label || s.shopDomain,
+          value: s.id
         }));
-    }
+      }
 
-    const collections = await prisma.collection.findMany({
-      where: { storeId: { in: allowedStoreIds } },
-      select: { title: true },
-      distinct: ['title']
-    });
-    
-    const collectionOptions = collections
-      .filter((c: any) => c.title)
-      .map((c: any) => ({ label: c.title, value: c.title }));
+      const collections = await prisma.collection.findMany({
+        where: { storeId: { in: allowedStoreIds } },
+        select: { title: true },
+        distinct: ['title']
+      });
+      
+      collectionOptions = collections
+        .filter((c: any) => c.title)
+        .map((c: any) => ({ label: c.title, value: c.title }));
+    }
 
     return NextResponse.json({
       success: true,

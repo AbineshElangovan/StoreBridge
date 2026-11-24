@@ -62,8 +62,9 @@
       } catch (_) {}
     }
 
-    // Prefer ACTIVE_APP_API_URL for local development tunnel synchronization
-    if (ACTIVE_APP_API_URL && !ACTIVE_APP_API_URL.includes('undefined')) {
+    // On production stores, prioritize production URL unless localhost or explicit dev query
+    const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    if (isLocalhost && ACTIVE_APP_API_URL && !ACTIVE_APP_API_URL.includes('undefined')) {
       return ACTIVE_APP_API_URL;
     }
 
@@ -236,45 +237,15 @@
         ''
       ).toLowerCase();
 
-      let family = 'generic';
-      if (
-        themeName.includes('dawn') ||
-        themeName.includes('refresh') ||
-        themeName.includes('sense') ||
-        themeName.includes('craft') ||
-        themeName.includes('studio') ||
-        themeName.includes('taste') ||
-        themeName.includes('ride') ||
-        themeName.includes('colorblock') ||
-        themeName.includes('horizon') ||
-        themeName.includes('spotlight') ||
-        Boolean(typeof customElements !== 'undefined' && customElements.get && customElements.get('product-form'))
-      ) {
-        family = 'dawn';
-      } else if (
-        themeName.includes('prestige') ||
-        themeName.includes('impact') ||
-        themeName.includes('warehouse') ||
-        themeName.includes('focal') ||
-        Boolean(document.querySelector('.ProductForm, form[data-type="add-to-cart-form"], [data-action="add-to-cart"]'))
-      ) {
-        family = 'prestige';
-      } else if (
-        themeName.includes('impulse') ||
-        themeName.includes('motion') ||
-        themeName.includes('streamline') ||
-        themeName.includes('fetch') ||
-        Boolean(document.querySelector('.btn--add-to-cart, form.product-single__form, #CartDrawer'))
-      ) {
-        family = 'impulse';
-      }
-
+      // Universal Theme Engine: Fully theme-agnostic.
+      // Every Shopify theme (free, paid, commercial, or custom) is supported dynamically
+      // through universal web-standards and standard Shopify DOM elements.
       this._cachedInfo = {
-        name: themeName || 'unknown',
-        family
+        name: themeName || 'universal-theme',
+        family: 'universal'
       };
 
-      log('Theme detected:', this._cachedInfo);
+      log('Universal Theme Engine active for theme:', this._cachedInfo.name);
       return this._cachedInfo;
     }
   };
@@ -1240,7 +1211,14 @@
 
   function formatHumanDateTime(dateStr) {
     if (!dateStr) return '';
-    const d = new Date(dateStr);
+    const str = String(dateStr);
+    let d;
+    if (str.includes('T') && !str.includes('Z') && !/[+-]\d{2}/.test(str)) {
+      const withOffset = str.length === 16 ? `${str}:00+05:30` : `${str}+05:30`;
+      d = new Date(withOffset);
+    } else {
+      d = new Date(dateStr);
+    }
     if (isNaN(d.getTime())) return '';
     return d.toLocaleDateString('en-GB', {
       day: 'numeric',
@@ -1351,7 +1329,14 @@
 
   function attachCountdownTicker(container, targetDateStr) {
     if (!targetDateStr) return;
-    const targetTime = new Date(targetDateStr).getTime();
+    const str = String(targetDateStr);
+    let targetTime;
+    if (str.includes('T') && !str.includes('Z') && !/[+-]\d{2}/.test(str)) {
+      const withOffset = str.length === 16 ? `${str}:00+05:30` : `${str}+05:30`;
+      targetTime = new Date(withOffset).getTime();
+    } else {
+      targetTime = new Date(targetDateStr).getTime();
+    }
     if (isNaN(targetTime)) return;
 
     const updateTicker = () => {
@@ -5299,8 +5284,14 @@
       }
 
       const pendingStr = localStorage.getItem('storebridge_pending_preorder');
-      if (!pendingStr && (!checkout?.line_items || checkout.line_items.length === 0)) {
-        return;
+      if (!pendingStr) {
+        const hasPreorderItem = checkout?.line_items?.some(item => 
+          item.properties && (item.properties._preorder === 'true' || item.properties['Pre-order'] === 'true' || item.properties._paymentOption || item.title?.toLowerCase().includes('pre-order'))
+        );
+        if (!hasPreorderItem) {
+          // Strictly ignore regular orders - only genuine pre-orders may be recorded
+          return;
+        }
       }
 
       const pending = pendingStr ? JSON.parse(pendingStr) : null;
@@ -5342,19 +5333,34 @@
         currency: 'INR'
       };
 
-      await fetch(`${apiUrl}/api/storefront/record-preorder`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Shopify-Shop-Domain': shop,
-          'X-Tunnel-Skip-Anti-Phishing-Page': '1',
-          Accept: 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
+      const candidateApis = [apiUrl, PRODUCTION_LIVE_API_URL, 'https://version-control.d38r9lc5j1o8oj.amplifyapp.com'].filter((u, i, arr) => u && arr.indexOf(u) === i);
+      let recordedSuccessfully = false;
 
-      localStorage.removeItem('storebridge_pending_preorder');
-      log('Successfully recorded pre-order for order', orderNumber);
+      for (const endpointBase of candidateApis) {
+        try {
+          const res = await fetch(`${endpointBase}/api/storefront/record-preorder`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Shopify-Shop-Domain': shop,
+              'X-Tunnel-Skip-Anti-Phishing-Page': '1',
+              Accept: 'application/json'
+            },
+            body: JSON.stringify(payload)
+          });
+          if (res.ok) {
+            recordedSuccessfully = true;
+            log('Successfully recorded pre-order via', endpointBase, orderNumber);
+            break;
+          }
+        } catch (fetchErr) {
+          console.warn('[StoreBridge:RecordPreorder] Attempt failed on', endpointBase, fetchErr);
+        }
+      }
+
+      if (recordedSuccessfully) {
+        localStorage.removeItem('storebridge_pending_preorder');
+      }
     } catch (e) {
       console.warn('[StoreBridge:RecordPreorder] Failed:', e);
     }

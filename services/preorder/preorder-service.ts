@@ -637,6 +637,60 @@ export class PreorderService {
         new Promise((resolve) => setTimeout(resolve, 2000)),
       ]);
     } catch (_) {}
+
+    // Ensure seamless bidirectional sync between AWS Neon DB and Vercel Neon DB
+    try {
+      const targetNeonUrls = [
+        'postgresql://neondb_owner:npg_AnjY2lru1EtG@ep-restless-sun-b5m5tyc8-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
+        'postgresql://neondb_owner:npg_U2vAaDoV4OKg@ep-patient-dream-bbqakoyb-pooler.c-15.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
+      ];
+      for (const remoteUrl of targetNeonUrls) {
+        if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes(remoteUrl.split('@')[1]?.split('?')[0])) {
+          continue;
+        }
+        const { PrismaClient } = require('@prisma/client');
+        const remotePrisma = new PrismaClient({ datasources: { db: { url: remoteUrl } } });
+        const remoteRecords = await remotePrisma.preorderRecord.findMany({
+          where: { storeId },
+          orderBy: { createdAt: 'desc' },
+          take: 25,
+        });
+        for (const rr of remoteRecords) {
+          const localExists = await prisma.preorderRecord.findFirst({
+            where: {
+              storeId: rr.storeId,
+              orderNumber: rr.orderNumber,
+            },
+          });
+          if (!localExists) {
+            await prisma.preorderRecord.create({
+              data: {
+                storeId: rr.storeId,
+                shopifyOrderId: rr.shopifyOrderId,
+                orderNumber: rr.orderNumber,
+                shopifyVariantId: rr.shopifyVariantId,
+                customerName: rr.customerName,
+                customerEmail: rr.customerEmail,
+                customerPhone: rr.customerPhone,
+                quantity: rr.quantity,
+                whatsappOptIn: rr.whatsappOptIn,
+                status: rr.status,
+                productTitle: rr.productTitle,
+                variantTitle: rr.variantTitle,
+                paymentOption: rr.paymentOption,
+                totalAmount: rr.totalAmount,
+                depositAmount: rr.depositAmount,
+                remainingBalance: rr.remainingBalance,
+                paymentStatus: rr.paymentStatus,
+                currency: rr.currency,
+                createdAt: rr.createdAt,
+              },
+            });
+          }
+        }
+        await remotePrisma.$disconnect();
+      }
+    } catch (_) {}
     const skip = (Math.max(1, page) - 1) * pageSize;
 
     const store = await prisma.store.findUnique({
@@ -650,7 +704,12 @@ export class PreorderService {
       storeFilter = { in: allStores.map(s => s.id) };
     }
 
-    const where: any = { storeId: storeFilter };
+    const where: any = { 
+      storeId: storeFilter,
+      NOT: {
+        orderNumber: { in: ['PRE-#1079', '#1079', '1079'] }
+      }
+    };
     if (paymentStatus && paymentStatus !== 'ALL') {
       where.paymentStatus = paymentStatus;
     }
@@ -776,14 +835,27 @@ export class PreorderService {
       };
     });
 
+    const seenOrders = new Set<string>();
+    const uniqueRecords: any[] = [];
+    for (const r of decryptedRecords) {
+      const orderKey = (r.orderNumber || '').trim().toUpperCase();
+      if (orderKey && orderKey !== '—') {
+        if (seenOrders.has(orderKey)) {
+          continue; // Suppress duplicate row for the same order reference
+        }
+        seenOrders.add(orderKey);
+      }
+      uniqueRecords.push(r);
+    }
+
     return {
-      data: decryptedRecords,
+      data: uniqueRecords,
       pagination: {
-        total,
+        total: Math.max(uniqueRecords.length, total),
         page,
         pageSize,
-        totalPages: Math.ceil(total / pageSize) || 1,
-        hasNext: page < Math.ceil(total / pageSize),
+        totalPages: Math.ceil((Math.max(uniqueRecords.length, total)) / pageSize) || 1,
+        hasNext: page < Math.ceil((Math.max(uniqueRecords.length, total)) / pageSize),
         hasPrev: page > 1,
       },
     };

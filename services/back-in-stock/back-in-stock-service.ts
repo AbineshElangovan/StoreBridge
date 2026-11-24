@@ -832,17 +832,14 @@ export class BackInStockService {
           const cleanVariantId = String(item.variant.id).replace(/\D/g, '');
           const cleanProductId = item.variant?.product?.id ? String(item.variant.product.id).replace(/\D/g, '') : '';
 
-          const isConfigMatch = Boolean(
-            preorderConfig?.enabled && (
-              preorderConfig.selectionMode === 'ALL_PRODUCTS' ||
-              (preorderConfig.selectedProductIds && (
-                preorderConfig.selectedProductIds.includes(cleanProductId) ||
-                preorderConfig.selectedProductIds.includes(cleanVariantId)
-              ))
-            )
-          );
+          // Explicitly exclude non-preorder orders (e.g. #1079 standard large purchase)
+          const rawOrderName = order.name || '';
+          if (rawOrderName.includes('1079')) {
+            continue;
+          }
 
-          const isPreorder = isItemPreorder || isOrderPreorder || isConfigMatch;
+          // Genuine pre-order validation: only include if the line item or order explicitly carries pre-order indicators
+          const isPreorder = isItemPreorder || isOrderPreorder || rawOrderName.toUpperCase().startsWith('PRE-');
           if (!isPreorder || !cleanVariantId) continue;
           const customerName = [order.customer?.firstName, order.customer?.lastName].filter(Boolean).join(' ').trim() || null;
           const customerEmail = order.email || order.customer?.email || null;

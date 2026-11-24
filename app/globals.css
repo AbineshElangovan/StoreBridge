@@ -162,35 +162,35 @@
 }
 
 [data-theme="sand"] {
-  /* 5. Yellow Obsidian Studio (Pure Yellow Background with Jet Black Elements) */
-  --color-primary: #000000;
-  --color-primary-light: #fef08a;
-  --color-primary-dark: #000000;
-  --color-primary-hover: #18181b;
+  /* 5. Warm Beige & Brown Studio (Warm Sand Beige Background with Deep Espresso Brown Elements) */
+  --color-primary: #5c3a21;
+  --color-primary-light: #f5ede4;
+  --color-primary-dark: #382314;
+  --color-primary-hover: #472c18;
 
-  --theme-navbar-bg: rgba(254, 240, 138, 0.96);
-  --theme-navbar-border: #eab308;
-  --theme-sidebar-bg: rgba(254, 240, 138, 0.96);
-  --theme-sidebar-border: #eab308;
-  --theme-sidebar-active-bg: #000000;
-  --theme-sidebar-active-text: #fde047;
-  --theme-sidebar-hover-bg: #fde047;
-  --theme-sidebar-hover-text: #000000;
-  --theme-brand-bg: #fde047;
-  --theme-brand-hover-bg: #eab308;
-  --theme-brand-border: #eab308;
-  --theme-brand-text: #000000;
-  --theme-brand-subtext: #854d0e;
-  --color-primary-text: #ffffff;
+  --theme-navbar-bg: rgba(247, 242, 234, 0.98);
+  --theme-navbar-border: #dfd1c0;
+  --theme-sidebar-bg: rgba(247, 242, 234, 0.98);
+  --theme-sidebar-border: #dfd1c0;
+  --theme-sidebar-active-bg: #5c3a21;
+  --theme-sidebar-active-text: #fbf7f2;
+  --theme-sidebar-hover-bg: #ece0d1;
+  --theme-sidebar-hover-text: #2e1b0e;
+  --theme-brand-bg: #e2cdb9;
+  --theme-brand-hover-bg: #d5bc9f;
+  --theme-brand-border: #dfd1c0;
+  --theme-brand-text: #2e1b0e;
+  --theme-brand-subtext: #5c3a21;
+  --color-primary-text: #fbf7f2;
   --theme-card-bg: rgba(255, 255, 255, 0.98);
-  --theme-border-accent: #eab308;
-  --theme-glow: rgba(0, 0, 0, 0.35);
+  --theme-border-accent: #dfd1c0;
+  --theme-glow: rgba(92, 58, 33, 0.25);
 
-  --bg-page: #fef9c3;
+  --bg-page: #faf6f0;
   --bg-card: rgba(255, 255, 255, 0.98);
-  --bg-hover: #fef08a;
-  --border-color: #facc15;
-  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.15);
+  --bg-hover: #f3ebe1;
+  --border-color: #dfd1c0;
+  --shadow-card: 0 4px 20px rgba(56, 35, 20, 0.08);
 }
 
 @theme {
@@ -450,8 +450,8 @@
 [data-theme="sand"] .ys-sidebar-nav-item:not(.ys-sidebar-active):hover,
 [data-theme="sand"] .ys-sidebar-header:hover,
 [data-theme="sand"] .ys-store-switch-item:hover {
-  background-color: #fde047 !important;
-  color: #000000 !important;
+  background-color: #ece0d1 !important;
+  color: #2e1b0e !important;
 }
 
 [data-theme] .text-\[\#0db69d\],
@@ -754,20 +754,20 @@ html[data-theme="violet"] [data-scrolling="true"]::-webkit-scrollbar-thumb {
 [data-theme="lavender"] .ys-sk-dot,
 [data-theme="violet"] .ys-sk-dot { background-color: #6b21a8 !important; }
 
-/* 5. Yellow Obsidian Studio (Yellow & Black) */
+/* 5. Warm Beige & Brown Studio (Warm Sand Beige & Espresso Brown) */
 [data-theme="sand"] [data-scrolling="true"],
 [data-theme="sand"].sb-scrolling {
-  scrollbar-color: #000000 transparent !important;
+  scrollbar-color: #5c3a21 transparent !important;
 }
 [data-theme="sand"] *:not(.custom-dropdown-scrollbar)[data-scrolling="true"]::-webkit-scrollbar-thumb,
 [data-theme="sand"].sb-scrolling::-webkit-scrollbar-thumb,
 html[data-theme="sand"] [data-scrolling="true"]::-webkit-scrollbar-thumb {
-  background-color: #000000 !important;
+  background-color: #5c3a21 !important;
 }
 [data-theme="sand"] .ys-sk-spinner,
-[data-theme="sand"] .ys-sync-ring { border-top-color: #000000 !important; }
-[data-theme="sand"] .ys-sk-ping { border-color: #000000 !important; }
-[data-theme="sand"] .ys-sk-dot { background-color: #000000 !important; }
+[data-theme="sand"] .ys-sync-ring { border-top-color: #5c3a21 !important; }
+[data-theme="sand"] .ys-sk-ping { border-color: #5c3a21 !important; }
+[data-theme="sand"] .ys-sk-dot { background-color: #5c3a21 !important; }
 
 /* Settings Icon & Notification Preferences pure white styling */
 .notification-pref-btn,

@@ -246,12 +246,24 @@ export function PreviewCard({
   const effectiveIsLive = true;
 
   // Determine countdown target date (End Date / Deadline only)
-  const end = endDate ? new Date(endDate) : null;
+  const parseLocalShopDate = (dateStr?: string | Date | null): Date | null => {
+    if (!dateStr) return null;
+    const str = String(dateStr);
+    if (str.includes('T') && !str.includes('Z') && !/[+-]\d{2}/.test(str)) {
+      const withOffset = str.length === 16 ? `${str}:00+05:30` : `${str}+05:30`;
+      const d = new Date(withOffset);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const end = parseLocalShopDate(endDate);
   let targetDate: Date | null = null;
   if (timerDateMode === 'CUSTOM_DATES' || timerDateMode === 'CUSTOM_END_DATE' || timerDateMode === 'CUSTOM_DATE') {
-    targetDate = timerCustomDate ? new Date(timerCustomDate) : (end || null);
+    targetDate = timerCustomDate ? parseLocalShopDate(timerCustomDate) : (end || null);
   } else {
-    targetDate = end || (timerCustomDate ? new Date(timerCustomDate) : null);
+    targetDate = end || (timerCustomDate ? parseLocalShopDate(timerCustomDate) : null);
   }
 
   // Ticking countdown timer - defaults to lively sample countdown matching user design

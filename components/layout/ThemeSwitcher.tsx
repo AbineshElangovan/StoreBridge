@@ -58,14 +58,14 @@ const THEME_MERGE_PALETTES: Record<WallpaperTheme, ThemeMergePalette> = {
     label: 'Royal Violet & Lilac',
   },
   sand: {
-    color1: '#facc15',
-    color1Light: '#fef08a',
-    color2: '#000000',
-    color2Dark: '#000000',
-    glowColor: 'rgba(250, 204, 21, 0.55)',
-    dot1Color: '#facc15',
-    dot2Color: '#000000',
-    label: 'Yellow & Black',
+    color1: '#e8decb',
+    color1Light: '#f7f2ea',
+    color2: '#5c3a21',
+    color2Dark: '#382314',
+    glowColor: 'rgba(120, 74, 40, 0.45)',
+    dot1Color: '#e8decb',
+    dot2Color: '#5c3a21',
+    label: 'Warm Beige & Brown',
   },
 };
 
