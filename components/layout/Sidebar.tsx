@@ -13,7 +13,8 @@ import {
   NotificationIcon,
   CartIcon,
   EmailIcon,
-  OrderIcon
+  OrderIcon,
+  ChevronDownIcon
 } from '@shopify/polaris-icons';
 import { Icon } from '@shopify/polaris';
 import { useStoreContext } from '@/components/providers/StoreProvider';
@@ -58,7 +59,18 @@ export function Sidebar() {
 
   const { unreadCount } = useNotifications();
   const [storeMenuOpen, setStoreMenuOpen] = useState(false);
+  // Default open state: only 'WORKSPACE' is open initially, other sections are collapsed
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    'WORKSPACE': true,
+  });
   const storeDropdownRef = useRef<HTMLDivElement>(null);
+
+  const toggleSection = (sectionTitle: string) => {
+    setOpenSections((prev) => ({
+      ...prev,
+      [sectionTitle]: !prev[sectionTitle]
+    }));
+  };
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -102,15 +114,15 @@ export function Sidebar() {
 
   const menuSections: MenuSection[] = [
     {
-      title: 'OVERVIEW',
+      title: 'WORKSPACE',
       items: [
         { label: 'Dashboard', href: '/', icon: HomeIcon },
         { label: 'Notifications', href: '/dashboard/notifications', icon: NotificationIcon, badge: unreadCount > 0 ? String(unreadCount) : undefined },
-        { label: 'Activity', href: '/activity', icon: ClockIcon },
+        { label: 'Activity Log', href: '/activity', icon: ClockIcon },
       ]
     },
     {
-      title: 'INVENTORY',
+      title: 'PRODUCT MANAGEMENT',
       items: [
         { label: 'Products', href: '/products', icon: ProductIcon },
         ...(isStandalone ? [
@@ -120,45 +132,30 @@ export function Sidebar() {
             icon: HeartIcon,
           }
         ] : []),
+        { label: 'Import Products', href: '/sync', icon: ImportIcon },
+        { label: 'SKU Generator', href: '/sku', icon: DiscountIcon },
+        { label: 'Price Adjustments', href: '/price-adjustment', icon: CashDollarIcon },
       ]
     },
     {
-      title: 'ANALYTICS',
+      title: 'INSIGHTS & PLANNING',
       items: [
         { label: 'Product Insights', href: '/insights', icon: ChartVerticalIcon },
         { label: 'Inventory Planning', href: '/insights/planning', icon: ClockIcon },
       ]
     },
-    {
-      title: 'OPERATIONS',
-      items: [
-        { label: isStandalone ? 'Import' : 'Import & Sync', href: '/sync', icon: ImportIcon },
-      ]
-    },
-    {
-      title: 'RULES',
-      items: [
-        { label: 'SKU Generation', href: '/sku', icon: DiscountIcon },
-        { label: 'Price Adjustment', href: '/price-adjustment', icon: CashDollarIcon },
-      ]
-    },
     ...(isStandalone ? [{
-      title: 'CUSTOMER EXPERIENCE',
+      title: 'CUSTOMER ENGAGEMENT',
       items: [
-        { label: 'Pre-order', href: '/preorder', icon: CartIcon },
+        { label: 'Pre-orders', href: '/preorder', icon: CartIcon },
         { label: 'Notify Me', href: '/notify-me', icon: EmailIcon },
         { label: 'Back in Stock', href: '/back-in-stock', icon: OrderIcon },
       ]
     }] : []),
     {
-      title: 'MULTI-STORE',
+      title: 'STORE MANAGEMENT',
       items: [
         { label: 'Store Connections', href: '/connections', icon: LinkIcon },
-      ]
-    },
-    {
-      title: 'SETTINGS',
-      items: [
         { label: 'Settings', href: '/settings', icon: SettingsIcon },
       ]
     },
@@ -386,44 +383,57 @@ export function Sidebar() {
 
       {/* Nav Menu */}
       <div className="flex-1 overflow-y-auto px-4 pb-6 ys-sidebar-scroll">
-        {menuSections.map((section, idx) => (
-          <div key={idx} className="mb-6">
-            <h3 
-              className="px-3 mb-3 text-xs font-black tracking-wider uppercase transition-colors select-none"
-              style={{ color: mounted ? (currentTheme?.darkColor || 'var(--color-primary-dark, #022c22)') : 'var(--color-primary-dark, #022c22)' }}
-            >
-              {section.title}
-            </h3>
-            <div className="space-y-1">
-              {section.items.map((item) => {
-                if (!canManageNetwork && item.hideInSingleStore) return null;
-                
-                const isActive = pathname === item.href;
-                return (
-                  <Link
-                    key={item.label}
-                    href={createHref(item.href)}
-                    prefetch={false}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-150 group cursor-pointer ys-sidebar-nav-item ${isActive
-                      ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover,#96bb13)] text-[var(--color-primary-text,#000000)] font-black shadow-md border border-[var(--theme-sidebar-border,#91b212)] ys-sidebar-active'
-                      : 'text-gray-950 hover:text-black active:bg-[var(--color-primary)] active:text-[var(--color-primary-text,#000000)] active:scale-[0.98] font-bold'
-                      }`}
-                  >
-                    <span className={isActive ? 'text-[var(--color-primary-text,#000000)]' : 'text-gray-900 group-hover:text-black transition-colors'}>
-                      <Icon source={item.icon} tone="inherit" />
-                    </span>
-                    <span className={`flex-1 truncate ${isActive ? 'text-[var(--color-primary-text,#000000)] font-black' : ''}`}>{item.label}</span>
-                    {item.badge && (
-                      <span className="bg-red-500 text-white font-extrabold text-[11px] px-2 py-0.5 rounded-full shadow-xs">
-                        {item.badge}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
+        {menuSections.map((section, idx) => {
+          const isOpen = Boolean(openSections[section.title]);
+
+          return (
+            <div key={idx} className="mb-3">
+              <button
+                type="button"
+                onClick={() => toggleSection(section.title)}
+                className="w-full flex items-center justify-between px-3 py-1.5 mb-1 text-xs font-black tracking-wider uppercase transition-all select-none group text-left cursor-pointer rounded-lg hover:bg-[var(--theme-sidebar-hover-bg,rgba(0,0,0,0.05))]"
+                style={{ color: mounted ? (currentTheme?.darkColor || 'var(--color-primary-dark, #022c22)') : 'var(--color-primary-dark, #022c22)' }}
+                aria-expanded={isOpen}
+              >
+                <span className="truncate">{section.title}</span>
+                <span className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-0' : '-rotate-90'} opacity-60 group-hover:opacity-100 flex items-center justify-center`}>
+                  <Icon source={ChevronDownIcon} tone="inherit" />
+                </span>
+              </button>
+
+              {isOpen && (
+                <div className="space-y-1">
+                  {section.items.map((item) => {
+                    if (!canManageNetwork && item.hideInSingleStore) return null;
+                    
+                    const isActive = pathname === item.href;
+                    return (
+                      <Link
+                        key={item.label}
+                        href={createHref(item.href)}
+                        prefetch={false}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-150 group cursor-pointer ys-sidebar-nav-item ${isActive
+                          ? 'bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover,#96bb13)] text-[var(--color-primary-text,#000000)] font-black shadow-md border border-[var(--theme-sidebar-border,#91b212)] ys-sidebar-active'
+                          : 'text-gray-950 hover:text-black active:bg-[var(--color-primary)] active:text-[var(--color-primary-text,#000000)] active:scale-[0.98] font-bold'
+                          }`}
+                      >
+                        <span className={isActive ? 'text-[var(--color-primary-text,#000000)]' : 'text-gray-900 group-hover:text-black transition-colors'}>
+                          <Icon source={item.icon} tone="inherit" />
+                        </span>
+                        <span className={`flex-1 truncate ${isActive ? 'text-[var(--color-primary-text,#000000)] font-black' : ''}`}>{item.label}</span>
+                        {item.badge && (
+                          <span className="bg-red-500 text-white font-extrabold text-[11px] px-2 py-0.5 rounded-full shadow-xs">
+                            {item.badge}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -96,7 +96,7 @@ export default function SyncPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 w-full overflow-x-hidden">
       <PageHeader
-        title={isStandalone ? 'Product Import' : 'Import & Sync'}
+        title="Import Products"
         subtitle={
           isStandalone 
             ? 'Import products and inventory from CSV or Excel files into your store catalog.' 

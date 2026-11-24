@@ -98,7 +98,7 @@ export default function PriceAdjustmentPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">
-              Price Adjustment
+              Price Adjustments
             </h1>
             <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1.5 m-0">
               Configure store-specific and collection-based pricing rules for synchronized products.

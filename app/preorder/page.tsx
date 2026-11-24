@@ -727,7 +727,7 @@ export default function PreorderAdminPage() {
 
       {/* Page Header */}
       <PageHeader
-        title="Pre-order"
+        title="Pre-orders"
         subtitle="Allow customers to pre-order items when stock drops to or below the configured inventory threshold."
       />
 

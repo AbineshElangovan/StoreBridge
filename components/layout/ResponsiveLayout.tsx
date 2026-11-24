@@ -54,8 +54,35 @@ export function ResponsiveLayout({
       return 'Details';
     }
 
-    if (segments[0] === 'sync') {
-      return isStandalone ? 'Import' : 'Import & Sync';
+    const routeMap: Record<string, string> = {
+      '': 'Dashboard',
+      'dashboard': 'Dashboard',
+      'notifications': 'Notifications',
+      'activity': 'Activity Log',
+      'products': 'Products',
+      'wishlist': 'Wishlist',
+      'sync': 'Import Products',
+      'sku': 'SKU Generator',
+      'price-adjustment': 'Price Adjustments',
+      'insights': 'Product Insights',
+      'planning': 'Inventory Planning',
+      'preorder': 'Pre-orders',
+      'notify-me': 'Notify Me',
+      'back-in-stock': 'Back in Stock',
+      'connections': 'Store Connections',
+      'settings': 'Settings',
+    };
+
+    if (segments.length === 2 && segments[0] === 'insights' && segments[1] === 'planning') {
+      return 'Inventory Planning';
+    }
+
+    if (segments.length === 2 && segments[0] === 'dashboard' && segments[1] === 'notifications') {
+      return 'Notifications';
+    }
+
+    if (routeMap[lastSegment]) {
+      return routeMap[lastSegment];
     }
 
     return lastSegment.replace(/[-_]+/g, ' ');

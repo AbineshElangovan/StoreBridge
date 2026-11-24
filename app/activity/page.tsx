@@ -434,7 +434,7 @@ export default function ActivityPage() {
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <h1 className="page-title text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight m-0">
-              Activity
+              Activity Log
             </h1>
             <p className="page-subtitle text-lg sm:text-xl font-medium text-slate-500 mt-1 m-0">
               Full audit trail of product changes and sync events.
