@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { shopifyFetch } from '@/lib/shopify/Client';
 import { Loading } from '@/components/common/Loading';
@@ -29,7 +29,7 @@ import { PreorderPerformanceCard } from '@/components/dashboard/PreorderPerforma
 import { APP_NAME } from '@/lib/constants/app';
 import type { PreorderMetrics } from '@/services/preorder/preorder-service';
 
-export type PreorderTabId = 'general' | 'offers_payment' | 'status_timer' | 'orders';
+export type PreorderTabId = 'activate_theme' | 'general' | 'offers_payment' | 'status_timer' | 'orders';
 
 function toDatetimeLocalString(dateStr?: string | Date | null): string {
   if (!dateStr) return '';
@@ -55,6 +55,7 @@ function formatHumanDateTime(dateStr?: string | Date | null): string {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+    timeZone: 'Asia/Kolkata',
   });
 }
 
@@ -159,7 +160,7 @@ export default function PreorderAdminPage() {
   const buttonTextColor = isLimeTheme ? '#142403' : '#ffffff';
 
   // Navigation tab state: 1. Setup & Products, 2. Offer & Payment, 3. Pre-order Orders
-  const [activeTab, setActiveTab] = useState<PreorderTabId>('general');
+  const [activeTab, setActiveTab] = useState<PreorderTabId>('activate_theme');
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -168,6 +169,7 @@ export default function PreorderAdminPage() {
   // Selection Mode State (Specific Product, Collection-Based, All Products)
   const [selectionMode, setSelectionMode] = useState<'ALL_PRODUCTS' | 'SPECIFIC_PRODUCTS' | 'COLLECTIONS'>('ALL_PRODUCTS');
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [selectedProductsData, setSelectedProductsData] = useState<any[]>([]);
   const [selectedCollectionIds, setSelectedCollectionIds] = useState<string[]>([]);
 
   // Form State
@@ -279,8 +281,26 @@ export default function PreorderAdminPage() {
   const [recordsStatus, setRecordsStatus] = useState('ALL');
   const [preorderMetrics, setPreorderMetrics] = useState<PreorderMetrics | null>(null);
 
+  const [storeProducts, setStoreProducts] = useState<any[]>([]);
+
+  const fetchProducts = async () => {
+    try {
+      const pUrl = currentStore?.shopDomain
+        ? `/api/preorder?action=products&shop=${encodeURIComponent(currentStore.shopDomain)}`
+        : `/api/preorder?action=products`;
+      const res = await shopifyFetch(pUrl);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.products)) {
+        setStoreProducts(data.products);
+      }
+    } catch (err) {
+      console.error('Failed to load store products:', err);
+    }
+  };
+
   useEffect(() => {
     fetchConfig();
+    fetchProducts();
     fetchRecords(1, '', 'ALL');
   }, [currentStore?.shopDomain]);
 
@@ -608,15 +628,37 @@ export default function PreorderAdminPage() {
   };
 
   const tabs: PageTab<PreorderTabId>[] = [
+    { id: 'activate_theme', label: 'Activate Theme' },
     { id: 'general', label: 'Setup & Products' },
     { id: 'offers_payment', label: 'Offer & Payment' },
     { id: 'status_timer', label: 'Status & Timer' },
     { id: 'orders', label: 'Pre-order Tracking' },
   ];
 
+    const activeProduct = useMemo(() => {
+    if (selectedProductIds.length > 0 && storeProducts.length > 0) {
+      const found = storeProducts.find((p) => {
+        const cleanId = p.shopifyProductId ? p.shopifyProductId.replace(/^gid:\/\/shopify\/Product\//, '') : '';
+        return (
+          selectedProductIds.includes(p.id) ||
+          selectedProductIds.includes(p.shopifyProductId) ||
+          selectedProductIds.includes(cleanId)
+        );
+      });
+      if (found) return found;
+    }
+    return storeProducts[0] || null;
+  }, [selectedProductIds, storeProducts]);
+
+  const previewStoreName = currentStore?.label || currentStore?.masterLabel || (currentStore?.shopDomain ? currentStore.shopDomain.replace('.myshopify.com', '') : '') || (isStandalone ? 'Standalone Store' : 'Online Store');
+
   const previewColumn = (
     <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-6">
       <PreviewCard
+        productTitle={activeProduct?.title || 'Cotton T-shirt'}
+        productImage={activeProduct?.imageUrl || null}
+        variants={activeProduct?.variants || []}
+        storeName={previewStoreName}
         enabled={enabled}
         customerMessage={customerMessage}
         shippingMessage={shippingMessage}
@@ -673,12 +715,10 @@ export default function PreorderAdminPage() {
         subtitle="Allow customers to pre-order items when stock drops to or below the configured inventory threshold."
       />
 
-      <ThemeActivationBanner />
-
       {/* Pre-order Performance Overview: 4 database-driven cards (Total Pre-orders, Pending Pre-orders, Pre-order Revenue, Pending Revenue) at the top of the navbar */}
       <PreorderPerformanceCard metrics={preorderMetrics || undefined} />
 
-      {/* 3-Tab Navbar Navigation */}
+      {/* 5-Tab Navbar Navigation: Starting with Activate Theme, then the 4 tabs */}
       <PageTabs
         tabs={tabs}
         activeTab={activeTab}
@@ -686,7 +726,7 @@ export default function PreorderAdminPage() {
       />
 
       {/* Action Bar Under Navbar */}
-      {activeTab !== 'orders' && (
+      {activeTab !== 'orders' && activeTab !== 'activate_theme' && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 pb-2">
           <div className="flex items-center gap-2">
             {isDirty && (
@@ -703,6 +743,16 @@ export default function PreorderAdminPage() {
             loadingLabel="Saving Changes..."
             disabled={saving}
           />
+        </div>
+      )}
+
+      {/* TAB 0: Activate Theme */}
+      {activeTab === 'activate_theme' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-fadeIn">
+          <div className="lg:col-span-7 space-y-6">
+            <ThemeActivationBanner />
+          </div>
+          {previewColumn}
         </div>
       )}
 
@@ -871,6 +921,8 @@ export default function PreorderAdminPage() {
                       <PreorderProductSelector
                         selectedProductIds={selectedProductIds}
                         onChange={setSelectedProductIds}
+                        onSelectedProductsChange={setSelectedProductsData}
+                        onProductsLoaded={setStoreProducts}
                         inventoryThreshold={parseInt(inventoryThreshold, 10) || 0}
                       />
                     </div>

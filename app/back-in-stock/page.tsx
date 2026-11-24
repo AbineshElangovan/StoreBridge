@@ -181,7 +181,7 @@ export default function BackInStockAdminPage() {
   };
 
   const activeStore = stores.find((s) => s.id === selectedStoreId) || stores[0] || null;
-  const previewStoreName = activeStore ? (activeStore.label || activeStore.shopDomain) : 'ESHAN Chennai Store';
+  const previewStoreName = activeStore ? (activeStore.label || activeStore.shopDomain) : (isStandalone ? 'Standalone Store' : 'Store');
   const previewStoreDomain = activeStore ? activeStore.shopDomain : 'eshan-inventory-solutions.myshopify.com';
   const previewStoreProductUrl = `https://${previewStoreDomain}/products/cotton-t-shirt`;
 

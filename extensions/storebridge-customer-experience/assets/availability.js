@@ -62,16 +62,18 @@
       } catch (_) {}
     }
 
+    // Prefer ACTIVE_APP_API_URL for local development tunnel synchronization
+    if (ACTIVE_APP_API_URL && !ACTIVE_APP_API_URL.includes('undefined')) {
+      return ACTIVE_APP_API_URL;
+    }
+
     let url = (config.apiUrl || '').trim();
     if (!url) {
       const root = getRootElement() || document.getElementById('storebridge-global-embed') || document.querySelector('[data-storebridge-embed="true"]');
       url = (root?.dataset?.apiUrl || '').trim();
     }
     url = url.replace(/\/+$/, '');
-    if (!url || url.includes('version-control.d38r9lc5j1o8oj.amplifyapp.com')) {
-      return ACTIVE_APP_API_URL;
-    }
-    return url;
+    return url || PRODUCTION_LIVE_API_URL;
   }
 
   const DEFAULT_CONFIG = {
@@ -1247,6 +1249,7 @@
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
+      timeZone: 'Asia/Kolkata',
     });
   }
 
@@ -1306,8 +1309,9 @@
     const textColor = timer.textColorEnd || timer.textColor || (config?.preorder?.timerTextColorEnd) || (config?.preorder?.timerTextColor) || '#ffffff';
     const radius = Number(timer.borderRadius ?? config?.preorder?.timerBorderRadius ?? 50);
 
-    const targetDateStr = timer.targetDate || (config?.preorder && (config.preorder.timerCustomDate || config.preorder.endDate)) || '2026-11-27T23:00:00.000Z';
-    const formattedTarget = targetDateStr ? formatHumanDateTime(targetDateStr) : '';
+    const targetDateStr = timer.targetDate || (config?.preorder && (config.preorder.timerCustomDate || config.preorder.endDate)) || null;
+    if (!targetDateStr) return '';
+    const formattedTarget = formatHumanDateTime(targetDateStr);
 
     return `
       <div class="storebridge-timer-wrapper" style="margin: 6px 0 14px 0; background: rgba(249, 250, 251, 0.95); border: 1px solid #f3f4f6; border-radius: 12px; padding: 12px 10px; text-align: center;">

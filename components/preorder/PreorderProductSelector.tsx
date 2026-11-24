@@ -5,6 +5,16 @@ import { shopifyFetch } from '@/lib/shopify/Client';
 import { Loading } from '@/components/common/Loading';
 import { useTheme } from '@/components/providers/ThemeContext';
 
+export interface ProductVariantSummary {
+  id: string;
+  title: string;
+  sku: string | null;
+  imageUrl?: string | null;
+  inventoryQuantity: number;
+  price: number;
+  optionsJson?: Record<string, string> | null;
+}
+
 export interface ProductSummary {
   id: string;
   shopifyProductId: string;
@@ -16,11 +26,14 @@ export interface ProductSummary {
   variantCount?: number;
   hasOutOfStockVariant?: boolean;
   isOutOfStock?: boolean;
+  variants?: ProductVariantSummary[];
 }
 
 interface PreorderProductSelectorProps {
   selectedProductIds: string[];
   onChange: (productIds: string[]) => void;
+  onSelectedProductsChange?: (products: ProductSummary[]) => void;
+  onProductsLoaded?: (products: ProductSummary[]) => void;
   inventoryThreshold?: number;
   disabled?: boolean;
 }
@@ -28,6 +41,8 @@ interface PreorderProductSelectorProps {
 export function PreorderProductSelector({
   selectedProductIds,
   onChange,
+  onSelectedProductsChange,
+  onProductsLoaded,
   disabled = false,
 }: PreorderProductSelectorProps) {
   const { currentTheme } = useTheme();
@@ -50,6 +65,9 @@ export function PreorderProductSelector({
       const prodData = await prodRes.json();
       if (prodData.success && Array.isArray(prodData.products)) {
         setProducts(prodData.products);
+        if (onProductsLoaded) {
+          onProductsLoaded(prodData.products);
+        }
       }
     } catch (err) {
       console.error('[PreorderProductSelector] Failed to load products:', err);
@@ -65,6 +83,12 @@ export function PreorderProductSelector({
   const selectedProductsList = useMemo(() => {
     return products.filter((p) => normalizedSelected.has(normalizeId(p.shopifyProductId)));
   }, [products, normalizedSelected]);
+
+  useEffect(() => {
+    if (onSelectedProductsChange) {
+      onSelectedProductsChange(selectedProductsList);
+    }
+  }, [selectedProductsList, onSelectedProductsChange]);
 
   const eligibleProducts = useMemo(() => {
     return products.filter((p) => {

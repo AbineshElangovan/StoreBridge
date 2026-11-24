@@ -103,6 +103,7 @@ export async function GET(req: NextRequest) {
           imageUrl: true,
           price: true,
           inventoryQuantity: true,
+          optionsJson: true,
           collections: {
             select: {
               collection: {
@@ -145,8 +146,10 @@ export async function GET(req: NextRequest) {
           id: item.shopifyVariantId,
           title: item.title,
           sku: item.sku,
+          imageUrl: item.imageUrl || null,
           inventoryQuantity: item.inventoryQuantity,
           price: item.price,
+          optionsJson: item.optionsJson || null,
         });
 
         if (item.collections) {

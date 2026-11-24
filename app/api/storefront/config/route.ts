@@ -228,10 +228,9 @@ export async function GET(req: NextRequest) {
       ? (timerCustomDate || endDate)
       : (endDate || timerCustomDate);
 
-    if (showTimer) {
-      const finalEndTarget = effectiveEndTarget || new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-      targetCountdownDate = finalEndTarget.toISOString();
-      if (effectiveEndTarget && now > effectiveEndTarget) {
+    if (showTimer && effectiveEndTarget) {
+      targetCountdownDate = effectiveEndTarget.toISOString();
+      if (now > effectiveEndTarget) {
         isExpired = true;
         isLive = false;
       }
@@ -250,6 +249,7 @@ export async function GET(req: NextRequest) {
           isTargeted,
           statusScheduleType,
           endDate: endDate ? endDate.toISOString() : null,
+          timezone: 'Asia/Kolkata',
           isExpired,
           isLive,
           timer: {

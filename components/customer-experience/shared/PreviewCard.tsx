@@ -1,11 +1,30 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Icon } from '@shopify/polaris';
 import { DeliveryIcon, CheckIcon, NotificationIcon } from '@shopify/polaris-icons';
 import { useTheme } from '@/components/providers/ThemeContext';
 import { PolarisSelect } from '@/components/common';
 
+export interface ParsedVariantOption {
+  name: string;
+  values: string[];
+}
+
+export interface PreorderPreviewVariant {
+  id: string;
+  title: string;
+  sku?: string | null;
+  imageUrl?: string | null;
+  price?: number;
+  optionsJson?: Record<string, string> | null;
+  inventoryQuantity?: number;
+}
+
 export interface PreorderPreviewProps {
+  productTitle?: string;
+  productImage?: string | null;
+  storeName?: string;
+  variants?: PreorderPreviewVariant[];
   enabled: boolean;
   customerMessage: string;
   shippingMessage: string;
@@ -54,6 +73,10 @@ export interface PreorderPreviewProps {
 }
 
 export function PreviewCard({
+  productTitle = 'Cotton T-shirt',
+  productImage = null,
+  storeName = 'Store',
+  variants,
   enabled,
   customerMessage,
   shippingMessage,
@@ -90,8 +113,117 @@ export function PreviewCard({
   const accentColor = currentTheme?.accentColor || '#d1fae5';
   const darkColor = currentTheme?.darkColor || '#022c22';
 
-  const [selectedVariant, setSelectedVariant] = useState<'L' | 'M' | 'S'>('L');
-  const [selectorType, setSelectorType] = useState<'dropdown' | 'buttons'>('buttons');
+  const [imageError, setImageError] = useState(false);
+  const [currentImgSrc, setCurrentImgSrc] = useState<string | null>(productImage || null);
+
+  useEffect(() => {
+    setCurrentImgSrc(productImage || null);
+    setImageError(false);
+  }, [productImage]);
+
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
+
+  // Parse options from variants
+  const parsedOptions = useMemo(() => {
+    if (!variants || variants.length === 0) {
+      return [
+        { name: 'Color', values: ['White'] },
+        { name: 'Size', values: ['L', 'M'] },
+      ];
+    }
+
+    if (variants.length === 1 && (variants[0].title === 'Default Title' || !variants[0].title)) {
+      return null;
+    }
+
+    // Try extracting from optionsJson
+    const optionMap: Record<string, Set<string>> = {};
+    let hasJson = false;
+    for (const v of variants) {
+      if (v.optionsJson && typeof v.optionsJson === 'object') {
+        hasJson = true;
+        for (const [key, val] of Object.entries(v.optionsJson)) {
+          if (val) {
+            if (!optionMap[key]) optionMap[key] = new Set();
+            optionMap[key].add(String(val));
+          }
+        }
+      }
+    }
+
+    if (hasJson && Object.keys(optionMap).length > 0) {
+      return Object.entries(optionMap).map(([name, set]) => ({
+        name,
+        values: Array.from(set),
+      }));
+    }
+
+    // Fallback: parse from variant title (e.g. "White / L" or "Cotton T-shirt - White / L")
+    const colorSet = new Set<string>();
+    const sizeSet = new Set<string>();
+    const singleSet = new Set<string>();
+
+    for (const v of variants) {
+      const clean = v.title.includes(' - ') ? v.title.split(' - ').slice(1).join(' - ') : v.title;
+      if (clean.includes(' / ')) {
+        const parts = clean.split(' / ').map((s) => s.trim());
+        if (parts[0]) colorSet.add(parts[0]);
+        if (parts[1]) sizeSet.add(parts[1]);
+      } else if (clean && clean !== 'Default Title') {
+        singleSet.add(clean.trim());
+      }
+    }
+
+    if (colorSet.size > 0 || sizeSet.size > 0) {
+      const res: { name: string; values: string[] }[] = [];
+      if (colorSet.size > 0) res.push({ name: 'Color', values: Array.from(colorSet) });
+      if (sizeSet.size > 0) res.push({ name: 'Size', values: Array.from(sizeSet) });
+      return res;
+    }
+
+    if (singleSet.size > 0) {
+      return [{ name: 'Option', values: Array.from(singleSet) }];
+    }
+
+    return null;
+  }, [variants]);
+
+  // Sync initial selection
+  useEffect(() => {
+    if (parsedOptions && parsedOptions.length > 0) {
+      const initial: Record<string, string> = {};
+      parsedOptions.forEach((opt) => {
+        initial[opt.name] = opt.values[0] || '';
+      });
+      setSelectedOptions(initial);
+    } else {
+      setSelectedOptions({});
+    }
+  }, [parsedOptions]);
+
+  // When variant changes, update image if that variant has its own image
+  const handleSelectOption = (optName: string, val: string) => {
+    const updated = { ...selectedOptions, [optName]: val };
+    setSelectedOptions(updated);
+
+    if (variants && variants.length > 0) {
+      const matched = variants.find((v) => {
+        if (v.optionsJson && typeof v.optionsJson === 'object') {
+          return Object.entries(updated).every(([k, vVal]) => !vVal || v.optionsJson?.[k] === vVal);
+        }
+        const clean = v.title.includes(' - ') ? v.title.split(' - ').slice(1).join(' - ') : v.title;
+        return Object.values(updated).every((vVal) => !vVal || clean.includes(vVal));
+      });
+
+      if (matched?.imageUrl) {
+        setCurrentImgSrc(matched.imageUrl);
+        setImageError(false);
+      } else if (productImage) {
+        setCurrentImgSrc(productImage);
+        setImageError(false);
+      }
+    }
+  };
 
   const [currentPlan, setCurrentPlan] = useState<'HALF' | 'FULL'>(defaultPaymentOption || (allowHalfPayment ? 'HALF' : 'FULL'));
 
@@ -253,8 +385,16 @@ export function PreviewCard({
         <div className="text-center text-[11px] font-semibold text-gray-500 pt-0.5 space-y-0.5">
           <div>
             Preorder ends: {targetDate && !isNaN(targetDate.getTime())
-              ? targetDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
-              : '4 Dec 2026, 5:30 am'}
+              ? targetDate.toLocaleDateString('en-GB', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  hour12: true,
+                  timeZone: 'Asia/Kolkata',
+                })
+              : ''}
           </div>
         </div>
       </div>
@@ -282,10 +422,32 @@ export function PreviewCard({
       </div>
 
       <div className="p-6 max-w-[420px] mx-auto space-y-4">
+        {/* Product Image */}
+        <div className="relative w-full aspect-square max-h-[250px] rounded-2xl overflow-hidden bg-slate-50 border border-gray-100 flex items-center justify-center shadow-2xs group">
+          {currentImgSrc && !imageError ? (
+            <img
+              src={currentImgSrc}
+              alt={productTitle}
+              onError={() => setImageError(true)}
+              className="w-full h-full object-contain p-3 transition-transform duration-300 group-hover:scale-105"
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-gradient-to-b from-slate-50 to-slate-100/80">
+              <div className="w-20 h-20 rounded-2xl bg-white border border-slate-200/60 shadow-xs flex items-center justify-center text-slate-400 group-hover:scale-105 transition-transform duration-300">
+                <svg className="w-12 h-12 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z" />
+                </svg>
+              </div>
+              <span className="mt-3 text-xs font-semibold text-slate-700 truncate max-w-[200px]">{productTitle}</span>
+              <span className="text-[10px] text-slate-400 mt-0.5">Product Image Preview</span>
+            </div>
+          )}
+        </div>
+
         {/* Product Title & Store */}
         <div>
           <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold text-gray-900">Cotton T-shirt</h1>
+            <h1 className="text-xl font-bold text-gray-900">{productTitle}</h1>
             {enabled && (
               <span
                 className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-extrabold border transition-colors"
@@ -295,117 +457,63 @@ export function PreviewCard({
               </span>
             )}
           </div>
-          <p className="text-xs text-gray-500 font-medium mt-0.5">ESHAN Chennai Store</p>
+          <p className="text-xs text-gray-500 font-medium mt-0.5">{storeName}</p>
         </div>
 
-        {/* Variant Selectors with Dropdown / Scroll-Down support */}
-        <div className="space-y-3 pt-1">
-          {/* Selector Type Tabs */}
-          <div className="flex items-center justify-between pb-1">
-            <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Variant Selector</span>
-            <div className="flex gap-1 bg-gray-100 p-0.5 rounded-lg border border-gray-200">
-              <button
-                type="button"
-                onClick={() => setSelectorType('dropdown')}
-                className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all ${
-                  selectorType === 'dropdown' ? 'bg-white text-gray-900 shadow-2xs' : 'text-gray-500'
-                }`}
-              >
-                Dropdown (Scroll down)
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectorType('buttons')}
-                className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition-all ${
-                  selectorType === 'buttons' ? 'bg-white text-gray-900 shadow-2xs' : 'text-gray-500'
-                }`}
-              >
-                Pills
-              </button>
+        {/* Variant Selectors - Only Pills */}
+        {parsedOptions && parsedOptions.length > 0 && (
+          <div className="space-y-3 pt-1">
+            <div className="flex items-center justify-between pb-1">
+              <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Variant Selector</span>
             </div>
-          </div>
 
-          {selectorType === 'dropdown' ? (
-            /* Scroll down / dropdown selector */
-            <div>
-              <PolarisSelect
-                label="Select Variant"
-                labelHidden={false}
-                value={selectedVariant}
-                onChange={(val) => setSelectedVariant(val as any)}
-                options={[
-                  { label: 'White / L — Sold Out (Pre-order)', value: 'L' },
-                  { label: 'White / M — 12 in stock (Add to Cart)', value: 'M' },
-                  { label: 'White / S — 0 in stock (Pre-order)', value: 'S' },
-                ]}
-              />
-              <span className="text-[10px] text-gray-400 block mt-1">
-                {selectedVariant === 'L' || selectedVariant === 'S'
-                  ? 'Selected variant stock is 0 → Shows Pre-order'
-                  : 'Selected variant stock is 12 → Shows Add to Cart'}
-              </span>
-            </div>
-          ) : (
-            /* Option pills selector */
             <div className="space-y-2.5">
-              <div>
-                <label className="text-xs font-semibold text-gray-700 block mb-1">Color: White</label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    className="px-3 py-1.5 text-xs font-semibold rounded-lg border-2 border-gray-900 bg-white text-gray-900"
-                  >
-                    White
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-gray-700">Size</label>
-                </div>
-                <div className="flex gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedVariant('L')}
-                    className={`min-w-[56px] px-4 py-2 text-xs font-bold rounded-xl border transition-all ${
-                      selectedVariant === 'L'
-                        ? 'bg-black text-white border-black shadow-xs'
-                        : 'border-gray-200 bg-white text-gray-800 hover:border-gray-400'
-                    }`}
-                  >
-                    L
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedVariant('M')}
-                    className={`min-w-[56px] px-4 py-2 text-xs font-bold rounded-xl border transition-all ${
-                      selectedVariant === 'M'
-                        ? 'bg-black text-white border-black shadow-xs'
-                        : 'border-gray-200 bg-white text-gray-800 hover:border-gray-400'
-                    }`}
-                  >
-                    M
-                  </button>
-                </div>
-              </div>
+              {parsedOptions.map((opt: ParsedVariantOption) => {
+                const currentVal = selectedOptions[opt.name] || opt.values[0];
+                return (
+                  <div key={opt.name}>
+                    <label className="text-xs font-semibold text-gray-700 block mb-1">
+                      {opt.name}: <span className="font-bold text-gray-900">{currentVal}</span>
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {opt.values.map((val: string) => {
+                        const isSelected = currentVal === val;
+                        return (
+                          <button
+                            key={val}
+                            type="button"
+                            onClick={() => handleSelectOption(opt.name, val)}
+                            className={`min-w-[48px] px-3.5 py-1.5 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-black text-white border-black shadow-xs'
+                                : 'border-gray-200 bg-white text-gray-800 hover:border-gray-400'
+                            }`}
+                          >
+                            {val}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
 
               {/* Quantity Stepper matching live store */}
               <div className="pt-1">
                 <div className="inline-flex items-center border border-gray-300 rounded-xl bg-white overflow-hidden shadow-2xs">
                   <button type="button" className="px-3.5 py-1.5 text-gray-600 hover:text-gray-950 text-xs font-bold select-none cursor-pointer hover:bg-gray-50">-</button>
-                  <span className="px-3 py-1.5 text-xs font-bold text-gray-900 select-none border-x border-gray-100 min-w-[28px] text-center">1</span>
+                  <span className="px-3.5 py-1.5 text-xs font-bold text-gray-900 select-none border-x border-gray-100 min-w-[28px] text-center">1</span>
                   <button type="button" className="px-3.5 py-1.5 text-gray-600 hover:text-gray-950 text-xs font-bold select-none cursor-pointer hover:bg-gray-50">+</button>
                 </div>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Price */}
         <div className="pt-1 border-t border-gray-100">
           <div className="flex items-baseline gap-2 flex-wrap">
-            {isHalfPayment && selectedVariant === 'L' ? (
+            {isHalfPayment ? (
               <>
                 <span className="text-2xl font-black text-gray-900">
                   Rs. {payableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -426,7 +534,7 @@ export function PreviewCard({
                   </span>
                 )}
               </>
-            ) : calculation && calculation.discountType !== 'none' && calculation.discountAmount > 0 && selectedVariant === 'L' ? (
+            ) : calculation && calculation.discountType !== 'none' && calculation.discountAmount > 0 ? (
               <>
                 <span className="text-2xl font-black text-gray-900">{calculation.formattedFinalPrice}</span>
                 <span className="text-sm font-semibold text-gray-400 line-through">{calculation.formattedOriginalPrice}</span>
@@ -442,7 +550,7 @@ export function PreviewCard({
               </span>
             )}
           </div>
-          {showSavings && isHalfPayment && selectedVariant === 'L' ? (
+          {showSavings && isHalfPayment ? (
             <p className="text-xs font-bold tracking-tight mt-1 text-emerald-700">
               {calculation && calculation.discountType !== 'none' && calculation.discountAmount > 0 ? (
                 <>
@@ -451,7 +559,7 @@ export function PreviewCard({
               ) : null}
               Pay Rs. {payableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} today (50% deposit) • Rs. {payableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} balance due upon restock
             </p>
-          ) : showSavings && calculation && calculation.discountType !== 'none' && calculation.discountAmount > 0 && selectedVariant === 'L' && calculation.savingsText ? (
+          ) : showSavings && calculation && calculation.discountType !== 'none' && calculation.discountAmount > 0 && calculation.savingsText ? (
             <p className="text-xs font-black tracking-tight mt-1 text-emerald-700">
               {calculation.savingsText}
             </p>
@@ -471,7 +579,7 @@ export function PreviewCard({
         </div>
 
         {/* StoreOrbit availability block */}
-        {selectedVariant === 'L' ? (
+        {true ? (
           effectiveIsLive ? (
             <div className="space-y-3.5 animate-fadeIn">
               {/* Countdown Timer if enabled */}
