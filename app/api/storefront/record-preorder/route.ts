@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
     // Bidirectional sync to Neon DB so Amplify and Local are always in sync
     try {
       if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('neon.tech')) {
-        const remoteNeonUrl = process.env.REMOTE_NEON_URL || process.env.NEON_DATABASE_URL || 'postgresql://neondb_owner:npg_7rDw2gJtlEeU@ep-restless-sun-b5m5tyc8-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
+        const remoteNeonUrl = process.env.REMOTE_NEON_URL || process.env.NEON_DATABASE_URL || 'postgresql://neondb_owner:npg_AnjY2lru1EtG@ep-restless-sun-b5m5tyc8-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require';
         const { PrismaClient } = require('@prisma/client');
         const remoteNeon = new PrismaClient({
           datasources: { db: { url: remoteNeonUrl } }

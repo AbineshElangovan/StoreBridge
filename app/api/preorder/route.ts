@@ -269,7 +269,7 @@ export async function POST(req: NextRequest) {
     // Real-time synchronization to Neon DB so live storefront updates immediately
     const neonUrl = process.env.VERCEL_NEON_URL ||
       process.env.REMOTE_NEON_URL ||
-      'postgresql://neondb_owner:npg_7rDw2gJtlEeU@ep-restless-sun-b5m5tyc8.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require';
+      'postgresql://neondb_owner:npg_AnjY2lru1EtG@ep-restless-sun-b5m5tyc8.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require';
 
     if (!process.env.DATABASE_URL?.includes('neon.tech')) {
       try {
